@@ -110,7 +110,7 @@
       "variables": {
         "id": "gid://shopify/Product/9264105488617"
       },
-      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -136,7 +136,7 @@
       "variables": {
         "id": "gid://shopify/Product/9264105488617"
       },
-      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {

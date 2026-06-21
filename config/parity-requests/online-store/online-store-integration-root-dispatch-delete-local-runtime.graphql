@@ -1,0 +1,11 @@
+mutation NeutralOnlineStoreIntegrationDelete($scriptId: ID!) {
+  removedScript: scriptTagDelete(id: $scriptId) {
+    deletedScriptTagId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}

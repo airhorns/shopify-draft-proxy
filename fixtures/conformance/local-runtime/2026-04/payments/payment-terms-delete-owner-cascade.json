@@ -230,11 +230,11 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "PaymentTermsOwnerHydrate",
+      "operationName": "PaymentTermsDraftHydrate",
       "variables": {
         "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade"
       },
-      "query": "payment terms owner hydrate",
+      "query": "query PaymentTermsDraftHydrate($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      paymentTerms {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {

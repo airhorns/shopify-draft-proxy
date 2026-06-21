@@ -1,5 +1,6 @@
 use super::*;
 use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
+use std::collections::{BTreeMap, BTreeSet};
 
 const INVENTORY_VALID_REASONS: &[&str] = &[
     "correction",
@@ -20,6 +21,19 @@ const INVENTORY_VALID_REASONS: &[&str] = &[
     "safety_stock",
     "shrinkage",
 ];
+const INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES: &[&str] = &[
+    "available",
+    "damaged",
+    "incoming",
+    "quality_control",
+    "reserved",
+    "safety_stock",
+];
+const INVENTORY_SET_QUANTITY_NAMES: &[&str] = &["available", "on_hand"];
+const INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE: &str = "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.";
+const INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE: &str =
+    "The quantity name must be either 'available' or 'on_hand'.";
+const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
 const DEFAULT_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/106318430514";
 const FALLBACK_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/68509171945";
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
@@ -42,6 +56,49 @@ const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VN", "VU", "WF", "WS", "XK", "YE",
     "YT", "ZA", "ZM", "ZW",
 ];
+const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on InventoryItem {
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+      }
+      ... on Location {
+        id
+        name
+        isActive
+      }
+    }
+  }
+"#;
 
 impl DraftProxy {
     fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
@@ -265,115 +322,129 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn webhook_subscription_create(
+    /// Dispatch a webhook subscription mutation document. Iterates over every
+    /// root field so aliased multi-mutation documents (e.g. several
+    /// `webhookSubscriptionCreate` aliases in one request) all resolve, keyed by
+    /// their response alias. Schema-level errors (invalid topic literal, missing
+    /// required pub/sub fields) abort the whole operation with top-level errors,
+    /// matching GraphQL execution semantics.
+    pub(in crate::proxy) fn webhook_mutation(
         &mut self,
-        root_field: &str,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let document = parsed_document(query, variables);
-        let root_selection = document
-            .as_ref()
-            .and_then(|document| document.root_fields.first());
-        if let Some(error) = root_selection
-            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
-        {
-            return ok_json(json!({ "errors": [error] }));
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in &document.root_fields {
+            let required_errors = webhook_required_argument_errors(field, &document);
+            if !required_errors.is_empty() {
+                return ok_json(json!({ "errors": required_errors }));
+            }
+            if let Some(error) = webhook_subscription_topic_coercion_error(field, Some(&document)) {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            if let Some(error) =
+                dedicated_pubsub_required_field_error(&field.name, field, &document)
+            {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            let payload = match field.name.as_str() {
+                "webhookSubscriptionCreate"
+                | "pubSubWebhookSubscriptionCreate"
+                | "eventBridgeWebhookSubscriptionCreate" => {
+                    self.webhook_subscription_create_field(field, request, query, variables)
+                }
+                "webhookSubscriptionUpdate"
+                | "pubSubWebhookSubscriptionUpdate"
+                | "eventBridgeWebhookSubscriptionUpdate" => {
+                    self.webhook_subscription_update_field(field, request, query, variables)
+                }
+                "webhookSubscriptionDelete" => {
+                    self.webhook_subscription_delete_field(field, request, query, variables)
+                }
+                other => {
+                    return json_error(
+                        501,
+                        &format!("No Rust webhooks dispatcher implemented for root field: {other}"),
+                    );
+                }
+            };
+            data.insert(field.response_key.clone(), payload);
         }
-        if let Some(error) = root_selection
-            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        let arguments = root_selection
-            .map(|field| field.arguments.clone())
-            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
+        ok_json(json!({ "data": data }))
+    }
+
+    fn webhook_subscription_create_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
-        let record = self.webhook_subscription_record(&id, &arguments, None);
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .map(String::as_str);
+        let record = self.webhook_subscription_record(&id, &field.arguments, None, api_client_id);
+        let errors =
+            self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
-            return ok_json(json!({ "data": { response_key: payload } }));
+            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: self.webhook_subscription_payload(record, payload_selection, Vec::new())
-            }
-        }))
+        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
 
-    pub(in crate::proxy) fn webhook_subscription_update(
+    fn webhook_subscription_update_field(
         &mut self,
-        root_field: &str,
+        field: &RootFieldSelection,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let document = parsed_document(query, variables);
-        let root_selection = document
-            .as_ref()
-            .and_then(|document| document.root_fields.first());
-        if let Some(error) = root_selection
-            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        if let Some(error) = root_selection
-            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        let arguments = root_selection
-            .map(|field| field.arguments.clone())
-            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
-            let payload = self.webhook_subscription_payload(
+            return self.webhook_subscription_payload(
                 Value::Null,
-                payload_selection,
+                field.selection.clone(),
                 vec![json!({ "field": ["id"], "message": "Webhook subscription does not exist" })],
             );
-            return ok_json(json!({ "data": { response_key: payload } }));
         };
-        let record = self.webhook_subscription_record(&id, &arguments, Some(existing));
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .map(String::as_str);
+        let record =
+            self.webhook_subscription_record(&id, &field.arguments, Some(existing), api_client_id);
+        let errors =
+            self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
-            return ok_json(json!({ "data": { response_key: payload } }));
+            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: self.webhook_subscription_payload(record, payload_selection, Vec::new())
-            }
-        }))
+        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
 
-    pub(in crate::proxy) fn webhook_subscription_delete(
+    fn webhook_subscription_delete_field(
         &mut self,
+        field: &RootFieldSelection,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "webhookSubscriptionDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let deleted_id = if self
             .store
             .staged
@@ -402,7 +473,7 @@ impl DraftProxy {
                 json!([])
             }
         });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn webhook_subscription_payload(
@@ -469,7 +540,9 @@ impl DraftProxy {
             }));
         }
         if let Some(pubsub_tail) = uri.strip_prefix("pubsub://") {
-            if !pubsub_tail.contains(':') {
+            let pubsub_parts = pubsub_tail.split_once(':');
+            let (project, topic) = pubsub_parts.unwrap_or((pubsub_tail, ""));
+            if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
                 errors.push(json!({
                     "field": ["webhookSubscription", "callbackUrl"],
                     "message": "Address protocol pubsub:// is not supported"
@@ -478,40 +551,37 @@ impl DraftProxy {
                     "field": ["webhookSubscription", "callbackUrl"],
                     "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
                 }));
-            } else {
-                let (project, topic) = pubsub_tail.split_once(':').unwrap_or((pubsub_tail, ""));
-                if !valid_gcp_project_id(project) {
-                    if root_field.starts_with("pubSubWebhookSubscription") {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "pubSubProject"],
-                            "message": "Google Cloud Pub/Sub project ID is not valid"
-                        }));
-                    } else {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is invalid"
-                        }));
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is not a valid GCP project id."
-                        }));
-                    }
-                } else if !valid_gcp_pubsub_topic_id(topic) {
-                    if root_field.starts_with("pubSubWebhookSubscription") {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "pubSubTopic"],
-                            "message": "Google Cloud Pub/Sub topic ID is not valid"
-                        }));
-                    } else {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is invalid"
-                        }));
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is not a valid GCP topic id."
-                        }));
-                    }
+            } else if !valid_gcp_project_id(project) {
+                if root_field.starts_with("pubSubWebhookSubscription") {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "pubSubProject"],
+                        "message": "Google Cloud Pub/Sub project ID is not valid"
+                    }));
+                } else {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is invalid"
+                    }));
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is not a valid GCP project id."
+                    }));
+                }
+            } else if !valid_gcp_pubsub_topic_id(topic) {
+                if root_field.starts_with("pubSubWebhookSubscription") {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "pubSubTopic"],
+                        "message": "Google Cloud Pub/Sub topic ID is not valid"
+                    }));
+                } else {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is invalid"
+                    }));
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is not a valid GCP topic id."
+                    }));
                 }
             }
         }
@@ -547,7 +617,9 @@ impl DraftProxy {
         }
         let topic = record["topic"].as_str().unwrap_or_default();
         let format = record["format"].as_str().unwrap_or_default();
-        if uri.starts_with("pubsub://") && format.eq_ignore_ascii_case("XML") {
+        if (uri.starts_with("pubsub://") || uri.starts_with("arn:aws:events:"))
+            && !format.eq_ignore_ascii_case("JSON")
+        {
             errors.push(json!({
                 "field": ["webhookSubscription", "format"],
                 "message": "Format can only be used with format: 'json'"
@@ -586,9 +658,10 @@ impl DraftProxy {
                     "message": "Name is too short (minimum is 1 character)"
                 }));
             }
-            if !name
-                .chars()
-                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+            if name.is_empty()
+                || !name
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
             {
                 errors.push(json!({
                     "field": ["webhookSubscription", "name"],
@@ -619,6 +692,14 @@ impl DraftProxy {
                 }));
             }
         }
+        if let Some(filter) = record["filter"].as_str() {
+            if webhook_filter_is_invalid(filter) {
+                errors.push(json!({
+                    "field": ["webhookSubscription"],
+                    "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+                }));
+            }
+        }
         errors
     }
 
@@ -627,6 +708,7 @@ impl DraftProxy {
         id: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         existing: Option<Value>,
+        api_client_id: Option<&str>,
     ) -> Value {
         let webhook_input =
             resolved_object_field(arguments, "webhookSubscription").unwrap_or_default();
@@ -649,7 +731,7 @@ impl DraftProxy {
                     .as_ref()
                     .and_then(|record| record["callbackUrl"].as_str().map(ToString::to_string))
             })
-            .unwrap_or_else(|| "https://hooks.example.com/orders".to_string())
+            .unwrap_or_default()
             .trim()
             .to_string();
         let format = resolved_string_field(&webhook_input, "format")
@@ -683,10 +765,12 @@ impl DraftProxy {
                 .unwrap_or_else(|| json!([]))
         };
         let metafield_namespaces = if webhook_input.contains_key("metafieldNamespaces") {
-            json!(resolved_string_list_field_unsorted(
-                &webhook_input,
-                "metafieldNamespaces"
-            ))
+            json!(
+                resolved_string_list_field_unsorted(&webhook_input, "metafieldNamespaces")
+                    .into_iter()
+                    .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
+                    .collect::<Vec<_>>()
+            )
         } else {
             existing
                 .as_ref()
@@ -758,7 +842,53 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut top_errors: Vec<Value> = Vec::new();
+        let mut omit_data = false;
         for field in fields {
+            if matches!(
+                field.name.as_str(),
+                "marketingActivityCreateExternal"
+                    | "marketingActivityUpdateExternal"
+                    | "marketingActivityUpsertExternal"
+            ) {
+                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                match marketing_url_scheme_error(&input) {
+                    Some(MarketingUrlError::WrongScheme) => {
+                        top_errors.push(json!({
+                            "message": "The URL scheme must be one of the following: https,http",
+                            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+                            "path": [field.name.clone()]
+                        }));
+                        data.insert(field.response_key.clone(), Value::Null);
+                        continue;
+                    }
+                    Some(MarketingUrlError::MissingHost {
+                        field: bad_field,
+                        url,
+                        value,
+                    }) => {
+                        let type_name = marketing_external_input_type_name(&field.name);
+                        let explanation = format!("Invalid url '{url}', missing host");
+                        let message = format!(
+                            "Variable $input of type {type_name}! was provided invalid value for {bad_field} ({explanation})"
+                        );
+                        top_errors.push(json!({
+                            "message": message,
+                            "extensions": {
+                                "code": "INVALID_VARIABLE",
+                                "value": value,
+                                "problems": [{
+                                    "path": [bad_field],
+                                    "explanation": explanation.clone(),
+                                    "message": explanation
+                                }]
+                            }
+                        }));
+                        omit_data = true;
+                        continue;
+                    }
+                    None => {}
+                }
+            }
             let value = match field.name.as_str() {
                 "marketingActivityCreateExternal" => self.marketing_create_external(field, request),
                 "marketingActivityUpdateExternal" => self.marketing_update_external(field, request),
@@ -828,7 +958,11 @@ impl DraftProxy {
             };
             data.insert(field.response_key.clone(), value);
         }
-        let mut body = json!({ "data": Value::Object(data) });
+        let mut body = if omit_data {
+            json!({})
+        } else {
+            json!({ "data": Value::Object(data) })
+        };
         if !top_errors.is_empty() {
             body["errors"] = Value::Array(top_errors);
         }
@@ -857,19 +991,12 @@ impl DraftProxy {
             let target_by_remote = self.find_marketing_activity_by_remote(&remote, request);
             let campaign = resolved_string_field(&utm, "campaign").unwrap_or_default();
             let target_by_utm = self.find_marketing_activity_by_utm(&campaign, request);
-            if target_by_remote.is_some()
-                && target_by_utm.is_some()
-                && target_by_remote != target_by_utm
+            if target_by_remote.is_none()
+                || target_by_utm.is_none()
+                || target_by_remote != target_by_utm
             {
                 return selected_json(
-                    &marketing_activity_payload(
-                        None,
-                        vec![json!({
-                            "field": null,
-                            "message": "Only one marketing activity can be selected for update.",
-                            "code": "INVALID_MARKETING_ACTIVITY_ARGUMENTS"
-                        })],
-                    ),
+                    &marketing_activity_payload(None, vec![marketing_activity_missing_error()]),
                     &field.selection,
                 );
             }
@@ -1546,7 +1673,7 @@ impl DraftProxy {
             }));
         }
         if input_string_field_value(input, "urlParameterValue")
-            != json_string_value(&existing["urlParameterValue"])
+            .is_some_and(|value| json_string_value(&existing["urlParameterValue"]) != Some(value))
         {
             return Some(json!({
                 "field": ["input"],
@@ -1685,8 +1812,10 @@ impl DraftProxy {
                     self.inventory_transfer_create(field, true)
                 }
                 "inventoryTransferMarkAsReadyToShip" => self.inventory_transfer_mark_ready(field),
+                "inventoryTransferEdit" => self.inventory_transfer_edit(field),
                 "inventoryTransferSetItems" => self.inventory_transfer_set_items(field),
                 "inventoryTransferRemoveItems" => self.inventory_transfer_remove_items(field),
+                "inventoryTransferDuplicate" => self.inventory_transfer_duplicate(field),
                 "inventoryTransferCancel" => self.inventory_transfer_cancel(field),
                 "inventoryTransferDelete" => self.inventory_transfer_delete(field),
                 "inventoryShipmentCreate" => self.inventory_shipment_create(field, false),
@@ -1719,55 +1848,36 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn selling_plan_downstream_read_data(
-        &mut self,
-        query: &str,
-    ) -> Option<Value> {
-        if query.contains("DownstreamSellingPlanRead") {
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
-            ))
-            .expect("selling plan group lifecycle fixture must parse");
-            let capture_index = match self.store.staged.selling_plan_group_downstream_step {
-                0 => 4,
-                1 => 6,
-                _ => 10,
-            };
-            self.store.staged.selling_plan_group_downstream_step += 1;
-            return Some(fixture["captures"][capture_index]["response"]["data"].clone());
-        }
-        if query.contains("ProductRelationshipSellingPlanMembershipRead") {
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
-            ))
-            .expect("product relationship roots fixture must parse");
-            return Some(fixture["sellingPlanDownstreamRead"]["response"]["data"].clone());
-        }
-        None
-    }
-
     fn inventory_item_selected_json(
         &self,
         inventory_item_id: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let item_levels = self.inventory_levels_for_item(inventory_item_id);
         let variant = self
             .store
             .product_variant_by_inventory_item_id(inventory_item_id);
+        let inventory_quantity = if item_levels.is_empty() {
+            variant
+                .map(|variant| variant.inventory_quantity)
+                .unwrap_or_default()
+        } else {
+            self.inventory_total(inventory_item_id, "available")
+        };
         let variant_for_payload = variant.cloned().map(|mut variant| {
             variant.inventory_quantity = inventory_quantity;
             variant
         });
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        let variant_id = resolved_string_field(variables, "variantId").unwrap_or_else(|| {
-            format!(
-                "gid://shopify/ProductVariant/{}",
-                resource_id_tail(inventory_item_id)
-            )
-        });
+        let variant_id = resolved_string_field(variables, "variantId")
+            .or_else(|| variant.map(|variant| variant.id.clone()))
+            .unwrap_or_else(|| {
+                format!(
+                    "gid://shopify/ProductVariant/{}",
+                    resource_id_tail(inventory_item_id)
+                )
+            });
         let mut fields = serde_json::Map::new();
         for selection in selections {
             let value = match selection.name.as_str() {
@@ -1809,11 +1919,10 @@ impl DraftProxy {
                         })
                     });
                     Some(level.map_or(Value::Null, |(location_id, quantities)| {
-                        inventory_level_selected_json(
+                        self.inventory_level_json_with_item(
                             inventory_item_id,
                             location_id,
                             quantities,
-                            &self.inventory_level_view_state(),
                             &selection.selection,
                         )
                     }))
@@ -2015,6 +2124,7 @@ impl DraftProxy {
                 .and_then(Value::as_i64)
                 .unwrap_or_default(),
             selected_options,
+            media_ids: Vec::new(),
             inventory_item: ProductVariantInventoryItem {
                 id: inventory_item_id.to_string(),
                 tracked: inventory_item
@@ -2094,11 +2204,10 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        inventory_level_selected_json(
+        self.inventory_level_json_with_item(
             &inventory_item_id,
             &location_id,
             quantities,
-            &self.inventory_level_view_state(),
             selections,
         )
     }
@@ -2107,13 +2216,161 @@ impl DraftProxy {
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {
-        self.store
-            .staged
-            .inventory_levels
-            .iter()
-            .filter(|((item_id, _), _)| item_id == inventory_item_id)
-            .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone()))
-            .collect()
+        // Levels created via local mutations (e.g. inventoryActivate) are surfaced in
+        // their creation order, tracked by `inventory_level_order`. Any remaining
+        // levels (observed/hydrated from upstream) fall back to the BTreeMap's stable
+        // sorted-by-location-id order, which the inventory lifecycle specs depend on.
+        let mut levels = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (item_id, location_id) in &self.store.staged.inventory_level_order {
+            if item_id != inventory_item_id || seen.contains(location_id) {
+                continue;
+            }
+            if let Some(quantities) = self
+                .store
+                .staged
+                .inventory_levels
+                .get(&(item_id.clone(), location_id.clone()))
+            {
+                seen.insert(location_id.clone());
+                levels.push((location_id.clone(), quantities.clone()));
+            }
+        }
+        levels.extend(
+            self.store
+                .staged
+                .inventory_levels
+                .iter()
+                .filter(|((item_id, _), _)| item_id == inventory_item_id)
+                .filter(|((_, location_id), _)| !seen.contains(location_id))
+                .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone())),
+        );
+        levels
+    }
+
+    /// Build a fully-materialized `inventoryLevels` connection value for an inventory
+    /// item from staged level state (ids, locations, quantities, updatedAt timestamps,
+    /// and the opaque seeded edge cursors). The result carries `edges`, `nodes`, and
+    /// `pageInfo` with every canonical quantity name, so the generic selection
+    /// projector can render whatever shape an `inventoryItem.inventoryLevels(...)`
+    /// selection asks for. Returns `None` when the item has no staged levels, leaving
+    /// the field absent exactly as before. The overlay product/variant/inventory-item
+    /// read paths inject this onto the variant's inventory item before projection so a
+    /// variant-backed `inventoryItem` resolves its levels rather than dropping them.
+    pub(in crate::proxy) fn materialized_inventory_levels_value(
+        &self,
+        inventory_item_id: &str,
+    ) -> Option<Value> {
+        let levels = self.inventory_levels_for_item(inventory_item_id);
+        if levels.is_empty() {
+            return None;
+        }
+        let view = self.inventory_level_view_state();
+        const CANONICAL: [&str; 8] = [
+            "available",
+            "on_hand",
+            "committed",
+            "incoming",
+            "reserved",
+            "damaged",
+            "quality_control",
+            "safety_stock",
+        ];
+        let mut edges = Vec::new();
+        let mut nodes = Vec::new();
+        for (location_id, quantities) in &levels {
+            let key = (inventory_item_id.to_string(), location_id.clone());
+            let level_id = view
+                .inventory_level_ids
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| inventory_level_id(inventory_item_id, location_id));
+            let is_active = !view.inactive_levels.contains(&key);
+            let location = view
+                .locations
+                .and_then(|locations| locations.get(location_id))
+                .cloned()
+                .unwrap_or_else(|| {
+                    json!({
+                        "id": location_id,
+                        "name": inventory_location_name(location_id)
+                    })
+                });
+            let quantities_value: Vec<Value> = CANONICAL
+                .iter()
+                .map(|name| {
+                    let updated_at = view
+                        .quantity_updated_at
+                        .get(&(
+                            inventory_item_id.to_string(),
+                            location_id.clone(),
+                            (*name).to_string(),
+                        ))
+                        .map_or(Value::Null, |value| json!(value));
+                    json!({
+                        "name": name,
+                        "quantity": quantities.get(*name).copied().unwrap_or(0),
+                        "updatedAt": updated_at
+                    })
+                })
+                .collect();
+            let cursor = self
+                .store
+                .staged
+                .inventory_level_cursors
+                .get(&level_id)
+                .cloned();
+            let node = json!({
+                "id": level_id,
+                "isActive": is_active,
+                "item": { "id": inventory_item_id },
+                "location": location,
+                "quantities": quantities_value
+            });
+            match cursor {
+                Some(cursor) => edges.push(json!({ "cursor": cursor, "node": node.clone() })),
+                None => edges.push(json!({ "node": node.clone() })),
+            }
+            nodes.push(node);
+        }
+        let start_cursor = edges
+            .first()
+            .and_then(|edge| edge.get("cursor"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let end_cursor = edges
+            .last()
+            .and_then(|edge| edge.get("cursor"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        Some(json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
+            }
+        }))
+    }
+
+    /// Clone a variant record and inject its materialized `inventoryLevels` connection
+    /// onto the inventory item's extra fields, so overlay reads that project
+    /// `inventoryItem.inventoryLevels` resolve from staged level state. A no-op clone
+    /// when the item has no staged levels.
+    pub(in crate::proxy) fn variant_with_inventory_levels(
+        &self,
+        variant: &ProductVariantRecord,
+    ) -> ProductVariantRecord {
+        let mut variant = variant.clone();
+        if let Some(levels) = self.materialized_inventory_levels_value(&variant.inventory_item.id) {
+            variant
+                .inventory_item
+                .extra_fields
+                .insert("inventoryLevels".to_string(), levels);
+        }
+        variant
     }
 
     fn active_inventory_levels_for_item(
@@ -2149,7 +2406,28 @@ impl DraftProxy {
             .sum()
     }
 
-    fn next_inventory_quantity_timestamp(&mut self) -> String {
+    /// After an `available` inventory mutation, keep the owning variant's
+    /// denormalized `inventoryQuantity` in lockstep with the summed available
+    /// level so direct product/variant overlay reads reflect the new stock.
+    /// Mirrors the sync `inventoryItemUpdate` and inventory-level item payloads
+    /// already perform. No-op for non-`available` names (those don't feed
+    /// `ProductVariant.inventoryQuantity`).
+    fn sync_variant_available_quantity(&mut self, inventory_item_id: &str, name: &str) {
+        if name != "available" {
+            return;
+        }
+        let Some(mut variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .cloned()
+        else {
+            return;
+        };
+        variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
+        self.store.stage_product_variant(variant);
+    }
+
+    pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
         format!("2024-01-01T00:00:{sequence:02}.000Z")
@@ -2278,6 +2556,12 @@ impl DraftProxy {
             ));
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
+        if let Some(error_payload) = inventory_invalid_set_quantity_name_payload(field, &name) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2287,9 +2571,16 @@ impl DraftProxy {
         for quantity in quantities {
             let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
             let new_quantity = resolved_int_field(&quantity, "quantity").unwrap_or(0);
             let key = (item_id.clone(), location_id.clone());
-            let level = self.store.staged.inventory_levels.entry(key).or_default();
+            let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+            let level = self
+                .store
+                .staged
+                .inventory_levels
+                .entry(key.clone())
+                .or_default();
             let old = level.get(&name).copied().unwrap_or(0);
             let delta = new_quantity - old;
             level.insert(name.clone(), new_quantity);
@@ -2306,9 +2597,14 @@ impl DraftProxy {
                     on_hand_after_change,
                     None,
                     &location_id,
+                    &location_name,
                 ));
             }
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key);
+            }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &name);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -2316,6 +2612,7 @@ impl DraftProxy {
                 new_quantity,
                 None,
                 &location_id,
+                &location_name,
             ));
         }
         changes.extend(on_hand_changes);
@@ -2323,6 +2620,8 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
                         "reason": reason,
                         "referenceDocumentUri": reference,
                         "changes": changes
@@ -2357,6 +2656,11 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
+        if let Some(error_payload) =
+            inventory_invalid_public_quantity_name_payload(field, &name, json!(["input", "name"]))
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2366,6 +2670,8 @@ impl DraftProxy {
         for change in changes_input {
             let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&change, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
+            let ledger = resolved_string_field(&change, "ledgerDocumentUri");
             let delta = resolved_int_field(&change, "delta").unwrap_or(0);
             let level = self
                 .store
@@ -2393,16 +2699,19 @@ impl DraftProxy {
                     on_hand_after_change,
                     None,
                     &location_id,
+                    &location_name,
                 ));
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &name);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
                 after_change,
-                None,
+                ledger.as_deref(),
                 &location_id,
+                &location_name,
             ));
         }
         changes.extend(on_hand_changes);
@@ -2410,6 +2719,8 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
                         "reason": reason,
                         "referenceDocumentUri": reference,
                         "changes": changes
@@ -2434,6 +2745,22 @@ impl DraftProxy {
         for (index, change) in changes_input.iter().enumerate() {
             let from = resolved_object_field(change, "from").unwrap_or_default();
             let to = resolved_object_field(change, "to").unwrap_or_default();
+            let from_name = resolved_string_field(&from, "name").unwrap_or_default();
+            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
+                field,
+                &from_name,
+                json!(["input", "changes", index.to_string(), "from", "name"]),
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
+            let to_name = resolved_string_field(&to, "name").unwrap_or_default();
+            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
+                field,
+                &to_name,
+                json!(["input", "changes", index.to_string(), "to", "name"]),
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
             if resolved_string_field(&from, "locationId")
                 != resolved_string_field(&to, "locationId")
             {
@@ -2459,6 +2786,7 @@ impl DraftProxy {
             let from = resolved_object_field(&change, "from").unwrap_or_default();
             let to = resolved_object_field(&change, "to").unwrap_or_default();
             let location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
@@ -2485,6 +2813,8 @@ impl DraftProxy {
             };
             self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
             self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &from_name);
+            self.sync_variant_available_quantity(&item_id, &to_name);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,
@@ -2492,6 +2822,7 @@ impl DraftProxy {
                 from_after_change,
                 None,
                 &location_id,
+                &location_name,
             ));
             changes.push(inventory_change_json(
                 &item_id,
@@ -2500,6 +2831,7 @@ impl DraftProxy {
                 to_after_change,
                 ledger.as_deref(),
                 &location_id,
+                &location_name,
             ));
         }
         MutationFieldOutcome::staged(
@@ -2576,19 +2908,15 @@ impl DraftProxy {
         }
 
         let key = (inventory_item_id.clone(), location_id.clone());
-        let already_active = self.store.staged.inventory_levels.contains_key(&key)
-            && !self.store.staged.inactive_inventory_levels.contains(&key);
-        if !already_active
-            && self.inventory_item_exists(&inventory_item_id)
-            && self
-                .active_inventory_levels_for_item(&inventory_item_id)
-                .is_empty()
-        {
-            self.ensure_default_inventory_level(&inventory_item_id, &location_id);
-        }
-        let already_active = self.store.staged.inventory_levels.contains_key(&key)
-            && !self.store.staged.inactive_inventory_levels.contains(&key);
-        if already_active && has_available {
+        // The "already active" decision must be based on the level's state *before*
+        // this call. A fresh activation (a brand-new level, or reactivating an
+        // inactive one) is allowed to seed `available`; only a level that was
+        // already active rejects it. Computing this up-front avoids the earlier bug
+        // where pre-creating a default level flipped the flag and spuriously errored.
+        let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+        let was_active =
+            existed_before && !self.store.staged.inactive_inventory_levels.contains(&key);
+        if was_active && has_available {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
@@ -2605,8 +2933,7 @@ impl DraftProxy {
                 user_errors,
             ));
         }
-        if !already_active
-            && !self.store.staged.inactive_inventory_levels.contains(&key)
+        if !was_active
             && self
                 .active_inventory_levels_for_item(&inventory_item_id)
                 .len()
@@ -2624,8 +2951,37 @@ impl DraftProxy {
             ));
         }
 
-        if !already_active {
+        if !was_active {
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key.clone());
+            }
             self.activate_inventory_level(&inventory_item_id, &location_id);
+            // A first-time activation with `available` seeds both available and
+            // on_hand to that value. Reactivating an existing (inactive) level must
+            // preserve its prior quantities, so only seed on a brand-new level.
+            if !existed_before {
+                if let Some(value) = available {
+                    if value >= 0 {
+                        let updated_at = self.next_inventory_quantity_timestamp();
+                        if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
+                            level.insert("available".to_string(), value);
+                            level.insert("on_hand".to_string(), value);
+                        }
+                        self.stamp_inventory_quantity(
+                            &inventory_item_id,
+                            &location_id,
+                            "available",
+                            &updated_at,
+                        );
+                        self.stamp_inventory_quantity(
+                            &inventory_item_id,
+                            &location_id,
+                            "on_hand",
+                            &updated_at,
+                        );
+                    }
+                }
+            }
         }
         let level = self.inventory_level_for_payload(
             &inventory_item_id,
@@ -3115,6 +3471,25 @@ impl DraftProxy {
             .staged
             .inventory_levels
             .get(&(inventory_item_id.to_string(), location_id.to_string()))?;
+        Some(self.inventory_level_json_with_item(
+            inventory_item_id,
+            location_id,
+            quantities,
+            selections,
+        ))
+    }
+
+    /// Render an inventory level, overriding the `item` sub-selection with the
+    /// store-backed item payload (so `tracked`/`variant` resolve correctly).
+    /// The free `inventory_level_selected_json` only knows the item id; reads of
+    /// `inventoryLevel { item { tracked } }` need this `&self` override.
+    fn inventory_level_json_with_item(
+        &self,
+        inventory_item_id: &str,
+        location_id: &str,
+        quantities: &BTreeMap<String, i64>,
+        selections: &[SelectedField],
+    ) -> Value {
         let mut value = inventory_level_selected_json(
             inventory_item_id,
             location_id,
@@ -3130,7 +3505,7 @@ impl DraftProxy {
                 );
             }
         }
-        Some(value)
+        value
     }
 
     fn inventory_level_item_payload(
@@ -3294,305 +3669,6 @@ impl DraftProxy {
         self.store.stage_product_variant(variant);
     }
 
-    pub(in crate::proxy) fn inventory_transfer_create(
-        &mut self,
-        field: &RootFieldSelection,
-        ready_to_ship: bool,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let origin_location_id =
-            resolved_string_field(&input, "originLocationId").unwrap_or_default();
-        let destination_location_id =
-            resolved_string_field(&input, "destinationLocationId").unwrap_or_default();
-        let id = self.next_proxy_synthetic_gid("InventoryTransfer");
-        let name = format!(
-            "#T{:04}",
-            self.store
-                .staged
-                .inventory_transfers
-                .len()
-                .saturating_add(1)
-        );
-        let mut line_items = Vec::new();
-        for item_input in resolved_object_list_field(&input, "lineItems") {
-            line_items.push(InventoryTransferLineItemRecord {
-                id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
-                inventory_item_id: resolved_string_field(&item_input, "inventoryItemId")
-                    .unwrap_or_default(),
-                quantity: resolved_int_field(&item_input, "quantity").unwrap_or(0),
-            });
-        }
-        let record = InventoryTransferRecord {
-            id: id.clone(),
-            name,
-            status: if ready_to_ship {
-                "READY_TO_SHIP".to_string()
-            } else {
-                "DRAFT".to_string()
-            },
-            origin_location_id,
-            destination_location_id,
-            line_items,
-        };
-        self.ensure_transfer_inventory_levels(&record);
-        if ready_to_ship {
-            self.apply_transfer_reservations(&record, 1);
-        }
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
-        self.store
-            .staged
-            .inventory_transfers
-            .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged(field.name.clone(), "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn inventory_transfer_mark_ready(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
-            );
-        };
-        let mut record = existing;
-        if record.status == "DRAFT" {
-            self.apply_transfer_reservations(&record, 1);
-        }
-        record.status = "READY_TO_SHIP".to_string();
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
-        self.store
-            .staged
-            .inventory_transfers
-            .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferMarkAsReadyToShip", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn inventory_transfer_set_items(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
-            );
-        };
-        let mut record = existing;
-        let mut updated = Vec::new();
-        for item_input in resolved_object_list_field(&input, "lineItems") {
-            let item_id = resolved_string_field(&item_input, "inventoryItemId").unwrap_or_default();
-            let new_quantity = resolved_int_field(&item_input, "quantity").unwrap_or(0);
-            let mut old_quantity = 0;
-            if let Some(line_item) = record
-                .line_items
-                .iter_mut()
-                .find(|line_item| line_item.inventory_item_id == item_id)
-            {
-                old_quantity = line_item.quantity;
-                line_item.quantity = new_quantity;
-            } else {
-                record.line_items.push(InventoryTransferLineItemRecord {
-                    id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
-                    inventory_item_id: item_id.clone(),
-                    quantity: new_quantity,
-                });
-            }
-            let delta = new_quantity - old_quantity;
-            if record.status == "READY_TO_SHIP" {
-                self.apply_inventory_reservation(&item_id, &record.origin_location_id, delta);
-            }
-            updated.push(json!({
-                "inventoryItemId": item_id,
-                "newQuantity": new_quantity,
-                "deltaQuantity": delta
-            }));
-        }
-        let payload = selected_json(
-            &json!({
-                "inventoryTransfer": self.inventory_transfer_full_json(&record),
-                "updatedLineItems": updated,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
-        self.store
-            .staged
-            .inventory_transfers
-            .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferSetItems", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn inventory_transfer_remove_items(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
-            );
-        };
-        let mut record = existing;
-        let remove_ids = resolved_string_list_field(&input, "transferLineItemIds");
-        let mut removed = Vec::new();
-        let mut kept = Vec::new();
-        for line_item in record.line_items {
-            if remove_ids.iter().any(|id| id == &line_item.id) {
-                if record.status == "READY_TO_SHIP" {
-                    self.apply_inventory_reservation(
-                        &line_item.inventory_item_id,
-                        &record.origin_location_id,
-                        -line_item.quantity,
-                    );
-                }
-                removed.push(json!({
-                    "inventoryItemId": line_item.inventory_item_id,
-                    "newQuantity": 0,
-                    "deltaQuantity": -line_item.quantity
-                }));
-            } else {
-                kept.push(line_item);
-            }
-        }
-        record.line_items = kept;
-        let payload = selected_json(
-            &json!({
-                "inventoryTransfer": self.inventory_transfer_full_json(&record),
-                "removedQuantities": removed,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
-        self.store
-            .staged
-            .inventory_transfers
-            .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferRemoveItems", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn inventory_transfer_cancel(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
-            );
-        };
-        let mut record = existing;
-        if record.status == "READY_TO_SHIP" {
-            self.apply_transfer_reservations(&record, -1);
-        }
-        record.status = "CANCELED".to_string();
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
-        self.store
-            .staged
-            .inventory_transfers
-            .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferCancel", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn inventory_transfer_delete(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(record) = self.store.staged.inventory_transfers.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(selected_json(
-                &json!({
-                    "deletedId": Value::Null,
-                    "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
-                }),
-                &field.selection,
-            ));
-        };
-        if record.status != "DRAFT" {
-            return MutationFieldOutcome::unlogged(selected_json(
-                &json!({
-                    "deletedId": Value::Null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Can't delete the transfer if it's not in the draft status."
-                    }]
-                }),
-                &field.selection,
-            ));
-        }
-        self.store.staged.inventory_transfers.remove(&id);
-        MutationFieldOutcome::staged(
-            selected_json(
-                &json!({ "deletedId": id, "userErrors": [] }),
-                &field.selection,
-            ),
-            LogDraft::staged("inventoryTransferDelete", "products", Vec::new()),
-        )
-    }
-
-    fn inventory_transfer_payload_json(
-        &self,
-        record: &InventoryTransferRecord,
-        selection: &[SelectedField],
-        transfer_field: &str,
-    ) -> Value {
-        selected_json(
-            &json!({
-                transfer_field: self.inventory_transfer_full_json(record),
-                "userErrors": []
-            }),
-            selection,
-        )
-    }
-
-    fn inventory_transfer_missing_payload(
-        &self,
-        selection: &[SelectedField],
-        transfer_field: &str,
-    ) -> Value {
-        selected_json(
-            &json!({
-                transfer_field: Value::Null,
-                "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
-            }),
-            selection,
-        )
-    }
-
-    fn inventory_transfer_by_id_selected_json(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Value {
-        self.store
-            .staged
-            .inventory_transfers
-            .get(id)
-            .map(|record| selected_json(&self.inventory_transfer_full_json(record), selection))
-            .unwrap_or(Value::Null)
-    }
-
     pub(in crate::proxy) fn inventory_shipment_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3694,6 +3770,7 @@ impl DraftProxy {
             );
         }
         let was_in_transit = inventory_shipment_has_incoming(&record);
+        let destination_location_id = self.shipment_destination_location_id(&record);
         let mut added_items = Vec::new();
         for line_input in line_inputs {
             let line_item = InventoryShipmentLineItemRecord {
@@ -3711,7 +3788,7 @@ impl DraftProxy {
             if was_in_transit {
                 self.apply_inventory_quantity_delta(
                     &line_item.inventory_item_id,
-                    &self.shipment_destination_location_id(&record),
+                    &destination_location_id,
                     "incoming",
                     line_item.unreceived_quantity(),
                 );
@@ -4384,6 +4461,18 @@ impl DraftProxy {
         &self,
         line_item: &InventoryShipmentLineItemRecord,
     ) -> Value {
+        // sku/tracked come from the inventory item's hydrated/staged variant
+        // (populated by the ProductsHydrateNodes read-through cache), never derived
+        // from the id — the proxy emulates an arbitrary backend, not a fixture.
+        let variant = self
+            .store
+            .product_variant_by_inventory_item_id(&line_item.inventory_item_id);
+        let sku = variant
+            .map(|variant| variant.sku.clone())
+            .filter(|sku| !sku.is_empty());
+        let tracked = variant
+            .map(|variant| variant.inventory_item.tracked)
+            .unwrap_or(true);
         json!({
             "id": line_item.id,
             "quantity": line_item.quantity,
@@ -4392,8 +4481,8 @@ impl DraftProxy {
             "unreceivedQuantity": line_item.unreceived_quantity(),
             "inventoryItem": {
                 "id": line_item.inventory_item_id,
-                "sku": inventory_item_sku(&line_item.inventory_item_id),
-                "tracked": true
+                "sku": sku,
+                "tracked": tracked
             }
         })
     }
@@ -4401,17 +4490,32 @@ impl DraftProxy {
     fn ensure_shipment_inventory_levels(&mut self, record: &InventoryShipmentRecord) {
         let location_id = self.shipment_destination_location_id(record);
         for line_item in &record.line_items {
-            self.store
-                .staged
-                .inventory_levels
-                .entry((line_item.inventory_item_id.clone(), location_id.clone()))
-                .or_insert_with(|| {
-                    if record.transfer_id.is_none() {
-                        movement_shipment_inventory_quantities()
-                    } else {
-                        empty_inventory_quantities()
-                    }
-                });
+            let key = (line_item.inventory_item_id.clone(), location_id.clone());
+            if self.store.staged.inventory_levels.contains_key(&key) {
+                continue;
+            }
+            // Seed a destination level only for product-backed movement shipments that
+            // have no recorded level yet. available/on_hand mirror the hydrated variant's
+            // current inventory quantity (committed defaults to 0, so on_hand ==
+            // available) — the relationship Shopify reports for a freshly stocked
+            // single-location item before the shipment's incoming delta is applied.
+            let on_hand = if record.transfer_id.is_none() {
+                self.store
+                    .product_variant_by_inventory_item_id(&line_item.inventory_item_id)
+                    .map(|variant| variant.inventory_quantity)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+            self.store.staged.inventory_levels.insert(
+                key,
+                BTreeMap::from([
+                    ("available".to_string(), on_hand),
+                    ("reserved".to_string(), 0),
+                    ("on_hand".to_string(), on_hand),
+                    ("incoming".to_string(), 0),
+                ]),
+            );
         }
     }
 
@@ -4468,6 +4572,504 @@ impl DraftProxy {
                     .map(|transfer| transfer.destination_location_id.clone())
             })
             .unwrap_or_else(|| DEFAULT_INVENTORY_LOCATION_ID.to_string())
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_create(
+        &mut self,
+        field: &RootFieldSelection,
+        ready_to_ship: bool,
+    ) -> MutationFieldOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let origin_location_id =
+            resolved_string_field(&input, "originLocationId").unwrap_or_default();
+        let destination_location_id =
+            resolved_string_field(&input, "destinationLocationId").unwrap_or_default();
+        let line_item_inputs = resolved_object_list_field(&input, "lineItems");
+        self.hydrate_inventory_transfer_references(
+            [&origin_location_id, &destination_location_id],
+            &line_item_inputs,
+        );
+        let user_errors = self.inventory_transfer_validate(
+            &origin_location_id,
+            &destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
+        let id = self.next_proxy_synthetic_gid("InventoryTransfer");
+        let name = format!(
+            "#T{:04}",
+            self.store
+                .staged
+                .inventory_transfers
+                .len()
+                .saturating_add(1)
+        );
+        let mut line_items = Vec::new();
+        for item_input in line_item_inputs {
+            line_items.push(InventoryTransferLineItemRecord {
+                id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
+                inventory_item_id: resolved_string_field(&item_input, "inventoryItemId")
+                    .unwrap_or_default(),
+                quantity: resolved_int_field(&item_input, "quantity").unwrap_or(0),
+            });
+        }
+        let record = InventoryTransferRecord {
+            id: id.clone(),
+            name,
+            status: if ready_to_ship {
+                "READY_TO_SHIP".to_string()
+            } else {
+                "DRAFT".to_string()
+            },
+            origin_location_id,
+            destination_location_id,
+            line_items,
+        };
+        self.ensure_transfer_inventory_levels(&record);
+        if ready_to_ship {
+            self.apply_transfer_reservations(&record, 1);
+        }
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged(field.name.clone(), "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_mark_ready(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let mut record = existing;
+        if record.status == "DRAFT" {
+            self.apply_transfer_reservations(&record, 1);
+        }
+        record.status = "READY_TO_SHIP".to_string();
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferMarkAsReadyToShip", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_set_items(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let mut record = existing;
+        let line_item_inputs = resolved_object_list_field(&input, "lineItems");
+        self.hydrate_inventory_transfer_references(
+            [&record.origin_location_id, &record.destination_location_id],
+            &line_item_inputs,
+        );
+        let user_errors = self.inventory_transfer_validate(
+            &record.origin_location_id,
+            &record.destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &["updatedLineItems"],
+                user_errors,
+            ));
+        }
+        let mut updated = Vec::new();
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(&item_input, "inventoryItemId").unwrap_or_default();
+            let new_quantity = resolved_int_field(&item_input, "quantity").unwrap_or(0);
+            let mut old_quantity = 0;
+            if let Some(line_item) = record
+                .line_items
+                .iter_mut()
+                .find(|line_item| line_item.inventory_item_id == item_id)
+            {
+                old_quantity = line_item.quantity;
+                line_item.quantity = new_quantity;
+            } else {
+                record.line_items.push(InventoryTransferLineItemRecord {
+                    id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
+                    inventory_item_id: item_id.clone(),
+                    quantity: new_quantity,
+                });
+            }
+            let delta = new_quantity - old_quantity;
+            if record.status == "READY_TO_SHIP" {
+                self.apply_inventory_reservation(&item_id, &record.origin_location_id, delta);
+            }
+            updated.push(json!({
+                "inventoryItemId": item_id,
+                "newQuantity": new_quantity,
+                "deltaQuantity": delta
+            }));
+        }
+        let payload = selected_json(
+            &json!({
+                "inventoryTransfer": self.inventory_transfer_full_json(&record),
+                "updatedLineItems": updated,
+                "userErrors": []
+            }),
+            &field.selection,
+        );
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferSetItems", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_edit(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let origin_location_id = resolved_string_field(&input, "originId")
+            .unwrap_or_else(|| existing.origin_location_id.clone());
+        let destination_location_id = resolved_string_field(&input, "destinationId")
+            .unwrap_or_else(|| existing.destination_location_id.clone());
+        let line_item_inputs = existing
+            .line_items
+            .iter()
+            .map(|line_item| {
+                BTreeMap::from([
+                    (
+                        "inventoryItemId".to_string(),
+                        ResolvedValue::String(line_item.inventory_item_id.clone()),
+                    ),
+                    (
+                        "quantity".to_string(),
+                        ResolvedValue::Int(line_item.quantity),
+                    ),
+                ])
+            })
+            .collect::<Vec<_>>();
+        let user_errors = self.inventory_transfer_validate(
+            &origin_location_id,
+            &destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
+
+        let was_ready = existing.status == "READY_TO_SHIP";
+        if was_ready {
+            self.apply_transfer_reservations(&existing, -1);
+        }
+        let mut record = existing;
+        record.origin_location_id = origin_location_id;
+        record.destination_location_id = destination_location_id;
+        self.ensure_transfer_inventory_levels(&record);
+        if was_ready {
+            self.apply_transfer_reservations(&record, 1);
+        }
+
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferEdit", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_duplicate(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let line_item_inputs = existing
+            .line_items
+            .iter()
+            .map(|line_item| {
+                BTreeMap::from([
+                    (
+                        "inventoryItemId".to_string(),
+                        ResolvedValue::String(line_item.inventory_item_id.clone()),
+                    ),
+                    (
+                        "quantity".to_string(),
+                        ResolvedValue::Int(line_item.quantity),
+                    ),
+                ])
+            })
+            .collect::<Vec<_>>();
+        let user_errors = self.inventory_transfer_validate(
+            &existing.origin_location_id,
+            &existing.destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
+
+        let new_id = self.next_proxy_synthetic_gid("InventoryTransfer");
+        let name = format!(
+            "#T{:04}",
+            self.store
+                .staged
+                .inventory_transfers
+                .len()
+                .saturating_add(1)
+        );
+        let record = InventoryTransferRecord {
+            id: new_id.clone(),
+            name,
+            status: "DRAFT".to_string(),
+            origin_location_id: existing.origin_location_id,
+            destination_location_id: existing.destination_location_id,
+            line_items: existing
+                .line_items
+                .into_iter()
+                .map(|line_item| InventoryTransferLineItemRecord {
+                    id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
+                    inventory_item_id: line_item.inventory_item_id,
+                    quantity: line_item.quantity,
+                })
+                .collect(),
+        };
+        self.ensure_transfer_inventory_levels(&record);
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(new_id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferDuplicate", "products", vec![new_id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_remove_items(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let mut record = existing;
+        let remove_ids = resolved_string_list_field(&input, "transferLineItemIds");
+        let mut removed = Vec::new();
+        let mut kept = Vec::new();
+        for line_item in record.line_items {
+            if remove_ids.iter().any(|id| id == &line_item.id) {
+                if record.status == "READY_TO_SHIP" {
+                    self.apply_inventory_reservation(
+                        &line_item.inventory_item_id,
+                        &record.origin_location_id,
+                        -line_item.quantity,
+                    );
+                }
+                removed.push(json!({
+                    "inventoryItemId": line_item.inventory_item_id,
+                    "newQuantity": 0,
+                    "deltaQuantity": -line_item.quantity
+                }));
+            } else {
+                kept.push(line_item);
+            }
+        }
+        record.line_items = kept;
+        let payload = selected_json(
+            &json!({
+                "inventoryTransfer": self.inventory_transfer_full_json(&record),
+                "removedQuantities": removed,
+                "userErrors": []
+            }),
+            &field.selection,
+        );
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferRemoveItems", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_cancel(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let mut record = existing;
+        if record.status == "READY_TO_SHIP" {
+            self.apply_transfer_reservations(&record, -1);
+        }
+        record.status = "CANCELED".to_string();
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferCancel", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_delete(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(record) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(selected_json(
+                &json!({
+                    "deletedId": Value::Null,
+                    "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
+                }),
+                &field.selection,
+            ));
+        };
+        if record.status != "DRAFT" {
+            return MutationFieldOutcome::unlogged(selected_json(
+                &json!({
+                    "deletedId": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Can't delete the transfer if it's not in the draft status."
+                    }]
+                }),
+                &field.selection,
+            ));
+        }
+        self.store.staged.inventory_transfers.remove(&id);
+        MutationFieldOutcome::staged(
+            selected_json(
+                &json!({ "deletedId": id, "userErrors": [] }),
+                &field.selection,
+            ),
+            LogDraft::staged("inventoryTransferDelete", "products", Vec::new()),
+        )
+    }
+
+    fn inventory_transfer_payload_json(
+        &self,
+        record: &InventoryTransferRecord,
+        selection: &[SelectedField],
+        transfer_field: &str,
+    ) -> Value {
+        selected_json(
+            &json!({
+                transfer_field: self.inventory_transfer_full_json(record),
+                "userErrors": []
+            }),
+            selection,
+        )
+    }
+
+    fn inventory_transfer_user_error_payload(
+        &self,
+        selection: &[SelectedField],
+        transfer_field: &str,
+        extra_null_fields: &[&str],
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let mut payload = serde_json::Map::new();
+        payload.insert(transfer_field.to_string(), Value::Null);
+        for field in extra_null_fields {
+            payload.insert((*field).to_string(), Value::Null);
+        }
+        payload.insert("userErrors".to_string(), Value::Array(user_errors));
+        selected_json(&Value::Object(payload), selection)
+    }
+
+    fn inventory_transfer_missing_payload(
+        &self,
+        selection: &[SelectedField],
+        transfer_field: &str,
+    ) -> Value {
+        selected_json(
+            &json!({
+                transfer_field: Value::Null,
+                "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
+            }),
+            selection,
+        )
+    }
+
+    fn inventory_transfer_by_id_selected_json(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        self.store
+            .staged
+            .inventory_transfers
+            .get(id)
+            .map(|record| selected_json(&self.inventory_transfer_full_json(record), selection))
+            .unwrap_or(Value::Null)
     }
 
     fn inventory_transfers_connection_selected_json(
@@ -4570,6 +5172,326 @@ impl DraftProxy {
         }
     }
 
+    fn inventory_transfer_validate(
+        &self,
+        origin_location_id: &str,
+        destination_location_id: &str,
+        line_item_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        let origin_is_active = self.inventory_transfer_location_is_active(origin_location_id);
+        let destination_is_active =
+            self.inventory_transfer_location_is_active(destination_location_id);
+        if !origin_is_active {
+            user_errors.push(json!({
+                "field": ["input", "originLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !destination_is_active {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !origin_location_id.is_empty()
+            && origin_location_id == destination_location_id
+            && origin_is_active
+        {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The origin location cannot be the same as the destination location.",
+                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
+            }));
+        }
+
+        let mut item_counts: BTreeMap<String, usize> = BTreeMap::new();
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            if !item_id.is_empty() {
+                *item_counts.entry(item_id).or_insert(0) += 1;
+            }
+        }
+
+        for (index, item_input) in line_item_inputs.iter().enumerate() {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            let quantity = resolved_int_field(item_input, "quantity").unwrap_or(0);
+            if item_counts.get(&item_id).copied().unwrap_or(0) > 1 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item is already present in the list. Each item must be unique.",
+                    "code": "DUPLICATE_ITEM"
+                }));
+            }
+            if origin_is_active
+                && !self.inventory_transfer_item_is_stocked_at_origin(&item_id, origin_location_id)
+            {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item could not be found.",
+                    "code": "ITEM_NOT_FOUND"
+                }));
+            }
+            if quantity < 0 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "quantity"],
+                    "message": "The quantity can't be negative.",
+                    "code": "INVALID_QUANTITY"
+                }));
+            }
+        }
+        user_errors
+    }
+
+    fn inventory_transfer_location_is_active(&self, location_id: &str) -> bool {
+        if location_id.is_empty() {
+            return false;
+        }
+        if matches!(
+            location_id,
+            "gid://shopify/Location/1"
+                | "gid://shopify/Location/2"
+                | DEFAULT_INVENTORY_LOCATION_ID
+                | "gid://shopify/Location/106318463282"
+        ) {
+            return true;
+        }
+        self.store
+            .staged
+            .locations
+            .get(location_id)
+            .and_then(|location| location.get("isActive"))
+            .and_then(Value::as_bool)
+            == Some(true)
+    }
+
+    fn inventory_transfer_item_is_stocked_at_origin(
+        &self,
+        inventory_item_id: &str,
+        origin_location_id: &str,
+    ) -> bool {
+        if inventory_item_id.is_empty() || origin_location_id.is_empty() {
+            return false;
+        }
+        if self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .map(|variant| variant.inventory_item.tracked)
+            == Some(false)
+        {
+            return false;
+        }
+        if self.store.staged.inventory_levels.contains_key(&(
+            inventory_item_id.to_string(),
+            origin_location_id.to_string(),
+        )) {
+            return true;
+        }
+        inventory_item_id == "gid://shopify/InventoryItem/transfer-item"
+            && origin_location_id == "gid://shopify/Location/1"
+    }
+
+    fn hydrate_inventory_transfer_references<'a>(
+        &mut self,
+        location_ids: impl IntoIterator<Item = &'a String>,
+        line_item_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let mut ids = Vec::new();
+        for location_id in location_ids {
+            if !location_id.is_empty() && !ids.iter().any(|id| id == location_id) {
+                ids.push(location_id.clone());
+            }
+        }
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            if !item_id.is_empty() && !ids.iter().any(|id| id == &item_id) {
+                ids.push(item_id);
+            }
+        }
+        if ids.is_empty() {
+            return;
+        }
+        let request = Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2025-01/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({
+                "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                "variables": { "ids": ids }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(request);
+        if response.status >= 400 {
+            return;
+        }
+        self.observe_inventory_transfer_hydration_response(&response.body);
+    }
+
+    fn observe_inventory_transfer_hydration_response(&mut self, body: &Value) {
+        let nodes = body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        for node in nodes {
+            let node_type = node
+                .get("__typename")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    node.get("id")
+                        .and_then(Value::as_str)
+                        .and_then(shopify_gid_resource_type)
+                })
+                .or_else(|| {
+                    node.get("inventoryLevels")
+                        .is_some()
+                        .then_some("InventoryItem")
+                });
+            match node_type {
+                Some("Location") => self.stage_inventory_transfer_location(node),
+                Some("InventoryItem") => self.stage_inventory_transfer_inventory_item(node),
+                _ => {}
+            }
+        }
+    }
+
+    fn stage_inventory_transfer_location(&mut self, location: Value) {
+        let Some(id) = location
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if !self
+            .store
+            .staged
+            .location_order
+            .iter()
+            .any(|entry| entry == &id)
+        {
+            self.store.staged.location_order.push(id.clone());
+        }
+        let mut merged = self
+            .store
+            .staged
+            .locations
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+        if let (Some(existing), Some(incoming)) = (merged.as_object_mut(), location.as_object()) {
+            for (key, value) in incoming {
+                existing.insert(key.clone(), value.clone());
+            }
+        } else {
+            merged = location;
+        }
+        self.store.staged.locations.insert(id, merged);
+    }
+
+    fn stage_inventory_transfer_inventory_item(&mut self, item: Value) {
+        let Some(item_id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        let Some(variant) = item.get("variant") else {
+            return;
+        };
+        let product = variant.get("product").cloned().unwrap_or_else(|| {
+            json!({
+                "id": format!("gid://shopify/Product/{}", resource_id_tail(&item_id)),
+                "title": "",
+                "handle": "",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": item.get("tracked").and_then(Value::as_bool).unwrap_or(true)
+            })
+        });
+        if let Some(product) = product_state_from_json(&product) {
+            self.store.stage_observed_product(product);
+        }
+        let variant_id = variant
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                format!(
+                    "gid://shopify/ProductVariant/{}",
+                    resource_id_tail(&item_id)
+                )
+            });
+        let product_id = variant
+            .get("product")
+            .and_then(|product| product.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("gid://shopify/Product/{}", resource_id_tail(&item_id)));
+        let mut variant_value = variant.clone();
+        if let Some(fields) = variant_value.as_object_mut() {
+            fields.insert("id".to_string(), json!(variant_id));
+            fields.insert("productId".to_string(), json!(product_id));
+            fields.insert(
+                "inventoryItem".to_string(),
+                json!({
+                    "id": item_id,
+                    "tracked": item.get("tracked").and_then(Value::as_bool).unwrap_or(true),
+                    "requiresShipping": item.get("requiresShipping").and_then(Value::as_bool).unwrap_or(true)
+                }),
+            );
+        }
+        if let Some(variant) = product_variant_state_from_json(&variant_value) {
+            self.store.stage_product_variant(variant);
+        }
+        for level in item
+            .get("inventoryLevels")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(location_id) = level
+                .get("location")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            let mut quantities = BTreeMap::new();
+            for quantity in level
+                .get("quantities")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(name) = quantity.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                quantities.insert(
+                    name.to_string(),
+                    quantity
+                        .get("quantity")
+                        .and_then(Value::as_i64)
+                        .unwrap_or_default(),
+                );
+            }
+            self.store
+                .staged
+                .inventory_levels
+                .insert((item_id.clone(), location_id.clone()), quantities);
+            if let Some(location) = level.get("location").cloned() {
+                self.stage_inventory_transfer_location(location);
+            }
+        }
+    }
+
     fn apply_transfer_reservations(&mut self, record: &InventoryTransferRecord, direction: i64) {
         for line_item in &record.line_items {
             self.apply_inventory_reservation(
@@ -4606,32 +5528,47 @@ impl DraftProxy {
             .entry("on_hand".to_string())
             .or_insert(available + reserved);
     }
+}
 
-    pub(in crate::proxy) fn functions_metadata_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = if field.name == "node" {
-                resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.store.staged.function_cart_transforms.get(&id).cloned())
-                    .or_else(|| self.store.staged.function_cart_transform.clone())
-                    .unwrap_or(Value::Null)
-            } else {
-                Value::Null
-            };
-            if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
-            } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
+pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
+    marketing_query_terms(query)
+        .iter()
+        .all(|(field, expected)| {
+            marketing_record_query_value(record, field).is_some_and(|value| {
+                value
+                    .to_ascii_lowercase()
+                    .contains(&expected.to_ascii_lowercase())
+            })
+        })
+}
+
+pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
+    query
+        .split_whitespace()
+        .filter_map(|term| {
+            let (field, value) = term.split_once(':')?;
+            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
+            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn marketing_record_query_value(
+    record: &Value,
+    field: &str,
+) -> Option<String> {
+    match field {
+        "id" => record["id"].as_str(),
+        "remote_id" | "remoteId" => record["remoteId"]
+            .as_str()
+            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
+        "title" => record["title"].as_str(),
+        "description" => record["marketingEvent"]["description"].as_str(),
+        "status" => record["status"].as_str(),
+        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
+        _ => None,
     }
+    .map(ToString::to_string)
 }
 
 fn input_string_field_value(
@@ -4675,6 +5612,88 @@ fn marketing_activity_delete_not_external_error() -> Value {
     })
 }
 
+/// The ordered required (non-null) arguments for each webhook mutation root,
+/// paired with the GraphQL type Shopify reports for them. The `webhookSubscription`
+/// input type varies by delivery flavor (unified / Pub/Sub / EventBridge).
+fn webhook_required_arguments(field_name: &str) -> Vec<(&'static str, &'static str)> {
+    let input_type = if field_name.starts_with("pubSubWebhookSubscription") {
+        "PubSubWebhookSubscriptionInput!"
+    } else if field_name.starts_with("eventBridgeWebhookSubscription") {
+        "EventBridgeWebhookSubscriptionInput!"
+    } else {
+        "WebhookSubscriptionInput!"
+    };
+    if field_name.ends_with("Create") {
+        vec![
+            ("topic", "WebhookSubscriptionTopic!"),
+            ("webhookSubscription", input_type),
+        ]
+    } else if field_name.ends_with("Update") {
+        vec![("id", "ID!"), ("webhookSubscription", input_type)]
+    } else if field_name.ends_with("Delete") {
+        vec![("id", "ID!")]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Static GraphQL validation for the webhook mutation roots: a required argument
+/// that is entirely absent yields a `missingRequiredArguments` error, while one
+/// present with a literal `null` yields an `argumentLiteralsIncompatible` error.
+fn webhook_required_argument_errors(
+    field: &RootFieldSelection,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    let required = webhook_required_arguments(&field.name);
+    if required.is_empty() {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    let mut missing = Vec::new();
+    for (arg, type_display) in &required {
+        match field.raw_arguments.get(*arg) {
+            None => missing.push(*arg),
+            Some(value) if value.is_literal_null() => {
+                errors.push(json!({
+                    "message": format!(
+                        "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
+                        arg, field.name, type_display
+                    ),
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "path": [document.operation_path.clone(), field.name.clone(), *arg],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "Field",
+                        "argumentName": arg
+                    }
+                }));
+            }
+            Some(_) => {}
+        }
+    }
+    if !missing.is_empty() {
+        errors.insert(
+            0,
+            json!({
+                "message": format!(
+                    "Field '{}' is missing required arguments: {}",
+                    field.name,
+                    missing.join(", ")
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [document.operation_path.clone(), field.name.clone()],
+                "extensions": {
+                    "code": "missingRequiredArguments",
+                    "className": "Field",
+                    "name": field.name.clone(),
+                    "arguments": missing.join(", ")
+                }
+            }),
+        );
+    }
+    errors
+}
+
 fn webhook_subscription_topic_coercion_error(
     field: &RootFieldSelection,
     document: Option<&ParsedDocument>,
@@ -4708,21 +5727,25 @@ fn webhook_subscription_topic_coercion_error(
                 "argumentName": "topic"
             }
         }),
-        RawArgumentValue::Variable { name, .. } => json!({
-            "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
-            "locations": [{
-                "line": document.map_or(field.location.line, |document| document.location.line),
-                "column": document.map_or(field.location.column, |document| document.location.column)
-            }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": topic,
-                "problems": [{
-                    "path": [],
-                    "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
-                }]
-            }
-        }),
+        RawArgumentValue::Variable { name, .. } => {
+            // Shopify anchors a coerced-variable error at the variable's
+            // *definition* in the operation signature, not at the field.
+            let location = document
+                .and_then(|document| document.variable_definitions.get(name))
+                .map_or(field.location, |definition| definition.location);
+            json!({
+                "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
+                "locations": [{ "line": location.line, "column": location.column }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": topic,
+                    "problems": [{
+                        "path": [],
+                        "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
+                    }]
+                }
+            })
+        }
         _ => unreachable!(),
     })
 }
@@ -4730,6 +5753,7 @@ fn webhook_subscription_topic_coercion_error(
 fn dedicated_pubsub_required_field_error(
     root_field: &str,
     field: &RootFieldSelection,
+    document: &ParsedDocument,
 ) -> Option<Value> {
     if !root_field.starts_with("pubSubWebhookSubscription") {
         return None;
@@ -4738,7 +5762,7 @@ fn dedicated_pubsub_required_field_error(
         RawArgumentValue::Variable {
             name,
             value: Some(ResolvedValue::Object(value)),
-        } => dedicated_pubsub_variable_required_field_error(name, value, field),
+        } => dedicated_pubsub_variable_required_field_error(name, value, field, document),
         RawArgumentValue::Object(value) => {
             dedicated_pubsub_inline_required_field_error(value, field)
         }
@@ -4750,11 +5774,18 @@ fn dedicated_pubsub_variable_required_field_error(
     variable_name: &str,
     value: &BTreeMap<String, ResolvedValue>,
     field: &RootFieldSelection,
+    document: &ParsedDocument,
 ) -> Option<Value> {
     let missing = missing_pubsub_resolved_fields(value);
     if missing.is_empty() {
         return None;
     }
+    // Shopify anchors a coerced-variable error at the variable's *definition*
+    // in the operation signature, not at the field where it is used.
+    let location = document
+        .variable_definitions
+        .get(variable_name)
+        .map_or(field.location, |definition| definition.location);
     let message_detail = missing
         .iter()
         .map(|key| format!("{key} (Expected value to not be null)"))
@@ -4762,7 +5793,7 @@ fn dedicated_pubsub_variable_required_field_error(
         .join(", ");
     Some(json!({
         "message": format!("Variable ${} of type PubSubWebhookSubscriptionInput! was provided invalid value for {}", variable_name, message_detail),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "extensions": {
             "code": "INVALID_VARIABLE",
             "value": resolved_value_json(&ResolvedValue::Object(value.clone())),
@@ -4825,6 +5856,43 @@ fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option
     record[key].as_str().map(ToString::to_string)
 }
 
+/// Resolve an app-reserved metafield namespace shorthand. Shopify expands
+/// `$app:NAME` to `app--<api_client_id>--NAME` (and bare `$app` to
+/// `app--<api_client_id>`) using the requesting app's client id. Namespaces
+/// that are already fully qualified (e.g. `app--999999999999--kept`) or
+/// unrelated (e.g. `custom`) are returned unchanged.
+fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&str>) -> String {
+    let Some(client_id) = api_client_id else {
+        return namespace.to_string();
+    };
+    if let Some(rest) = namespace.strip_prefix("$app:") {
+        format!("app--{client_id}--{rest}")
+    } else if namespace == "$app" {
+        format!("app--{client_id}")
+    } else {
+        namespace.to_string()
+    }
+}
+
+/// A webhook filter is a search-query string that must reference at least one
+/// field via `field:value` syntax. A non-empty filter that names no field
+/// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
+/// mean "no filter" and are accepted.
+fn webhook_filter_is_invalid(filter: &str) -> bool {
+    let trimmed = filter.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    !trimmed.split_whitespace().any(|token| {
+        token.split_once(':').is_some_and(|(field, _)| {
+            !field.is_empty()
+                && field
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        })
+    })
+}
+
 fn is_known_webhook_subscription_topic(topic: &str) -> bool {
     WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES
         .split(", ")
@@ -4880,6 +5948,119 @@ fn empty_inventory_quantities() -> BTreeMap<String, i64> {
         ("on_hand".to_string(), 0),
         ("incoming".to_string(), 0),
     ])
+}
+
+fn inventory_shipment_tracking_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<InventoryShipmentTrackingRecord> {
+    let tracking = resolved_object_field(input, "trackingInput").unwrap_or_else(|| input.clone());
+    let record = InventoryShipmentTrackingRecord {
+        tracking_number: resolved_string_field(&tracking, "trackingNumber"),
+        company: resolved_string_field(&tracking, "company")
+            .or_else(|| resolved_string_field(&tracking, "carrier")),
+        tracking_url: resolved_string_field(&tracking, "trackingUrl")
+            .or_else(|| resolved_string_field(&tracking, "url")),
+        arrives_at: resolved_string_field(&tracking, "arrivesAt"),
+    };
+    (record.tracking_number.is_some()
+        || record.company.is_some()
+        || record.tracking_url.is_some()
+        || record.arrives_at.is_some())
+    .then_some(record)
+}
+
+fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let carrier = resolved_string_field(input, "carrier");
+    if carrier
+        .as_deref()
+        .is_some_and(|value| !is_valid_tracking_carrier(value))
+    {
+        errors.push(inventory_shipment_user_error(
+            vec!["input", "trackingInput", "carrier"],
+            "Carrier is not included in the list.",
+            "INVALID",
+        ));
+    }
+    let tracking_url =
+        resolved_string_field(input, "url").or_else(|| resolved_string_field(input, "trackingUrl"));
+    if tracking_url
+        .as_deref()
+        .is_some_and(|url| !(url.starts_with("https://") || url.starts_with("http://")))
+    {
+        errors.push(inventory_shipment_user_error(
+            vec!["input", "trackingInput", "url"],
+            "Tracking URL is invalid.",
+            "INVALID",
+        ));
+    }
+    errors
+}
+
+fn is_valid_tracking_carrier(carrier: &str) -> bool {
+    matches!(
+        carrier,
+        "UPS" | "USPS" | "FEDEX" | "DHL_EXPRESS" | "CANADA_POST" | "OTHER"
+    )
+}
+
+fn inventory_shipment_user_error(field_path: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field_path,
+        "message": message,
+        "code": code
+    })
+}
+
+fn inventory_shipment_has_incoming(record: &InventoryShipmentRecord) -> bool {
+    matches!(record.status.as_str(), "IN_TRANSIT" | "PARTIALLY_RECEIVED")
+}
+
+impl InventoryShipmentRecord {
+    fn line_item_total_quantity(&self) -> i64 {
+        self.line_items
+            .iter()
+            .map(|line_item| line_item.quantity)
+            .sum()
+    }
+
+    fn total_accepted_quantity(&self) -> i64 {
+        self.line_items
+            .iter()
+            .map(|line_item| line_item.accepted_quantity)
+            .sum()
+    }
+
+    fn total_rejected_quantity(&self) -> i64 {
+        self.line_items
+            .iter()
+            .map(|line_item| line_item.rejected_quantity)
+            .sum()
+    }
+
+    fn total_received_quantity(&self) -> i64 {
+        self.line_items
+            .iter()
+            .map(|line_item| line_item.received_quantity())
+            .sum()
+    }
+
+    fn unreceived_quantity(&self) -> i64 {
+        self.line_items
+            .iter()
+            .map(|line_item| line_item.unreceived_quantity())
+            .sum()
+    }
+}
+
+impl InventoryShipmentLineItemRecord {
+    fn received_quantity(&self) -> i64 {
+        self.accepted_quantity + self.rejected_quantity
+    }
+
+    fn unreceived_quantity(&self) -> i64 {
+        (self.quantity - self.received_quantity()).max(0)
+    }
 }
 
 fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i64> {
@@ -5106,135 +6287,6 @@ fn shopify_number_text(value: f64) -> String {
     }
 }
 
-fn movement_shipment_inventory_quantities() -> BTreeMap<String, i64> {
-    BTreeMap::from([
-        ("available".to_string(), 1),
-        ("reserved".to_string(), 0),
-        ("on_hand".to_string(), 1),
-        ("incoming".to_string(), 0),
-    ])
-}
-
-fn inventory_shipment_tracking_from_input(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Option<InventoryShipmentTrackingRecord> {
-    let tracking = resolved_object_field(input, "trackingInput").unwrap_or_else(|| input.clone());
-    let record = InventoryShipmentTrackingRecord {
-        tracking_number: resolved_string_field(&tracking, "trackingNumber"),
-        company: resolved_string_field(&tracking, "company")
-            .or_else(|| resolved_string_field(&tracking, "carrier")),
-        tracking_url: resolved_string_field(&tracking, "trackingUrl")
-            .or_else(|| resolved_string_field(&tracking, "url")),
-        arrives_at: resolved_string_field(&tracking, "arrivesAt"),
-    };
-    (record.tracking_number.is_some()
-        || record.company.is_some()
-        || record.tracking_url.is_some()
-        || record.arrives_at.is_some())
-    .then_some(record)
-}
-
-fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
-    let mut errors = Vec::new();
-    let carrier = resolved_string_field(input, "carrier");
-    if carrier
-        .as_deref()
-        .is_some_and(|value| !is_valid_tracking_carrier(value))
-    {
-        errors.push(inventory_shipment_user_error(
-            vec!["input", "trackingInput", "carrier"],
-            "Carrier is not included in the list.",
-            "INVALID",
-        ));
-    }
-    let tracking_url =
-        resolved_string_field(input, "url").or_else(|| resolved_string_field(input, "trackingUrl"));
-    if tracking_url
-        .as_deref()
-        .is_some_and(|url| !(url.starts_with("https://") || url.starts_with("http://")))
-    {
-        errors.push(inventory_shipment_user_error(
-            vec!["input", "trackingInput", "url"],
-            "Tracking URL is invalid.",
-            "INVALID",
-        ));
-    }
-    errors
-}
-
-fn is_valid_tracking_carrier(carrier: &str) -> bool {
-    matches!(
-        carrier,
-        "UPS" | "USPS" | "FEDEX" | "DHL_EXPRESS" | "CANADA_POST" | "OTHER"
-    )
-}
-
-fn inventory_shipment_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-fn inventory_shipment_has_incoming(record: &InventoryShipmentRecord) -> bool {
-    matches!(record.status.as_str(), "IN_TRANSIT" | "PARTIALLY_RECEIVED")
-}
-
-fn inventory_item_sku(inventory_item_id: &str) -> String {
-    if resource_id_tail(inventory_item_id) == "94051" {
-        return "SHIP-ROOT".to_string();
-    }
-    format!("SKU-{}", resource_id_tail(inventory_item_id))
-}
-
-impl InventoryShipmentRecord {
-    fn line_item_total_quantity(&self) -> i64 {
-        self.line_items
-            .iter()
-            .map(|line_item| line_item.quantity)
-            .sum()
-    }
-
-    fn total_accepted_quantity(&self) -> i64 {
-        self.line_items
-            .iter()
-            .map(|line_item| line_item.accepted_quantity)
-            .sum()
-    }
-
-    fn total_received_quantity(&self) -> i64 {
-        self.line_items
-            .iter()
-            .map(InventoryShipmentLineItemRecord::received_quantity)
-            .sum()
-    }
-
-    fn total_rejected_quantity(&self) -> i64 {
-        self.line_items
-            .iter()
-            .map(|line_item| line_item.rejected_quantity)
-            .sum()
-    }
-
-    fn unreceived_quantity(&self) -> i64 {
-        self.line_items
-            .iter()
-            .map(InventoryShipmentLineItemRecord::unreceived_quantity)
-            .sum()
-    }
-}
-
-impl InventoryShipmentLineItemRecord {
-    fn received_quantity(&self) -> i64 {
-        self.accepted_quantity + self.rejected_quantity
-    }
-
-    fn unreceived_quantity(&self) -> i64 {
-        (self.quantity - self.received_quantity()).max(0)
-    }
-}
-
 fn inventory_invalid_reason_payload(
     field: &RootFieldSelection,
     input: &BTreeMap<String, ResolvedValue>,
@@ -5254,6 +6306,98 @@ fn inventory_invalid_reason_payload(
                 ),
                 "code": "INVALID_REASON"
             }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_public_quantity_name_payload(
+    field: &RootFieldSelection,
+    name: &str,
+    path: Value,
+) -> Option<Value> {
+    if INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES.contains(&name) {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": path,
+                "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
+                "code": "INVALID_QUANTITY_NAME"
+            }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_set_quantity_name_payload(
+    field: &RootFieldSelection,
+    name: &str,
+) -> Option<Value> {
+    if INVENTORY_SET_QUANTITY_NAMES.contains(&name) {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
+                "code": "INVALID_NAME"
+            }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_set_quantities_payload(
+    field: &RootFieldSelection,
+    quantities: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    let mut errors = Vec::new();
+    for (index, quantity) in quantities.iter().enumerate() {
+        if resolved_int_field(quantity, "quantity")
+            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
+        {
+            errors.push(json!({
+                "field": ["input", "quantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }));
+        }
+    }
+
+    let mut indexes_by_pair: BTreeMap<(String, String), Vec<usize>> = BTreeMap::new();
+    for (index, quantity) in quantities.iter().enumerate() {
+        let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+        let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+        indexes_by_pair
+            .entry((item_id, location_id))
+            .or_default()
+            .push(index);
+    }
+    let duplicate_indexes: BTreeSet<usize> = indexes_by_pair
+        .values()
+        .filter(|indexes| indexes.len() > 1)
+        .flat_map(|indexes| indexes.iter().copied())
+        .collect();
+    for index in duplicate_indexes {
+        errors.push(json!({
+            "field": ["input", "quantities", index.to_string(), "locationId"],
+            "message": "The combination of inventoryItemId and locationId must be unique.",
+            "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+        }));
+    }
+
+    if errors.is_empty() {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": errors
         }),
         &field.selection,
     ))

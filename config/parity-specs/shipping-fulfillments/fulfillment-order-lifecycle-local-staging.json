@@ -330,6 +330,27 @@
         ]
       },
       {
+        "name": "after-reroute-order-read",
+        "capturePath": "$.workflows.reroute.afterReroute.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.reroute.afterReroute.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
         "name": "cancel-mutation-data",
         "capturePath": "$.workflows.reroute.cancelAfterReroute.response.payload.data.fulfillmentOrderCancel",
         "proxyPath": "$.data.fulfillmentOrderCancel",

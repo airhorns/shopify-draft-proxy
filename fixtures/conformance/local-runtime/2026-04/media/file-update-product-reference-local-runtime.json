@@ -111,7 +111,7 @@
       "variables": {
         "id": "gid://shopify/Product/429001"
       },
-      "query": "sha:media-product-hydrate",
+      "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

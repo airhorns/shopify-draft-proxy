@@ -44,7 +44,7 @@
       "variables": {
         "query": "sku:HERMES-VARIANT-SEARCH-50673975"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductsVariantSearchRead($query: String!) {\n  matches: productsCount(query: $query) {\n    count\n    precision\n  }\n  products(first: 5, query: $query) {\n    edges {\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

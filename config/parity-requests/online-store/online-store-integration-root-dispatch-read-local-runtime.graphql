@@ -1,0 +1,10 @@
+query NeutralOnlineStoreIntegrationRead($scriptId: ID!) {
+  scriptTag(id: $scriptId) {
+    id
+  }
+  scriptTags(first: 10) {
+    nodes {
+      id
+    }
+  }
+}

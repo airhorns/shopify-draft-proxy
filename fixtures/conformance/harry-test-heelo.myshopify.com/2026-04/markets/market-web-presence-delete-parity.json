@@ -254,7 +254,7 @@
           "subfolderSuffix": "harcodexmounbooq"
         }
       },
-      "query": "captured live webPresenceCreate setup for delete parity",
+      "query": "mutation WebPresenceDeleteParityCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

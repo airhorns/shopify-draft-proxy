@@ -1,4 +1,26 @@
 {
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/10579866353970",
+      "firstName": "Hermes",
+      "lastName": "Consent",
+      "displayName": "Hermes Consent",
+      "email": "hermes-consent-1777943566021@example.com",
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-consent-1777943566021@example.com",
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": null
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+14155556021",
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": null,
+        "marketingCollectedFrom": null
+      }
+    }
+  ],
   "precondition": {
     "response": {
       "data": {

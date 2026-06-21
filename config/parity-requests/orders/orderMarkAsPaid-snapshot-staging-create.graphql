@@ -1,0 +1,15 @@
+#graphql
+mutation OrderMarkAsPaidSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      email
+      displayFinancialStatus
+      presentmentCurrencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -12623,7 +12623,7 @@
       "variables": {
         "id": "gid://shopify/BulkOperation/7689772204338"
       },
-      "query": "hand-synthesized from lifecycle.queryExportToTerminal.terminalOperation",
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
       "response": {
         "status": 200,
         "body": {
@@ -12651,7 +12651,7 @@
       "variables": {
         "id": "gid://shopify/BulkOperation/7689772990770"
       },
-      "query": "hand-synthesized from lifecycle.queryExportImmediateCancel.run.response",
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
       "response": {
         "status": 200,
         "body": {

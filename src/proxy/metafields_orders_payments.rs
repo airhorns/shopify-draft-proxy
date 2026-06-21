@@ -1,10 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
-    query.contains("QuantityPricingByVariantUpdate")
-        && query.contains("quantityPricingByVariantUpdate")
-}
-
 pub(in crate::proxy) fn empty_page_info() -> Value {
     connection_page_info(false, false, None, None)
 }
@@ -13,23 +8,23 @@ pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
     namespace: &str,
     key: &str,
 ) -> Option<Value> {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
-    ))
-    .expect("custom data metafield type matrix fixture must parse");
-    fixture["metafieldBatches"]
-        .as_array()?
-        .iter()
-        .find_map(|batch| {
-            batch["mutation"]["response"]["data"]["metafieldsSet"]["metafields"]
-                .as_array()?
-                .iter()
-                .find(|metafield| {
-                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-                        && metafield.get("key").and_then(Value::as_str) == Some(key)
-                })
-                .cloned()
-        })
+    let metafield_type = match (namespace, key) {
+        ("custom", "boolean") => "boolean",
+        ("custom", "number_integer") => "number_integer",
+        ("custom", "json") => "json",
+        ("custom", "rich_text") | ("custom", "rich_text_field") => "rich_text_field",
+        ("custom", "rating") => "rating",
+        ("custom", "link") => "link",
+        ("custom", "money") => "money",
+        _ => return None,
+    };
+    Some(json!({
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type,
+        "value": "",
+        "compareDigest": format!("local-{namespace}-{key}-digest")
+    }))
 }
 
 pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
@@ -50,21 +45,459 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     }
 }
 
+/// Normalize a metafield `value` STRING the way Shopify echoes it back.
+/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
+/// and measurement / list-measurement values are reformatted (float-style
+/// number + UPPERCASE unit). Value strings are built manually because key
+/// order is observable and serde_json::Map sorts keys alphabetically.
+pub(in crate::proxy) fn normalize_metafield_value_string(
+    metafield_type: &str,
+    value: &str,
+) -> String {
+    match metafield_type {
+        "date_time" => normalize_date_time_value(value),
+        "rating" => normalize_rating_value_string(value),
+        _ => {
+            if let Some(inner) = metafield_type.strip_prefix("list.") {
+                normalize_list_metafield_value_string(inner, value)
+            } else if is_measurement_metafield_type_name(metafield_type) {
+                normalize_measurement_value_string(value)
+            } else {
+                value.to_string()
+            }
+        }
+    }
+}
+
+/// Compute a metafield `jsonValue` from its type + raw value string.
+/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
-        "boolean" => Value::Bool(value == "true"),
-        "number_integer" => value
-            .parse::<i64>()
-            .map(Value::from)
-            .unwrap_or_else(|_| json!(value)),
-        "json" | "rich_text_field" | "rating" | "link" | "money" => {
-            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+        "date_time" => Value::String(normalize_date_time_value(value)),
+        "number_decimal" | "float" => Value::String(value.to_string()),
+        "rating" => parse_rating_json_value(value),
+        _ => {
+            if let Some(inner) = metafield_type.strip_prefix("list.") {
+                parse_list_metafield_json_value(inner, value)
+            } else if is_measurement_metafield_type_name(metafield_type) {
+                parse_measurement_json_value(metafield_type, value)
+            } else if should_parse_metafield_json_value(metafield_type) {
+                parse_json_or_string(value)
+            } else {
+                match metafield_type {
+                    "number_integer" | "integer" => value
+                        .parse::<i64>()
+                        .map(Value::from)
+                        .unwrap_or_else(|_| Value::String(value.to_string())),
+                    "boolean" => Value::Bool(value == "true"),
+                    _ => Value::String(value.to_string()),
+                }
+            }
         }
-        value_type if value_type.starts_with("list.") || value.trim_start().starts_with('{') => {
-            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
-        }
-        _ => json!(value),
     }
+}
+
+fn parse_json_or_string(raw: &str) -> Value {
+    serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_string()))
+}
+
+/// JSON-encode a string (with surrounding quotes + escaping) so value
+/// strings can be assembled by hand while preserving key order.
+fn json_quote(value: &str) -> String {
+    Value::String(value.to_string()).to_string()
+}
+
+/// Gleam `float.to_string` renders whole values with a trailing `.0`
+/// (`5.0`, not `5`); Rust's `{}` drops it. Mirror the Gleam behavior.
+fn float_to_string(value: f64) -> String {
+    if value.is_finite() && value.fract() == 0.0 {
+        format!("{}.0", value.trunc() as i64)
+    } else {
+        format!("{value}")
+    }
+}
+
+fn normalize_date_time_value(value: &str) -> String {
+    if value.to_lowercase().ends_with('z') {
+        format!("{}+00:00", &value[..value.len() - 1])
+    } else if has_timezone_offset(value) {
+        value.to_string()
+    } else {
+        format!("{value}+00:00")
+    }
+}
+
+fn has_timezone_offset(value: &str) -> bool {
+    let chars: Vec<char> = value.chars().collect();
+    let len = chars.len();
+    if len < 6 {
+        return false;
+    }
+    let sign = chars[len - 6];
+    let colon = chars[len - 3];
+    (sign == '+' || sign == '-') && colon == ':'
+}
+
+fn should_parse_metafield_json_value(type_name: &str) -> bool {
+    type_name.starts_with("list.") || JSON_OBJECT_METAFIELD_TYPES.contains(&type_name)
+}
+
+const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "capacitance",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "frequency",
+    "illuminance",
+    "inductance",
+    "json",
+    "json_string",
+    "link",
+    "luminous_flux",
+    "mass_flow_rate",
+    "money",
+    "power",
+    "pressure",
+    "rating",
+    "resolution",
+    "rich_text_field",
+    "rotational_speed",
+    "sound_level",
+    "speed",
+    "temperature",
+    "thermal_power",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+];
+
+const MEASUREMENT_METAFIELD_TYPES: &[&str] = &[
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "capacitance",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "frequency",
+    "illuminance",
+    "inductance",
+    "luminous_flux",
+    "mass_flow_rate",
+    "power",
+    "pressure",
+    "resolution",
+    "rotational_speed",
+    "sound_level",
+    "speed",
+    "temperature",
+    "thermal_power",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+];
+
+fn is_measurement_metafield_type_name(type_name: &str) -> bool {
+    MEASUREMENT_METAFIELD_TYPES.contains(&type_name)
+}
+
+fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    match fields.get(key) {
+        Some(Value::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+/// Read a numeric field as a `jsonValue` number: ints stay ints, floats
+/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
+    match fields.get(key) {
+        Some(Value::Number(number)) => {
+            if let Some(int_value) = number.as_i64() {
+                Some(Value::from(int_value))
+            } else {
+                number.as_f64().map(json_number_from_float)
+            }
+        }
+        Some(Value::String(text)) => {
+            if let Ok(int_value) = text.parse::<i64>() {
+                Some(Value::from(int_value))
+            } else {
+                text.parse::<f64>().ok().map(json_number_from_float)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn json_number_from_float(value: f64) -> Value {
+    if value.is_finite() && value.fract() == 0.0 {
+        Value::from(value.trunc() as i64)
+    } else {
+        Value::from(value)
+    }
+}
+
+/// Read a numeric field as a value-STRING component: ints render `n.0`,
+/// floats render via `float_to_string`. Mirrors Gleam
+/// `json_number_string_field`.
+fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    match fields.get(key) {
+        Some(Value::Number(number)) => {
+            if let Some(int_value) = number.as_i64() {
+                Some(format!("{int_value}.0"))
+            } else {
+                number.as_f64().map(float_to_string)
+            }
+        }
+        Some(Value::String(text)) => {
+            if let Ok(int_value) = text.parse::<i64>() {
+                Some(format!("{int_value}.0"))
+            } else {
+                text.parse::<f64>().ok().map(float_to_string)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn normalize_list_measurement_unit(type_name: &str, unit: &str) -> String {
+    let lowered = unit.to_lowercase();
+    match (type_name, lowered.as_str()) {
+        ("dimension", "centimeters") => "cm".to_string(),
+        ("volume", "milliliters") => "ml".to_string(),
+        ("weight", "kilograms") => "kg".to_string(),
+        _ => lowered,
+    }
+}
+
+fn normalize_measurement_value_string(raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Object(fields)) => {
+            match (
+                json_number_string_field(&fields, "value"),
+                json_string_field(&fields, "unit"),
+            ) {
+                (Some(value_string), Some(unit)) => format!(
+                    "{{\"value\":{},\"unit\":{}}}",
+                    value_string,
+                    json_quote(&unit.to_uppercase())
+                ),
+                _ => raw.to_string(),
+            }
+        }
+        _ => raw.to_string(),
+    }
+}
+
+fn normalize_measurement_json_object(
+    type_name: &str,
+    item: &Value,
+    list_json_unit: bool,
+) -> Option<Value> {
+    let fields = item.as_object()?;
+    let value = json_number_field(fields, "value")?;
+    let unit = json_string_field(fields, "unit")?;
+    let normalized_unit = if list_json_unit {
+        normalize_list_measurement_unit(type_name, &unit).to_lowercase()
+    } else {
+        unit.to_uppercase()
+    };
+    Some(json!({ "value": value, "unit": normalized_unit }))
+}
+
+fn parse_measurement_json_value(type_name: &str, raw: &str) -> Value {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(|parsed| normalize_measurement_json_object(type_name, parsed, false))
+        .unwrap_or_else(|| parse_json_or_string(raw))
+}
+
+fn serialize_measurement_value_object(item: &Value) -> Option<String> {
+    let fields = item.as_object()?;
+    let value_string = json_number_string_field(fields, "value")?;
+    let unit = json_string_field(fields, "unit")?;
+    Some(format!(
+        "{{\"value\":{},\"unit\":{}}}",
+        value_string,
+        json_quote(&unit.to_uppercase())
+    ))
+}
+
+fn rating_parts(value: &Value) -> Option<(String, String, String)> {
+    let fields = value.as_object()?;
+    let scale_min = json_string_field(fields, "scale_min")?;
+    let scale_max = json_string_field(fields, "scale_max")?;
+    let rating = json_string_field(fields, "value")?;
+    Some((scale_min, scale_max, rating))
+}
+
+fn rating_object_value(value: &Value) -> Option<Value> {
+    rating_parts(value).map(|(scale_min, scale_max, rating)| {
+        json!({ "scale_min": scale_min, "scale_max": scale_max, "value": rating })
+    })
+}
+
+fn rating_value_object_string(value: &Value) -> Option<String> {
+    rating_parts(value).map(|(scale_min, scale_max, rating)| {
+        format!(
+            "{{\"scale_min\":{},\"scale_max\":{},\"value\":{}}}",
+            json_quote(&scale_min),
+            json_quote(&scale_max),
+            json_quote(&rating)
+        )
+    })
+}
+
+fn parse_rating_json_value(raw: &str) -> Value {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(rating_object_value)
+        .unwrap_or_else(|| parse_json_or_string(raw))
+}
+
+fn normalize_rating_value_string(raw: &str) -> String {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(rating_value_object_string)
+        .unwrap_or_else(|| raw.to_string())
+}
+
+fn parse_list_metafield_json_value(type_name: &str, raw: &str) -> Value {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Array(items)) => {
+            let mapped = items
+                .iter()
+                .map(|item| match type_name {
+                    "date_time" => match item {
+                        Value::String(text) => Value::String(normalize_date_time_value(text)),
+                        _ => item.clone(),
+                    },
+                    "number_decimal" | "float" => list_decimal_json_item(item),
+                    "rating" => rating_object_value(item).unwrap_or_else(|| item.clone()),
+                    _ => {
+                        if is_measurement_metafield_type_name(type_name) {
+                            normalize_measurement_json_object(type_name, item, true)
+                                .unwrap_or_else(|| item.clone())
+                        } else {
+                            item.clone()
+                        }
+                    }
+                })
+                .collect();
+            Value::Array(mapped)
+        }
+        Ok(other) => other,
+        Err(_) => Value::String(raw.to_string()),
+    }
+}
+
+fn list_decimal_json_item(item: &Value) -> Value {
+    match item {
+        Value::Number(number) => {
+            if let Some(int_value) = number.as_i64() {
+                Value::String(int_value.to_string())
+            } else if let Some(float_value) = number.as_f64() {
+                Value::String(float_to_string(float_value))
+            } else {
+                item.clone()
+            }
+        }
+        Value::String(text) => Value::String(text.clone()),
+        _ => item.clone(),
+    }
+}
+
+fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Array(items)) => match type_name {
+            "date_time" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| match item {
+                        Value::String(text) => json_quote(&normalize_date_time_value(text)),
+                        _ => item.to_string(),
+                    })
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "number_decimal" | "float" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| list_decimal_json_item(item).to_string())
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "rating" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| {
+                        rating_value_object_string(item).unwrap_or_else(|| item.to_string())
+                    })
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            _ => {
+                if is_measurement_metafield_type_name(type_name) {
+                    let serialized: Vec<Option<String>> = items
+                        .iter()
+                        .map(serialize_measurement_value_object)
+                        .collect();
+                    if serialized.iter().all(Option::is_some) {
+                        let joined = serialized
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                            .join(",");
+                        format!("[{joined}]")
+                    } else {
+                        raw.to_string()
+                    }
+                } else {
+                    raw.to_string()
+                }
+            }
+        },
+        _ => raw.to_string(),
+    }
+}
+
+/// A reserved app namespace (`app--<apiClientId>--<suffix>`) may only be
+/// written by the app that owns it. The proxy authenticates as api client
+/// 347082227713, so a write targeting any other app's reserved namespace is
+/// rejected with APP_NOT_AUTHORIZED.
+pub(in crate::proxy) fn app_namespace_belongs_to_other_app(namespace: &str) -> bool {
+    let Some(remainder) = namespace.strip_prefix("app--") else {
+        return false;
+    };
+    let app_id = remainder.split("--").next().unwrap_or_default();
+    !app_id.is_empty() && app_id != "347082227713"
 }
 
 pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
@@ -75,6 +508,97 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str
         Some(value) => value.to_string(),
         None => "app--347082227713".to_string(),
     }
+}
+
+/// Shopify rejects `metafieldsSet` at *variable coercion* time — before the mutation
+/// resolver runs — when a non-null `MetafieldsSetInput` field (`key`, `ownerId`, `value`)
+/// is omitted or explicitly null. The response is a top-level `INVALID_VARIABLE` GraphQL
+/// error (no `data`), anchored at the variable definition, echoing the provided value and
+/// listing the offending `[index, field]` paths under `problems`.
+pub(in crate::proxy) fn metafields_set_coercion_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+    let mut problems: Vec<(usize, &'static str)> = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        for field in ["key", "ownerId", "value"] {
+            let present =
+                matches!(input.get(field), Some(value) if !matches!(value, ResolvedValue::Null));
+            if !present {
+                problems.push((index, field));
+            }
+        }
+    }
+    let (first_index, first_field) = *problems.first()?;
+    // Echo the provided variable value verbatim (present fields only). Object key order is
+    // normalized away by the strict differ, so reconstructing from the parsed input is exact.
+    let value: Vec<Value> = inputs
+        .iter()
+        .map(|input| {
+            Value::Object(
+                input
+                    .iter()
+                    .map(|(name, resolved)| (name.clone(), resolved_value_json(resolved)))
+                    .collect(),
+            )
+        })
+        .collect();
+    let problems_json: Vec<Value> = problems
+        .iter()
+        .map(|(index, field)| {
+            json!({
+                "path": [index, field],
+                "explanation": "Expected value to not be null",
+            })
+        })
+        .collect();
+    let variable_name =
+        metafields_set_variable_name(query).unwrap_or_else(|| "metafields".to_string());
+    let message = format!(
+        "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
+    );
+    let mut error = serde_json::Map::new();
+    error.insert("message".to_string(), json!(message));
+    if let Some((line, column)) = graphql_variable_definition_location(query, &variable_name) {
+        error.insert(
+            "locations".to_string(),
+            json!([{ "line": line, "column": column }]),
+        );
+    }
+    error.insert(
+        "extensions".to_string(),
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": value,
+            "problems": problems_json,
+        }),
+    );
+    Some(ok_json(json!({ "errors": [Value::Object(error)] })))
+}
+
+/// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
+/// mutation (e.g. `metafieldsSet(metafields: $metafields)` -> `metafields`).
+fn metafields_set_variable_name(query: &str) -> Option<String> {
+    let mut search = 0;
+    while let Some(relative) = query[search..].find("metafields") {
+        let start = search + relative;
+        let after = start + "metafields".len();
+        let rest = query[after..].trim_start();
+        if let Some(rest) = rest.strip_prefix(':') {
+            if let Some(rest) = rest.trim_start().strip_prefix('$') {
+                let name: String = rest
+                    .chars()
+                    .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+                    .collect();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+        search = after;
+    }
+    None
 }
 
 pub(in crate::proxy) fn metafields_set_input_errors(
@@ -129,6 +653,12 @@ pub(in crate::proxy) fn metafields_set_input_errors(
                     vec!["metafields", &index.to_string(), "namespace"],
                     "",
                     &format!("Namespace {namespace} is a reserved namespace"),
+                ))
+            } else if app_namespace_belongs_to_other_app(&namespace) {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string()],
+                    "APP_NOT_AUTHORIZED",
+                    "Access to this namespace and key on Metafields for this resource type is not allowed.",
                 ))
             } else if !input.contains_key("type") {
                 Some(metafields_set_path_user_error(
@@ -312,16 +842,6 @@ fn is_shopify_date_time(value: &str) -> bool {
         && value.chars().enumerate().all(|(index, character)| {
             matches!(index, 4 | 7 | 10 | 13 | 16) || character.is_ascii_digit()
         })
-}
-
-pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
-    let cursor = cursor_id.map(|id| format!("cursor:{}", id));
-    json!({
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "startCursor": cursor,
-        "endCursor": cursor
-    })
 }
 
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
@@ -560,11 +1080,6 @@ pub(in crate::proxy) fn quantity_pricing_delete_variant_ids_from_input(
     ids.into_iter().collect()
 }
 
-pub(in crate::proxy) fn is_quantity_rules_document(root_field: &str, query: &str) -> bool {
-    matches!(root_field, "quantityRulesAdd" | "quantityRulesDelete")
-        && (query.contains("QuantityRulesAdd") || query.contains("QuantityRulesDelete"))
-}
-
 pub(in crate::proxy) fn quantity_rules_mutation_response(
     root_field: &str,
     query: &str,
@@ -720,10 +1235,6 @@ pub(in crate::proxy) struct WebPresenceDraft {
     pub(in crate::proxy) domain_id: Option<String>,
 }
 
-pub(in crate::proxy) fn is_market_web_presence_helper_document(query: &str) -> bool {
-    query.contains("RustMarketWebPresenceHelperLocalRuntime")
-}
-
 pub(in crate::proxy) fn web_presence_draft_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
@@ -825,31 +1336,29 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
 ) {
     let has_domain = draft.domain_id.is_some();
     let has_subfolder = draft.subfolder_suffix.is_some();
-    if (is_create || input.contains_key("domainId") || input.contains_key("subfolderSuffix"))
-        && has_domain
-        && has_subfolder
-    {
-        errors.push(market_user_error(
-            vec!["input"],
-            "Cannot have both a subfolder suffix and a domain.",
-            json!("CANNOT_HAVE_SUBFOLDER_AND_DOMAIN"),
-        ));
+    // A domainId makes this a domain-backed presence: Shopify validates the domain
+    // reference and ignores the subfolder-routing rules (subfolder format,
+    // cannot-have-both, locale duplication). A domainId that does not resolve to a
+    // real domain fails with DOMAIN_NOT_FOUND, reported ahead of any locale errors
+    // already collected by web_presence_draft_from_input.
+    if has_domain {
+        if is_create && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000") {
+            errors.insert(
+                0,
+                market_user_error(
+                    vec!["input", "domainId"],
+                    "Domain does not exist",
+                    json!("DOMAIN_NOT_FOUND"),
+                ),
+            );
+        }
+        return;
     }
-    if is_create && !has_domain && !has_subfolder {
+    if is_create && !has_subfolder {
         errors.push(market_user_error(
             vec!["input"],
             "Requires a domain or subfolder suffix.",
             json!("REQUIRES_DOMAIN_OR_SUBFOLDER"),
-        ));
-    }
-    if is_create
-        && draft.domain_id.as_deref().is_some()
-        && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000")
-    {
-        errors.push(market_user_error(
-            vec!["input", "domainId"],
-            "Domain does not exist",
-            json!("DOMAIN_NOT_FOUND"),
         ));
     }
     if let Some(suffix) = draft.subfolder_suffix.as_deref() {
@@ -864,12 +1373,24 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
             }
         }
     }
-    if draft
+    // Duplicate-language detection across the default + alternate locales. Shopify
+    // raises a `defaultLocale` error when the default repeats an alternate, and a
+    // separate `alternateLocales` error listing the offending languages. The listed
+    // set is the alternates alone when they already collide with each other, or the
+    // default prepended to the alternates when the collision is default-vs-alternate.
+    let default_collides = draft
         .alternate_locales
         .iter()
-        .any(|locale| locale == &draft.default_locale)
-    {
-        if is_create || input.contains_key("defaultLocale") {
+        .any(|locale| locale == &draft.default_locale);
+    let alternates_internal_dup = {
+        let mut seen = std::collections::HashSet::new();
+        !draft
+            .alternate_locales
+            .iter()
+            .all(|locale| seen.insert(locale.clone()))
+    };
+    if default_collides || alternates_internal_dup {
+        if default_collides && (is_create || input.contains_key("defaultLocale")) {
             errors.push(market_user_error(
                 vec!["input", "defaultLocale"],
                 &format!(
@@ -880,15 +1401,33 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
             ));
         }
         if input.contains_key("alternateLocales") {
+            let listed: Vec<String> = if alternates_internal_dup {
+                draft.alternate_locales.clone()
+            } else {
+                std::iter::once(draft.default_locale.clone())
+                    .chain(draft.alternate_locales.iter().cloned())
+                    .collect()
+            };
             errors.push(market_user_error(
                 vec!["input", "alternateLocales"],
                 &format!(
-                    "Alternate locales Duplicates were found in the following languages: {} and {}",
-                    draft.default_locale, draft.default_locale
+                    "Alternate locales Duplicates were found in the following languages: {}",
+                    humanize_and_list(&listed)
                 ),
                 json!("DUPLICATE_LANGUAGES"),
             ));
         }
+    }
+}
+
+/// Join a list with commas and a trailing "and": `[a]`->`a`, `[a,b]`->`a and b`,
+/// `[a,b,c]`->`a, b, and c` (Shopify's duplicate-language error phrasing).
+fn humanize_and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [first, second] => format!("{first} and {second}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
     }
 }
 
@@ -963,40 +1502,53 @@ pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> St
     }
 }
 
-pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDraft) -> Value {
-    let domain = draft
+pub(in crate::proxy) fn market_web_presence_helper_record(
+    draft: &WebPresenceDraft,
+    shop_domain: &str,
+) -> Value {
+    let shop_origin = format!("https://{shop_domain}");
+    // A linked custom domain routes through its own host, not the shop's myshopify
+    // domain. The local runtime seeds the same Domain/1000 -> acme.myshopify.com
+    // mapping the top-level `domain(id:)` query exposes (see dispatch.rs); unknown
+    // domain ids are rejected before this record is built.
+    let linked_domain_host = draft
         .domain_id
         .as_deref()
-        .filter(|domain_id| *domain_id == "gid://shopify/Domain/1000")
-        .map(|domain_id| {
-            json!({
-                "id": domain_id,
-                "host": "acme.myshopify.com",
-                "url": "https://acme.myshopify.com",
-                "sslEnabled": true
-            })
-        })
-        .unwrap_or(Value::Null);
+        .and_then(web_presence_linked_domain_host);
+    let domain = match (&draft.domain_id, &linked_domain_host) {
+        (Some(domain_id), Some(host)) => json!({
+            "id": domain_id,
+            "host": host,
+            "url": format!("https://{host}"),
+            "sslEnabled": true
+        }),
+        _ => Value::Null,
+    };
+    // Shopify lists root URLs as the default locale first, then the alternate
+    // locales sorted alphabetically by locale code (the `alternateLocales` field
+    // itself preserves the caller's input order; only `rootUrls` is sorted).
+    let mut sorted_alternates = draft.alternate_locales.clone();
+    sorted_alternates.sort();
     let locales = std::iter::once(draft.default_locale.clone())
-        .chain(draft.alternate_locales.iter().cloned())
+        .chain(sorted_alternates)
         .collect::<Vec<_>>();
+    // Shopify roots a subfolder web presence at `/{language}-{suffix}/` for every
+    // locale, including the default (the language subtag of e.g. `en-us`/`fr-CA`
+    // collapses to `en`/`fr`). Domain-backed presences serve the default locale at
+    // the domain root (`/`) and each alternate at `/{language}/` on the domain host.
     let root_urls = locales
         .iter()
-        .enumerate()
-        .map(|(index, locale)| {
-            let url = if draft.domain_id.is_some() {
-                if index == 0 {
-                    "https://acme.myshopify.com/".to_string()
+        .map(|locale| {
+            let language = locale.split('-').next().unwrap_or(locale.as_str());
+            let url = if let Some(host) = &linked_domain_host {
+                if locale == &draft.default_locale {
+                    format!("https://{host}/")
                 } else {
-                    format!("https://acme.myshopify.com/{locale}/")
+                    format!("https://{host}/{language}/")
                 }
             } else {
                 let suffix = draft.subfolder_suffix.as_deref().unwrap_or_default();
-                if index == 0 {
-                    format!("https://acme.myshopify.com/{suffix}/")
-                } else {
-                    format!("https://acme.myshopify.com/{suffix}/{locale}/")
-                }
+                format!("{shop_origin}/{language}-{suffix}/")
             };
             json!({"locale": locale, "url": url})
         })
@@ -1012,80 +1564,14 @@ pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDra
     })
 }
 
-pub(in crate::proxy) fn is_web_presence_local_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if !query.contains("MarketWebPresenceLifecycleCreate") || !query.contains("webPresenceCreate") {
-        return false;
+/// Resolves a linked custom-domain id to its host. Only Domain/1000 is seeded in
+/// the local runtime (mirroring the top-level `domain(id:)` query in dispatch.rs);
+/// any other id returns None and is rejected upstream as DOMAIN_NOT_FOUND.
+pub(in crate::proxy) fn web_presence_linked_domain_host(domain_id: &str) -> Option<&'static str> {
+    match domain_id {
+        "gid://shopify/Domain/1000" => Some("acme.myshopify.com"),
+        _ => None,
     }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "subfolderSuffix").as_deref(),
-        Some("fr") | Some("intl")
-    )
-}
-
-pub(in crate::proxy) fn web_presence_create_response(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "webPresenceCreate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
-    let default_locale =
-        resolved_string_field(&input, "defaultLocale").unwrap_or_else(|| "en".to_string());
-    let alternate_locales = list_string_field(&input, "alternateLocales");
-    let web_presence = market_web_presence_record(&suffix, &default_locale, &alternate_locales);
-    let payload = json!({"webPresence": web_presence, "userErrors": []});
-    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
-}
-
-pub(in crate::proxy) fn market_web_presence_record(
-    suffix: &str,
-    default_locale: &str,
-    alternate_locales: &[String],
-) -> Value {
-    let id = if suffix == "intl" {
-        "gid://shopify/MarketWebPresence/69721358642"
-    } else {
-        "gid://shopify/MarketWebPresence/69721391410"
-    };
-    let locales = std::iter::once(default_locale.to_string())
-        .chain(alternate_locales.iter().cloned())
-        .collect::<Vec<_>>();
-    let root_urls = locales
-        .iter()
-        .enumerate()
-        .map(|(index, locale)| {
-            let url = if suffix == "intl" {
-                if index == 0 {
-                    "https://harry-test-heelo.myshopify.com/intl/".to_string()
-                } else {
-                    format!("https://harry-test-heelo.myshopify.com/intl/{}/", locale)
-                }
-            } else {
-                format!(
-                    "https://harry-test-heelo.myshopify.com/{}-{}/",
-                    locale, suffix
-                )
-            };
-            json!({"locale": locale, "url": url})
-        })
-        .collect::<Vec<_>>();
-    json!({
-        "id": id,
-        "subfolderSuffix": suffix,
-        "domain": null,
-        "rootUrls": root_urls,
-        "defaultLocale": locale_record(default_locale, true),
-        "alternateLocales": alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
-        "markets": {"nodes": []}
-    })
 }
 
 pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
@@ -1182,79 +1668,6 @@ pub(in crate::proxy) fn resolved_number_field(
     }
 }
 
-pub(in crate::proxy) fn is_local_customer_create_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerCreateParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionCustomerCreate")
-    {
-        return true;
-    }
-    if !query.contains("CustomerInputInlineConsentCreate") {
-        return false;
-    }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
-}
-
-pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {
-    query.contains("CustomerDeleteParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionDelete")
-}
-
-pub(in crate::proxy) fn is_customer_input_validation_update_success(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "id").as_deref(),
-        Some("gid://shopify/Customer/10541053706546")
-            | Some("gid://shopify/Customer/10541053772082")
-    )
-}
-
-pub(in crate::proxy) fn is_local_customer_update_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerUpdateParityPlan")
-        || is_customer_input_validation_update_success(variables)
-    {
-        return true;
-    }
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let Some(input) = resolved_object_field(&arguments, "input") else {
-        return false;
-    };
-    input.contains_key("emailMarketingConsent")
-        || input.contains_key("smsMarketingConsent")
-        || [
-            "firstName",
-            "lastName",
-            "note",
-            "tags",
-            "taxExempt",
-            "taxExemptions",
-            "metafields",
-            "phone",
-        ]
-        .iter()
-        .any(|field| input.contains_key(*field))
-}
-
-pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
-    normalize_taggable_tags(tags)
-}
-
-pub(in crate::proxy) fn customer_connection_empty(selection: &[SelectedField]) -> Value {
-    selected_empty_connection_json(selection)
-}
-
 pub(in crate::proxy) fn customer_loyalty_metafield(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
@@ -1270,56 +1683,6 @@ pub(in crate::proxy) fn customer_loyalty_metafield(
         "key": resolved_string_field(fields, "key").unwrap_or_else(|| "loyalty".to_string()),
         "type": resolved_string_field(fields, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
         "value": resolved_string_field(fields, "value").unwrap_or_default()
-    })
-}
-
-pub(in crate::proxy) struct CustomerFixtureRecord<'a> {
-    pub(in crate::proxy) id: &'a str,
-    pub(in crate::proxy) first: &'a str,
-    pub(in crate::proxy) last: &'a str,
-    pub(in crate::proxy) email: &'a str,
-    pub(in crate::proxy) phone: &'a str,
-    pub(in crate::proxy) note: Option<&'a str>,
-    pub(in crate::proxy) tax_exempt: bool,
-    pub(in crate::proxy) tax_exemptions: Vec<String>,
-    pub(in crate::proxy) tags: Vec<String>,
-    pub(in crate::proxy) loyalty: Value,
-}
-
-pub(in crate::proxy) fn customer_fixture_record(record: CustomerFixtureRecord<'_>) -> Value {
-    let display_name = [record.first, record.last]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let metafields = if record.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
-    } else {
-        json!({ "nodes": [record.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
-    };
-    json!({
-        "id": record.id,
-        "firstName": record.first,
-        "lastName": record.last,
-        "displayName": display_name,
-        "email": record.email,
-        "phone": record.phone,
-        "locale": "en",
-        "note": record.note,
-        "verifiedEmail": true,
-        "taxExempt": record.tax_exempt,
-        "taxExemptions": record.tax_exemptions,
-        "tags": record.tags,
-        "state": "DISABLED",
-        "canDelete": true,
-        "loyalty": record.loyalty.clone(),
-        "metafield": record.loyalty,
-        "metafields": metafields,
-        "defaultEmailAddress": { "emailAddress": record.email },
-        "defaultPhoneNumber": { "phoneNumber": record.phone },
-        "defaultAddress": null,
-        "createdAt": "2026-04-25T01:41:06Z",
-        "updatedAt": "2026-04-25T01:41:06Z"
     })
 }
 
@@ -1386,55 +1749,6 @@ pub(in crate::proxy) fn delivery_settings_read_data(fields: &[RootFieldSelection
         }
     }
     Value::Object(data)
-}
-
-pub(in crate::proxy) fn product_helper_roots_read_payload() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"
-    ))
-    .expect("product helper roots fixture must parse");
-    fixture["response"]["payload"].clone()
-}
-
-pub(in crate::proxy) fn product_variants_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
-    ))
-    .expect("product variants matrix fixture must parse");
-    let product = fixture["data"]["product"].clone();
-    let variant_node = product["variants"]["edges"][0]["node"].clone();
-    let inventory_item = variant_node["inventoryItem"].clone();
-
-    let mut variant = variant_node.as_object().cloned().unwrap_or_default();
-    variant.insert(
-        "product".to_string(),
-        json!({
-            "id": product["id"].clone(),
-            "title": product["title"].clone()
-        }),
-    );
-
-    let mut stock_backreference = inventory_item.as_object().cloned().unwrap_or_default();
-    stock_backreference.insert(
-        "variant".to_string(),
-        json!({
-            "id": variant_node["id"].clone(),
-            "title": variant_node["title"].clone(),
-            "sku": variant_node["sku"].clone(),
-            "inventoryQuantity": variant_node["inventoryQuantity"].clone(),
-            "product": {
-                "id": product["id"].clone(),
-                "title": product["title"].clone()
-            }
-        }),
-    );
-
-    json!({
-        "product": product,
-        "variant": Value::Object(variant),
-        "stock": inventory_item,
-        "stockBackreference": Value::Object(stock_backreference)
-    })
 }
 
 pub(in crate::proxy) fn payment_customization_connection(
@@ -1614,7 +1928,7 @@ pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value
     payment_customization_user_error(
         vec!["id"],
         "PAYMENT_CUSTOMIZATION_NOT_FOUND",
-        &format!("Payment customization {id} does not exist."),
+        &format!("Could not find PaymentCustomization with id: {id}"),
     )
 }
 
@@ -1669,6 +1983,22 @@ pub(in crate::proxy) fn payment_customization_function_key(value: &str) -> Strin
         .to_string()
 }
 
+/// Exact GraphQL document the proxy issues to hydrate an **Order** owner before
+/// payment-terms staging. The text must match the recorded `PaymentTermsOwnerHydrate`
+/// cassette byte-for-byte (modulo trailing whitespace) so the strict upstream
+/// matcher in `scripts/parity-cassette.ts` replays the real recorded reply.
+pub(in crate::proxy) const PAYMENT_TERMS_OWNER_HYDRATE_QUERY: &str = "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }";
+
+/// Exact GraphQL document for hydrating a **DraftOrder** owner. Drafts have no
+/// `displayFinancialStatus`/`order`-shaped money, so a distinct document selects
+/// the draft money bags. Matches the synthetic delete-owner-cascade cassette.
+pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query PaymentTermsDraftHydrate($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      paymentTerms {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }";
+
+/// Exact GraphQL document the proxy issues to hydrate a **PaymentTerms node** by
+/// id for the cold update-eligibility path (no local owner link). Must match the
+/// recorded `PaymentTermsHydrate` cassette byte-for-byte.
+pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
+
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
     json!({
         "field": field,
@@ -1694,145 +2024,276 @@ pub(in crate::proxy) fn payment_terms_payload_value(
     json!({ payload_key: selected_json(&payload, selections) })
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(in crate::proxy) struct PaymentTermsTemplate {
-    id: &'static str,
-    name: &'static str,
-    description: &'static str,
-    terms_type: &'static str,
-    due_in_days: Option<i64>,
-}
-
-pub(in crate::proxy) const PAYMENT_TERMS_TEMPLATES: &[PaymentTermsTemplate] = &[
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/1",
-        name: "Due on receipt",
-        description: "Due on receipt",
-        terms_type: "RECEIPT",
-        due_in_days: None,
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/9",
-        name: "Due on fulfillment",
-        description: "Due on fulfillment",
-        terms_type: "FULFILLMENT",
-        due_in_days: None,
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/2",
-        name: "Net 7",
-        description: "Within 7 days",
-        terms_type: "NET",
-        due_in_days: Some(7),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/3",
-        name: "Net 15",
-        description: "Within 15 days",
-        terms_type: "NET",
-        due_in_days: Some(15),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/4",
-        name: "Net 30",
-        description: "Within 30 days",
-        terms_type: "NET",
-        due_in_days: Some(30),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/8",
-        name: "Net 45",
-        description: "Within 45 days",
-        terms_type: "NET",
-        due_in_days: Some(45),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/5",
-        name: "Net 60",
-        description: "Within 60 days",
-        terms_type: "NET",
-        due_in_days: Some(60),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/6",
-        name: "Net 90",
-        description: "Within 90 days",
-        terms_type: "NET",
-        due_in_days: Some(90),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/7",
-        name: "Fixed",
-        description: "Fixed date",
-        terms_type: "FIXED",
-        due_in_days: None,
-    },
-];
-
-pub(in crate::proxy) fn payment_terms_template_by_id(id: &str) -> Option<PaymentTermsTemplate> {
-    PAYMENT_TERMS_TEMPLATES
-        .iter()
-        .copied()
-        .find(|template| template.id == id)
-}
-
-pub(in crate::proxy) fn payment_terms_template_record(template: PaymentTermsTemplate) -> Value {
-    json!({
-        "id": template.id,
-        "name": template.name,
-        "description": template.description,
-        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
-        "paymentTermsType": template.terms_type,
-        "translatedName": template.name,
-        "__typename": "PaymentTermsTemplate"
-    })
-}
-
 pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
-    template: PaymentTermsTemplate,
+    name: &str,
+    terms_type: &str,
+    due_in_days: Option<i64>,
     schedules: Value,
 ) -> Value {
+    // Shopify connection cursors are opaque, stable-per-node strings. We anchor
+    // them to the first/last schedule node id so they round-trip and are always
+    // non-empty for a populated connection (null for an empty schedule set).
+    let (start_cursor, end_cursor) = schedules
+        .as_array()
+        .filter(|nodes| !nodes.is_empty())
+        .map(|nodes| {
+            let first = nodes
+                .first()
+                .and_then(|node| node.get("id"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let last = nodes
+                .last()
+                .and_then(|node| node.get("id"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            (
+                json!(format!("cursor:{first}")),
+                json!(format!("cursor:{last}")),
+            )
+        })
+        .unwrap_or((Value::Null, Value::Null));
     json!({
         "id": id,
         "due": false,
         "overdue": false,
-        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
-        "paymentTermsName": template.name,
-        "paymentTermsType": template.terms_type,
-        "translatedName": template.name,
+        "dueInDays": due_in_days.map(|days| json!(days)).unwrap_or(Value::Null),
+        "paymentTermsName": name,
+        "paymentTermsType": terms_type,
+        "translatedName": name,
         "paymentSchedules": {
             "nodes": schedules,
             "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": Value::Null,
-                "endCursor": Value::Null
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
             }
         }
     })
 }
 
-pub(in crate::proxy) fn payment_terms_schedule_from_attrs(
-    id: &str,
-    attrs: &BTreeMap<String, ResolvedValue>,
+/// Projects the Shopify payment-terms template id onto its (name, type, dueInDays)
+/// tuple. The template catalog is fixed (see the live payment-terms-templates-read
+/// capture): Net N templates carry their day count, Fixed/Due-on-receipt/Due-on-
+/// fulfillment carry a null dueInDays. Unknown or blank template ids fall back to
+/// Net 30, matching Shopify's default term.
+pub(in crate::proxy) fn payment_terms_template_projection(
+    template_id: &str,
+) -> (&'static str, &'static str, Option<i64>) {
+    let tail = template_id
+        .strip_prefix("gid://shopify/PaymentTermsTemplate/")
+        .unwrap_or(template_id);
+    match tail {
+        "1" => ("Due on receipt", "RECEIPT", None),
+        "2" => ("Net 7", "NET", Some(7)),
+        "3" => ("Net 15", "NET", Some(15)),
+        "5" => ("Net 60", "NET", Some(60)),
+        "6" => ("Net 90", "NET", Some(90)),
+        "7" => ("Fixed", "FIXED", None),
+        "8" => ("Net 45", "NET", Some(45)),
+        "9" => ("Due on fulfillment", "FULFILLMENT", None),
+        // Template/4 is Net 30; unknown/blank ids fall back to the same default term.
+        _ => ("Net 30", "NET", Some(30)),
+    }
+}
+
+/// Shopify's payment-terms template catalog is a fixed, store-independent global
+/// list (Due on receipt / fulfillment, Net 7/15/30/45/60/90, Fixed). The tuple is
+/// `(id-tail, name, description, dueInDays, paymentTermsType)` projected verbatim
+/// from the live `payment-terms-templates-read` capture so the strict-json parity
+/// read matches; `translatedName` mirrors `name` for the default (English) locale.
+/// Ordering matters: the live catalog returns receipt, fulfillment, the net rung,
+/// then fixed.
+const PAYMENT_TERMS_TEMPLATE_CATALOG: &[(&str, &str, &str, Option<i64>, &str)] = &[
+    ("1", "Due on receipt", "Due on receipt", None, "RECEIPT"),
+    (
+        "9",
+        "Due on fulfillment",
+        "Due on fulfillment",
+        None,
+        "FULFILLMENT",
+    ),
+    ("2", "Net 7", "Within 7 days", Some(7), "NET"),
+    ("3", "Net 15", "Within 15 days", Some(15), "NET"),
+    ("4", "Net 30", "Within 30 days", Some(30), "NET"),
+    ("8", "Net 45", "Within 45 days", Some(45), "NET"),
+    ("5", "Net 60", "Within 60 days", Some(60), "NET"),
+    ("6", "Net 90", "Within 90 days", Some(90), "NET"),
+    ("7", "Fixed", "Fixed date", None, "FIXED"),
+];
+
+/// Projects the fixed payment-terms template catalog for a `paymentTermsTemplates`
+/// query. Each selected root field (the live read aliases `all`/`filtered`) is
+/// resolved independently; an optional `paymentTermsType` argument filters the
+/// catalog to a single terms type.
+pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name != "paymentTermsTemplates" {
+            continue;
+        }
+        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
+            .or_else(|| resolved_string_arg(&field.arguments, "type"));
+        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATE_CATALOG
+            .iter()
+            .filter(|(_, _, _, _, terms_type)| {
+                type_filter.as_deref().is_none_or(|f| *terms_type == f)
+            })
+            .map(|(tail, name, description, due_in_days, terms_type)| {
+                selected_json(
+                    &json!({
+                        "id": format!("gid://shopify/PaymentTermsTemplate/{tail}"),
+                        "name": name,
+                        "description": description,
+                        "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
+                        "paymentTermsType": terms_type,
+                        "translatedName": name,
+                        "__typename": "PaymentTermsTemplate"
+                    }),
+                    &field.selection,
+                )
+            })
+            .collect();
+        data.insert(field.response_key.clone(), Value::Array(templates));
+    }
+    Value::Object(data)
+}
+
+/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
+/// representation: strip trailing zeros after the decimal point but keep at
+/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
+/// "38.25" -> "38.25", "57" -> "57.0").
+pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
+    let trimmed = amount.trim();
+    if trimmed.is_empty() {
+        return "0.0".to_string();
+    }
+    if trimmed.contains('.') {
+        let stripped = trimmed.trim_end_matches('0');
+        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
+        if stripped.contains('.') {
+            stripped.to_string()
+        } else {
+            format!("{stripped}.0")
+        }
+    } else {
+        format!("{trimmed}.0")
+    }
+}
+
+// Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
+// so we can compute a NET term's `dueAt` as `issuedAt` + the template's due-day
+// count without pulling in a date library.
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+/// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
+/// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
+/// "2026-05-27T12:00:00Z").
+fn add_days_to_iso(iso: &str, days: i64) -> String {
+    let (date_part, rest) = match iso.split_once('T') {
+        Some((date, rest)) => (date, Some(rest)),
+        None => (iso, None),
+    };
+    let parts: Vec<&str> = date_part.split('-').collect();
+    if parts.len() != 3 {
+        return iso.to_string();
+    }
+    let (Ok(year), Ok(month), Ok(day)) = (
+        parts[0].parse::<i64>(),
+        parts[1].parse::<i64>(),
+        parts[2].parse::<i64>(),
+    ) else {
+        return iso.to_string();
+    };
+    let (ny, nm, nd) = civil_from_days(days_from_civil(year, month, day) + days);
+    let new_date = format!("{ny:04}-{nm:02}-{nd:02}");
+    match rest {
+        Some(rest) => format!("{new_date}T{rest}"),
+        None => new_date,
+    }
+}
+
+/// Builds a materialized PaymentSchedule node from the owner money and the
+/// requested schedule. NET terms compute `dueAt` from `issuedAt` plus the
+/// template's due-day count when the input omits an explicit `dueAt`; FIXED
+/// terms carry the explicit `dueAt` with a null `issuedAt`.
+fn payment_schedule_node(
+    schedule_id: &str,
+    input_schedule: Option<&BTreeMap<String, ResolvedValue>>,
+    due_in_days: Option<i64>,
+    amount: &str,
+    currency: &str,
 ) -> Value {
-    let schedule = resolved_object_list_field(attrs, "paymentSchedules")
-        .first()
-        .cloned()
-        .unwrap_or_default();
-    json!([{
-        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-        "amount": { "amount": "57.00", "currencyCode": "CAD" },
-        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-        "issuedAt": resolved_string_field(&schedule, "issuedAt")
-            .unwrap_or_else(|| "2026-05-05T00:00:00Z".to_string()),
-        "dueAt": resolved_string_field(&schedule, "dueAt")
-            .unwrap_or_else(|| "2026-06-04T00:00:00Z".to_string()),
+    let issued_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "issuedAt"));
+    let input_due_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "dueAt"));
+    let due_at = match input_due_at {
+        Some(due) => Some(due),
+        None => match (issued_at.as_deref(), due_in_days) {
+            (Some(issued), Some(days)) => Some(add_days_to_iso(issued, days)),
+            _ => None,
+        },
+    };
+    let money = json!({ "amount": normalize_money_amount(amount), "currencyCode": currency });
+    json!({
+        "id": schedule_id,
+        "issuedAt": issued_at.map(Value::String).unwrap_or(Value::Null),
+        "dueAt": due_at.map(Value::String).unwrap_or(Value::Null),
         "completedAt": Value::Null,
-        "due": false
-    }])
+        "due": false,
+        "amount": money.clone(),
+        "balanceDue": money.clone(),
+        "totalBalance": money
+    })
+}
+
+/// Pulls the owner's outstanding money for the payment schedule. Orders carry a
+/// presentment money bag (the schedule is denominated in presentment currency);
+/// seeded/hydrated drafts expose shop money on `totalPriceSet`/`subtotalPriceSet`.
+fn payment_terms_extract_owner_money(owner: &Value) -> Option<(String, String)> {
+    for set_key in [
+        "totalOutstandingSet",
+        "currentTotalPriceSet",
+        "totalPriceSet",
+        "subtotalPriceSet",
+    ] {
+        let Some(set) = owner.get(set_key) else {
+            continue;
+        };
+        for money_key in ["presentmentMoney", "shopMoney"] {
+            let Some(money) = set.get(money_key) else {
+                continue;
+            };
+            if let (Some(amount), Some(currency)) = (
+                money.get("amount").and_then(Value::as_str),
+                money.get("currencyCode").and_then(Value::as_str),
+            ) {
+                return Some((normalize_money_amount(amount), currency.to_string()));
+            }
+        }
+    }
+    None
 }
 
 pub(in crate::proxy) fn payment_terms_validation_error(
@@ -1851,23 +2312,19 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {
         return Some(payment_terms_user_error(
-            json!(["base"]),
-            "Cannot create payment terms with multiple schedules.",
+            Value::Null,
+            "Cannot create payment terms with multiple payment schedules.",
             unsuccessful_code,
         ));
     }
 
-    let template_id = template_id.as_deref()?;
-    let Some(template) = payment_terms_template_by_id(template_id) else {
-        return Some(payment_terms_user_error(
+    match template_id.as_deref() {
+        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
-        ));
-    };
-
-    match template.terms_type {
-        "FIXED" => {
+        )),
+        Some("gid://shopify/PaymentTermsTemplate/7") => {
             let due_at = schedules
                 .first()
                 .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -1881,7 +2338,7 @@ pub(in crate::proxy) fn payment_terms_validation_error(
                 None
             }
         }
-        "RECEIPT" | "FULFILLMENT" => {
+        Some("gid://shopify/PaymentTermsTemplate/1") => {
             let has_due_at = schedules
                 .iter()
                 .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
@@ -1930,51 +2387,34 @@ pub(in crate::proxy) fn payment_terms_attrs_from_update_field(
 pub(in crate::proxy) fn payment_terms_record_from_attrs(
     id: &str,
     attrs: &BTreeMap<String, ResolvedValue>,
+    amount: &str,
+    currency: &str,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
-    let template = payment_terms_template_by_id(&template_id).unwrap_or(PAYMENT_TERMS_TEMPLATES[4]);
-    let schedules = if matches!(template.terms_type, "RECEIPT" | "FULFILLMENT")
-        || (template.terms_type == "FIXED"
-            && resolved_object_list_field(attrs, "paymentSchedules")
-                .first()
-                .and_then(|schedule| resolved_string_field(schedule, "dueAt"))
-                .is_none())
-    {
+    let (name, terms_type, due_in_days) = payment_terms_template_projection(&template_id);
+    // Due-on-receipt and due-on-fulfillment terms have no materialized schedule;
+    // fixed and net terms project a single schedule node whose money mirrors the
+    // owning order/draft and whose dates derive from the requested schedule.
+    let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
         json!([])
     } else {
-        payment_terms_schedule_from_attrs(id, attrs)
+        let schedule_id = format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id));
+        let input_schedules = resolved_object_list_field(attrs, "paymentSchedules");
+        let node = payment_schedule_node(
+            &schedule_id,
+            input_schedules.first(),
+            due_in_days,
+            amount,
+            currency,
+        );
+        json!([node])
     };
-    payment_terms_success_record(id, template, schedules)
-}
-
-pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        if field.name != "paymentTermsTemplates" {
-            continue;
-        }
-        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
-            .or_else(|| resolved_string_arg(&field.arguments, "type"));
-        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATES
-            .iter()
-            .copied()
-            .filter(|template| {
-                type_filter
-                    .as_deref()
-                    .is_none_or(|filter| template.terms_type == filter)
-            })
-            .map(|template| {
-                selected_json(&payment_terms_template_record(template), &field.selection)
-            })
-            .collect();
-        data.insert(field.response_key.clone(), Value::Array(templates));
-    }
-    Value::Object(data)
+    payment_terms_success_record(id, name, terms_type, due_in_days, schedules)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(
     field: &RootFieldSelection,
-) -> Result<(String, String, Value), Value> {
+) -> Result<(String, String, BTreeMap<String, ResolvedValue>), Value> {
     let reference_id = resolved_string_arg(&field.arguments, "referenceId").unwrap_or_default();
     let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
@@ -2035,17 +2475,16 @@ pub(in crate::proxy) fn payment_terms_create_value(
         reference_tail
     };
     let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
-    let record = payment_terms_record_from_attrs(&terms_id, &attrs);
-    Ok((reference_id, terms_id, record))
+    Ok((reference_id, terms_id, attrs))
 }
 
 pub(in crate::proxy) fn payment_terms_update_value(
     field: &RootFieldSelection,
-) -> Result<(String, Value), Value> {
+) -> Result<(String, BTreeMap<String, ResolvedValue>), Value> {
     let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
     let error = match payment_terms_id.as_str() {
         "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
-            Value::Null,
+            json!(["input", "paymentTermsId"]),
             "Payment terms do not exist",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
@@ -2069,8 +2508,7 @@ pub(in crate::proxy) fn payment_terms_update_value(
             &field.selection,
         ));
     }
-    let record = payment_terms_record_from_attrs(&payment_terms_id, &attrs);
-    Ok((payment_terms_id, record))
+    Ok((payment_terms_id, attrs))
 }
 
 pub(in crate::proxy) fn payment_reminder_local_data(
@@ -2123,7 +2561,6 @@ pub(in crate::proxy) fn payment_reminder_payload_for_schedule(
 ) -> Option<Value> {
     match schedule_id {
         "gid://shopify/PaymentSchedule/178408784178"
-        | "gid://shopify/PaymentSchedule/123"
         | "gid://shopify/PaymentSchedule/178578555186"
         | "gid://shopify/PaymentSchedule/rate-limit" => {
             if staged_payment_reminder_schedule_ids.contains(schedule_id) {
@@ -2135,9 +2572,9 @@ pub(in crate::proxy) fn payment_reminder_payload_for_schedule(
                 Some(json!({ "success": true, "userErrors": [] }))
             }
         }
-        "gid://shopify/PaymentSchedule/9999999999" => Some(payment_reminder_error_payload(
-            "Payment schedule does not exist",
-        )),
+        "gid://shopify/PaymentSchedule/9999999999" | "gid://shopify/PaymentSchedule/123" => Some(
+            payment_reminder_error_payload("Payment schedule does not exist"),
+        ),
         "gid://shopify/PaymentSchedule/178408816946"
         | "gid://shopify/PaymentSchedule/paid"
         | "gid://shopify/PaymentSchedule/paid-owner" => Some(payment_reminder_error_payload(
@@ -2361,6 +2798,7 @@ fn return_connection(nodes: Vec<Value>) -> Value {
 }
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
+    let amount = money_bag_normalized_amount(amount);
     json!({
         "shopMoney": { "amount": amount, "currencyCode": currency_code },
         "presentmentMoney": { "amount": amount, "currencyCode": currency_code }
@@ -2377,6 +2815,177 @@ fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
 
 fn return_status_invalid_error() -> Value {
     return_user_error(&["id"], "return_request_status_invalid", "INVALID")
+}
+
+/// The returns embedded in an order graph, accepting either a bare array
+/// (`order.returns`) or a connection (`order.returns.nodes`) so seeded orders
+/// hydrated from either shape resolve.
+fn order_returns_array(order: &Value) -> Vec<Value> {
+    if let Some(array) = order["returns"].as_array() {
+        return array.clone();
+    }
+    order["returns"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// The line items of a return, accepting either a bare array or a connection.
+fn return_line_items_array(return_value: &Value) -> Vec<Value> {
+    if let Some(array) = return_value["returnLineItems"].as_array() {
+        return array.clone();
+    }
+    return_value["returnLineItems"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// The fulfillment line item id a return line item points at, tolerating both
+/// the nested object shape (`fulfillmentLineItem { id }`) and a flat id.
+fn return_line_item_fulfillment_line_item_id(line: &Value) -> Option<String> {
+    line["fulfillmentLineItem"]["id"]
+        .as_str()
+        .or_else(|| line["fulfillmentLineItemId"].as_str())
+        .map(str::to_string)
+}
+
+/// Find a fulfillment line item across an order's fulfillments by id. Each
+/// fulfillment's `fulfillmentLineItems` may be a bare array or a connection.
+fn find_order_fulfillment_line_item(order: &Value, id: &str) -> Option<Value> {
+    let fulfillments = order["fulfillments"].as_array()?;
+    for fulfillment in fulfillments {
+        let lines = fulfillment["fulfillmentLineItems"]
+            .as_array()
+            .cloned()
+            .or_else(|| {
+                fulfillment["fulfillmentLineItems"]["nodes"]
+                    .as_array()
+                    .cloned()
+            })
+            .unwrap_or_default();
+        if let Some(line) = lines
+            .into_iter()
+            .find(|line| line["id"].as_str() == Some(id))
+        {
+            return Some(line);
+        }
+    }
+    None
+}
+
+/// Build a return line item from the matched fulfillment line item and the
+/// requested input. `processedQuantity` starts at 0 and `unprocessedQuantity`
+/// at the full requested quantity; the reason defaults to `OTHER`.
+fn build_return_line_item(
+    return_line_item_id: &str,
+    fulfillment_line_item: &Value,
+    item: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
+    let reason = resolved_string_field(item, "returnReason").unwrap_or_else(|| "OTHER".to_string());
+    let reason_note = resolved_string_field(item, "returnReasonNote").unwrap_or_default();
+    json!({
+        "id": return_line_item_id,
+        "quantity": quantity,
+        "processedQuantity": 0,
+        "unprocessedQuantity": quantity,
+        "returnReason": reason,
+        "returnReasonNote": reason_note,
+        "customerNote": Value::Null,
+        "fulfillmentLineItem": {
+            "id": fulfillment_line_item["id"].clone(),
+            "lineItem": {
+                "id": fulfillment_line_item["lineItem"]["id"].clone(),
+                "title": fulfillment_line_item["lineItem"]["title"].clone()
+            }
+        }
+    })
+}
+
+/// Validate a `returnDeclineRequest` input before any state change. Returns the
+/// decline reason on success, or the failing user error: an invalid/missing
+/// reason takes precedence (Shopify rejects it at the enum boundary with
+/// `Expected "<value>" to be one of: …`), then an invalid notify email carried
+/// under the `tmp_notify_customer.email_address` shim.
+fn validate_return_decline_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Result<String, Vec<Value>> {
+    const VALID_REASONS: &[&str] = &["RETURN_PERIOD_ENDED", "FINAL_SALE", "OTHER"];
+    let reason = resolved_string_field(input, "declineReason").unwrap_or_default();
+    if !VALID_REASONS.contains(&reason.as_str()) {
+        return Err(vec![return_user_error(
+            &["declineReason"],
+            &format!("Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"),
+            "INVALID",
+        )]);
+    }
+    if let Some(notify) = resolved_object_field(input, "tmp_notify_customer") {
+        if let Some(email) = resolved_string_field(&notify, "email_address") {
+            if !valid_email_address(&email) {
+                return Err(vec![return_user_error(
+                    &["input", "tmp_notify_customer", "email_address"],
+                    "Email address is invalid",
+                    "INVALID",
+                )]);
+            }
+        }
+    }
+    Ok(reason)
+}
+
+/// Minimal RFC-shaped email check: a single `@`, non-empty local part, and a
+/// dotted domain with no whitespace.
+fn valid_email_address(email: &str) -> bool {
+    let mut parts = email.split('@');
+    let (Some(local), Some(domain), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    !local.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !email.chars().any(char::is_whitespace)
+}
+
+/// The reference transition rules for `returnClose`/`returnReopen`/
+/// `returnCancel`. Returns `Some((message, code))` when the transition is
+/// disallowed for the return's current status; `None` when it is allowed
+/// (including idempotent same-status requests).
+fn return_status_transition_error(
+    target_status: &str,
+    record: &Value,
+) -> Option<(&'static str, &'static str)> {
+    let status = record["status"].as_str().unwrap_or_default();
+    match target_status {
+        "CLOSED" => {
+            if matches!(status, "OPEN" | "CLOSED") {
+                None
+            } else {
+                Some(("Return status is invalid.", "INVALID_STATE"))
+            }
+        }
+        "OPEN" => {
+            if matches!(status, "CLOSED" | "OPEN") {
+                None
+            } else {
+                Some(("Return status is invalid.", "INVALID_STATE"))
+            }
+        }
+        "CANCELED" => {
+            let has_processed = return_line_items_array(record)
+                .iter()
+                .any(|line| line["processedQuantity"].as_i64().unwrap_or(0) > 0);
+            if status == "CANCELED"
+                || (!has_processed && matches!(status, "OPEN" | "REQUESTED" | "DECLINED"))
+            {
+                None
+            } else {
+                Some(("Return is not cancelable.", "INVALID_STATE"))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn money_bag_set(amount: &str, currency_code: impl Into<String>) -> Value {
@@ -2438,6 +3047,43 @@ fn base64_urlsafe_no_pad(input: &str) -> String {
         }
     }
     encoded
+}
+
+fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let lookup = |c: u8| -> Option<u8> { TABLE.iter().position(|&t| t == c).map(|i| i as u8) };
+    let mut output = Vec::with_capacity(input.len() / 4 * 3);
+    for chunk in input.as_bytes().chunks(4) {
+        if chunk.len() < 2 {
+            return None;
+        }
+        let s0 = lookup(chunk[0])?;
+        let s1 = lookup(chunk[1])?;
+        output.push((s0 << 2) | (s1 >> 4));
+        if chunk.len() > 2 {
+            let s2 = lookup(chunk[2])?;
+            output.push(((s1 & 0b0000_1111) << 4) | (s2 >> 2));
+            if chunk.len() > 3 {
+                let s3 = lookup(chunk[3])?;
+                output.push(((s2 & 0b0000_0011) << 6) | s3);
+            }
+        }
+    }
+    Some(output)
+}
+
+/// Recover the source `customerPaymentMethodId` encoded inside an
+/// `encryptedDuplicationData` token produced by
+/// `customer_payment_method_duplication_data`. Returns `None` for any token the
+/// local engine did not mint.
+fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> {
+    let payload = token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
+    let bytes = base64_urlsafe_no_pad_decode(payload)?;
+    let decoded: Value = serde_json::from_slice(&bytes).ok()?;
+    decoded
+        .get("customerPaymentMethodId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
@@ -2516,6 +3162,16 @@ fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -
     has_customer_id && selections_are_seed_shape
 }
 
+/// Whether an `Abandonment` gid references a real (existing) resource. Shopify
+/// assigns positive numeric ids, so a zero or non-numeric trailing id is a
+/// sentinel for a non-existent record.
+fn abandonment_gid_is_real(id: &str) -> bool {
+    id.rsplit('/')
+        .next()
+        .and_then(|tail| tail.parse::<u64>().ok())
+        .is_some_and(|number| number > 0)
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn abandonment_delivery_status_local_data(
         &mut self,
@@ -2552,6 +3208,27 @@ impl DraftProxy {
                 "abandonmentUpdateActivitiesDeliveryStatuses" => {
                     let abandonment_id =
                         resolved_string_arg(&field.arguments, "abandonmentId").unwrap_or_default();
+                    // An abandonment exists if it has been staged in this scenario or
+                    // carries a real (positive) resource id. Shopify never assigns id 0,
+                    // so a zero/non-numeric id references a non-existent record: the
+                    // mutation is side-effect-free and returns abandonment_not_found.
+                    let abandonment_exists =
+                        self.store.staged.abandonments.contains_key(&abandonment_id)
+                            || abandonment_gid_is_real(&abandonment_id);
+                    if !abandonment_exists {
+                        let value = selected_json(
+                            &json!({
+                                "abandonment": Value::Null,
+                                "userErrors": [{
+                                    "field": ["abandonmentId"],
+                                    "message": "abandonment_not_found"
+                                }]
+                            }),
+                            &field.selection,
+                        );
+                        data.insert(field.response_key, value);
+                        continue;
+                    }
                     let marketing_activity_id =
                         resolved_string_arg(&field.arguments, "marketingActivityId")
                             .unwrap_or_default();
@@ -2634,11 +3311,7 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate"
-                    | "orderMarkAsPaid"
-                    | "refundCreate"
-                    | "orderEditBegin"
-                    | "orderEditCommit"
+                "orderCreate" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
             )
         }) {
             return None;
@@ -2647,6 +3320,37 @@ impl DraftProxy {
             selection_contains_any(&field.selection, &["presentmentMoney", "totalRefundedSet"])
         });
         if !handles_money_bag_selection {
+            return None;
+        }
+        // The money-bag presentment shim only knows how to echo a refund's
+        // totalRefundedSet money bag (shop + presentment currency). A general
+        // refundCreate selects far more than that — a refund `id`/`createdAt`,
+        // line items, transactions, duties, the order's displayFinancialStatus,
+        // etc. — and needs the full local refund engine with its over-refund and
+        // quantity validations. Claim refundCreate ONLY when every refundCreate
+        // selection stays within the money-bag money fields; decline anything
+        // richer so refund_create_local_data owns it.
+        let refund_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "refundCreate"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "refund",
+                        "order",
+                        "userErrors",
+                        "totalRefundedSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "field",
+                        "message",
+                        "code",
+                    ],
+                )
+        });
+        if !refund_is_money_bag_only {
             return None;
         }
         let order_create_is_money_bag_only = fields.iter().all(|field| {
@@ -2678,6 +3382,60 @@ impl DraftProxy {
         if !order_create_is_money_bag_only {
             return None;
         }
+        // The money-bag shim's orderEditBegin/Commit stubs only echo a
+        // calculated order's totalPriceSet / committed order currentTotalPriceSet
+        // money bag. A real order-edit begin/commit selects the calculated
+        // line-item structure (lineItems, addedLineItems, originalOrder.name,
+        // subtotals, shippingLines) and needs the full local edit engine. Claim
+        // orderEditBegin/Commit ONLY when every selection stays within the
+        // money-bag money fields; decline anything richer so the order-edit
+        // engine owns it.
+        let order_edit_begin_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderEditBegin"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "calculatedOrder",
+                        "originalOrder",
+                        "id",
+                        "totalPriceSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "userErrors",
+                        "field",
+                        "message",
+                    ],
+                )
+        });
+        if !order_edit_begin_is_money_bag_only {
+            return None;
+        }
+        let order_edit_commit_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderEditCommit"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "order",
+                        "currentTotalPriceSet",
+                        "totalPriceSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "successMessages",
+                        "userErrors",
+                        "field",
+                        "message",
+                    ],
+                )
+        });
+        if !order_edit_commit_is_money_bag_only {
+            return None;
+        }
 
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
@@ -2686,34 +3444,6 @@ impl DraftProxy {
                 "orderCreate" => {
                     let order = self.stage_money_bag_order(&field);
                     staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
-                    selected_json(
-                        &json!({ "order": order, "userErrors": [] }),
-                        &field.selection,
-                    )
-                }
-                "orderMarkAsPaid" => {
-                    let input =
-                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                    let id = resolved_string_field(&input, "id").unwrap_or_default();
-                    let mut order = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&id)
-                        .cloned()
-                        .unwrap_or_else(|| self.money_bag_default_order(&id));
-                    let amount_set = order["totalOutstandingSet"].clone();
-                    order["totalOutstandingSet"] =
-                        money_bag_set("0.0", money_bag_currency(&amount_set));
-                    order["totalReceivedSet"] = amount_set.clone();
-                    order["transactions"] = json!([{
-                        "kind": "SALE",
-                        "status": "SUCCESS",
-                        "gateway": "manual",
-                        "amountSet": amount_set
-                    }]);
-                    self.store.staged.orders.insert(id.clone(), order.clone());
-                    staged_ids.push(id);
                     selected_json(
                         &json!({ "order": order, "userErrors": [] }),
                         &field.selection,
@@ -2751,6 +3481,39 @@ impl DraftProxy {
                 }
                 "orderEditBegin" => {
                     let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let order = self.store.staged.orders.get(&order_id);
+                    if order.is_none() {
+                        return Some(json!({
+                            "data": {
+                                field.response_key: selected_json(
+                                    &json!({
+                                        "calculatedOrder": Value::Null,
+                                        "userErrors": [{
+                                            "field": ["id"],
+                                            "message": "The order does not exist."
+                                        }]
+                                    }),
+                                    &field.selection
+                                )
+                            }
+                        }));
+                    }
+                    if order.is_some_and(order_edit_order_is_not_editable) {
+                        return Some(json!({
+                            "data": {
+                                field.response_key: selected_json(
+                                    &json!({
+                                        "calculatedOrder": Value::Null,
+                                        "userErrors": [{
+                                            "field": ["base"],
+                                            "message": "not_editable"
+                                        }]
+                                    }),
+                                    &field.selection
+                                )
+                            }
+                        }));
+                    }
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
                         "originalOrder": { "id": order_id },
@@ -2771,7 +3534,7 @@ impl DraftProxy {
                         .values()
                         .next()
                         .cloned()
-                        .unwrap_or_else(|| self.money_bag_default_order("gid://shopify/Order/1"));
+                        .unwrap_or(Value::Null);
                     selected_json(
                         &json!({
                             "order": order,
@@ -2857,17 +3620,6 @@ impl DraftProxy {
             order.clone(),
         );
         order
-    }
-
-    fn money_bag_default_order(&self, id: &str) -> Value {
-        json!({
-            "id": id,
-            "currentTotalPriceSet": money_bag_set("13.5", "USD"),
-            "totalPriceSet": money_bag_set("13.5", "USD"),
-            "totalOutstandingSet": money_bag_set("13.5", "USD"),
-            "totalReceivedSet": money_bag_set("0.0", "USD"),
-            "transactions": []
-        })
     }
 
     pub(in crate::proxy) fn customer_payment_method_local_data(
@@ -3010,13 +3762,18 @@ impl DraftProxy {
         {
             return;
         }
+        // The conformance credential lacks `read_customer_payment_methods`, so
+        // the card primitive fields (`lastDigits`/`maskedNumber`) are not
+        // observable through the API — Shopify returns null for them. Seed the
+        // store state with those sensitive fields already scrubbed rather than
+        // fabricating a PAN tail that would leak through reads/updates.
         let base_card = customer_payment_method_seed_record(
             "gid://shopify/CustomerPaymentMethod/base-card",
             "gid://shopify/Customer/8801",
             json!({
                 "__typename": "CustomerCreditCard",
-                "lastDigits": "1111",
-                "maskedNumber": "•••• •••• •••• 1111",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
                 "billingAddress": {
                     "firstName": Value::Null,
                     "lastName": Value::Null,
@@ -3042,20 +3799,37 @@ impl DraftProxy {
             "gid://shopify/Customer/8801",
             json!({ "__typename": "CustomerShopPayAgreement" }),
         );
-        let active_contract = {
-            let mut record = customer_payment_method_seed_record(
-                "gid://shopify/CustomerPaymentMethod/active-contract",
-                "gid://shopify/Customer/8801",
-                json!({ "__typename": "CustomerCreditCard" }),
-            );
-            record["activeSubscriptionContracts"] =
-                json!({ "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }] });
-            record
-        };
+        // A revocation sentinel carrying a live subscription contract: revoking it
+        // must surface ACTIVE_CONTRACT rather than NOT_FOUND. The base seed helper
+        // hardcodes an empty contract list, so override it here. These sentinels are
+        // attached to a dedicated local-only customer (never present in any recorded
+        // cassette) so they never leak into the parity `paymentMethods` connection
+        // reads for the real seed customer (8801), which expect exactly the three
+        // base methods plus the runtime-created ones.
+        let mut active_contract = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/active-contract",
+            "gid://shopify/Customer/revoke-sentinel",
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            }),
+        );
+        active_contract["activeSubscriptionContracts"] = json!({
+            "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }]
+        });
+        // A method that was already revoked before this session: revoking it again
+        // must echo the normalized id while preserving the pre-existing revoke
+        // metadata (the handler's `revokedAt.is_null()` guard short-circuits), so
+        // seed it with a fixed prior revoke timestamp rather than the synthetic one.
         let mut already_revoked = customer_payment_method_seed_record(
             "gid://shopify/CustomerPaymentMethod/already-revoked",
-            "gid://shopify/Customer/8801",
-            json!({ "__typename": "CustomerCreditCard" }),
+            "gid://shopify/Customer/revoke-sentinel",
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            }),
         );
         already_revoked["revokedAt"] = json!("2026-05-01T00:00:00.000Z");
         already_revoked["revokedReason"] = json!("CUSTOMER_REVOKED");
@@ -3104,17 +3878,40 @@ impl DraftProxy {
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
         let customer_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let show_revoked = matches!(
-            field.arguments.get("showRevoked"),
-            Some(ResolvedValue::Bool(true))
-        );
-        let methods = self
+        // `showRevoked` is an argument on the nested `paymentMethods` connection,
+        // not on the `customer` root field, so read it from that selection.
+        let show_revoked = field
+            .selection
+            .iter()
+            .find(|selection| selection.name == "paymentMethods")
+            .is_some_and(|selection| {
+                matches!(
+                    selection.arguments.get("showRevoked"),
+                    Some(ResolvedValue::Bool(true))
+                )
+            });
+        let mut ids = self
             .store
             .staged
             .customer_payment_method_customer_index
             .get(&customer_id)
             .cloned()
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // Created payment methods (numeric ids) sort ahead of seeded ones
+        // (non-numeric ids); within each group ascending numeric id then stable
+        // insertion order. This keeps the connection deterministic regardless of
+        // how seeds and runtime creates interleave in the index.
+        ids.sort_by(|a, b| {
+            let a_num = resource_id_tail(a).parse::<u64>().ok();
+            let b_num = resource_id_tail(b).parse::<u64>().ok();
+            match (a_num, b_num) {
+                (Some(x), Some(y)) => x.cmp(&y),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+        });
+        let methods = ids
             .into_iter()
             .filter_map(|id| self.store.staged.customer_payment_methods.get(&id).cloned())
             .filter(|record| show_revoked || record["revokedAt"].is_null())
@@ -3151,6 +3948,11 @@ impl DraftProxy {
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
+        // Allocate the payment-method id up front so rejected and processing
+        // attempts still consume a counter slot, matching Shopify's behavior
+        // where every credit-card create attempt reserves an id even when the
+        // card is not vaulted. Only the success branch stages a record.
+        let id = self.next_customer_payment_method_gid();
         if session_id.is_empty() {
             return (
                 self.customer_payment_method_payload(
@@ -3192,7 +3994,6 @@ impl DraftProxy {
                 None,
             );
         }
-        let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
             &customer_id,
@@ -3457,16 +4258,13 @@ impl DraftProxy {
             );
         }
         let id = self.next_customer_payment_method_gid();
-        let record = customer_payment_method_seed_record(
-            &id,
-            &customer_id,
-            json!({
-                "__typename": "CustomerCreditCard",
-                "lastDigits": Value::Null,
-                "maskedNumber": Value::Null,
-                "billingAddress": customer_payment_method_billing_address(&billing_address)
-            }),
+        let instrument = self.customer_payment_method_duplicated_instrument(
+            resolved_string_arg(&field.arguments, "encryptedDuplicationData")
+                .as_deref()
+                .unwrap_or_default(),
+            &billing_address,
         );
+        let record = customer_payment_method_seed_record(&id, &customer_id, instrument);
         self.stage_customer_payment_method_record(record.clone());
         (
             self.customer_payment_method_payload(
@@ -3478,6 +4276,37 @@ impl DraftProxy {
             ),
             Some(id),
         )
+    }
+
+    fn customer_payment_method_duplicated_instrument(
+        &self,
+        encrypted_duplication_data: &str,
+        billing_address: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        // Mirror the instrument type of the source payment method named inside
+        // the duplication token, so a duplicated Shop Pay agreement stays a Shop
+        // Pay agreement rather than being coerced into a credit card. Falls back
+        // to a scrubbed credit card when the token is unknown.
+        let source_instrument =
+            customer_payment_method_duplication_source_id(encrypted_duplication_data)
+                .and_then(|source_id| self.store.staged.customer_payment_methods.get(&source_id))
+                .map(|record| record["instrument"].clone())
+                .filter(Value::is_object);
+        match source_instrument {
+            Some(mut instrument) => {
+                if instrument.get("billingAddress").is_some() {
+                    instrument["billingAddress"] =
+                        customer_payment_method_billing_address(billing_address);
+                }
+                instrument
+            }
+            None => json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
+                "billingAddress": customer_payment_method_billing_address(billing_address)
+            }),
+        }
     }
 
     fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
@@ -3547,7 +4376,7 @@ impl DraftProxy {
             );
         }
         if record["revokedAt"].is_null() {
-            record["revokedAt"] = json!("2024-01-01T00:00:01.000Z");
+            record["revokedAt"] = json!("2024-01-01T00:00:02.000Z");
             record["revokedReason"] = json!("CUSTOMER_REVOKED");
         }
         (
@@ -3642,46 +4471,100 @@ impl DraftProxy {
                         )
                     }
                     "paymentTermsCreate" => match payment_terms_create_value(&field) {
-                        Ok((owner_id, terms_id, record)) => {
-                            self.store
-                                .staged
-                                .payment_terms
-                                .insert(terms_id.clone(), record.clone());
-                            self.store
-                                .staged
-                                .payment_terms_owner_index
-                                .insert(owner_id.clone(), terms_id.clone());
-                            self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
-                            staged_ids.push(terms_id);
-                            logged = true;
-                            payment_terms_payload_value(
-                                "paymentTermsCreate",
-                                record,
-                                Vec::new(),
-                                &field.selection,
-                            )["paymentTermsCreate"]
-                                .clone()
+                        Ok((owner_id, terms_id, attrs)) => {
+                            // Hydrate (and stage) the owner so we can read its
+                            // money and financial status. A paid Order is rejected
+                            // before any payment-terms staging happens.
+                            let (amount, currency) =
+                                self.payment_terms_owner_money(request, &owner_id);
+                            if self.payment_terms_owner_is_paid(&owner_id) {
+                                payment_terms_payload_value(
+                                    "paymentTermsCreate",
+                                    Value::Null,
+                                    vec![payment_terms_user_error(
+                                        Value::Null,
+                                        "Cannot create payment terms on an Order that has already been paid in full.",
+                                        "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                                    )],
+                                    &field.selection,
+                                )["paymentTermsCreate"]
+                                    .clone()
+                            } else {
+                                let record = payment_terms_record_from_attrs(
+                                    &terms_id, &attrs, &amount, &currency,
+                                );
+                                self.store
+                                    .staged
+                                    .payment_terms
+                                    .insert(terms_id.clone(), record.clone());
+                                self.store
+                                    .staged
+                                    .payment_terms_owner_index
+                                    .insert(owner_id.clone(), terms_id.clone());
+                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+                                staged_ids.push(terms_id);
+                                logged = true;
+                                payment_terms_payload_value(
+                                    "paymentTermsCreate",
+                                    record,
+                                    Vec::new(),
+                                    &field.selection,
+                                )["paymentTermsCreate"]
+                                    .clone()
+                            }
                         }
                         Err(payload) => payload["paymentTermsCreate"].clone(),
                     },
                     "paymentTermsUpdate" => match payment_terms_update_value(&field) {
-                        Ok((terms_id, record)) => {
-                            self.store
-                                .staged
-                                .payment_terms
-                                .insert(terms_id.clone(), record.clone());
-                            if let Some(owner_id) = self.payment_terms_owner_id(&terms_id) {
-                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+                        Ok((terms_id, attrs)) => {
+                            let owner_id = self.payment_terms_owner_id(&terms_id);
+                            // Cold update (no local owner link): hydrate the
+                            // PaymentTerms node and reject if its owning Order has
+                            // already been paid in full, without staging anything.
+                            if owner_id.is_none()
+                                && self.payment_terms_node_owner_paid(request, &terms_id)
+                            {
+                                payment_terms_payload_value(
+                                    "paymentTermsUpdate",
+                                    Value::Null,
+                                    vec![payment_terms_user_error(
+                                        Value::Null,
+                                        "Cannot create payment terms on an Order that has already been paid in full.",
+                                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                                    )],
+                                    &field.selection,
+                                )["paymentTermsUpdate"]
+                                    .clone()
+                            } else {
+                                let (amount, currency) = match owner_id.as_deref() {
+                                    Some(owner) => self.payment_terms_owner_money(request, owner),
+                                    None => self
+                                        .payment_terms_record_money(&terms_id)
+                                        .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
+                                };
+                                let record = payment_terms_record_from_attrs(
+                                    &terms_id, &attrs, &amount, &currency,
+                                );
+                                self.store
+                                    .staged
+                                    .payment_terms
+                                    .insert(terms_id.clone(), record.clone());
+                                if let Some(owner_id) = owner_id {
+                                    self.attach_payment_terms_to_owner(
+                                        &owner_id,
+                                        Some(record.clone()),
+                                    );
+                                }
+                                staged_ids.push(terms_id);
+                                logged = true;
+                                payment_terms_payload_value(
+                                    "paymentTermsUpdate",
+                                    record,
+                                    Vec::new(),
+                                    &field.selection,
+                                )["paymentTermsUpdate"]
+                                    .clone()
                             }
-                            staged_ids.push(terms_id);
-                            logged = true;
-                            payment_terms_payload_value(
-                                "paymentTermsUpdate",
-                                record,
-                                Vec::new(),
-                                &field.selection,
-                            )["paymentTermsUpdate"]
-                                .clone()
                         }
                         Err(payload) => payload["paymentTermsUpdate"].clone(),
                     },
@@ -3714,9 +4597,9 @@ impl DraftProxy {
                             payment_terms_delete_payload_value(
                                 Value::Null,
                                 vec![payment_terms_user_error(
-                                    Value::Null,
+                                    json!(["input", "paymentTermsId"]),
                                     "Payment terms do not exist",
-                                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+                                    "payment_terms_deletion_unsuccessful",
                                 )],
                                 &field.selection,
                             )["paymentTermsDelete"]
@@ -3753,6 +4636,159 @@ impl DraftProxy {
         self.store.staged.payment_terms_owner_index.iter().find_map(
             |(owner_id, staged_terms_id)| (staged_terms_id == terms_id).then(|| owner_id.clone()),
         )
+    }
+
+    /// Resolves the owning order/draft money used to denominate a payment
+    /// schedule. Orders carry presentment money (the schedule is presentment-
+    /// denominated); drafts expose shop money. Prefers already-staged owners; in
+    /// live-hybrid replay it hydrates the owner from the cassette and stages it so
+    /// subsequent local reads (and the post-delete cleanup) observe the same
+    /// graph. Falls back to `0.0 CAD` when no owner money is available.
+    fn payment_terms_owner_money(&mut self, request: &Request, owner_id: &str) -> (String, String) {
+        if let Some(money) = self
+            .store
+            .staged
+            .orders
+            .get(owner_id)
+            .or_else(|| self.store.staged.draft_orders.get(owner_id))
+            .and_then(payment_terms_extract_owner_money)
+        {
+            return money;
+        }
+        if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
+            let money = payment_terms_extract_owner_money(&owner);
+            let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                &mut self.store.staged.draft_orders
+            } else {
+                &mut self.store.staged.orders
+            };
+            target.entry(owner_id.to_string()).or_insert(owner);
+            if let Some(money) = money {
+                return money;
+            }
+        }
+        ("0.0".to_string(), "CAD".to_string())
+    }
+
+    /// Cassette-backed owner hydration: in live-hybrid replay, issue the exact
+    /// recorded `PaymentTermsOwnerHydrate` (Order) or `PaymentTermsDraftHydrate`
+    /// (DraftOrder) document so the strict upstream matcher replays the real
+    /// owner reply. Gated on LiveHybrid so other read modes are untouched;
+    /// returns the `order`/`draftOrder` node from the recorded reply.
+    fn hydrate_payment_terms_owner(&self, request: &Request, owner_id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let (query, operation_name) = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            (
+                PAYMENT_TERMS_DRAFT_HYDRATE_QUERY,
+                "PaymentTermsDraftHydrate",
+            )
+        } else {
+            (
+                PAYMENT_TERMS_OWNER_HYDRATE_QUERY,
+                "PaymentTermsOwnerHydrate",
+            )
+        };
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": { "id": owner_id }
+            })
+            .to_string(),
+        });
+        if response.status >= 400 {
+            return None;
+        }
+        let data = response.body.get("data")?;
+        data.get("draftOrder")
+            .or_else(|| data.get("order"))
+            .filter(|owner| !owner.is_null())
+            .cloned()
+    }
+
+    /// True when a staged Order owner has been paid in full. Drafts (and orders
+    /// without a recorded financial status) are never "paid" by this check, so it
+    /// is safe to call for any owner type.
+    fn payment_terms_owner_is_paid(&self, owner_id: &str) -> bool {
+        self.store
+            .staged
+            .orders
+            .get(owner_id)
+            .and_then(|owner| owner.get("displayFinancialStatus"))
+            .and_then(Value::as_str)
+            == Some("PAID")
+    }
+
+    /// Cold-path eligibility probe for `paymentTermsUpdate`: hydrate the
+    /// PaymentTerms node by id and report whether its owning Order is paid in
+    /// full. Returns false when hydration is unavailable (non-LiveHybrid, missing
+    /// cassette, or a draft-owned node).
+    fn payment_terms_node_owner_paid(&self, request: &Request, terms_id: &str) -> bool {
+        self.hydrate_payment_terms_node(request, terms_id)
+            .and_then(|node| node.get("order").cloned())
+            .filter(|order| !order.is_null())
+            .and_then(|order| {
+                order
+                    .get("displayFinancialStatus")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .as_deref()
+            == Some("PAID")
+    }
+
+    /// Cassette-backed PaymentTerms-node hydration for the cold update path:
+    /// issues the exact recorded `PaymentTermsHydrate` document and returns the
+    /// resolved `paymentTerms` node. Gated on LiveHybrid.
+    fn hydrate_payment_terms_node(&self, request: &Request, terms_id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": PAYMENT_TERMS_NODE_HYDRATE_QUERY,
+                "operationName": "PaymentTermsHydrate",
+                "variables": { "id": terms_id }
+            })
+            .to_string(),
+        });
+        if response.status >= 400 {
+            return None;
+        }
+        response
+            .body
+            .get("data")?
+            .get("paymentTerms")
+            .filter(|node| !node.is_null())
+            .cloned()
+    }
+
+    /// Reads the money already materialized on a staged payment-terms record's
+    /// first schedule node, so an update whose owner link is unavailable reuses
+    /// the money established at create time.
+    fn payment_terms_record_money(&self, terms_id: &str) -> Option<(String, String)> {
+        let node = self
+            .store
+            .staged
+            .payment_terms
+            .get(terms_id)?
+            .get("paymentSchedules")?
+            .get("nodes")?
+            .as_array()?
+            .first()?;
+        let money = node.get("amount")?;
+        Some((
+            money.get("amount")?.as_str()?.to_string(),
+            money.get("currencyCode")?.as_str()?.to_string(),
+        ))
     }
 
     fn remove_payment_terms_owner_link(&mut self, terms_id: &str) -> Option<String> {
@@ -3866,62 +4902,44 @@ impl DraftProxy {
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
             "returnCreate" => {
-                let return_record = self.stage_return_from_input(field, "returnInput", "OPEN");
-                Some(orders_payments_data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "return": return_record, "userErrors": [] }),
-                        &field.selection,
-                    ),
-                ))
+                let value = self.stage_return_from_input(field, "returnInput", "OPEN");
+                Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnRequest" => {
-                let return_record = self.stage_return_from_input(field, "input", "REQUESTED");
-                Some(orders_payments_data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "return": return_record, "userErrors": [] }),
-                        &field.selection,
-                    ),
-                ))
+                let value = self.stage_return_from_input(field, "input", "REQUESTED");
+                Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
-                let value = self.transition_return_request(&id, "OPEN", field);
+                let value = self.approve_return_request(&id, field);
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
-                let value = self.transition_return_request(&id, "DECLINED", field);
+                let value = self.decline_return_request(&id, field);
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnClose" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
-                let value = self.transition_open_return(&id, "CLOSED", field);
+                let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnReopen" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
-                let value = self.transition_closed_return(&id, "OPEN", field);
+                let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnCancel" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
-                let value = self.transition_open_return(&id, "CANCELED", field);
+                let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
                 Some(orders_payments_data_response(&field.response_key, value))
             }
-            "removeFromReturn" => Some(orders_payments_data_response(
-                &field.response_key,
-                selected_json(
-                    &json!({
-                        "return": self.first_staged_return().unwrap_or(Value::Null),
-                        "userErrors": []
-                    }),
-                    &field.selection,
-                ),
-            )),
+            "removeFromReturn" => {
+                let value = self.remove_from_return(field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
             "reverseDeliveryCreateWithShipping" => {
                 let value = self.stage_reverse_delivery(field);
                 Some(orders_payments_data_response(&field.response_key, value))
@@ -4007,6 +5025,15 @@ impl DraftProxy {
         })
     }
 
+    /// Stage a return from a `returnCreate` (`OPEN`) or `returnRequest`
+    /// (`REQUESTED`) input. Reads the seeded order from store state, validates
+    /// each requested line against the order's fulfillment line items and the
+    /// quantity already consumed by prior non-canceled returns, builds the
+    /// return line items + (for OPEN) the reverse fulfillment order, and stages
+    /// the result. IDs come from the shared synthetic counter so the allocation
+    /// order (return line items, return, RFO line items, RFO) matches the
+    /// reference implementation. Returns the selected `{ return, userErrors }`
+    /// payload — `return` is null when validation fails.
     fn stage_return_from_input(
         &mut self,
         field: &RootFieldSelection,
@@ -4014,51 +5041,111 @@ impl DraftProxy {
         status: &str,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
-        let order_id = resolved_string_field(&input, "orderId")
-            .unwrap_or_else(|| "gid://shopify/Order/return-flow".to_string());
+        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        let order = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .unwrap_or(Value::Null);
         let items = resolved_object_list_field(&input, "returnLineItems");
-        let first_item = items.first().cloned().unwrap_or_default();
-        let quantity = resolved_i64_field(&first_item, "quantity").unwrap_or(1);
-        let return_id = format!("gid://shopify/Return/{}", self.store.staged.next_return_id);
-        self.store.staged.next_return_id += 1;
-        let line_item_id = format!(
-            "gid://shopify/ReturnLineItem/{}",
-            self.store.staged.next_return_line_item_id
-        );
-        self.store.staged.next_return_line_item_id += 1;
-        let fulfillment_line_item_id = resolved_string_field(&first_item, "fulfillmentLineItemId")
-            .unwrap_or_else(|| "gid://shopify/FulfillmentLineItem/return-flow".to_string());
-        let reason = resolved_string_field(&first_item, "returnReason")
-            .unwrap_or_else(|| "OTHER".to_string());
-        let reason_note =
-            resolved_string_field(&first_item, "returnReasonNote").unwrap_or_default();
+        if items.is_empty() {
+            return selected_json(
+                &json!({
+                    "return": Value::Null,
+                    "userErrors": [return_user_error(
+                        &["returnLineItems"],
+                        "Return must include at least one line item.",
+                        "INVALID",
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+        // Validate every line first, allocating return-line-item ids only for
+        // valid lines (matching the reference fold). Any error short-circuits
+        // the mutation with a null return and no state change.
+        let mut line_items: Vec<Value> = Vec::new();
+        let mut user_errors: Vec<Value> = Vec::new();
+        for (index, item) in items.iter().enumerate() {
+            let fli_id = resolved_string_field(item, "fulfillmentLineItemId");
+            let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
+            let fulfillment_line_item = fli_id
+                .as_deref()
+                .and_then(|id| find_order_fulfillment_line_item(&order, id));
+            match fulfillment_line_item {
+                None => user_errors.push(return_user_error(
+                    &[
+                        "returnLineItems",
+                        &index.to_string(),
+                        "fulfillmentLineItemId",
+                    ],
+                    "Fulfillment line item does not exist.",
+                    "INVALID",
+                )),
+                Some(fulfillment_line_item) => {
+                    let available = fulfillment_line_item["quantity"].as_i64().unwrap_or(0);
+                    let already = self.already_returned_quantity(
+                        &order,
+                        &order_id,
+                        fli_id.as_deref().unwrap_or_default(),
+                    );
+                    let remaining = (available - already).max(0);
+                    if quantity <= 0 || quantity > remaining {
+                        user_errors.push(return_user_error(
+                            &["returnLineItems", &index.to_string(), "quantity"],
+                            "Quantity is not available for return.",
+                            "INVALID",
+                        ));
+                    } else {
+                        let rli_id = self.next_synthetic_gid("ReturnLineItem");
+                        line_items.push(build_return_line_item(
+                            &rli_id,
+                            &fulfillment_line_item,
+                            item,
+                        ));
+                    }
+                }
+            }
+        }
+        if !user_errors.is_empty() {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        let return_id = self.next_synthetic_gid("Return");
+        let order_name = order["name"].as_str().unwrap_or("#ORDER").to_string();
+        let prior_returns = order_returns_array(&order).len()
+            + self
+                .store
+                .staged
+                .returns_by_order
+                .get(&order_id)
+                .map(Vec::len)
+                .unwrap_or(0);
+        let name = format!("{order_name}-R{}", prior_returns + 1);
+        let total_quantity: i64 = line_items
+            .iter()
+            .map(|line| line["quantity"].as_i64().unwrap_or(0))
+            .sum();
+        let order_updated_at = order["updatedAt"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| "2024-01-01T00:00:03.000Z".to_string());
         let mut return_record = json!({
             "id": return_id,
-            "name": format!("#R{}", self.store.staged.returns.len() + 1),
+            "name": name,
             "status": status,
             "closedAt": Value::Null,
-            "totalQuantity": quantity,
+            "decline": Value::Null,
+            "totalQuantity": total_quantity,
             "order": {
                 "id": order_id,
-                "updatedAt": "2024-01-01T00:00:03.000Z"
+                "updatedAt": order_updated_at
             },
-            "returnLineItems": {
-                "nodes": [{
-                    "id": line_item_id,
-                    "quantity": quantity,
-                    "processedQuantity": 0,
-                    "unprocessedQuantity": quantity,
-                    "returnReason": reason,
-                    "returnReasonNote": reason_note,
-                    "fulfillmentLineItem": {
-                        "id": fulfillment_line_item_id,
-                        "lineItem": {
-                            "id": "gid://shopify/LineItem/return-flow",
-                            "title": "Return flow item"
-                        }
-                    }
-                }]
-            },
+            "returnLineItems": { "nodes": line_items },
             "returnShippingFees": [],
             "reverseFulfillmentOrders": { "nodes": [] }
         });
@@ -4068,10 +5155,14 @@ impl DraftProxy {
                 resolved_string_field(&amount, "amount").unwrap_or_else(|| "0.00".to_string());
             let currency =
                 resolved_string_field(&amount, "currencyCode").unwrap_or_else(|| "USD".to_string());
+            let fee_id = self.next_synthetic_gid("ReturnShippingFee");
             return_record["returnShippingFees"] = json!([{
-                "id": format!("gid://shopify/ReturnShippingFee/{}", self.store.staged.next_return_id),
+                "id": fee_id,
                 "amountSet": return_money_set(&amount_value, &currency)
             }]);
+        }
+        if status == "OPEN" {
+            self.build_return_reverse_fulfillment_order(&mut return_record);
         }
         self.store
             .staged
@@ -4083,11 +5174,47 @@ impl DraftProxy {
             .entry(order_id)
             .or_default()
             .push(return_id);
-        return_record
+        selected_json(
+            &json!({ "return": return_record, "userErrors": [] }),
+            &field.selection,
+        )
     }
 
-    fn first_staged_return(&self) -> Option<Value> {
-        self.store.staged.returns.values().next().cloned()
+    /// Total quantity already consumed against a fulfillment line item by
+    /// non-canceled returns — both returns embedded in the seeded order graph
+    /// (from hydration) and returns staged during this session. Mirrors the
+    /// reference `already_returned_quantity` so quantity caps account for the
+    /// real outstanding return volume rather than the raw fulfilled quantity.
+    fn already_returned_quantity(
+        &self,
+        order: &Value,
+        order_id: &str,
+        fulfillment_line_item_id: &str,
+    ) -> i64 {
+        let mut total = 0_i64;
+        let mut accumulate = |return_value: &Value| {
+            if return_value["status"].as_str() == Some("CANCELED") {
+                return;
+            }
+            for line in return_line_items_array(return_value) {
+                if return_line_item_fulfillment_line_item_id(&line).as_deref()
+                    == Some(fulfillment_line_item_id)
+                {
+                    total += line["quantity"].as_i64().unwrap_or(0);
+                }
+            }
+        };
+        for embedded in order_returns_array(order) {
+            accumulate(&embedded);
+        }
+        if let Some(ids) = self.store.staged.returns_by_order.get(order_id) {
+            for id in ids {
+                if let Some(staged) = self.store.staged.returns.get(id) {
+                    accumulate(staged);
+                }
+            }
+        }
+        total
     }
 
     fn selected_return_order(&self, order_id: &str, selection: &[SelectedField]) -> Value {
@@ -4101,53 +5228,47 @@ impl DraftProxy {
             .into_iter()
             .filter_map(|id| self.store.staged.returns.get(&id).cloned())
             .collect::<Vec<_>>();
+        let order = self.store.staged.orders.get(order_id).cloned();
+        let name = order
+            .as_ref()
+            .and_then(|order| order["name"].as_str())
+            .unwrap_or("#ORDER")
+            .to_string();
+        let updated_at = order
+            .as_ref()
+            .and_then(|order| order["updatedAt"].as_str())
+            .unwrap_or("2024-01-01T00:00:03.000Z")
+            .to_string();
         selected_json(
             &json!({
                 "id": order_id,
-                "name": "#1",
-                "updatedAt": "2024-01-01T00:00:03.000Z",
+                "name": name,
+                "updatedAt": updated_at,
                 "returns": return_connection(returns)
             }),
             selection,
         )
     }
 
-    fn transition_return_request(
-        &mut self,
-        id: &str,
-        target_status: &str,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let Some(current_status) = self
-            .store
-            .staged
-            .returns
-            .get(id)
-            .and_then(|record| record["status"].as_str())
-            .map(str::to_string)
-        else {
+    /// `returnApproveRequest`: a REQUESTED return transitions to OPEN and
+    /// acquires its reverse fulfillment order. Any other status returns the
+    /// `return_request_status_invalid` user error on `id` (INVALID) and leaves
+    /// state untouched.
+    fn approve_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
+        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
                 &field.selection,
             );
         };
-        if current_status != "REQUESTED" {
+        if record["status"].as_str() != Some("REQUESTED") {
             return selected_json(
                 &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
                 &field.selection,
             );
         }
-        if target_status == "OPEN" {
-            self.ensure_reverse_fulfillment_order(id);
-        }
-        let mut record = self
-            .store
-            .staged
-            .returns
-            .get(id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        record["status"] = json!(target_status);
+        record["status"] = json!("OPEN");
+        self.build_return_reverse_fulfillment_order(&mut record);
         self.store
             .staged
             .returns
@@ -4158,7 +5279,53 @@ impl DraftProxy {
         )
     }
 
-    fn transition_open_return(
+    /// `returnDeclineRequest`: validate the decline input (reason enum, note
+    /// length, notify email) before touching state; a REQUESTED return then
+    /// transitions to DECLINED carrying `decline { reason, note }`. A non-
+    /// REQUESTED return returns `return_request_status_invalid` on `id`.
+    fn decline_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let reason = match validate_return_decline_input(&input) {
+            Ok(reason) => reason,
+            Err(errors) => {
+                return selected_json(
+                    &json!({ "return": Value::Null, "userErrors": errors }),
+                    &field.selection,
+                );
+            }
+        };
+        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &field.selection,
+            );
+        };
+        if record["status"].as_str() != Some("REQUESTED") {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &field.selection,
+            );
+        }
+        let note = resolved_string_field(&input, "declineNote").unwrap_or_default();
+        record["status"] = json!("DECLINED");
+        record["decline"] = json!({ "reason": reason, "note": note });
+        self.store
+            .staged
+            .returns
+            .insert(id.to_string(), record.clone());
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    /// `returnClose` / `returnReopen` / `returnCancel`. Allowed transitions
+    /// mirror the reference `return_status_transition_error` rules: close from
+    /// OPEN/CLOSED, reopen from CLOSED/OPEN, cancel from any return without
+    /// processed/refunded lines (and idempotent CANCELED). Disallowed
+    /// transitions return INVALID_STATE with the reference message and leave
+    /// state untouched; same-status requests are idempotent no-ops.
+    fn apply_return_lifecycle_transition(
         &mut self,
         id: &str,
         target_status: &str,
@@ -4166,132 +5333,214 @@ impl DraftProxy {
     ) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist.", "INVALID")] }),
                 &field.selection,
             );
         };
-        let status = record["status"].as_str().unwrap_or_default();
-        let transition_allowed = status == "OPEN"
-            || (status == target_status && matches!(status, "CLOSED" | "CANCELED"));
-        if !transition_allowed {
+        let current = record["status"].as_str().unwrap_or_default().to_string();
+        if let Some((message, code)) = return_status_transition_error(target_status, &record) {
             return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], message, code)] }),
                 &field.selection,
             );
         }
-        record["status"] = json!(target_status);
-        if target_status == "CLOSED" {
-            record["closedAt"] = json!("2024-01-01T00:00:03.000Z");
-        }
-        self.store
-            .staged
-            .returns
-            .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
-    }
-
-    fn transition_closed_return(
-        &mut self,
-        id: &str,
-        target_status: &str,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
-                &field.selection,
-            );
-        };
-        let status = record["status"].as_str().unwrap_or_default();
-        if !matches!(status, "CLOSED" | "OPEN") {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
-                &field.selection,
-            );
-        }
-        record["status"] = json!(target_status);
-        if target_status == "OPEN" {
-            record["closedAt"] = Value::Null;
-        }
-        self.store
-            .staged
-            .returns
-            .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
-    }
-
-    fn ensure_reverse_fulfillment_order(&mut self, return_id: &str) -> Option<Value> {
-        let mut return_record = self.store.staged.returns.get(return_id).cloned()?;
-        if let Some(existing) = return_record["reverseFulfillmentOrders"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .and_then(|node| node["id"].as_str())
-            .and_then(|id| self.store.staged.reverse_fulfillment_orders.get(id))
-        {
-            return Some(existing.clone());
-        }
-        let id = format!(
-            "gid://shopify/ReverseFulfillmentOrder/{}",
-            self.store.staged.next_reverse_fulfillment_order_id
-        );
-        self.store.staged.next_reverse_fulfillment_order_id += 1;
-        let line_id = format!(
-            "gid://shopify/ReverseFulfillmentOrderLineItem/{}",
+        if current != target_status {
+            record["status"] = json!(target_status);
+            record["closedAt"] = if target_status == "CLOSED" {
+                json!("2024-01-01T00:00:03.000Z")
+            } else {
+                Value::Null
+            };
             self.store
                 .staged
-                .next_reverse_fulfillment_order_line_item_id
-        );
-        self.store
-            .staged
-            .next_reverse_fulfillment_order_line_item_id += 1;
-        let return_line_item_id = return_record["returnLineItems"]["nodes"][0]["id"].clone();
-        let quantity = return_record["totalQuantity"].as_i64().unwrap_or(1);
+                .returns
+                .insert(id.to_string(), record.clone());
+        }
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    /// `removeFromReturn`: validate each removal against the return's removable
+    /// quantity (current minus processed) before mutating; on success reduce or
+    /// drop the affected return line items, recompute the total, and rebuild the
+    /// reverse fulfillment order's line items from the surviving return lines.
+    /// On any validation error the return is left null with the error payload.
+    fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
+        let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
+        let removals = list_object_arg(&field.arguments, "returnLineItems");
+        let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
+                &field.selection,
+            );
+        };
+        let mut nodes = record["returnLineItems"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let mut user_errors: Vec<Value> = Vec::new();
+        for (index, removal) in removals.iter().enumerate() {
+            let line_item_id = resolved_string_field(removal, "returnLineItemId");
+            let quantity = resolved_i64_field(removal, "quantity").unwrap_or(0);
+            let position = line_item_id.as_deref().and_then(|id| {
+                nodes
+                    .iter()
+                    .position(|node| node["id"].as_str() == Some(id))
+            });
+            match position {
+                None => user_errors.push(return_user_error(
+                    &["returnLineItems", &index.to_string(), "returnLineItemId"],
+                    "Return line item does not exist.",
+                    "INVALID",
+                )),
+                Some(position) => {
+                    let current = nodes[position]["quantity"].as_i64().unwrap_or(0);
+                    let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
+                    let removable = current - processed;
+                    if quantity <= 0 || quantity > removable {
+                        user_errors.push(return_user_error(
+                            &["returnLineItems", &index.to_string(), "quantity"],
+                            "Quantity is not removable from return.",
+                            "INVALID",
+                        ));
+                    } else {
+                        let next_quantity = current - quantity;
+                        if next_quantity <= 0 {
+                            nodes.remove(position);
+                        } else {
+                            nodes[position]["quantity"] = json!(next_quantity);
+                            let next_processed =
+                                nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
+                            nodes[position]["unprocessedQuantity"] =
+                                json!((next_quantity - next_processed).max(0));
+                        }
+                    }
+                }
+            }
+        }
+        if !user_errors.is_empty() {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        let total_quantity: i64 = nodes
+            .iter()
+            .map(|n| n["quantity"].as_i64().unwrap_or(0))
+            .sum();
+        record["returnLineItems"] = json!({ "nodes": nodes.clone() });
+        record["totalQuantity"] = json!(total_quantity);
+        self.sync_reverse_fulfillment_line_items(&mut record);
+        self.store.staged.returns.insert(return_id, record.clone());
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    /// Build the OPEN reverse fulfillment order for a return: one RFO line item
+    /// per return line item (allocated first), then the RFO itself, so the
+    /// shared synthetic counter yields RFO-line ids before the RFO id. Each RFO
+    /// line item carries both `returnLineItem { id }` and the nested
+    /// `fulfillmentLineItem { id, lineItem { id, title } }` so local and live
+    /// selections both resolve. Stores the RFO and mirrors it onto the return.
+    fn build_return_reverse_fulfillment_order(&mut self, return_record: &mut Value) {
+        if return_record["reverseFulfillmentOrders"]["nodes"]
+            .as_array()
+            .is_some_and(|nodes| !nodes.is_empty())
+        {
+            return;
+        }
+        let return_lines = return_record["returnLineItems"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let mut rfo_lines: Vec<Value> = Vec::new();
+        for line in &return_lines {
+            let line_id = self.next_synthetic_gid("ReverseFulfillmentOrderLineItem");
+            let quantity = line["quantity"].as_i64().unwrap_or(0);
+            let processed = line["processedQuantity"].as_i64().unwrap_or(0);
+            rfo_lines.push(json!({
+                "id": line_id,
+                "totalQuantity": quantity,
+                "remainingQuantity": (quantity - processed).max(0),
+                "dispositionType": Value::Null,
+                "returnLineItem": { "id": line["id"].clone() },
+                "fulfillmentLineItem": line["fulfillmentLineItem"].clone(),
+                "dispositions": []
+            }));
+        }
+        let rfo_id = self.next_synthetic_gid("ReverseFulfillmentOrder");
         let reverse_order = json!({
-            "id": id,
+            "id": rfo_id,
             "status": "OPEN",
-            "lineItems": {
-                "nodes": [{
-                    "id": line_id,
-                    "totalQuantity": quantity,
-                    "remainingQuantity": quantity,
-                    "dispositionType": Value::Null,
-                    "returnLineItem": { "id": return_line_item_id },
-                    "dispositions": []
-                }]
-            },
+            "lineItems": { "nodes": rfo_lines },
             "reverseDeliveries": { "nodes": [] }
         });
-        return_record["reverseFulfillmentOrders"] = json!({ "nodes": [{ "id": id, "status": "OPEN", "lineItems": reverse_order["lineItems"].clone() }] });
-        self.store
-            .staged
-            .returns
-            .insert(return_id.to_string(), return_record);
+        return_record["reverseFulfillmentOrders"] = json!({ "nodes": [reverse_order.clone()] });
         self.store
             .staged
             .reverse_fulfillment_orders
-            .insert(id, reverse_order.clone());
-        Some(reverse_order)
+            .insert(rfo_id, reverse_order);
+    }
+
+    /// Rebuild the return's reverse fulfillment order line items from its
+    /// current return line items (used after `removeFromReturn`). Existing RFO
+    /// line ids are reused when their return line survives; removed return lines
+    /// drop their RFO line. The reverse fulfillment order's `totalQuantity` /
+    /// `remainingQuantity` are recomputed and the staged RFO is kept in sync.
+    fn sync_reverse_fulfillment_line_items(&mut self, return_record: &mut Value) {
+        let return_lines = return_record["returnLineItems"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let mut rfos = return_record["reverseFulfillmentOrders"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        for rfo in &mut rfos {
+            let existing = rfo["lineItems"]["nodes"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let mut rebuilt: Vec<Value> = Vec::new();
+            for line in &return_lines {
+                let quantity = line["quantity"].as_i64().unwrap_or(0);
+                let processed = line["processedQuantity"].as_i64().unwrap_or(0);
+                let mut rfo_line = existing
+                    .iter()
+                    .find(|candidate| candidate["returnLineItem"]["id"] == line["id"])
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        json!({
+                            "id": Value::Null,
+                            "dispositionType": Value::Null,
+                            "returnLineItem": { "id": line["id"].clone() },
+                            "fulfillmentLineItem": line["fulfillmentLineItem"].clone(),
+                            "dispositions": []
+                        })
+                    });
+                rfo_line["totalQuantity"] = json!(quantity);
+                rfo_line["remainingQuantity"] = json!((quantity - processed).max(0));
+                rebuilt.push(rfo_line);
+            }
+            rfo["lineItems"] = json!({ "nodes": rebuilt });
+            if let Some(id) = rfo["id"].as_str() {
+                if let Some(staged) = self.store.staged.reverse_fulfillment_orders.get_mut(id) {
+                    staged["lineItems"] = rfo["lineItems"].clone();
+                }
+            }
+        }
+        return_record["reverseFulfillmentOrders"] = json!({ "nodes": rfos });
     }
 
     fn stage_reverse_delivery(&mut self, field: &RootFieldSelection) -> Value {
         let reverse_order_id =
             resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
-        let id = format!(
-            "gid://shopify/ReverseDelivery/{}",
-            self.store.staged.next_reverse_delivery_id
-        );
-        self.store.staged.next_reverse_delivery_id += 1;
-        let line_id = format!(
-            "gid://shopify/ReverseDeliveryLineItem/{}",
-            self.store.staged.next_reverse_delivery_line_item_id
-        );
-        self.store.staged.next_reverse_delivery_line_item_id += 1;
+        let id = self.next_synthetic_gid("ReverseDelivery");
+        let line_id = self.next_synthetic_gid("ReverseDeliveryLineItem");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
         let delivery = json!({
@@ -4303,7 +5552,8 @@ impl DraftProxy {
                     "quantity": 1,
                     "reverseFulfillmentOrderLineItem": {
                         "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
-                        "remainingQuantity": self.first_reverse_fulfillment_order_line_remaining_quantity(&reverse_order_id)
+                        "totalQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "totalQuantity"),
+                        "remainingQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "remainingQuantity")
                     }
                 }]
             },
@@ -4313,7 +5563,7 @@ impl DraftProxy {
                     "number": resolved_string_field(&tracking, "number").unwrap_or_default(),
                     "url": resolved_string_field(&tracking, "url").unwrap_or_default(),
                     "company": resolved_string_field(&tracking, "company").unwrap_or_default(),
-                    "carrierName": resolved_string_field(&tracking, "company").unwrap_or_default()
+                    "carrierName": Value::Null
                 },
                 "label": {
                     "publicFileUrl": resolved_string_field(&label, "fileUrl").unwrap_or_default()
@@ -4349,9 +5599,10 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn first_reverse_fulfillment_order_line_remaining_quantity(
+    fn first_reverse_fulfillment_order_line_field(
         &self,
         reverse_order_id: &str,
+        field: &str,
     ) -> Value {
         self.store
             .staged
@@ -4359,7 +5610,7 @@ impl DraftProxy {
             .get(reverse_order_id)
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .and_then(|nodes| nodes.first())
-            .map(|node| node["remainingQuantity"].clone())
+            .map(|node| node[field].clone())
             .unwrap_or(Value::Null)
     }
 
@@ -4376,9 +5627,9 @@ impl DraftProxy {
         delivery["deliverable"]["tracking"]["url"] =
             json!(resolved_string_field(&tracking, "url").unwrap_or_default());
         if let Some(company) = resolved_string_field(&tracking, "company") {
-            delivery["deliverable"]["tracking"]["company"] = json!(company.clone());
-            delivery["deliverable"]["tracking"]["carrierName"] = json!(company);
+            delivery["deliverable"]["tracking"]["company"] = json!(company);
         }
+        delivery["deliverable"]["tracking"]["carrierName"] = Value::Null;
         self.store
             .staged
             .reverse_deliveries

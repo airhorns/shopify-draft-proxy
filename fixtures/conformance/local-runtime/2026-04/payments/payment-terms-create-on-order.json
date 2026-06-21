@@ -150,8 +150,8 @@
             "paymentTerms": null,
             "userErrors": [
               {
-                "field": ["base"],
-                "message": "Cannot create payment terms with multiple schedules.",
+                "field": null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
                 "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
               }
             ]

@@ -1,10 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDraftProxy, type DraftProxy } from '../js/src/index.js';
+import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
+import {
+  type RecordedUpstreamCall,
+  recordedCallMatchesBody,
+  formatRecordedCallMismatch,
+  stableJson,
+} from './parity-cassette.js';
 
 type CliArgs = {
   all: boolean;
@@ -43,6 +49,7 @@ type ComparisonTarget = {
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
+  preserveProxyState?: boolean;
 };
 
 type ExpectedDifference = {
@@ -60,13 +67,6 @@ type ParitySpec = {
     expectedDifferences?: ExpectedDifference[];
     targets?: ComparisonTarget[];
   };
-};
-
-type RecordedUpstreamCall = {
-  operationName?: string;
-  variables?: unknown;
-  query?: string;
-  response?: { status?: number; body?: unknown };
 };
 
 type ProxyResponse = { status: number; body: unknown };
@@ -185,18 +185,43 @@ function deepClone<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
+function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
+  if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
+  const parts: string[] = [];
+  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]/gu;
+  for (const match of jsonPath.matchAll(pattern)) {
+    if (match[1] !== undefined) parts.push(match[1]);
+    else if (match[2] !== undefined) parts.push(match[2]);
+    else parts.push('*');
+  }
+  return parts;
+}
+
+function deletePathParts(cursor: unknown, parts: string[]): void {
+  if (parts.length === 0 || cursor === undefined || cursor === null) return;
+  const [head, ...rest] = parts;
+  // parts.length !== 0 is guaranteed above, so head is always defined; this guard
+  // only narrows `string | undefined` to `string` for the index accesses below.
+  if (head === undefined) return;
+  if (head === '*') {
+    // Wildcard array segment: recurse into every element.
+    if (Array.isArray(cursor)) for (const item of cursor) deletePathParts(item, rest);
+    return;
+  }
+  if (rest.length === 0) {
+    if (Array.isArray(cursor)) cursor.splice(Number(head), 1);
+    else if (typeof cursor === 'object' && cursor !== null) delete (cursor as Record<string, unknown>)[head];
+    return;
+  }
+  const next = Array.isArray(cursor) ? cursor[Number(head)] : (cursor as Record<string, unknown> | undefined)?.[head];
+  deletePathParts(next, rest);
+}
+
 function deletePath(root: unknown, jsonPath: string): unknown {
   const copy = deepClone(root);
-  const parts = tokenizeJsonPath(jsonPath);
+  const parts = tokenizeJsonPathWithWildcards(jsonPath);
   if (parts.length === 0) return undefined;
-  let cursor: unknown = copy;
-  for (const part of parts.slice(0, -1)) {
-    cursor = Array.isArray(cursor) ? cursor[Number(part)] : (cursor as Record<string, unknown> | undefined)?.[part];
-    if (cursor === undefined || cursor === null) return copy;
-  }
-  const last = parts[parts.length - 1] ?? '';
-  if (Array.isArray(cursor)) cursor.splice(Number(last), 1);
-  else if (typeof cursor === 'object' && cursor !== null) delete (cursor as Record<string, unknown>)[last];
+  deletePathParts(copy, parts);
   return copy;
 }
 
@@ -210,15 +235,23 @@ function resolveSpecialVariables(
   value: unknown,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): unknown {
   if (Array.isArray(value))
-    return value.map((entry) => resolveSpecialVariables(entry, capture, primaryResponse, namedResponses));
+    return value.map((entry) =>
+      resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses),
+    );
   if (typeof value === 'object' && value !== null) {
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
       return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
+    }
+    if (typeof object['fromPreviousProxyPath'] === 'string') {
+      if (previousResponse === null)
+        throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
+      return getPath(previousResponse.body, object['fromPreviousProxyPath']);
     }
     if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
     if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
@@ -229,7 +262,7 @@ function resolveSpecialVariables(
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [
         key,
-        resolveSpecialVariables(entry, capture, primaryResponse, namedResponses),
+        resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses),
       ]),
     );
   }
@@ -278,6 +311,7 @@ async function loadRequest(
   request: ProxyRequestSpec | undefined,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<{
   query: string;
@@ -304,7 +338,10 @@ async function loadRequest(
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
-  variables = resolveSpecialVariables(variables, capture, primaryResponse, namedResponses) as Record<string, unknown>;
+  variables = resolveSpecialVariables(variables, capture, primaryResponse, previousResponse, namedResponses) as Record<
+    string,
+    unknown
+  >;
   return {
     query,
     variables,
@@ -313,54 +350,25 @@ async function loadRequest(
   };
 }
 
+type LoadedProxyRequest = {
+  query: string;
+  variables: Record<string, unknown>;
+  headers: Record<string, string>;
+  path: string;
+};
+
 type CassetteServer = {
   origin: string;
   setCalls: (calls: RecordedUpstreamCall[]) => void;
-  setFallbackResponse: (response: ProxyResponse | null) => void;
+  setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => void;
   consumed: () => number;
   expected: () => number;
   close: () => Promise<void>;
 };
 
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
-  if (isPlainObject(value))
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-
-function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
-    const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
-    const isSyntheticNodeCassette =
-      call.operationName === 'ProductsHydrateNodes' ||
-      call.query?.startsWith('sha:') ||
-      call.query ===
-        'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
-      call.query ===
-        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    return (
-      variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
-        parsed['query'] === call.query ||
-        (call.query === undefined && call.operationName === operationName && operationName.length > 0))
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];
-  let fallbackResponse: ProxyResponse | null = null;
-  let index = 0;
+  let fallbackResponse: { response: ProxyResponse; call: RecordedUpstreamCall } | null = null;
   let fallbackCount = 0;
   const consumedCalls = new Set<number>();
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -368,6 +376,13 @@ async function startCassetteServer(): Promise<CassetteServer> {
     request.setEncoding('utf8');
     request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
+      if (process.env['PARITY_LOG_UPSTREAM']) {
+        try {
+          appendFileSync(process.env['PARITY_LOG_UPSTREAM'], `${body}\n@@@PARITY_UPSTREAM_SEP@@@\n`);
+        } catch {
+          /* diagnostic only */
+        }
+      }
       const matchedIndex = calls.findIndex(
         (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesBody(call, body),
       );
@@ -376,28 +391,28 @@ async function startCassetteServer(): Promise<CassetteServer> {
         consumedCalls.add(matchedIndex);
         response.statusCode = call?.response?.status ?? 200;
         response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify(call?.response?.body ?? {}));
+        // Support two response shapes:
+        //   { body: <graphql-payload> } — the typed RecordedUpstreamCall shape
+        //   { data: ..., errors: ... }  — raw GraphQL payload stored directly as response
+        const responseBody =
+          call?.response?.body !== undefined
+            ? call.response.body
+            : (call?.response as Record<string, unknown> | undefined)?.['data'] !== undefined
+              ? call?.response
+              : {};
+        response.end(JSON.stringify(responseBody));
         return;
       }
-      if (fallbackResponse !== null) {
+      if (fallbackResponse !== null && recordedCallMatchesBody(fallbackResponse.call, body)) {
         fallbackCount += 1;
-        response.statusCode = fallbackResponse.status;
+        response.statusCode = fallbackResponse.response.status;
         response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify(fallbackResponse.body));
+        response.end(JSON.stringify(fallbackResponse.response.body));
         return;
       }
-      const call = calls[index];
-      if (!call) {
-        response.statusCode = 500;
-        response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify({ errors: [{ message: `Unexpected upstream call ${index + 1}: ${body}` }] }));
-        return;
-      }
-      consumedCalls.add(index);
-      index += 1;
-      response.statusCode = call.response?.status ?? 200;
+      response.statusCode = 500;
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify(call.response?.body ?? {}));
+      response.end(JSON.stringify({ errors: [{ message: formatRecordedCallMismatch(body, calls, consumedCalls) }] }));
     });
   });
   await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
@@ -408,14 +423,14 @@ async function startCassetteServer(): Promise<CassetteServer> {
     setCalls: (nextCalls: RecordedUpstreamCall[]) => {
       calls = nextCalls;
       fallbackResponse = null;
-      index = 0;
       fallbackCount = 0;
       consumedCalls.clear();
     },
-    setFallbackResponse: (response: ProxyResponse | null) => {
-      fallbackResponse = response;
+    setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => {
+      fallbackResponse =
+        response && request ? { response, call: { query: request.query, variables: request.variables } } : null;
     },
-    consumed: () => index,
+    consumed: () => consumedCalls.size,
     expected: () => calls.length + fallbackCount,
     close: async () =>
       await new Promise<void>((resolveClose, reject) =>
@@ -450,10 +465,17 @@ async function sendProxyUpload(
   upload: ProxyUploadSpec,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<ProxyResponse> {
-  const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, namedResponses);
-  const resolvedBody = resolveSpecialVariables(upload.body ?? '', capture, primaryResponse, namedResponses);
+  const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, previousResponse, namedResponses);
+  const resolvedBody = resolveSpecialVariables(
+    upload.body ?? '',
+    capture,
+    primaryResponse,
+    previousResponse,
+    namedResponses,
+  );
   const request: { method: string; path: string; headers?: Record<string, string>; body: unknown } = {
     method: upload.method ?? 'POST',
     path: localUploadPath(resolvedPath, targetName),
@@ -498,6 +520,37 @@ function captureResponseForTarget(capture: unknown, target: ComparisonTarget): P
     if (response === undefined) return null;
     const status = getPath(capture, `${responsePath}.status`);
     return { status: typeof status === 'number' ? status : 200, body: response };
+  }
+  return null;
+}
+
+function normalizedCapturePayload(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null) return null;
+  const object = value as Record<string, unknown>;
+  if (typeof object['payload'] === 'object' && object['payload'] !== null) return object['payload'];
+  if (typeof object['body'] === 'object' && object['body'] !== null) return object['body'];
+  return object;
+}
+
+function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest): ProxyResponse | null {
+  const pending: unknown[] = [capture];
+  while (pending.length > 0) {
+    const candidate = pending.pop();
+    if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+      continue;
+    }
+    if (typeof candidate !== 'object' || candidate === null) continue;
+    const entry = candidate as Record<string, unknown>;
+    if (
+      typeof entry['query'] === 'string' &&
+      (entry['query'] as string).trimEnd() === request.query.trimEnd() &&
+      stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {})
+    ) {
+      const response = normalizedCapturePayload(entry['response'] ?? entry['result']);
+      if (response !== null) return { status: 200, body: response };
+    }
+    for (const value of Object.values(entry)) pending.push(value);
   }
   return null;
 }
@@ -555,11 +608,394 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
 }
 
+// Replay a capture's pre-existing entity declarations into the proxy store so
+// local replay can resolve references the scenario's setup created before the
+// requests under test (e.g. buyer-context customer display names / segment
+// names). `seedCustomers` / `seedSegments` mirror the captured setup responses;
+// the proxy upserts them by their captured ids. No-op when the capture declares
+// no seeds, so this is inert for every spec that does not need it.
+// Collect the richest projection of every draft order / order referenced by a
+// capture's recorded precondition steps, keyed by gid. Precondition steps live
+// under `setup` blocks — most scenarios carry a single top-level `setup`, but
+// some nest several disposable ones (e.g. one `setup` per invoice-send branch
+// under `recipient`/`lifecycle`). We gather every `setup` block anywhere in the
+// capture and seed only from those, which keeps assertion payloads (the
+// top-level mutation/downstreamRead the scenario compares against) out of the
+// seed set — seeding only re-establishes pre-existing entities, never the
+// behaviour under test. A draft created and then deleted within its setup
+// (deletedId on a draftOrderDelete step) is dropped from the seed set, so
+// not-found assertions stay faithful.
+function collectSetupEntitySeeds(capture: unknown): {
+  draftOrders: Record<string, unknown>[];
+  orders: Record<string, unknown>[];
+} {
+  const draftOrders = new Map<string, Record<string, unknown>>();
+  const orders = new Map<string, Record<string, unknown>>();
+  const fulfillmentOrders = new Map<string, Record<string, unknown>>();
+  const deletedIds = new Set<string>();
+  // Setup blocks describe an entity across several steps, in chronological
+  // (document) order — e.g. an order is created (`displayFinancialStatus: PAID`,
+  // `totalRefundedSet: 0`), partially refunded, then re-read (`PARTIALLY_REFUNDED`,
+  // `totalRefundedSet: 10`). Picking the single projection with the most keys
+  // would seed the stale create-time snapshot; instead merge every projection of
+  // a given id field-by-field in visit order, so a later step's value wins per
+  // field and the seed reflects the entity's final pre-test state. Each projection
+  // is append-only in practice, so this only ever adds keys or overrides a value a
+  // later setup step deliberately changed.
+  const mergeProjection = (
+    map: Map<string, Record<string, unknown>>,
+    id: string,
+    next: Record<string, unknown>,
+  ): void => {
+    const prev = map.get(id);
+    map.set(id, prev ? { ...prev, ...next } : next);
+  };
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const id = obj['id'];
+    if (typeof id === 'string') {
+      if (id.startsWith('gid://shopify/DraftOrder/')) {
+        mergeProjection(draftOrders, id, obj);
+      } else if (id.startsWith('gid://shopify/Order/')) {
+        mergeProjection(orders, id, obj);
+      } else if (id.startsWith('gid://shopify/FulfillmentOrder/')) {
+        mergeProjection(fulfillmentOrders, id, obj);
+      }
+    }
+    const deletedId = obj['deletedId'];
+    if (typeof deletedId === 'string') deletedIds.add(deletedId);
+    for (const value of Object.values(obj)) visit(value);
+  };
+  // A setup step's recorded *response* often omits fields the create/update
+  // *input* set (e.g. a draftOrderCreate that never re-queries `note`). Those
+  // fields are genuinely part of the entity's state, so overlay the step's
+  // input back onto the matching seed. Only a curated set of fields whose input
+  // and entity representations coincide are overlaid, and only where the
+  // response left the field absent or null — so an asserted response value is
+  // never overridden. This keeps seeds faithful to the entity the setup created.
+  const OVERLAY_FIELDS = ['note', 'tags', 'email', 'taxExempt', 'phone', 'customAttributes', 'poNumber'];
+  const overlayInputs = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) overlayInputs(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const input = (obj['variables'] as Record<string, unknown> | undefined)?.['input'] as
+      | Record<string, unknown>
+      | undefined;
+    const data = (
+      (obj['mutation'] as Record<string, unknown> | undefined)?.['response'] as Record<string, unknown> | undefined
+    )?.['data'] as Record<string, unknown> | undefined;
+    if (input && typeof input === 'object' && data && typeof data === 'object') {
+      for (const op of Object.values(data)) {
+        if (op === null || typeof op !== 'object') continue;
+        const entity = (op as Record<string, unknown>)['draftOrder'] ?? (op as Record<string, unknown>)['order'];
+        const id = (entity as Record<string, unknown> | undefined)?.['id'];
+        if (typeof id !== 'string') continue;
+        const seed = draftOrders.get(id) ?? orders.get(id);
+        if (!seed) continue;
+        for (const fieldName of OVERLAY_FIELDS) {
+          if (!(fieldName in input)) continue;
+          if (seed[fieldName] === undefined || seed[fieldName] === null) {
+            seed[fieldName] = input[fieldName];
+          }
+        }
+      }
+    }
+    for (const value of Object.values(obj)) overlayInputs(value);
+  };
+  // Gather every `setup` block in the capture (top-level and nested).
+  const setupBlocks: unknown[] = [];
+  const findSetups = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) findSetups(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if ('setup' in obj) setupBlocks.push(obj['setup']);
+    for (const value of Object.values(obj)) findSetups(value);
+  };
+  findSetups(capture);
+  for (const block of setupBlocks) visit(block);
+  for (const block of setupBlocks) overlayInputs(block);
+  // A fulfillment order can be relocated, held, or otherwise mutated across
+  // setup steps — e.g. orderCreate places it at location A, then a later
+  // fulfillmentOrderMove relocates it to location B (the move's response nests
+  // the moved FulfillmentOrder *outside* the order's `fulfillmentOrders`
+  // connection, so the order projection alone keeps the stale create-time
+  // location). Overlay the merged FulfillmentOrder projection (final pre-test
+  // state — move/hold applied, since later steps win per field) back onto each
+  // matching node the seeded order already declares. Only nodes the order
+  // already carries are enriched, never added, so this strictly reflects the
+  // entity's latest pre-test state without inventing connection members.
+  const overlayFulfillmentOrders = (order: Record<string, unknown>): void => {
+    const connection = order['fulfillmentOrders'] as Record<string, unknown> | undefined;
+    const nodes = connection?.['nodes'];
+    if (!Array.isArray(nodes)) return;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i] as Record<string, unknown> | null;
+      const nodeId = node?.['id'];
+      if (typeof nodeId !== 'string') continue;
+      const merged = fulfillmentOrders.get(nodeId);
+      if (!merged) continue;
+      // The merged FO projection carries an `order` back-reference (the
+      // hydrate selects `order { ... }`). Overlaying it onto a node that
+      // lives *inside* that same order's `fulfillmentOrders.nodes` would
+      // close a cycle (order -> nodes[i] -> order -> ...), which breaks
+      // JSON serialization of the seed body. Keep the node's own `order`
+      // (from `...node`) and overlay every other FO field.
+      const { order: _omitOrderBackref, ...mergedFields } = merged;
+      nodes[i] = { ...node, ...mergedFields };
+    }
+  };
+  for (const order of orders.values()) overlayFulfillmentOrders(order);
+  for (const id of deletedIds) {
+    draftOrders.delete(id);
+    orders.delete(id);
+  }
+  return { draftOrders: [...draftOrders.values()], orders: [...orders.values()] };
+}
+
+// `seedOrderCatalogFromCapture: true` declares that the scenario's local order
+// catalog should be re-established from the capture's own recorded order nodes
+// (the `orders` connection reads under `response` / `nextPage`). Collect every
+// `gid://shopify/Order/...` projection appearing in those assertion payloads and
+// merge them field-by-field by id, so the local orders/ordersCount engine has the
+// full catalog to filter, sort, paginate, and count against. A status-only node
+// (id/name/status) contributes those fields; a richer node (the seed/recent read)
+// contributes createdAt/tags/email. Only the recorded assertion payloads are
+// walked — never `upstreamCalls` or `setup` — so the seeded catalog stays
+// faithful to exactly the orders the scenario observes.
+function collectOrderCatalogSeeds(capture: unknown): Record<string, unknown>[] {
+  const record = capture as Record<string, unknown>;
+  if (record['seedOrderCatalogFromCapture'] !== true) return [];
+  const orders = new Map<string, Record<string, unknown>>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const id = obj['id'];
+    if (typeof id === 'string' && id.startsWith('gid://shopify/Order/')) {
+      const seed = orders.get(id) ?? {};
+      for (const [key, value] of Object.entries(obj)) {
+        // First non-null projection of a field wins; overlapping projections of
+        // the same order carry identical values, so this only ever fills gaps.
+        if (seed[key] === undefined || seed[key] === null) seed[key] = value;
+      }
+      orders.set(id, seed);
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(record['response']);
+  visit(record['nextPage']);
+  return [...orders.values()];
+}
+
+// Recursively collect opaque InventoryLevel connection cursors (level gid -> cursor)
+// from any recorded `inventoryLevels { edges { cursor node { id } } }` shape in a
+// capture (top-level data or upstream-call response bodies). These Relay pagination
+// tokens encode Shopify's internal row ids and cannot be reconstructed from store
+// state, so re-seeding them lets the local inventory-level connection renderer replay
+// the live cursors verbatim when a read projects edges/pageInfo.
+function collectInventoryLevelCursors(node: unknown, out: Record<string, string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectInventoryLevelCursors(item, out);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  const record = node as Record<string, unknown>;
+  const cursor = record['cursor'];
+  const inner = record['node'] as Record<string, unknown> | undefined;
+  const id = inner?.['id'];
+  if (typeof cursor === 'string' && typeof id === 'string' && id.includes('/InventoryLevel/')) {
+    out[id] = cursor;
+  }
+  for (const value of Object.values(record)) collectInventoryLevelCursors(value, out);
+}
+
+async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
+  const record = capture as Record<string, unknown>;
+  const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
+  const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
+  const products = Array.isArray(record['seedProducts']) ? record['seedProducts'] : [];
+  const productVariants = Array.isArray(record['seedProductVariants']) ? record['seedProductVariants'] : [];
+  const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
+  // `seedPublications` declares the store's base/default publications (id + name);
+  // the proxy derives each backing channel and drives the local publication/channel
+  // roots from them. Per-resource membership rides on the `publicationIds` of the
+  // seeded products/collections.
+  const publications = Array.isArray(record['seedPublications']) ? record['seedPublications'] : [];
+  const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
+  // Draft orders / orders are derived from the recorded `setup` precondition steps
+  // (and may be augmented by explicit `seedDraftOrders` / `seedOrders` arrays).
+  const setupSeeds = collectSetupEntitySeeds(record);
+  // Some captures carry a single pre-existing entity as `seedOrder` /
+  // `seedDraftOrder` (the realistic order an order-edit / return workflow runs
+  // against) rather than an array. Treat the singular form as a one-element seed
+  // alongside the array form and the setup-derived projections.
+  const singletonSeed = (key: string): Record<string, unknown>[] =>
+    record[key] && typeof record[key] === 'object' && !Array.isArray(record[key])
+      ? [record[key] as Record<string, unknown>]
+      : [];
+  const draftOrders = [
+    ...(Array.isArray(record['seedDraftOrders']) ? record['seedDraftOrders'] : []),
+    ...singletonSeed('seedDraftOrder'),
+    ...setupSeeds.draftOrders,
+  ];
+  const orders = [
+    ...(Array.isArray(record['seedOrders']) ? record['seedOrders'] : []),
+    ...singletonSeed('seedOrder'),
+    ...setupSeeds.orders,
+    ...collectOrderCatalogSeeds(record),
+  ];
+  // `seedOrderEditVariants` mirrors the store catalog entries an order-edit
+  // `orderEditAddVariant` resolves against (variant id → product title / sku /
+  // unit price). Re-establishing the catalog lets the local edit engine build
+  // the added calculated line item from store state instead of echoing the
+  // recorded response.
+  let orderEditVariants = Array.isArray(record['seedOrderEditVariants']) ? record['seedOrderEditVariants'] : [];
+  // When a capture does not carry an explicit `seedOrderEditVariants` array, derive
+  // the order-edit variant catalog from the recorded `productVariant` hydration
+  // calls. Those hydrate responses are real store state (variant id, product title,
+  // sku, unit price) that `orderEditAddVariant` resolves the added calculated line
+  // item against — re-establishing the catalog lets the local edit engine compute
+  // the added line from store state instead of relying on a passthrough echo of the
+  // recorded mutation response.
+  if (orderEditVariants.length === 0 && Array.isArray(record['upstreamCalls'])) {
+    const derived: Record<string, unknown>[] = [];
+    for (const rawCall of record['upstreamCalls'] as unknown[]) {
+      const call = rawCall as Record<string, unknown> | null;
+      const response = call?.['response'] as Record<string, unknown> | undefined;
+      const body = (response?.['body'] ?? response) as Record<string, unknown> | undefined;
+      const data = body?.['data'] as Record<string, unknown> | undefined;
+      const variant = data?.['productVariant'] as Record<string, unknown> | undefined;
+      const id = variant?.['id'];
+      if (variant && typeof id === 'string' && !derived.some((entry) => entry['id'] === id)) {
+        const product = variant['product'] as Record<string, unknown> | undefined;
+        derived.push({
+          id,
+          // The calculated line-item title mirrors the product title (the variant
+          // title is carried separately), so prefer it when the hydrate nested it.
+          title: (product?.['title'] as string | undefined) ?? variant['title'] ?? null,
+          sku: variant['sku'] ?? null,
+          price: variant['price'] ?? null,
+        });
+      }
+    }
+    orderEditVariants = derived;
+  }
+  // `seedOrderEditAuthor` is the identity of the actor (app / staff) that performs
+  // the order edit. Shopify records the committed "<author> edited this order."
+  // history event against whoever held the editing session; that identity is
+  // session/store state, not anything derivable from the rest of the capture.
+  // Re-establishing it lets the local commit engine compute the edited-order event
+  // message generically from the seeded author instead of echoing the recorded text.
+  const orderEditAuthor =
+    typeof record['seedOrderEditAuthor'] === 'string' ? (record['seedOrderEditAuthor'] as string) : null;
+  // `seedSegmentCatalog` mirrors the captured segment-catalog read roots (filters,
+  // filter/value suggestions, migrations, the segments connection, and the live
+  // total count) so local replay can serve their recorded cursors/pageInfo that
+  // cannot be reconstructed from arbitrary store state.
+  const segmentCatalog =
+    record['seedSegmentCatalog'] && typeof record['seedSegmentCatalog'] === 'object'
+      ? (record['seedSegmentCatalog'] as Record<string, unknown>)
+      : null;
+  // `seedCustomersCount` mirrors the live shop's total customer count so the
+  // `customersCount` read root can report the store-specific baseline (which is
+  // not reconstructable from the staged customers) and track deletions/merges as
+  // `base - deletions`.
+  const customersCount =
+    typeof record['seedCustomersCount'] === 'number' ? (record['seedCustomersCount'] as number) : null;
+  // `seedCustomerOrders` maps a customer id to the recorded order nodes attached to
+  // it (each optionally carrying an opaque `__cursor`). Customer reads and merges
+  // that reparent orders resolve these from store state; the live connection cursors
+  // can't be reconstructed locally, so re-seeding preserves them for downstream reads.
+  const customerOrders =
+    record['seedCustomerOrders'] && typeof record['seedCustomerOrders'] === 'object'
+      ? (record['seedCustomerOrders'] as Record<string, unknown>)
+      : null;
+  // `seedCollectionCatalog` mirrors `seedSegmentCatalog`: recorded top-level
+  // `collections(query:, sortKey:)` connection snapshots keyed by GraphQL alias.
+  // Their opaque search-index cursors (title case folding, SQL-datetime sort keys)
+  // cannot be reconstructed from store state, so the catalog read projects the
+  // requested selection over these recorded connections for local replay.
+  const collectionCatalog =
+    record['seedCollectionCatalog'] && typeof record['seedCollectionCatalog'] === 'object'
+      ? (record['seedCollectionCatalog'] as Record<string, unknown>)
+      : null;
+  // Recover opaque InventoryLevel connection cursors recorded anywhere in the capture
+  // (the captured response under test plus every upstream-call body) so variant /
+  // inventory-item reads can replay them on their `inventoryLevels` edges/pageInfo.
+  const inventoryLevelCursors: Record<string, string> = {};
+  collectInventoryLevelCursors(record['data'], inventoryLevelCursors);
+  if (Array.isArray(record['upstreamCalls'])) {
+    for (const rawCall of record['upstreamCalls'] as unknown[]) {
+      const call = rawCall as Record<string, unknown> | null;
+      const response = call?.['response'] as Record<string, unknown> | undefined;
+      const body = (response?.['body'] ?? response) as Record<string, unknown> | undefined;
+      collectInventoryLevelCursors(body?.['data'], inventoryLevelCursors);
+    }
+  }
+  const hasInventoryLevelCursors = Object.keys(inventoryLevelCursors).length > 0;
+  if (
+    customers.length === 0 &&
+    segments.length === 0 &&
+    products.length === 0 &&
+    productVariants.length === 0 &&
+    collections.length === 0 &&
+    publications.length === 0 &&
+    discounts.length === 0 &&
+    draftOrders.length === 0 &&
+    orders.length === 0 &&
+    orderEditVariants.length === 0 &&
+    orderEditAuthor === null &&
+    segmentCatalog === null &&
+    customersCount === null &&
+    customerOrders === null &&
+    collectionCatalog === null &&
+    !hasInventoryLevelCursors
+  )
+    return;
+  await proxy.processRequest({
+    method: 'POST',
+    path: '/__meta/seed',
+    body: {
+      customers,
+      segments,
+      products,
+      productVariants,
+      collections,
+      publications,
+      discounts,
+      draftOrders,
+      orders,
+      orderEditVariants,
+      ...(orderEditAuthor ? { orderEditAuthor } : {}),
+      ...(segmentCatalog ? { segmentCatalog } : {}),
+      ...(customersCount !== null ? { customersCount } : {}),
+      ...(customerOrders !== null ? { customerOrders } : {}),
+      ...(collectionCatalog ? { collectionCatalog } : {}),
+      ...(hasInventoryLevelCursors ? { inventoryLevelCursors } : {}),
+    },
+  });
+}
+
 async function runSpec(
   specPath: string,
   debug: boolean,
   proxy: DraftProxy,
   cassette: CassetteServer,
+  cleanState: DraftProxyStateDump,
 ): Promise<string[]> {
   const relativeSpecPath = path.relative(repoRoot, specPath);
   const spec = await readJsonFile<ParitySpec>(specPath);
@@ -568,12 +1004,15 @@ async function runSpec(
   const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
+  proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+  await seedPreconditionsFromCapture(proxy, capture);
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
+  let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
   try {
-    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, namedResponses);
+    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses);
     if (primaryRequest !== null) {
       const primaryFallbackTarget =
         spec.comparison?.targets?.find(
@@ -584,11 +1023,13 @@ async function runSpec(
             !target.proxyLogPath &&
             captureResponseForTarget(capture, target) !== null,
         ) ?? spec.comparison?.targets?.find((target) => captureResponseForTarget(capture, target) !== null);
-      cassette.setFallbackResponse(
-        primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null,
-      );
+      const primaryFallbackResponse =
+        captureResponseForRequest(capture, primaryRequest) ??
+        (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
+      cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
       await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
+      previousResponse = primaryResponse;
     }
     let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
@@ -597,24 +1038,42 @@ async function runSpec(
       if (target.isolatedProxy) {
         cassette.setCalls(upstreamCalls);
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+        await seedPreconditionsFromCapture(proxy, capture);
         primaryResponse = null;
+        previousResponse = null;
         namedResponses.clear();
-      } else {
+      } else if (target.preserveProxyState !== true) {
         proxy.restoreState(mainState);
       }
       if (target.proxyUpload) {
-        await sendProxyUpload(proxy, target.name, target.proxyUpload, capture, primaryResponse, namedResponses);
+        const uploadResponse = await sendProxyUpload(
+          proxy,
+          target.name,
+          target.proxyUpload,
+          capture,
+          primaryResponse,
+          previousResponse,
+          namedResponses,
+        );
+        previousResponse = uploadResponse;
         proxySource = getPath(capture, target.capturePath);
       } else if (target.proxyRequest) {
-        cassette.setFallbackResponse(captureResponseForTarget(capture, target));
-        const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
+        const request = await loadRequest(
+          target.proxyRequest,
+          capture,
+          primaryResponse,
+          previousResponse,
+          namedResponses,
+        );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
+        cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
         await hydrateInventoryNodes(proxy, request);
         const targetResponse = await sendProxyRequest(proxy, request);
-        if (!target.isolatedProxy) {
+        if (!target.isolatedProxy && target.preserveProxyState !== true) {
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
         }
         namedResponses.set(target.name, targetResponse);
+        previousResponse = targetResponse;
         proxySource = targetResponse.body;
         if (debug)
           log(
@@ -626,7 +1085,10 @@ async function runSpec(
         proxySource = await proxy.getLog();
       } else {
         proxySource = primaryResponse?.body;
-        if (primaryResponse) namedResponses.set(target.name, primaryResponse);
+        if (primaryResponse) {
+          namedResponses.set(target.name, primaryResponse);
+          previousResponse = primaryResponse;
+        }
       }
       const captureValue = normalizeForTarget(getPath(capture, target.capturePath), target);
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';
@@ -673,11 +1135,12 @@ async function main(): Promise<void> {
     shopifyAdminOrigin: cassette.origin,
     port: 0,
   });
+  const cleanState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
   let failures = 0;
   try {
     for (const specPath of specPaths) {
-      const errors = await runSpec(specPath, args.debug, proxy, cassette);
+      const errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
       if (errors.length > 0) {
         failures += 1;
         for (const error of errors) logError(`[parity] ${error}`);

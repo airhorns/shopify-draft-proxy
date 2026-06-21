@@ -1418,7 +1418,7 @@
     {
       "operationName": "MetaobjectDefinitionsReadCatalog",
       "variables": {},
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
@@ -1551,7 +1551,7 @@
       "variables": {
         "id": "gid://shopify/MetaobjectDefinition/17537171762"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadDetail($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1617,7 +1617,7 @@
       "variables": {
         "type": "codex_har_240_1777156845370"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1683,7 +1683,7 @@
       "variables": {
         "id": "gid://shopify/MetaobjectDefinition/0"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadDetail($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1698,7 +1698,7 @@
       "variables": {
         "type": "codex_har_351_missing_definition_type"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1718,7 +1718,7 @@
         },
         "type": "codex_har_240_1777156845370"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  detail: metaobject(id: $id) {\n    ...MetaobjectReadFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectReadFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1992,7 +1992,7 @@
         },
         "type": "codex_har_240_1777156845370_missing"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "fragment MetaobjectReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  detail: metaobject(id: $id) {\n    ...MetaobjectReadFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectReadFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -2018,7 +2018,7 @@
       "variables": {
         "id": "gid://shopify/Metaobject/185593102642"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2144,7 +2144,7 @@
       "variables": {
         "type": "codex_har_240_1777156845370"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {

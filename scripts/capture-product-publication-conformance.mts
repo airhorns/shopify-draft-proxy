@@ -170,11 +170,13 @@ const deleteMutation = `#graphql
 `;
 
 const publishMutation = `#graphql
-  mutation ProductPublicationConformancePublish($input: ProductPublishInput!) {
+  mutation ProductPublicationConformancePublish($input: ProductPublishInput!, $publicationId: ID!) {
     productPublish(input: $input) {
       product {
         id
+        publishedAt
         publishedOnCurrentPublication
+        publishedOnPublication(publicationId: $publicationId)
         availablePublicationsCount {
           count
           precision
@@ -182,6 +184,27 @@ const publishMutation = `#graphql
         resourcePublicationsCount {
           count
           precision
+        }
+        resourcePublicationsV2(first: 10) {
+          nodes {
+            publication {
+              id
+            }
+            publishable {
+              ... on Product {
+                id
+              }
+            }
+          }
+        }
+        publications(first: 10) {
+          nodes {
+            isPublished
+            publishDate
+            product {
+              id
+            }
+          }
         }
       }
       userErrors {
@@ -193,11 +216,13 @@ const publishMutation = `#graphql
 `;
 
 const unpublishMutation = `#graphql
-  mutation ProductPublicationConformanceUnpublish($input: ProductUnpublishInput!) {
+  mutation ProductPublicationConformanceUnpublish($input: ProductUnpublishInput!, $publicationId: ID!) {
     productUnpublish(input: $input) {
       product {
         id
+        publishedAt
         publishedOnCurrentPublication
+        publishedOnPublication(publicationId: $publicationId)
         availablePublicationsCount {
           count
           precision
@@ -205,6 +230,27 @@ const unpublishMutation = `#graphql
         resourcePublicationsCount {
           count
           precision
+        }
+        resourcePublicationsV2(first: 10) {
+          nodes {
+            publication {
+              id
+            }
+            publishable {
+              ... on Product {
+                id
+              }
+            }
+          }
+        }
+        publications(first: 10) {
+          nodes {
+            isPublished
+            publishDate
+            product {
+              id
+            }
+          }
         }
       }
       userErrors {
@@ -353,10 +399,12 @@ const unpublishMutationScopeProbe = `#graphql
 `;
 
 const downstreamReadQuery = `#graphql
-  query ProductPublicationDownstream($id: ID!) {
+  query ProductPublicationDownstream($id: ID!, $publicationId: ID!) {
     product(id: $id) {
       id
+      publishedAt
       publishedOnCurrentPublication
+      publishedOnPublication(publicationId: $publicationId)
       availablePublicationsCount {
         count
         precision
@@ -365,9 +413,57 @@ const downstreamReadQuery = `#graphql
         count
         precision
       }
+      resourcePublicationsV2(first: 10) {
+        nodes {
+          publication {
+            id
+          }
+          publishable {
+            ... on Product {
+              id
+            }
+          }
+        }
+      }
+      publications(first: 10) {
+        nodes {
+          isPublished
+          publishDate
+          product {
+            id
+          }
+        }
+      }
     }
   }
 `;
+
+const productHydrateQuery = `
+query ProductsHydrateNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on Product {
+      legacyResourceId
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      totalInventory
+      tracksInventory
+      createdAt
+      updatedAt
+      publishedAt
+      descriptionHtml
+      onlineStorePreviewUrl
+      templateSuffix
+      seo { title description }
+      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }
+    }
+  }
+}`;
 
 const publicationMutationScopeProbePublicationId = 'gid://shopify/Publication/1';
 
@@ -390,7 +486,7 @@ function buildCreateVariables(runId) {
   return {
     product: {
       title: `Hermes Product Publication Conformance ${runId}`,
-      status: 'DRAFT',
+      status: 'ACTIVE',
     },
   };
 }
@@ -1312,6 +1408,16 @@ try {
   if (!createdProductId) {
     throw new Error('Product publication capture did not return a product id.');
   }
+  const productHydrateResponse = await activeClient.runGraphqlRaw(productHydrateQuery, { ids: [createdProductId] });
+  const productHydrateUpstreamCall = {
+    operationName: 'ProductsHydrateNodes',
+    variables: { ids: [createdProductId] },
+    query: productHydrateQuery,
+    response: {
+      status: productHydrateResponse.status,
+      body: productHydrateResponse.payload,
+    },
+  };
 
   const publishVariables = {
     input: {
@@ -1321,8 +1427,12 @@ try {
   };
 
   const publishResponse = await activeClient.runGraphql(publishMutationScopeProbe, publishVariables);
-  const publishAggregateResponse = await activeClient.runGraphqlRaw(publishMutation, publishVariables);
-  const postPublishRead = await activeClient.runGraphqlRaw(downstreamReadQuery, { id: createdProductId });
+  const aggregateVariables = { ...publishVariables, publicationId };
+  const publishAggregateResponse = await activeClient.runGraphqlRaw(publishMutation, aggregateVariables);
+  const postPublishRead = await activeClient.runGraphqlRaw(downstreamReadQuery, {
+    id: createdProductId,
+    publicationId,
+  });
 
   const unpublishVariables = {
     input: {
@@ -1332,8 +1442,12 @@ try {
   };
 
   const unpublishResponse = await activeClient.runGraphql(unpublishMutationScopeProbe, unpublishVariables);
-  const unpublishAggregateResponse = await activeClient.runGraphqlRaw(unpublishMutation, unpublishVariables);
-  const postUnpublishRead = await activeClient.runGraphqlRaw(downstreamReadQuery, { id: createdProductId });
+  const unpublishAggregateVariables = { ...unpublishVariables, publicationId };
+  const unpublishAggregateResponse = await activeClient.runGraphqlRaw(unpublishMutation, unpublishAggregateVariables);
+  const postUnpublishRead = await activeClient.runGraphqlRaw(downstreamReadQuery, {
+    id: createdProductId,
+    publicationId,
+  });
 
   const publishableVariables = {
     id: createdProductId,
@@ -1383,6 +1497,7 @@ try {
         response: postPublishRead,
         blocker: publishReadBlocker,
       },
+      upstreamCalls: [productHydrateUpstreamCall],
     },
     'product-unpublish-parity.json': {
       seedProduct,
@@ -1399,6 +1514,34 @@ try {
         response: postUnpublishRead,
         blocker: unpublishReadBlocker,
       },
+      upstreamCalls: [productHydrateUpstreamCall],
+    },
+    'product-publish-unpublish.json': {
+      seedProduct,
+      seedPublications,
+      publish: {
+        variables: publishVariables,
+        mutation: {
+          response: publishAggregateResponse,
+          blocker: publishAggregateBlocker,
+        },
+        downstreamRead: {
+          response: postPublishRead,
+          blocker: publishReadBlocker,
+        },
+      },
+      unpublish: {
+        variables: unpublishVariables,
+        mutation: {
+          response: unpublishAggregateResponse,
+          blocker: unpublishAggregateBlocker,
+        },
+        downstreamRead: {
+          response: postUnpublishRead,
+          blocker: unpublishReadBlocker,
+        },
+      },
+      upstreamCalls: [productHydrateUpstreamCall],
     },
     'publishable-publish-shop-count-parity.json': {
       seedProduct,

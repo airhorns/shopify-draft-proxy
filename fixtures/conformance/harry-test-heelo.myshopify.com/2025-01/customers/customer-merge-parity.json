@@ -435,6 +435,105 @@
       }
     }
   },
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/10581945778482",
+      "firstName": "Merge",
+      "lastName": "One",
+      "displayName": "Merge One",
+      "email": "hermes-merge-one-1777994030722@example.com",
+      "note": "merge-one-note",
+      "tags": ["har-291-merge", "merge-1777994030722", "merge-one"],
+      "numberOfOrders": "0",
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-merge-one-1777994030722@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+16475550722"
+      },
+      "defaultAddress": null,
+      "addressesV2": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "metafields": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "createdAt": "2026-05-05T15:13:50Z",
+      "updatedAt": "2026-05-05T15:13:50Z",
+      "phone": "+16475550722"
+    },
+    {
+      "id": "gid://shopify/Customer/10581945811250",
+      "firstName": "Merge",
+      "lastName": "Two",
+      "displayName": "Merge Two",
+      "email": "hermes-merge-two-1777994030722@example.com",
+      "note": "merge-two-note",
+      "tags": ["har-291-merge", "merge-1777994030722", "merge-two"],
+      "numberOfOrders": "0",
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-merge-two-1777994030722@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+16476660722"
+      },
+      "defaultAddress": null,
+      "addressesV2": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "metafields": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "createdAt": "2026-05-05T15:13:51Z",
+      "updatedAt": "2026-05-05T15:13:51Z",
+      "phone": "+16476660722"
+    }
+  ],
+  "seedCustomersCount": 176,
   "preview": {
     "variables": {
       "one": "gid://shopify/Customer/10581945778482",

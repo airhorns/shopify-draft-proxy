@@ -9,7 +9,8 @@
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
-    "variablesCapturePath": "$.setupCustomer.variables"
+    "variablesCapturePath": "$.setupCustomer.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured Admin GraphQL 2025-01 evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior across CustomerInput, CustomerSetInput, and dedicated address mutations. Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null; nested CustomerInput.addresses rejects an all-blank address entry.",

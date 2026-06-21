@@ -29,12 +29,41 @@
       {
         "name": "draft-create",
         "capturePath": "$.draft.expected.create",
-        "proxyPath": "$"
+        "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ]
       },
       {
         "name": "draft-delete",
         "capturePath": "$.draft.expected.delete",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.paymentTermsDelete.deletedId",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy delete their independently generated payment terms IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
           "variables": {
@@ -61,6 +90,13 @@
         "name": "order-create",
         "capturePath": "$.order.expected.orderCreate",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.orderCreate.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the local proxy generate independent order IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
           "variablesCapturePath": "$.order.orderCreate.variables"
@@ -70,6 +106,28 @@
         "name": "order-create-terms",
         "capturePath": "$.order.expected.create",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
           "variables": {
@@ -87,6 +145,13 @@
         "name": "order-delete",
         "capturePath": "$.order.expected.delete",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.paymentTermsDelete.deletedId",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy delete their independently generated payment terms IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
           "variables": {
@@ -103,6 +168,13 @@
         "name": "order-read-after-delete",
         "capturePath": "$.order.expected.readAfterDelete",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the local proxy generate independent order IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql",
           "variables": {

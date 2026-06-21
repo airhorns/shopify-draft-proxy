@@ -15,7 +15,7 @@
     "Staged file records are visible through the top-level files connection.",
     "fileSavedSearches returns Shopify-like empty connection data until saved-search records are modeled.",
     "stagedUploadsCreate returns inert local target URLs with resource-specific Shopify parameter names and does not create external upload storage.",
-    "fileUpdate rejects simultaneous originalSource and previewImageSource without staging a file replacement."
+    "fileUpdate against a freshly created (non-ready) file returns NON_READY_STATE before ready-file-only simultaneous-source validation, matching the live media-file-update-validation-ordering capture; the simultaneous originalSource/previewImageSource conflict itself is covered against ready files by media-file-update-simultaneous-source-conflict."
   ],
   "create": {
     "response": {
@@ -147,14 +147,9 @@
           "files": [],
           "userErrors": [
             {
-              "field": ["files", "0", "previewImageSource"],
-              "message": "Cannot update the preview image and image at the same time because they are one and the same.",
-              "code": "INVALID"
-            },
-            {
-              "field": ["files", "0", "originalSource"],
-              "message": "Cannot update the preview image and image at the same time because they are one and the same.",
-              "code": "INVALID"
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
             }
           ]
         }

@@ -315,30 +315,30 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
 }
 
 #[test]
-fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_enable() {
+fn metafield_definition_pin_limit_is_twenty_for_pin_create_update_and_standard_enable() {
     let namespace = "har1423_pin_limit";
 
     let mut pin_proxy = snapshot_proxy();
-    for index in 1..=51 {
+    for index in 1..=21 {
         let key = format!("pin_{index:02}");
         let created = create_definition(&mut pin_proxy, namespace, &key, false);
         assert_eq!(created["userErrors"], json!([]));
     }
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let pinned = pin_definition(&mut pin_proxy, namespace, &key);
         assert_eq!(pinned["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(pinned["pinnedDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(pinned["pinnedDefinition"]["pinnedPosition"], json!(20));
         }
     }
-    let over_cap_pin = pin_definition(&mut pin_proxy, namespace, "pin_51");
+    let over_cap_pin = pin_definition(&mut pin_proxy, namespace, "pin_21");
     assert_eq!(over_cap_pin["pinnedDefinition"], Value::Null);
     assert_eq!(
         over_cap_pin["userErrors"],
         json!([{
             "field": null,
-            "message": "Limit of 50 pinned definitions.",
+            "message": "Limit of 20 pinned definitions.",
             "code": "PINNED_LIMIT_REACHED"
         }])
     );
@@ -357,20 +357,20 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut create_proxy = snapshot_proxy();
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let created = create_definition(&mut create_proxy, "har1423_create_limit", &key, true);
         assert_eq!(created["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(created["createdDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(created["createdDefinition"]["pinnedPosition"], json!(20));
         }
     }
     let over_cap_create =
-        create_definition(&mut create_proxy, "har1423_create_limit", "pin_51", true);
+        create_definition(&mut create_proxy, "har1423_create_limit", "pin_21", true);
     assert_eq!(over_cap_create["createdDefinition"], Value::Null);
     assert_eq!(
         over_cap_create["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_create["userErrors"][0]["code"],
@@ -378,27 +378,27 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut update_proxy = snapshot_proxy();
-    for index in 1..=51 {
+    for index in 1..=21 {
         let key = format!("pin_{index:02}");
         assert_eq!(
             create_definition(&mut update_proxy, "har1423_update_limit", &key, false)["userErrors"],
             json!([])
         );
     }
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let updated = update_definition_pin(&mut update_proxy, "har1423_update_limit", &key);
         assert_eq!(updated["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(updated["updatedDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(updated["updatedDefinition"]["pinnedPosition"], json!(20));
         }
     }
     let over_cap_update =
-        update_definition_pin(&mut update_proxy, "har1423_update_limit", "pin_51");
+        update_definition_pin(&mut update_proxy, "har1423_update_limit", "pin_21");
     assert_eq!(over_cap_update["updatedDefinition"], Value::Null);
     assert_eq!(
         over_cap_update["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_update["userErrors"][0]["code"],
@@ -406,7 +406,7 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut standard_proxy = snapshot_proxy();
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         assert_eq!(
             create_definition(&mut standard_proxy, "har1423_standard_limit", &key, true)
@@ -418,7 +418,7 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     assert_eq!(over_cap_standard["createdDefinition"], Value::Null);
     assert_eq!(
         over_cap_standard["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_standard["userErrors"][0]["code"],
@@ -477,38 +477,37 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
     );
     assert_eq!(customer_created["userErrors"], json!([]));
 
-    let app_one_created = create_definition_for_resource_limit(
-        &mut proxy,
-        "PRODUCT",
-        "app--111--resource_limit",
-        "app_one_key",
-    );
+    // App-reserved namespaces (`app--<id>--…`) can only be written by the app
+    // that owns them: Shopify rejects cross-app definition writes with a top-level
+    // ACCESS_DENIED (see `metafield-definition-app-namespace-resolution` parity
+    // capture). Authenticate as each app via the api-client-id header so the
+    // `$app:` namespace resolves to that app's own reserved namespace, proving the
+    // resource-type limit is bucketed per app independently of the merchant bucket.
+    let app_one_created =
+        create_app_definition_for_resource_limit(&mut proxy, "111", "app_one_key");
     assert_eq!(app_one_created["userErrors"], json!([]));
+    assert_eq!(
+        app_one_created["createdDefinition"]["namespace"],
+        json!("app--111--resource_limit")
+    );
 
     for index in 0..256 {
-        let created = create_definition_for_resource_limit(
-            &mut proxy,
-            "PRODUCT",
-            "app--222--resource_limit",
-            &format!("key_{index:03}"),
-        );
+        let created =
+            create_app_definition_for_resource_limit(&mut proxy, "222", &format!("key_{index:03}"));
         assert_eq!(created["userErrors"], json!([]));
     }
-    let over_app_limit = create_definition_for_resource_limit(
-        &mut proxy,
-        "PRODUCT",
-        "app--222--resource_limit",
-        "key_256",
-    );
+    let over_app_limit = create_app_definition_for_resource_limit(&mut proxy, "222", "key_256");
     assert_eq!(over_app_limit["createdDefinition"], Value::Null);
     assert_eq!(
         over_app_limit["userErrors"][0]["code"],
         json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
     );
 
-    let app_one_default_namespace_created =
-        create_definition_for_resource_limit(&mut proxy, "PRODUCT", "app--111", "default_key");
-    assert_eq!(app_one_default_namespace_created["userErrors"], json!([]));
+    // A second namespace under the same app shares that app's bucket and is still
+    // well under the limit, so it succeeds.
+    let app_one_second_namespace_created =
+        create_app_definition_for_resource_limit(&mut proxy, "111", "default_key");
+    assert_eq!(app_one_second_namespace_created["userErrors"], json!([]));
 
     let app_three_created =
         create_app_definition_for_resource_limit(&mut proxy, "333", "app_three_key");
@@ -551,6 +550,471 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         standard_exclusion_over_limit["userErrors"][0]["code"],
         json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
     );
+}
+
+#[test]
+fn metafield_definition_capability_eligibility_matches_shopify() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "capability_eligibility_rust";
+
+    let invalid_unique = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidUniqueCapability($namespace: String!) {
+          metafieldDefinitionCreate(definition: {
+            ownerType: PRODUCT
+            namespace: $namespace
+            key: "json_unique"
+            name: "JSON Unique"
+            type: "json"
+            capabilities: { uniqueValues: { enabled: true } }
+          }) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+          rejectedRead: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "json_unique" }) {
+            id
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        invalid_unique.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The capability unique_values is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+            }]
+        })
+    );
+    assert_eq!(invalid_unique.body["data"]["rejectedRead"], Value::Null);
+
+    let invalid_smart = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidSmartCapability($namespace: String!) {
+          metafieldDefinitionCreate(definition: {
+            ownerType: CUSTOMER
+            namespace: $namespace
+            key: "customer_smart"
+            name: "Customer Smart"
+            type: "single_line_text_field"
+            capabilities: { smartCollectionCondition: { enabled: true } }
+          }) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        invalid_smart.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The capability smart_collection_condition is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+            }]
+        })
+    );
+
+    let id_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdCapabilityAutoEnable($namespace: String!) {
+          metafieldDefinitionCreate(definition: {
+            ownerType: PRODUCT
+            namespace: $namespace
+            key: "external_id"
+            name: "External ID"
+            type: "id"
+          }) {
+            createdDefinition {
+              type { name category }
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        id_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        id_create.body["data"]["metafieldDefinitionCreate"]["createdDefinition"],
+        json!({
+            "type": { "name": "id", "category": "ID" },
+            "capabilities": {
+                "adminFilterable": { "enabled": false, "eligible": true, "status": "NOT_FILTERABLE" },
+                "smartCollectionCondition": { "enabled": false, "eligible": false },
+                "uniqueValues": { "enabled": true, "eligible": true }
+            }
+        })
+    );
+
+    let id_disabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdCapabilityExplicitDisable($namespace: String!) {
+          metafieldDefinitionCreate(definition: {
+            ownerType: PRODUCT
+            namespace: $namespace
+            key: "external_id_disabled"
+            name: "External ID disabled"
+            type: "id"
+            capabilities: { uniqueValues: { enabled: false } }
+          }) {
+            createdDefinition { capabilities { uniqueValues { enabled eligible } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        id_disabled.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]["capabilities"]
+            ["uniqueValues"],
+        json!({ "enabled": false, "eligible": true })
+    );
+
+    let json_base = proxy.process_request(json_graphql_request(
+        r#"
+        mutation JsonCapabilityReadback($namespace: String!) {
+          metafieldDefinitionCreate(definition: {
+            ownerType: PRODUCT
+            namespace: $namespace
+            key: "json_payload"
+            name: "JSON Payload"
+            type: "json"
+          }) {
+            createdDefinition {
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        json_base.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]["capabilities"],
+        json!({
+            "adminFilterable": { "enabled": false, "eligible": false, "status": "NOT_FILTERABLE" },
+            "smartCollectionCondition": { "enabled": false, "eligible": false },
+            "uniqueValues": { "enabled": false, "eligible": false }
+        })
+    );
+
+    let update_unique = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidUpdateUniqueCapability($namespace: String!) {
+          metafieldDefinitionUpdate(definition: {
+            ownerType: PRODUCT
+            namespace: $namespace
+            key: "json_payload"
+            capabilities: { uniqueValues: { enabled: true } }
+          }) {
+            updatedDefinition { id }
+            userErrors { field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        update_unique.body["data"]["metafieldDefinitionUpdate"],
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The capability unique_values is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+            }],
+            "validationJob": null
+        })
+    );
+}
+
+#[test]
+fn metafield_definition_admin_filterable_cap_is_fifty_per_owner_type() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "admin_filter_cap_rust";
+
+    for index in 1..=50 {
+        let key = format!("admin_{index:02}");
+        let created = proxy.process_request(json_graphql_request(
+            r#"
+            mutation AdminFilterableCreate($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition {
+                  key
+                  capabilities { adminFilterable { enabled eligible status } }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": namespace,
+                    "key": key,
+                    "name": format!("Admin Filter {index:02}"),
+                    "type": "single_line_text_field",
+                    "capabilities": { "adminFilterable": { "enabled": true } }
+                }
+            }),
+        ));
+        assert_eq!(
+            created.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+        if index == 50 {
+            assert_eq!(
+                created.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]
+                    ["capabilities"]["adminFilterable"],
+                json!({ "enabled": true, "eligible": true, "status": "FILTERABLE" })
+            );
+        }
+    }
+
+    let over_limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminFilterableLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": namespace,
+                "key": "admin_51",
+                "name": "Admin Filter 51",
+                "type": "single_line_text_field",
+                "capabilities": { "adminFilterable": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "You can only use 50 product metafield definitions to filter the product list. To add a new filter, disable filtering on an existing one.",
+                "code": "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+            }]
+        })
+    );
+
+    let customer_allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerAdminFilterableCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { ownerType capabilities { adminFilterable { enabled status } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "CUSTOMER",
+                "namespace": namespace,
+                "key": "customer_admin",
+                "name": "Customer admin",
+                "type": "single_line_text_field",
+                "capabilities": { "adminFilterable": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        customer_allowed.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        customer_allowed.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]
+            ["capabilities"]["adminFilterable"],
+        json!({ "enabled": true, "status": "FILTERABLE" })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_rejects_ineligible_capabilities() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_unique = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardInvalidUnique {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004"
+            capabilities: { uniqueValues: { enabled: true } }
+          ) {
+            createdDefinition { namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_unique.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The capability unique_values is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+            }]
+        })
+    );
+
+    let invalid_smart = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardInvalidSmart {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+            capabilities: { smartCollectionCondition: { enabled: true } }
+          ) {
+            createdDefinition { namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_smart.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The capability smart_collection_condition is not valid for this definition.",
+            "code": "INVALID_CAPABILITY"
+        }])
+    );
+
+    let enabled_admin_filter = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardAdminFilterable {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+            capabilities: { adminFilterable: { enabled: true } }
+          ) {
+            createdDefinition {
+              namespace
+              key
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        enabled_admin_filter.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": {
+                "namespace": "descriptors",
+                "key": "subtitle",
+                "capabilities": {
+                    "adminFilterable": { "enabled": true, "eligible": true, "status": "FILTERABLE" },
+                    "smartCollectionCondition": { "enabled": false, "eligible": true },
+                    "uniqueValues": { "enabled": false, "eligible": true }
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn metafield_definition_capability_create_stays_local_and_logs_raw_mutation() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation CapabilityLogProof($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              namespace
+              key
+              capabilities { adminFilterable { enabled status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let request = json_graphql_request(
+        query,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "capability_log_rust",
+                "key": "admin_filter",
+                "name": "Admin filter",
+                "type": "single_line_text_field",
+                "capabilities": { "adminFilterable": { "enabled": true } }
+            }
+        }),
+    );
+    let response = proxy.process_request(request);
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.status, 200);
+    assert_eq!(log.body["entries"][0]["status"], json!("staged"));
+    assert_eq!(
+        log.body["entries"][0]["interpreted"]["rootFields"],
+        json!(["metafieldDefinitionCreate"])
+    );
+    assert_eq!(
+        log.body["entries"][0]["interpreted"]["primaryRootField"],
+        json!("metafieldDefinitionCreate")
+    );
+    assert_eq!(
+        log.body["entries"][0]["stagedResourceIds"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(log.body["entries"][0]["query"], json!(query));
+    assert_eq!(
+        log.body["entries"][0]["variables"]["definition"]["capabilities"]["adminFilterable"]
+            ["enabled"],
+        json!(true)
+    );
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CapabilityLogProof"));
 }
 
 #[test]

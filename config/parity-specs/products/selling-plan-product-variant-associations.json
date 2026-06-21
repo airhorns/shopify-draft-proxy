@@ -13,8 +13,17 @@
   ],
   "runtimeTestFiles": ["tests/integration/selling-plan-group-flow.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
-    "variablesCapturePath": "$.productJoinSellingPlanGroups.variables"
+    "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-setup-product.graphql",
+    "variables": {
+      "input": {
+        "title": {
+          "fromCapturePath": "$.upstreamCalls[6].response.body.data.nodes[0].title"
+        },
+        "status": {
+          "fromCapturePath": "$.upstreamCalls[6].response.body.data.nodes[0].status"
+        }
+      }
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -22,9 +31,67 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "setup-product-user-errors",
+        "capturePath": "$.sellingPlanGroupCreate.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "setup-selling-plan-group",
+        "capturePath": "$.sellingPlanGroupCreate.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.sellingPlanGroupCreate.variables.input"
+            },
+            "resources": {},
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.productsCount",
+          "$.sellingPlanGroup.productVariantsCount",
+          "$.sellingPlanGroup.appliesToProduct",
+          "$.sellingPlanGroup.appliesToProductVariant",
+          "$.sellingPlanGroup.appliesToProductVariants",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].billingPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].deliveryPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].inventoryPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies"
+        ]
+      },
+      {
         "name": "product-join-selling-plan-groups",
         "capturePath": "$.productJoinSellingPlanGroups.response.data.productJoinSellingPlanGroups",
-        "proxyPath": "$.data.productJoinSellingPlanGroups"
+        "proxyPath": "$.data.productJoinSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$.product.id", "$.product.sellingPlanGroups.nodes[*].id"]
       },
       {
         "name": "product-variant-join-selling-plan-groups",
@@ -32,8 +99,19 @@
         "proxyPath": "$.data.productVariantJoinSellingPlanGroups",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-relationship-variant-join-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productVariantJoinSellingPlanGroups.variables"
-        }
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$.productVariant.id", "$.productVariant.sellingPlanGroups.nodes[*].id"]
       },
       {
         "name": "product-leave-selling-plan-groups",
@@ -41,8 +119,19 @@
         "proxyPath": "$.data.productLeaveSellingPlanGroups",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-relationship-product-leave-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productLeaveSellingPlanGroups.variables"
-        }
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$.product.id", "$.product.sellingPlanGroups.nodes[*].id"]
       },
       {
         "name": "product-variant-leave-selling-plan-groups",
@@ -50,8 +139,19 @@
         "proxyPath": "$.data.productVariantLeaveSellingPlanGroups",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-relationship-variant-leave-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productVariantLeaveSellingPlanGroups.variables"
-        }
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$.productVariant.id"]
       },
       {
         "name": "selling-plan-downstream-read",
@@ -59,10 +159,18 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql",
-          "variablesCapturePath": "$.sellingPlanDownstreamRead.variables"
-        }
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        },
+        "excludedPaths": ["$.product.id", "$.productVariant.id"]
       }
     ]
   },
-  "notes": "HAR-432 executable parity for product-centric and variant-centric selling-plan association roots captured against a disposable 2026-04 product and selling-plan group. The parity runner seeds the captured product, variant, and selling-plan group, then replays product join, variant join, product leave, variant leave, and downstream product/ProductVariant read-after-write checks against the local proxy with strict JSON targets."
+  "notes": "Executable parity for product-centric and variant-centric selling-plan association roots captured against a disposable 2026-04 product and selling-plan group. The parity runner replays the captured setup through public productCreate and sellingPlanGroupCreate requests, then replays product join, variant join, product leave, variant leave, and downstream product/ProductVariant read-after-write checks against the local proxy with strict JSON targets. Synthetic product, variant, group, plan, and timestamp values are excluded where the local proxy necessarily allocates its own IDs."
 }

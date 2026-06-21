@@ -4,6 +4,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "source": "live-shopify-admin-graphql",
   "notes": "Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities.",
+  "seedOrderEditAuthor": "example.com",
   "setupReferences": {
     "selectedLocationId": "gid://shopify/Location/112829759794",
     "selectedVariant": {
@@ -742,7 +743,7 @@
       "variables": {
         "id": "gid://shopify/Order/8731795030322"
       },
-      "query": "hand-synthesized from live setup order read for orderEditCommit history and fulfillment-order replay",
+      "query": "query OrderEditCommitHistoryFulfillmentRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    updatedAt\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    events(first: 10, query: \"action:edited\") {\n      nodes {\n        id\n        action\n        message\n        createdAt\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        lineItems(first: 10) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              currentQuantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

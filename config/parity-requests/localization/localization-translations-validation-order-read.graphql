@@ -1,0 +1,18 @@
+query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {
+  shopLocales {
+    locale
+    name
+    primary
+    published
+  }
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+}
