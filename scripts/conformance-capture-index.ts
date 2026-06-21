@@ -8796,6 +8796,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-metafields-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-metafields-conformance.ts',
+    purpose:
+      'WebhookSubscription.metafields input/output lifecycle for create/update plus downstream detail/list reads and omitted-input empty-list behavior.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-metafields-lifecycle.json`,
+      'config/parity-specs/webhooks/webhook-subscription-metafields-lifecycle.json',
+      'config/parity-requests/webhooks/webhook-subscription-metafields-create.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-metafields-update.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-metafields-detail-read.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-metafields-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates temporary SHOP_UPDATE webhook subscriptions for supplied and omitted metafields branches, captures downstream reads, then deletes both subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-api-version-projection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-api-version-projection.ts',
