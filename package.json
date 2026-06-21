@@ -20,7 +20,7 @@
     "start": "cargo run --bin shopify-draft-proxy-server --quiet",
     "build": "cargo build --release --bin shopify-draft-proxy-server && corepack pnpm --dir js build",
     "typecheck": "corepack pnpm --dir js build && tsc -p tsconfig.json --noEmit",
-    "test": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts tests/unit/no-ignored-rust-tests.test.ts tests/unit/rust-parity-runner.test.ts tests/unit/find-main-conformance-baseline.test.ts tests/integration/rust-public-api.test.ts tests/integration/rust-http-adapter-parity.test.ts tests/integration/launch-scripts.test.ts",
+    "test": "cargo build --release --bin shopify-draft-proxy-server && cargo build --bin shopify-draft-proxy-server && corepack pnpm --dir js build && vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts tests/unit/no-ignored-rust-tests.test.ts tests/unit/rust-parity-runner.test.ts tests/unit/find-main-conformance-baseline.test.ts tests/integration/rust-public-api.test.ts tests/integration/rust-http-adapter-parity.test.ts tests/integration/launch-scripts.test.ts",
     "test:watch": "vitest",
     "lint": "tsx ./scripts/check-no-ignored-rust-tests.ts && oxlint --import-plugin -D no-console . && oxfmt --check .",
     "conformance:check": "tsx ./scripts/conformance-check.ts",
