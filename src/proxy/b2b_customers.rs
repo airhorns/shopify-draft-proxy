@@ -3583,71 +3583,28 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let has_catalog = input.contains_key("catalogId");
-        let has_channel = input.contains_key("channelId");
-        let name = resolved_string_field(&input, "name");
+        let catalog_id = resolved_string_field(&input, "catalogId");
         let auto_publish = resolved_bool_field(&input, "autoPublish").unwrap_or(false);
-        let (payload, staged_ids, status) = if has_catalog && has_channel {
-            (
-                json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input"],
-                        "message": "Only one of catalog or channel can be provided",
-                        "code": "INVALID"
-                    }]
-                }),
-                Vec::new(),
-                "failed",
-            )
-        } else if has_catalog {
-            (
-                json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input", "catalogId"],
-                        "message": "Catalog not found",
-                        "code": "NOT_FOUND"
-                    }]
-                }),
-                Vec::new(),
-                "failed",
-            )
-        } else if has_channel {
-            (
-                json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input", "channelId"],
-                        "message": "Channel not found",
-                        "code": "NOT_FOUND"
-                    }]
-                }),
-                Vec::new(),
-                "failed",
-            )
-        } else if let Some(name) = name {
-            let id = self.next_publication_id();
-            let record = publication_record_json(&id, &name, auto_publish);
-            (
-                json!({ "publication": record, "userErrors": [] }),
-                vec![id],
-                "staged",
-            )
-        } else {
-            (
-                json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input", "catalogId"],
-                        "message": "Catalog can't be blank",
-                        "code": "BLANK"
-                    }]
-                }),
-                Vec::new(),
-                "failed",
-            )
-        };
+        let catalog = catalog_id
+            .as_deref()
+            .and_then(|catalog_id| self.store.staged.catalogs.get(catalog_id).cloned());
+        let (payload, staged_ids, status) =
+            if let (Some(catalog_id), None) = (catalog_id.as_deref(), catalog.as_ref()) {
+                (
+                    publication_catalog_not_found_payload(catalog_id),
+                    Vec::new(),
+                    "failed",
+                )
+            } else {
+                let id = self.next_publication_id();
+                let name = publication_create_name(&id, catalog.as_ref());
+                let record = publication_record_json(&id, &name, auto_publish);
+                (
+                    json!({ "publication": record, "userErrors": [] }),
+                    vec![id],
+                    "staged",
+                )
+            };
         self.record_products_tail_log(
             request,
             query,
@@ -3665,6 +3622,11 @@ impl DraftProxy {
                         .publications
                         .insert(id.clone(), record.clone());
                 }
+                if let Some(catalog_id) = catalog_id.as_deref() {
+                    if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
+                        set_catalog_publication_relation(catalog, Some(id));
+                    }
+                }
             }
         }
         selected_json(&payload, &field.selection)
@@ -3678,58 +3640,6 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let has_catalog = input.contains_key("catalogId");
-        let has_channel = input.contains_key("channelId");
-        if has_catalog && has_channel {
-            self.record_products_tail_log(
-                request,
-                query,
-                variables,
-                "publicationUpdate",
-                Vec::new(),
-                "failed",
-            );
-            return selected_json(
-                &json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input"],
-                        "message": "Only one of catalog or channel can be provided",
-                        "code": "INVALID"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
-        // The proxy holds no real catalogs/channels, so any catalog or channel
-        // target on the update input resolves to NOT_FOUND, mirroring create.
-        if let Some((catalog_field, message)) = if has_catalog {
-            Some(("catalogId", "Catalog not found"))
-        } else if has_channel {
-            Some(("channelId", "Channel not found"))
-        } else {
-            None
-        } {
-            self.record_products_tail_log(
-                request,
-                query,
-                variables,
-                "publicationUpdate",
-                Vec::new(),
-                "failed",
-            );
-            return selected_json(
-                &json!({
-                    "publication": null,
-                    "userErrors": [{
-                        "field": ["input", catalog_field],
-                        "message": message,
-                        "code": "NOT_FOUND"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
         let id = resolved_string_field(&field.arguments, "id");
         let record = id
             .as_deref()
@@ -3744,27 +3654,58 @@ impl DraftProxy {
                 "failed",
             );
             return selected_json(
+                &publication_not_found_payload("publication"),
+                &field.selection,
+            );
+        };
+        let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
+        let publishables_to_remove =
+            resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        let user_errors = self
+            .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
+        if !user_errors.is_empty() {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationUpdate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
                 &json!({
                     "publication": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Publication not found",
-                        "code": "NOT_FOUND"
-                    }]
+                    "userErrors": user_errors
                 }),
                 &field.selection,
             );
         };
-        // Renaming a publication renames its backing channel (and the channel's
-        // back-reference) so subsequent channel/channels reads stay consistent.
-        if let Some(name) = resolved_string_field(&input, "name") {
-            record["name"] = json!(name);
-            record["channel"]["name"] = json!(name);
-            record["channel"]["publication"]["name"] = json!(name);
-        }
         if let Some(auto_publish) = resolved_bool_field(&input, "autoPublish") {
             record["autoPublish"] = json!(auto_publish);
         }
+        for publishable_id in &publishables_to_add {
+            self.store
+                .staged
+                .resource_publications
+                .entry(publishable_id.clone())
+                .or_default()
+                .insert(id.clone());
+        }
+        for publishable_id in &publishables_to_remove {
+            if let Some(publications) = self
+                .store
+                .staged
+                .resource_publications
+                .get_mut(publishable_id)
+            {
+                publications.remove(&id);
+            }
+        }
+        self.apply_publication_update_product_entries(
+            &id,
+            &publishables_to_add,
+            &publishables_to_remove,
+        );
         self.store
             .staged
             .publications
@@ -3800,14 +3741,7 @@ impl DraftProxy {
                 "failed",
             );
             return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Publication not found",
-                        "code": "NOT_FOUND"
-                    }]
-                }),
+                &publication_not_found_payload("deletedId"),
                 &field.selection,
             );
         };
@@ -3822,6 +3756,14 @@ impl DraftProxy {
                 Vec::new(),
                 "failed",
             );
+            if id != "gid://shopify/Publication/1"
+                && !self.store.staged.publications.contains_key(&id)
+            {
+                return selected_json(
+                    &publication_not_found_payload("deletedId"),
+                    &field.selection,
+                );
+            }
             return selected_json(
                 &json!({
                     "deletedId": null,
@@ -3834,12 +3776,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let record = self
-            .store
-            .staged
-            .publications
-            .remove(&id)
-            .unwrap_or(Value::Null);
+        self.store.staged.publications.remove(&id);
         self.store.staged.created_publication_ids.remove(&id);
         self.store.staged.publication_ids.remove(&id);
         // Cascade: a deleted publication is no longer a membership target, so any
@@ -3847,10 +3784,6 @@ impl DraftProxy {
         for pubs in self.store.staged.resource_publications.values_mut() {
             pubs.remove(&id);
         }
-        let publication_summary = json!({
-            "id": id,
-            "name": record.get("name").cloned().unwrap_or(Value::Null),
-        });
         self.record_products_tail_log(
             request,
             query,
@@ -3862,11 +3795,117 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "deletedId": id,
-                "publication": publication_summary,
                 "userErrors": []
             }),
             &field.selection,
         )
+    }
+
+    fn publication_update_publishable_errors(
+        &self,
+        publishables_to_add: &[String],
+        publishables_to_remove: &[String],
+    ) -> Vec<Value> {
+        if publishables_to_add.len() + publishables_to_remove.len() > PUBLICATION_UPDATE_LIMIT {
+            return vec![publication_error(
+                publication_update_limit_field(publishables_to_add, publishables_to_remove),
+                "The limit for simultaneous publication updates has been exceeded.",
+                "PUBLICATION_UPDATE_LIMIT_EXCEEDED",
+            )];
+        }
+
+        let mut user_errors = Vec::new();
+        let mut has_product = false;
+        let mut has_variant = false;
+        for (field_name, ids) in [
+            ("publishablesToAdd", publishables_to_add),
+            ("publishablesToRemove", publishables_to_remove),
+        ] {
+            for (index, id) in ids.iter().enumerate() {
+                match shopify_gid_resource_type(id) {
+                    Some("Product") => has_product = true,
+                    Some("ProductVariant") => has_variant = true,
+                    _ => {}
+                }
+                if !self.publication_update_publishable_exists(id) {
+                    user_errors.push(publication_indexed_error(
+                        field_name,
+                        index,
+                        "Publishable ID not found.",
+                        "INVALID_PUBLISHABLE_ID",
+                    ));
+                }
+            }
+        }
+        if user_errors.is_empty() && has_product && has_variant {
+            user_errors.push(publication_error(
+                vec!["input"],
+                "Cannot combine products and variants in the same publication update",
+                "CANNOT_COMBINE_PRODUCTS_AND_VARIANTS",
+            ));
+        }
+        user_errors
+    }
+
+    fn publication_update_publishable_exists(&self, id: &str) -> bool {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => self.product_record_by_id(id).is_some(),
+            Some("ProductVariant") => {
+                self.store.product_variant_by_id(id).is_some()
+                    || self
+                        .store
+                        .products()
+                        .iter()
+                        .flat_map(|product| product.variants.iter())
+                        .any(|variant| variant.get("id").and_then(Value::as_str) == Some(id))
+            }
+            _ => false,
+        }
+    }
+
+    fn apply_publication_update_product_entries(
+        &mut self,
+        publication_id: &str,
+        publishables_to_add: &[String],
+        publishables_to_remove: &[String],
+    ) {
+        let add_product_ids = publishables_to_add
+            .iter()
+            .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let remove_product_ids = publishables_to_remove
+            .iter()
+            .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let affected_product_ids = add_product_ids
+            .union(&remove_product_ids)
+            .cloned()
+            .collect::<Vec<_>>();
+        for product_id in affected_product_ids {
+            let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
+                continue;
+            };
+            let mut entries = product_publication_entries(&product);
+            if add_product_ids.contains(&product_id)
+                && !entries
+                    .iter()
+                    .any(|entry| entry.publication_id == publication_id)
+            {
+                entries.push(ProductPublicationEntry {
+                    publication_id: publication_id.to_string(),
+                    publish_date: None,
+                    published_at: Some(self.next_product_timestamp()),
+                });
+            }
+            if remove_product_ids.contains(&product_id) {
+                entries.retain(|entry| entry.publication_id != publication_id);
+            }
+            product.updated_at = self.next_product_updated_at(&product.updated_at);
+            set_product_publication_entries(&mut product, entries);
+            self.store.stage_product(product);
+        }
     }
 
     pub(in crate::proxy) fn product_tail_feed_create(
@@ -8418,6 +8457,76 @@ fn product_tail_invalid_enum_response(
 /// Valid values for `PublicationDefaultState` (the enum behind
 /// `PublicationCreateInput.defaultState`).
 const PUBLICATION_DEFAULT_STATE_VALUES: &[&str] = &["EMPTY", "ALL_PRODUCTS"];
+const PUBLICATION_UPDATE_LIMIT: usize = 50;
+
+fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
+    catalog
+        .and_then(|catalog| catalog.get("title"))
+        .and_then(Value::as_str)
+        .filter(|title| !title.trim().is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            let suffix = id.rsplit('/').next().unwrap_or(id);
+            format!("Publication {suffix}")
+        })
+}
+
+fn publication_catalog_not_found_payload(catalog_id: &str) -> Value {
+    json!({
+        "publication": null,
+        "userErrors": [publication_error(
+            vec!["input", "catalogId"],
+            &format!("A catalog was not found for id= {catalog_id}."),
+            "CATALOG_NOT_FOUND",
+        )]
+    })
+}
+
+fn publication_not_found_payload(root_field: &str) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(root_field.to_string(), Value::Null);
+    payload.insert(
+        "userErrors".to_string(),
+        json!([publication_error(
+            vec!["id"],
+            "Publication was not found",
+            "PUBLICATION_NOT_FOUND",
+        )]),
+    );
+    Value::Object(payload)
+}
+
+fn publication_update_limit_field(
+    publishables_to_add: &[String],
+    publishables_to_remove: &[String],
+) -> Vec<&'static str> {
+    let field_name = if publishables_to_add.len() > PUBLICATION_UPDATE_LIMIT {
+        "publishablesToAdd"
+    } else if publishables_to_remove.len() > PUBLICATION_UPDATE_LIMIT
+        || publishables_to_add.is_empty()
+    {
+        "publishablesToRemove"
+    } else {
+        "publishablesToAdd"
+    };
+    vec!["input", field_name, "51"]
+}
+
+fn publication_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn publication_indexed_error(field_name: &str, index: usize, message: &str, code: &str) -> Value {
+    json!({
+        "field": ["input", field_name, index.to_string()],
+        "message": message,
+        "code": code
+    })
+}
 
 /// When `publicationCreate`'s `$input.defaultState` is not a valid
 /// `PublicationDefaultState`, returns the `(variable_name, provided_input,

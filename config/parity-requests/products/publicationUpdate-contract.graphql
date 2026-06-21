@@ -1,6 +1,6 @@
 #graphql
-mutation PublicationCreateValidation($input: PublicationCreateInput!) {
-  publicationCreate(input: $input) {
+mutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {
+  publicationUpdate(id: $id, input: $input) {
     publication {
       id
       autoPublish
