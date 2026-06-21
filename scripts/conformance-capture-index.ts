@@ -6228,6 +6228,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-automatic-value-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-automatic-value-bounds-conformance.ts',
+    purpose:
+      'Automatic basic customerGets value bounds for zero, negative, and over-range percentage/fixed-amount create and update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-automatic-value-bounds.json`,
+      'config/parity-specs/discounts/discount-automatic-value-bounds.json',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-setup.graphql',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-create.graphql',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable automatic basic discount for update validation, captures rejected value-bound branches, and deletes setup plus any unexpectedly created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-buyer-context',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
