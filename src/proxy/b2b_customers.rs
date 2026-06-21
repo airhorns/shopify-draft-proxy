@@ -4480,7 +4480,7 @@ impl DraftProxy {
                 )],
             ));
         }
-        if !store_credit_supported_currency(&currency) {
+        if is_credit && !store_credit_supported_currency(&currency) {
             return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
                 &field.selection,
                 &field.name,

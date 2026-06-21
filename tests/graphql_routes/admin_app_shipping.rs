@@ -6653,7 +6653,7 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
     let unsupported_currency = store_credit_credit_error(
         &mut proxy,
         &customer_id,
-        json!({ "amount": "1.00", "currencyCode": "XXX" }),
+        json!({ "amount": "1.00", "currencyCode": "CHF" }),
         None,
     );
     assert_eq!(
@@ -6662,6 +6662,20 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
             "field": ["creditInput", "creditAmount", "currencyCode"],
             "message": "Currency is not supported",
             "code": "UNSUPPORTED_CURRENCY"
+        }])
+    );
+
+    let unsupported_debit_currency = store_credit_debit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "1.00", "currencyCode": "CHF" }),
+    );
+    assert_eq!(
+        unsupported_debit_currency,
+        json!([{
+            "field": ["debitInput", "debitAmount", "currencyCode"],
+            "message": "The currency provided does not match the currency of the store credit account",
+            "code": "MISMATCHING_CURRENCY"
         }])
     );
 
