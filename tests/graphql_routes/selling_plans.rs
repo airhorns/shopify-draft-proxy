@@ -86,6 +86,189 @@ fn selling_plan_group_create_validates_locally_without_upstream_passthrough() {
 }
 
 #[test]
+fn selling_plan_group_recurring_policy_ranges_validate_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let create_mutation = r#"
+        mutation CreateSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup {
+              id
+              sellingPlans(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let invalid_plan = json!({
+        "name": "Invalid recurring ranges",
+        "options": ["Monthly"],
+        "billingPolicy": {
+            "recurring": {
+                "interval": "MONTH",
+                "intervalCount": 1,
+                "minCycles": 0,
+                "maxCycles": 2_147_483_648_i64
+            }
+        },
+        "deliveryPolicy": {
+            "recurring": {
+                "interval": "MONTH",
+                "intervalCount": 1,
+                "cutoff": -1
+            }
+        }
+    });
+
+    let invalid_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "input": {
+                "name": "Invalid range group",
+                "sellingPlansToCreate": [invalid_plan]
+            }
+        }),
+    ));
+
+    assert_eq!(invalid_create.status, 200);
+    assert_eq!(
+        invalid_create.body["data"]["sellingPlanGroupCreate"],
+        json!({
+            "sellingPlanGroup": null,
+            "userErrors": [
+                {
+                    "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy", "recurring", "cutoff"],
+                    "message": "Cutoff must be within the range of 0 to 2,147,483,647",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["input", "sellingPlansToCreate", "0", "billingPolicy", "recurring", "minCycles"],
+                    "message": "Min cycles must be within the range of 1 to 2,147,483,647",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["input", "sellingPlansToCreate", "0", "billingPolicy", "recurring", "maxCycles"],
+                    "message": "Max cycles must be within the range of 1 to 2,147,483,647",
+                    "code": "INVALID"
+                }
+            ]
+        })
+    );
+
+    let boundary_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "input": {
+                "name": "Boundary valid group",
+                "sellingPlansToCreate": [{
+                    "name": "Boundary recurring ranges",
+                    "options": ["Monthly"],
+                    "billingPolicy": {
+                        "recurring": {
+                            "interval": "MONTH",
+                            "intervalCount": 1,
+                            "minCycles": 1,
+                            "maxCycles": 2_147_483_647_i64
+                        }
+                    },
+                    "deliveryPolicy": {
+                        "recurring": {
+                            "interval": "MONTH",
+                            "intervalCount": 1,
+                            "cutoff": 2_147_483_647_i64
+                        }
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(boundary_create.status, 200);
+    assert_eq!(
+        boundary_create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = boundary_create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .expect("valid boundary input should stage a group")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadBoundaryGroup($id: ID!) {
+          sellingPlanGroup(id: $id) { id }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(read.body["data"]["sellingPlanGroup"]["id"], json!(group_id));
+
+    let plan_id = boundary_create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
+        ["sellingPlans"]["nodes"][0]["id"]
+        .as_str()
+        .expect("valid boundary input should stage a selling plan")
+        .to_string();
+    let invalid_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": {
+                "sellingPlansToUpdate": [{
+                    "id": plan_id,
+                    "billingPolicy": {
+                        "recurring": {
+                            "interval": "MONTH",
+                            "intervalCount": 1,
+                            "minCycles": 0,
+                            "maxCycles": 2_147_483_648_i64
+                        }
+                    },
+                    "deliveryPolicy": {
+                        "recurring": {
+                            "interval": "MONTH",
+                            "intervalCount": 1,
+                            "cutoff": -1
+                        }
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(invalid_update.status, 200);
+    assert_eq!(
+        invalid_update.body["data"]["sellingPlanGroupUpdate"],
+        json!({
+            "sellingPlanGroup": null,
+            "userErrors": [
+                {
+                    "field": ["input", "sellingPlansToUpdate", "0", "deliveryPolicy", "recurring", "cutoff"],
+                    "message": "Cutoff must be within the range of 0 to 2,147,483,647",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["input", "sellingPlansToUpdate", "0", "billingPolicy", "recurring", "minCycles"],
+                    "message": "Min cycles must be within the range of 1 to 2,147,483,647",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["input", "sellingPlansToUpdate", "0", "billingPolicy", "recurring", "maxCycles"],
+                    "message": "Max cycles must be within the range of 1 to 2,147,483,647",
+                    "code": "INVALID"
+                }
+            ]
+        })
+    );
+}
+
+#[test]
 fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
     let product_id = "gid://shopify/Product/1";
     let mut proxy =
