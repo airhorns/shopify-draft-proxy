@@ -251,6 +251,218 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
 }
 
 #[test]
+fn metafields_set_rejects_extended_invalid_value_types_atomically() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/987654450";
+    let too_many_list_values = Value::Array(
+        (0..129)
+            .map(|index| Value::String(format!("item-{index}")))
+            .collect(),
+    )
+    .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtendedMetafieldsSetInvalidValues($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal", "type": "number_decimal", "value": "10000000000000.1"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money", "type": "money", "value": "{\"amount\":\"12.00\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url", "type": "url", "value": "example.com"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "dimension", "type": "dimension", "value": "{\"value\":-1,\"unit\":\"cm\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "weight", "type": "weight", "value": "{\"value\":1,\"unit\":\"bogus\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "volume", "type": "volume", "value": "{\"value\":\"not-a-number\",\"unit\":\"ml\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating", "type": "rating", "value": "{\"value\":\"6.0\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date", "type": "date", "value": "2026/06/21"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "link", "type": "link", "value": "{\"label\":\"Docs\",\"url\":\"ftp://example.com\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "blank_single", "type": "single_line_text_field", "value": ""},
+            {"ownerId": owner_id, "namespace": "custom", "key": "newline_single", "type": "single_line_text_field", "value": "Line\nBreak"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "blank_multi", "type": "multi_line_text_field", "value": "   "},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_integer", "type": "list.number_integer", "value": "[1,\"x\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_text", "type": "list.single_line_text_field", "value": too_many_list_values},
+            {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": "gid://shopify/Product/999999998"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"}
+        ]}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    let errors = response.body["data"]["metafieldsSet"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert_eq!(errors.len(), 16);
+    for (index, error) in errors.iter().enumerate() {
+        assert_eq!(
+            error["field"],
+            json!(["metafields", index.to_string(), "value"]),
+            "field path for invalid input {index}",
+        );
+        assert_eq!(error["code"], json!("INVALID_VALUE"));
+    }
+    assert_eq!(errors[12]["elementIndex"], json!(1));
+    assert_eq!(errors[15]["elementIndex"], Value::Null);
+}
+
+#[test]
+fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
+    let mut proxy = snapshot_proxy();
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceTarget($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Metafield reference target"}}),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtendedMetafieldsSetValidValues($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value jsonValue owner { id } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal", "type": "number_decimal", "value": "9999999999999.123456789"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_value", "type": "money", "value": "{\"amount\":\"12.00\",\"currency_code\":\"CAD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url", "type": "url", "value": "https://example.com/path"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "dimension", "type": "dimension", "value": "{\"value\":1,\"unit\":\"cm\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "weight", "type": "weight", "value": "{\"value\":2,\"unit\":\"kg\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "volume", "type": "volume", "value": "{\"value\":3,\"unit\":\"ml\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating_value", "type": "rating", "value": "{\"value\":\"4.5\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date", "type": "date", "value": "2026-06-21"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "link_value", "type": "link", "value": "{\"label\":\"Docs\",\"url\":\"https://example.com\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "single", "type": "single_line_text_field", "value": "Plain text"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "multi", "type": "multi_line_text_field", "value": "Line\nBreak"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_decimal", "type": "list.number_decimal", "value": "[\"1.1\",\"2.2\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": owner_id},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"]
+            .as_array()
+            .unwrap()
+            .len(),
+        14
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ExtendedMetafieldsRead($id: ID!) {
+          product(id: $id) {
+            metafields(first: 20, namespace: "custom") {
+              nodes { key type value jsonValue owner { id } }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let nodes = read.body["data"]["product"]["metafields"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(nodes
+        .iter()
+        .any(|node| { node["key"] == json!("product_ref") && node["value"] == json!(owner_id) }));
+    assert!(nodes
+        .iter()
+        .any(|node| { node["key"] == json!("date") && node["jsonValue"] == json!("2026-06-21") }));
+    assert!(nodes.iter().any(|node| {
+        node["key"] == json!("money_value")
+            && node["jsonValue"] == json!({"amount": "12.00", "currency_code": "CAD"})
+    }));
+}
+
+#[test]
+fn metafields_set_live_hybrid_hydrates_list_reference_values_before_validation() {
+    let reference_id = "gid://shopify/Product/1234509876";
+    let seen_ids = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let transport_seen_ids = Arc::clone(&seen_ids);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let response = if query.contains("ProductsHydrateNodes") {
+                transport_seen_ids
+                    .lock()
+                    .unwrap()
+                    .push(body["variables"]["ids"].clone());
+                json!({
+                    "nodes": [{
+                        "__typename": "Product",
+                        "id": reference_id,
+                        "title": "Hydrated list reference target",
+                        "handle": "hydrated-list-reference-target",
+                        "status": "ACTIVE"
+                    }]
+                })
+            } else if query.contains("OwnerMetafieldsHydrateNodes") {
+                json!({ "nodes": [Value::Null] })
+            } else {
+                panic!("unexpected upstream query: {query}");
+            };
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": response }),
+            }
+        });
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ListReferenceHydration($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": "gid://shopify/Product/987654450",
+            "namespace": "custom",
+            "key": "hydrated_related",
+            "type": "list.product_reference",
+            "value": json!([reference_id]).to_string()
+        }]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+        json!(json!([reference_id]).to_string())
+    );
+    assert_eq!(*seen_ids.lock().unwrap(), vec![json!([reference_id])]);
+}
+
+#[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
 
@@ -3130,6 +3342,32 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "products": [{
+                "id": "gid://shopify/Product/10173071262002",
+                "title": "Metafield reference matrix product",
+                "handle": "metafield-reference-matrix-product",
+                "status": "ACTIVE"
+            }],
+            "productVariants": [{
+                "id": "gid://shopify/ProductVariant/51109306335538",
+                "productId": "gid://shopify/Product/10173071262002",
+                "title": "Default Title",
+                "sku": "REFERENCE-MATRIX",
+                "price": "0.00"
+            }],
+            "collections": [{
+                "id": "gid://shopify/Collection/512228163890",
+                "title": "Metafield reference matrix collection",
+                "handle": "metafield-reference-matrix-collection"
+            }]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
     let set_query = include_str!(
         "../../config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql"
     );
