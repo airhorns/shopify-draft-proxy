@@ -2451,6 +2451,7 @@ fn discount_numeric_user_error(
     input_arg: &str,
     typename: &str,
 ) -> Option<Value> {
+    let is_automatic_basic = typename == "DiscountAutomaticBasic";
     if let Some(minimum_quantity) = resolved_i64_path(
         input,
         &[
@@ -2494,7 +2495,12 @@ fn discount_numeric_user_error(
         ));
     }
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
-        if !(0.0..=1.0).contains(&percentage) {
+        let outside_range = if is_automatic_basic {
+            !(percentage > 0.0 && percentage <= 1.0)
+        } else {
+            !(0.0..=1.0).contains(&percentage)
+        };
+        if outside_range {
             return Some(discount_user_error(
                 vec![input_arg, "customerGets", "value", "percentage"],
                 "Value must be between 0.0 and 1.0",
@@ -2506,7 +2512,20 @@ fn discount_numeric_user_error(
         input,
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
-        if amount < 0.0 {
+        if is_automatic_basic && amount <= 0.0 {
+            return Some(discount_user_error(
+                vec![
+                    input_arg,
+                    "customerGets",
+                    "value",
+                    "discountAmount",
+                    "amount",
+                ],
+                "Value must be less than 0",
+                "GREATER_THAN",
+            ));
+        }
+        if !is_automatic_basic && amount < 0.0 {
             return Some(discount_user_error(
                 vec![
                     input_arg,
