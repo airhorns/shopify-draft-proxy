@@ -1,0 +1,67 @@
+{
+  "scenarioId": "discount-automatic-value-bounds",
+  "operationNames": ["discountAutomaticBasicCreate", "discountAutomaticBasicUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "input-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-value-bounds.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "automatic-basic-value-bounds-setup-userErrors",
+        "capturePath": "$.setup.response.payload.data.discountAutomaticBasicCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticBasicCreate.userErrors"
+      },
+      {
+        "name": "automatic-basic-create-value-bounds",
+        "capturePath": "$.cases.create.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-create.graphql",
+          "variablesCapturePath": "$.cases.create.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-basic-update-value-bounds",
+        "capturePath": "$.cases.update.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+            },
+            "percentageHigh": {
+              "fromCapturePath": "$.cases.update.request.variables.percentageHigh"
+            },
+            "percentageNegative": {
+              "fromCapturePath": "$.cases.update.request.variables.percentageNegative"
+            },
+            "percentageZero": {
+              "fromCapturePath": "$.cases.update.request.variables.percentageZero"
+            },
+            "amountNegative": {
+              "fromCapturePath": "$.cases.update.request.variables.amountNegative"
+            },
+            "amountZero": {
+              "fromCapturePath": "$.cases.update.request.variables.amountZero"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for automatic-basic customerGets value bounds. Automatic basic rejects percentage values below 0.0, above 1.0, and exactly 0.0 with VALUE_OUTSIDE_RANGE and Shopify's public message `Value must be between 0.0 and 1.0`; it rejects fixed discountAmount.amount values at or below zero with GREATER_THAN / `Value must be less than 0`. Code-basic zero acceptance remains covered by discount-value-bounds."
+}

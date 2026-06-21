@@ -74,6 +74,23 @@
         }
       },
       {
+        "name": "unsupported-debit-currency-data",
+        "capturePath": "$.validations.unsupportedDebitCurrency.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.validations.unsupportedDebitCurrency.request.variables.debitInput"
+            }
+          }
+        }
+      },
+      {
         "name": "past-expiry-data",
         "capturePath": "$.validations.pastExpiry.response.data",
         "proxyPath": "$.data",
@@ -357,5 +374,5 @@
       }
     ]
   },
-  "notes": "HAR-317/HAR-635 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput zero/negative amount wording, and CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
+  "notes": "Captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput unsupported currency asymmetry, debitInput zero/negative amount wording, and CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
 }

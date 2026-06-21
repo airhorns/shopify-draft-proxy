@@ -651,12 +651,13 @@ impl DraftProxy {
         variants: Vec<ProductVariantRecord>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         let payload = product_option_payload_json(
             &payload_selection,
             product,
@@ -678,13 +679,13 @@ impl DraftProxy {
         deleted_options_ids: Vec<String>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| ("productOptionsDelete".to_string(), Vec::new()));
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productOptionsDelete".to_string());
         let payload = selected_payload_json(&payload_selection, |selection| {
             match selection.name.as_str() {
                 "deletedOptionsIds" => Some(json!(deleted_options_ids)),

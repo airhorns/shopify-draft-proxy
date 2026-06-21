@@ -2756,6 +2756,7 @@ Captured safe happy path for two synthetic customers:
 - when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
 - the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
 - the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
+- HAR-1534 captured deterministic resulting-customer selection branches: a valid `overrideFields.customerIdOfEmailToKeep` selecting `customerOneId` makes customer one survive; exactly one customer having an email makes that customer survive; a disposable `customerSendAccountInviteEmail` setup made customer one `INVITED`, and `INVITED` customer one beat `DISABLED` customer two when both had email and equal consent; when neither customer had an email, Shopify defaulted to `customerTwoId`.
 
 Practical rule:
 
@@ -2834,10 +2835,17 @@ Captured mutation-scoped `DiscountUserError` branches:
 - invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
 - basic discount `customerGets.value.percentage` values below `0.0` or above `1.0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'percentage']`, `code: 'VALUE_OUTSIDE_RANGE'`, and message `Value must be between 0.0 and 1.0`
 - basic discount fixed `discountAmount.amount` values below `0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'discountAmount', 'amount']`, `code: 'LESS_THAN_OR_EQUAL_TO'`, and message `Value must be less than or equal to 0`
-- the same 2026-04 value-bounds capture accepted `percentage: 0` and
-  `discountAmount.amount: "0"` by creating native code discounts, so do
-  not reject zero values locally without a newer capture proving Shopify
-  changed that behavior
+- the same 2026-04 code-basic value-bounds capture accepted `percentage: 0`
+  and `discountAmount.amount: "0"` by creating native code discounts, so code
+  discounts should not reject zero values without a newer code-specific capture
+  proving Shopify changed that behavior
+- a separate 2026-04 automatic-basic value-bounds capture rejected
+  `percentage: 0` with the same `VALUE_OUTSIDE_RANGE` payload/message used for
+  negative and above-one percentages: `Value must be between 0.0 and 1.0`
+- the automatic-basic capture rejected fixed `discountAmount.amount` values of
+  `"-1"` and `"0"` with field path segments `automaticBasicDiscount` /
+  `customerGets` / `value` / `discountAmount` / `amount`, code
+  `GREATER_THAN`, and message `Value must be less than 0`
 - simultaneous `minimumRequirement.subtotal` and `minimumRequirement.quantity`
   branches return two `CONFLICT` entries on the concrete subtotal and quantity
   value paths, not one input-level error

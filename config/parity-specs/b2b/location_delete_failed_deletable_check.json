@@ -20,7 +20,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Live Shopify 2026-04 evidence for companyLocationDelete failed_deletable_check branches. The replay creates disposable companies, earns draft-order and store-credit state through prior proxy requests, then verifies FAILED_TO_DELETE payloads and downstream reads that retain the blocked locations.",
   "comparison": {
     "mode": "strict-json",

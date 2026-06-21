@@ -1,0 +1,64 @@
+mutation DiscountAutomaticValueBoundsUpdate(
+  $id: ID!
+  $percentageHigh: DiscountAutomaticBasicInput!
+  $percentageNegative: DiscountAutomaticBasicInput!
+  $percentageZero: DiscountAutomaticBasicInput!
+  $amountNegative: DiscountAutomaticBasicInput!
+  $amountZero: DiscountAutomaticBasicInput!
+) {
+  percentageHigh: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageHigh) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  percentageNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageNegative) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  percentageZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageZero) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountNegative) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountZero) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

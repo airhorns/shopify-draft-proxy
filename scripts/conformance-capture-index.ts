@@ -3699,8 +3699,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}price-list-catalog-validation.json`,
       'config/parity-specs/markets/price-list-create-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-create-catalog-wrong-gid-type.json',
       'config/parity-specs/markets/price-list-create-catalog-taken.json',
       'config/parity-specs/markets/price-list-update-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-update-catalog-wrong-gid-type.json',
       'config/parity-specs/markets/price-list-update-catalog-taken.json',
       'config/parity-requests/markets/price-list-input-validation-markets-read.graphql',
       'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
@@ -3711,7 +3713,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates disposable price lists and a market catalog for taken-branch setup, records validation failures that do not create or update records, then deletes all created price lists and catalogs.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
+      'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST, a wrong-resource CatalogMarket gid for RESOURCE_NOT_FOUND invalid-id behavior, and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
   },
   {
     domain: 'markets',
@@ -6246,6 +6248,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable code and automatic basic discounts for update validation, captures rejected validation branches, then deletes setup discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-automatic-value-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-automatic-value-bounds-conformance.ts',
+    purpose:
+      'Automatic basic customerGets value bounds for zero, negative, and over-range percentage/fixed-amount create and update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-automatic-value-bounds.json`,
+      'config/parity-specs/discounts/discount-automatic-value-bounds.json',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-setup.graphql',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-create.graphql',
+      'config/parity-requests/discounts/discount-automatic-value-bounds-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable automatic basic discount for update validation, captures rejected value-bound branches, and deletes setup plus any unexpectedly created discounts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -9472,6 +9493,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/customers/customerMerge-parity.json',
     ],
     cleanupBehavior: 'Creates disposable customers; merge consumes source records and cleanup removes leftovers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-merge-selection',
+    scriptPath: 'scripts/capture-customer-merge-selection-conformance.mts',
+    purpose:
+      'customerMerge resulting-customer selection rules across override, email-presence, account-state, and no-email branches.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-merge-selection-rules.json`,
+      'config/parity-specs/customers/customerMerge-selection-rules.json',
+      'config/parity-requests/customers/customer-merge-selection-merge.graphql',
+      'config/parity-requests/customers/customer-merge-selection-read-with-email.graphql',
+      'config/parity-requests/customers/customer-merge-selection-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customer pairs, sends one account invite for the account-state branch, merge consumes source records, and cleanup removes survivors.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
