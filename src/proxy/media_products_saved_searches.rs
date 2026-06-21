@@ -697,7 +697,7 @@ impl DraftProxy {
                 let resource_type = media_file_gid_type(&content_type);
                 let id = self.next_synthetic_gid(resource_type);
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
-                let created_at = format!("2024-01-01T00:00:{:02}.000Z", index + 1);
+                let created_at = file_create_timestamp_for_index(index);
                 let file = media_file_record(
                     &id,
                     &content_type,
@@ -7038,6 +7038,14 @@ fn media_file_record(
         }
     }
     file
+}
+
+fn file_create_timestamp_for_index(index: usize) -> String {
+    let offset_seconds = index + 1;
+    let hours = offset_seconds / 3600;
+    let minutes = (offset_seconds / 60) % 60;
+    let seconds = offset_seconds % 60;
+    format!("2024-01-01T{hours:02}:{minutes:02}:{seconds:02}.000Z")
 }
 
 fn media_file_numeric_id(file: &Value) -> u64 {

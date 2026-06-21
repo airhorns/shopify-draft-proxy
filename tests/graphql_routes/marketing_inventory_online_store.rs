@@ -5005,6 +5005,79 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     );
 }
 
+fn assert_file_create_batch_timestamps(batch_size: usize, expected_last_created_at: &str) {
+    let mut proxy = snapshot_proxy();
+    let files = (0..batch_size)
+        .map(|index| {
+            json!({
+                "alt": format!("Batch file {index}"),
+                "contentType": "IMAGE",
+                "filename": format!("batch-file-{index}.jpg"),
+                "originalSource": format!("https://cdn.example.com/batch-file-{index}.jpg")
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateBatchTimestamps($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id createdAt updatedAt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "files": files }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let created_files = create.body["data"]["fileCreate"]["files"]
+        .as_array()
+        .expect("fileCreate should return files");
+    assert_eq!(created_files.len(), batch_size);
+
+    for (index, file) in created_files.iter().enumerate() {
+        let expected_offset_seconds = u32::try_from(index + 1).unwrap();
+        assert_valid_synthetic_media_timestamp(&file["createdAt"], expected_offset_seconds);
+        assert_valid_synthetic_media_timestamp(&file["updatedAt"], expected_offset_seconds);
+        assert_eq!(file["createdAt"], file["updatedAt"]);
+    }
+    assert_eq!(
+        created_files.last().unwrap()["createdAt"],
+        json!(expected_last_created_at)
+    );
+}
+
+fn assert_valid_synthetic_media_timestamp(value: &Value, expected_offset_seconds: u32) {
+    let timestamp = value
+        .as_str()
+        .expect("fileCreate timestamp should be a string");
+    assert_eq!(timestamp.len(), "2024-01-01T00:00:00.000Z".len());
+    assert_eq!(&timestamp[0..11], "2024-01-01T");
+    assert_eq!(&timestamp[13..14], ":");
+    assert_eq!(&timestamp[16..17], ":");
+    assert_eq!(&timestamp[19..], ".000Z");
+
+    let hour = timestamp[11..13].parse::<u32>().unwrap();
+    let minute = timestamp[14..16].parse::<u32>().unwrap();
+    let second = timestamp[17..19].parse::<u32>().unwrap();
+    assert!(hour < 24, "hour should be valid in {timestamp}");
+    assert!(minute < 60, "minute should be valid in {timestamp}");
+    assert!(second < 60, "second should be valid in {timestamp}");
+    assert_eq!(
+        hour * 3600 + minute * 60 + second,
+        expected_offset_seconds,
+        "timestamp should advance deterministically by input index"
+    );
+}
+
+#[test]
+fn media_file_create_batch_timestamps_are_valid_for_large_batches() {
+    assert_file_create_batch_timestamps(60, "2024-01-01T00:01:00.000Z");
+    assert_file_create_batch_timestamps(250, "2024-01-01T00:04:10.000Z");
+}
+
 #[test]
 fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
     let mut proxy = snapshot_proxy();

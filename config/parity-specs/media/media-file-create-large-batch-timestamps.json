@@ -1,0 +1,44 @@
+{
+  "scenarioId": "media-file-create-large-batch-timestamps",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "timestamp-format-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-large-batch-timestamps.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-large-batch-timestamps.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 fileCreate for 60 image files so timestamp fields cross the one-minute boundary. The live fixture validates that Shopify returns parseable UTC DateTime strings for every created file; proxy comparison keeps file order, alt, fileStatus, userErrors, and timestamp field presence strict while allowing volatile file IDs and instants through matchers.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fileCreate.files[*].id",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The proxy generates stable local MediaImage GIDs; Shopify returns live dev-store MediaImage GIDs."
+      },
+      {
+        "path": "$.fileCreate.files[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns live creation timestamps."
+      },
+      {
+        "path": "$.fileCreate.files[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns live update timestamps."
+      }
+    ],
+    "targets": [
+      {
+        "name": "file-create-large-batch-timestamp-data",
+        "capturePath": "$.create.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
