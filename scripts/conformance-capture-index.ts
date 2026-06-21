@@ -863,6 +863,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-create-rejects-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-create-rejects-id-conformance.ts',
+    purpose:
+      'collectionCreate validation for caller-supplied CollectionInput.id returning a payload userError without creating a collection.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-create-rejects-id.json`,
+      'config/parity-specs/products/collectionCreate-rejects-id.json',
+      'config/parity-requests/products/collectionCreate-rejects-id.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; rejected input.id must not create a Shopify collection.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:

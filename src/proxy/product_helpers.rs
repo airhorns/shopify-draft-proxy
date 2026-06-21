@@ -1214,6 +1214,19 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let input = collection_input(query, variables).unwrap_or_default();
+        if input.contains_key("id") {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["id"],
+                    "id cannot be specified on collection creation",
+                )],
+            ));
+        }
         if let Some(response) = self.collection_input_validation_response(
             query,
             variables,
