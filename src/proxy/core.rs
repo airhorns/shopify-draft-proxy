@@ -223,6 +223,86 @@ impl DraftProxy {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
         }
+        if !self.store.staged.online_store_integrations.is_empty() {
+            snapshot["stagedState"]["onlineStoreIntegrations"] =
+                json!(self.store.staged.online_store_integrations.clone());
+        }
+        if !self.store.staged.online_store_blogs.is_empty() {
+            snapshot["stagedState"]["onlineStoreBlogs"] =
+                json!(self.store.staged.online_store_blogs.clone());
+            snapshot["stagedState"]["onlineStoreBlogOrder"] =
+                json!(self.store.staged.online_store_blog_order.clone());
+        }
+        if !self.store.staged.deleted_online_store_blog_ids.is_empty() {
+            snapshot["stagedState"]["deletedOnlineStoreBlogIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_blog_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if let Some(count) = self.store.staged.online_store_blogs_count_base {
+            snapshot["stagedState"]["onlineStoreBlogsCountBase"] = json!(count);
+        }
+        if !self.store.staged.online_store_pages.is_empty() {
+            snapshot["stagedState"]["onlineStorePages"] =
+                json!(self.store.staged.online_store_pages.clone());
+            snapshot["stagedState"]["onlineStorePageOrder"] =
+                json!(self.store.staged.online_store_page_order.clone());
+        }
+        if !self.store.staged.deleted_online_store_page_ids.is_empty() {
+            snapshot["stagedState"]["deletedOnlineStorePageIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_page_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if let Some(count) = self.store.staged.online_store_pages_count_base {
+            snapshot["stagedState"]["onlineStorePagesCountBase"] = json!(count);
+        }
+        if !self.store.staged.online_store_articles.is_empty() {
+            snapshot["stagedState"]["onlineStoreArticles"] =
+                json!(self.store.staged.online_store_articles.clone());
+            snapshot["stagedState"]["onlineStoreArticleOrder"] =
+                json!(self.store.staged.online_store_article_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_article_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreArticleIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_article_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.online_store_comments.is_empty() {
+            snapshot["stagedState"]["onlineStoreComments"] =
+                json!(self.store.staged.online_store_comments.clone());
+            snapshot["stagedState"]["onlineStoreCommentOrder"] =
+                json!(self.store.staged.online_store_comment_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreCommentIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_comment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if self.has_staged_b2b_state() {
             snapshot["stagedState"]["b2bCompanies"] =
                 json!(self.store.staged.b2b_companies.clone());
@@ -487,6 +567,14 @@ impl DraftProxy {
         let mut seeded_variants = 0_usize;
         let mut seeded_collections = 0_usize;
         let mut seeded_discounts = 0_usize;
+        let (
+            seeded_online_store_blogs,
+            seeded_online_store_pages,
+            seeded_online_store_articles,
+            seeded_online_store_comments,
+            seeded_online_store_blogs_count_base,
+            seeded_online_store_pages_count_base,
+        ) = self.seed_online_store_content(&body);
         if let Some(customers) = body.get("customers").and_then(Value::as_array) {
             for customer in customers {
                 if let Some(id) = customer.get("id").and_then(Value::as_str) {
@@ -758,7 +846,13 @@ impl DraftProxy {
             "seededDiscounts": seeded_discounts,
             "seededOrders": seeded_orders,
             "seededDraftOrders": seeded_draft_orders,
-            "seededOrderEditVariants": seeded_order_edit_variants
+            "seededOrderEditVariants": seeded_order_edit_variants,
+            "seededOnlineStoreBlogs": seeded_online_store_blogs,
+            "seededOnlineStorePages": seeded_online_store_pages,
+            "seededOnlineStoreArticles": seeded_online_store_articles,
+            "seededOnlineStoreComments": seeded_online_store_comments,
+            "seededOnlineStoreBlogsCountBase": seeded_online_store_blogs_count_base,
+            "seededOnlineStorePagesCountBase": seeded_online_store_pages_count_base
         }))
     }
 
@@ -969,6 +1063,48 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.online_store_integrations =
+            value_map_from_json(&state["stagedState"]["onlineStoreIntegrations"]);
+        self.store.staged.online_store_blogs =
+            value_map_from_json(&state["stagedState"]["onlineStoreBlogs"]);
+        self.store.staged.online_store_blog_order =
+            string_array_from_json(&state["stagedState"]["onlineStoreBlogOrder"]);
+        self.store.staged.deleted_online_store_blog_ids =
+            string_array_from_json(&state["stagedState"]["deletedOnlineStoreBlogIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.online_store_blogs_count_base = state["stagedState"]
+            .get("onlineStoreBlogsCountBase")
+            .and_then(Value::as_u64)
+            .map(|count| count as usize);
+        self.store.staged.online_store_pages =
+            value_map_from_json(&state["stagedState"]["onlineStorePages"]);
+        self.store.staged.online_store_page_order =
+            string_array_from_json(&state["stagedState"]["onlineStorePageOrder"]);
+        self.store.staged.deleted_online_store_page_ids =
+            string_array_from_json(&state["stagedState"]["deletedOnlineStorePageIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.online_store_pages_count_base = state["stagedState"]
+            .get("onlineStorePagesCountBase")
+            .and_then(Value::as_u64)
+            .map(|count| count as usize);
+        self.store.staged.online_store_articles =
+            value_map_from_json(&state["stagedState"]["onlineStoreArticles"]);
+        self.store.staged.online_store_article_order =
+            string_array_from_json(&state["stagedState"]["onlineStoreArticleOrder"]);
+        self.store.staged.deleted_online_store_article_ids =
+            string_array_from_json(&state["stagedState"]["deletedOnlineStoreArticleIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.online_store_comments =
+            value_map_from_json(&state["stagedState"]["onlineStoreComments"]);
+        self.store.staged.online_store_comment_order =
+            string_array_from_json(&state["stagedState"]["onlineStoreCommentOrder"]);
+        self.store.staged.deleted_online_store_comment_ids =
+            string_array_from_json(&state["stagedState"]["deletedOnlineStoreCommentIds"])
+                .into_iter()
+                .collect();
         self.store.replace_base_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
@@ -1868,6 +2004,17 @@ fn string_array_from_json(value: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|value| value.as_str().map(str::to_string))
         .collect()
+}
+
+fn value_map_from_json(value: &Value) -> BTreeMap<String, Value> {
+    value
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {

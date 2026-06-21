@@ -3907,24 +3907,27 @@ impl DraftProxy {
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
-            let value = match field.name.as_str() {
-                "mobilePlatformApplication"
-                | "scriptTag"
-                | "webPixel"
-                | "serverPixel"
-                | "theme" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .online_store_integrations
-                        .get(&id)
-                        .map(|record| selected_json(record, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "themes" => {
-                    let roles = resolved_string_list_arg(&field.arguments, "roles");
-                    let mut records: Vec<Value> =
+            let value = if let Some(value) = self.online_store_content_query_value(field) {
+                value
+            } else {
+                match field.name.as_str() {
+                    "mobilePlatformApplication"
+                    | "scriptTag"
+                    | "webPixel"
+                    | "serverPixel"
+                    | "theme" => {
+                        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                         self.store
+                            .staged
+                            .online_store_integrations
+                            .get(&id)
+                            .map(|record| selected_json(record, &field.selection))
+                            .unwrap_or(Value::Null)
+                    }
+                    "themes" => {
+                        let roles = resolved_string_list_arg(&field.arguments, "roles");
+                        let mut records: Vec<Value> = self
+                            .store
                             .staged
                             .online_store_integrations
                             .values()
@@ -3937,54 +3940,55 @@ impl DraftProxy {
                             })
                             .cloned()
                             .collect();
-                    records.sort_by_key(value_id_cursor);
-                    selected_connection_json_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
+                        records.sort_by_key(value_id_cursor);
+                        selected_connection_json_with_args(
+                            records,
+                            &field.arguments,
+                            &field.selection,
+                            value_id_cursor,
+                        )
+                    }
+                    "scriptTags" => {
+                        let mut records: Vec<Value> = self
+                            .store
+                            .staged
+                            .online_store_integrations
+                            .values()
+                            .filter(|record| is_online_store_script_tag_record(record))
+                            .cloned()
+                            .collect();
+                        records.sort_by_key(value_id_cursor);
+                        selected_connection_json_with_args(
+                            records,
+                            &field.arguments,
+                            &field.selection,
+                            value_id_cursor,
+                        )
+                    }
+                    "mobilePlatformApplications" => {
+                        let mut records: Vec<Value> = self
+                            .store
+                            .staged
+                            .online_store_integrations
+                            .values()
+                            .filter(|record| {
+                                matches!(
+                                    record.get("__typename").and_then(Value::as_str),
+                                    Some("AppleApplication" | "AndroidApplication")
+                                )
+                            })
+                            .cloned()
+                            .collect();
+                        records.sort_by_key(value_id_cursor);
+                        selected_connection_json_with_args(
+                            records,
+                            &field.arguments,
+                            &field.selection,
+                            value_id_cursor,
+                        )
+                    }
+                    _ => Value::Null,
                 }
-                "scriptTags" => {
-                    let mut records: Vec<Value> = self
-                        .store
-                        .staged
-                        .online_store_integrations
-                        .values()
-                        .filter(|record| is_online_store_script_tag_record(record))
-                        .cloned()
-                        .collect();
-                    records.sort_by_key(value_id_cursor);
-                    selected_connection_json_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                "mobilePlatformApplications" => {
-                    let mut records: Vec<Value> = self
-                        .store
-                        .staged
-                        .online_store_integrations
-                        .values()
-                        .filter(|record| {
-                            matches!(
-                                record.get("__typename").and_then(Value::as_str),
-                                Some("AppleApplication" | "AndroidApplication")
-                            )
-                        })
-                        .cloned()
-                        .collect();
-                    records.sort_by_key(value_id_cursor);
-                    selected_connection_json_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
         }
@@ -4010,36 +4014,44 @@ impl DraftProxy {
             }
         }
         for field in fields {
-            let value = match field.name.as_str() {
-                "mobilePlatformApplicationCreate" => {
-                    self.mobile_platform_application_create(field, &mut staged_ids)
+            let value = if let Some(value) =
+                self.online_store_content_mutation_value(field, &mut staged_ids)
+            {
+                value
+            } else {
+                match field.name.as_str() {
+                    "mobilePlatformApplicationCreate" => {
+                        self.mobile_platform_application_create(field, &mut staged_ids)
+                    }
+                    "mobilePlatformApplicationUpdate" => {
+                        self.mobile_platform_application_update(field, &mut staged_ids)
+                    }
+                    "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
+                    "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
+                    "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
+                    "themeCreate" => self.theme_create(field, &mut staged_ids),
+                    "themePublish" => self.theme_publish(field, &mut staged_ids),
+                    "themeUpdate" => self.theme_update(field, &mut staged_ids),
+                    "themeDelete" => self.theme_delete(field, &mut staged_ids),
+                    "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
+                    "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
+                    "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
+                    "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
+                    "webPixelUpdate" => {
+                        let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
+                            .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
+                        self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
+                    }
+                    "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
+                    "eventBridgeServerPixelUpdate" => {
+                        self.server_pixel_endpoint_update(field, "arn")
+                    }
+                    "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
+                    "storefrontAccessTokenCreate" => {
+                        self.storefront_access_token_create(field, request, &mut staged_ids)
+                    }
+                    _ => Value::Null,
                 }
-                "mobilePlatformApplicationUpdate" => {
-                    self.mobile_platform_application_update(field, &mut staged_ids)
-                }
-                "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
-                "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
-                "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
-                "themeCreate" => self.theme_create(field, &mut staged_ids),
-                "themePublish" => self.theme_publish(field, &mut staged_ids),
-                "themeUpdate" => self.theme_update(field, &mut staged_ids),
-                "themeDelete" => self.theme_delete(field, &mut staged_ids),
-                "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
-                "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
-                "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
-                "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                "webPixelUpdate" => {
-                    let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
-                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
-                    self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
-                }
-                "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
-                "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
-                "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
-                "storefrontAccessTokenCreate" => {
-                    self.storefront_access_token_create(field, request, &mut staged_ids)
-                }
-                _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
         }
