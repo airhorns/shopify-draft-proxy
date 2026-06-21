@@ -3904,6 +3904,22 @@ fn mandate_payment_order_record(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn online_store_query_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if self.online_store_content_query_needs_upstream(fields) {
+            let response = (self.upstream_transport)(request.clone());
+            if response.status < 400 {
+                self.observe_online_store_content_response(&response.body);
+            }
+            return response;
+        }
+        self.hydrate_online_store_content_query_baselines(request, fields);
+        ok_json(json!({ "data": self.online_store_query_data(fields) }))
+    }
+
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -4029,7 +4045,7 @@ impl DraftProxy {
         }
         for field in fields {
             let value = if let Some(value) =
-                self.online_store_content_mutation_value(field, &mut staged_ids)
+                self.online_store_content_mutation_value(field, request, &mut staged_ids)
             {
                 value
             } else {

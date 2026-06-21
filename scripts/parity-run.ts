@@ -823,224 +823,6 @@ function collectInventoryLevelCursors(node: unknown, out: Record<string, string>
   for (const value of Object.values(record)) collectInventoryLevelCursors(value, out);
 }
 
-function shopifyGid(resource: string, rawId: unknown): string | null {
-  if (typeof rawId === 'string') {
-    if (rawId.startsWith(`gid://shopify/${resource}/`)) return rawId;
-    if (/^\d+$/u.test(rawId)) return `gid://shopify/${resource}/${rawId}`;
-  }
-  if (typeof rawId === 'number' && Number.isFinite(rawId)) return `gid://shopify/${resource}/${Math.trunc(rawId)}`;
-  return null;
-}
-
-function compactIsoTimestamp(value: unknown): unknown {
-  if (typeof value !== 'string' || value.trim() === '') return value;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return parsed.toISOString().replace('.000Z', 'Z');
-}
-
-function mergeSeedRecord(map: Map<string, Record<string, unknown>>, next: Record<string, unknown>): void {
-  const id = next['id'];
-  if (typeof id !== 'string') return;
-  const prev = map.get(id);
-  map.set(id, prev ? { ...prev, ...next } : next);
-}
-
-function collectOnlineStoreSeedsFromCapture(capture: unknown): {
-  blogs: Record<string, unknown>[];
-  pages: Record<string, unknown>[];
-  articles: Record<string, unknown>[];
-  comments: Record<string, unknown>[];
-  blogsCount: number | null;
-  pagesCount: number | null;
-} {
-  const blogs = new Map<string, Record<string, unknown>>();
-  const pages = new Map<string, Record<string, unknown>>();
-  const articles = new Map<string, Record<string, unknown>>();
-  const comments = new Map<string, Record<string, unknown>>();
-  let blogsCount: number | null = null;
-  let pagesCount: number | null = null;
-  const record = capture as Record<string, unknown>;
-
-  const normalizeBlog = (raw: Record<string, unknown>): Record<string, unknown> | null => {
-    const id = shopifyGid('Blog', raw['id']);
-    if (!id) return null;
-    return { ...raw, id, __typename: 'Blog' };
-  };
-  const normalizePage = (raw: Record<string, unknown>): Record<string, unknown> | null => {
-    const id = shopifyGid('Page', raw['id']);
-    if (!id) return null;
-    return { ...raw, id, __typename: 'Page' };
-  };
-  const normalizeArticle = (raw: Record<string, unknown>, parentBlogId?: string): Record<string, unknown> | null => {
-    const id = shopifyGid('Article', raw['id']);
-    if (!id) return null;
-    const nestedBlog = raw['blog'] as Record<string, unknown> | undefined;
-    const blogId = shopifyGid('Blog', raw['blogId'] ?? nestedBlog?.['id'] ?? parentBlogId);
-    return {
-      ...raw,
-      id,
-      __typename: 'Article',
-      ...(blogId ? { blogId } : {}),
-    };
-  };
-  const normalizeComment = (raw: Record<string, unknown>, parentArticleId?: string): Record<string, unknown> | null => {
-    const id = shopifyGid('Comment', raw['id']);
-    if (!id) return null;
-    const nestedArticle = raw['article'] as Record<string, unknown> | undefined;
-    const articleId = shopifyGid(
-      'Article',
-      raw['articleId'] ?? raw['article_id'] ?? nestedArticle?.['id'] ?? parentArticleId,
-    );
-    const status = typeof raw['status'] === 'string' ? raw['status'] : undefined;
-    const normalizedStatus =
-      status === 'pending' ? 'UNAPPROVED' : status === 'published' ? 'PUBLISHED' : status === 'spam' ? 'SPAM' : status;
-    const isPublished =
-      typeof raw['isPublished'] === 'boolean'
-        ? raw['isPublished']
-        : normalizedStatus === 'PUBLISHED' || status === 'published';
-    return {
-      ...raw,
-      id,
-      __typename: 'Comment',
-      ...(articleId ? { articleId } : {}),
-      ...(normalizedStatus ? { status: normalizedStatus } : {}),
-      isPublished,
-      body: raw['body'] ?? raw['bodyHtml'] ?? raw['body_html'] ?? '',
-      bodyHtml: raw['bodyHtml'] ?? raw['body_html'] ?? raw['body'] ?? '',
-      createdAt: raw['createdAt'] ?? compactIsoTimestamp(raw['created_at']),
-      updatedAt: raw['updatedAt'] ?? compactIsoTimestamp(raw['updated_at']),
-      publishedAt: raw['publishedAt'] ?? compactIsoTimestamp(raw['published_at']) ?? null,
-    };
-  };
-
-  const collectGraphqlEntities = (node: unknown, parentBlogId?: string, parentArticleId?: string): void => {
-    if (Array.isArray(node)) {
-      for (const entry of node) collectGraphqlEntities(entry, parentBlogId, parentArticleId);
-      return;
-    }
-    if (node === null || typeof node !== 'object') return;
-    const obj = node as Record<string, unknown>;
-    const id = obj['id'];
-    if (typeof id === 'string') {
-      if (id.startsWith('gid://shopify/Blog/')) {
-        const blog = normalizeBlog(obj);
-        if (blog) mergeSeedRecord(blogs, blog);
-        const nestedArticles = (obj['articles'] as Record<string, unknown> | undefined)?.['nodes'];
-        collectGraphqlEntities(nestedArticles, id, parentArticleId);
-      } else if (id.startsWith('gid://shopify/Page/')) {
-        const page = normalizePage(obj);
-        if (page) mergeSeedRecord(pages, page);
-      } else if (id.startsWith('gid://shopify/Article/')) {
-        const article = normalizeArticle(obj, parentBlogId);
-        if (article) mergeSeedRecord(articles, article);
-        const nestedComments = (obj['comments'] as Record<string, unknown> | undefined)?.['nodes'];
-        collectGraphqlEntities(nestedComments, parentBlogId, id);
-      } else if (id.startsWith('gid://shopify/Comment/')) {
-        const comment = normalizeComment(obj, parentArticleId);
-        if (comment) mergeSeedRecord(comments, comment);
-      }
-    }
-    for (const value of Object.values(obj)) collectGraphqlEntities(value, parentBlogId, parentArticleId);
-  };
-
-  const overlaySetupInput = (step: Record<string, unknown>): void => {
-    const variables = (step['request'] as Record<string, unknown> | undefined)?.['variables'] as
-      | Record<string, unknown>
-      | undefined;
-    const data = (step['response'] as Record<string, unknown> | undefined)?.['data'] as
-      | Record<string, unknown>
-      | undefined;
-    if (!variables || !data) return;
-    const overlay = (collection: Map<string, Record<string, unknown>>, resourceKey: string, inputKey: string): void => {
-      const input = variables[inputKey];
-      if (input === null || typeof input !== 'object' || Array.isArray(input)) return;
-      for (const payload of Object.values(data)) {
-        if (payload === null || typeof payload !== 'object') continue;
-        const entity = (payload as Record<string, unknown>)[resourceKey] as Record<string, unknown> | undefined;
-        const id = entity?.['id'];
-        if (typeof id !== 'string') continue;
-        const prev = collection.get(id) ?? { id };
-        collection.set(id, { ...prev, ...(input as Record<string, unknown>) });
-      }
-    };
-    overlay(blogs, 'blog', 'blog');
-    overlay(pages, 'page', 'page');
-    overlay(articles, 'article', 'article');
-  };
-
-  const visitSetup = (node: unknown): void => {
-    if (Array.isArray(node)) {
-      for (const entry of node) visitSetup(entry);
-      return;
-    }
-    if (node === null || typeof node !== 'object') return;
-    const obj = node as Record<string, unknown>;
-    const data = (obj['response'] as Record<string, unknown> | undefined)?.['data'];
-    collectGraphqlEntities(data);
-    overlaySetupInput(obj);
-    const restComments = obj['restComments'];
-    if (Array.isArray(restComments)) {
-      for (const rawComment of restComments) {
-        if (rawComment === null || typeof rawComment !== 'object') continue;
-        const comment = normalizeComment(rawComment as Record<string, unknown>);
-        if (comment) mergeSeedRecord(comments, comment);
-      }
-    }
-    for (const value of Object.values(obj)) visitSetup(value);
-  };
-
-  const findSetups = (node: unknown): void => {
-    if (Array.isArray(node)) {
-      for (const entry of node) findSetups(entry);
-      return;
-    }
-    if (node === null || typeof node !== 'object') return;
-    const obj = node as Record<string, unknown>;
-    if ('setup' in obj) visitSetup(obj['setup']);
-    for (const value of Object.values(obj)) findSetups(value);
-  };
-  findSetups(record);
-
-  if (Array.isArray(record['upstreamCalls'])) {
-    for (const rawCall of record['upstreamCalls'] as unknown[]) {
-      const call = rawCall as Record<string, unknown> | null;
-      const response = call?.['response'] as Record<string, unknown> | undefined;
-      const body = (response?.['body'] ?? response) as Record<string, unknown> | undefined;
-      const data = body?.['data'] as Record<string, unknown> | undefined;
-      collectGraphqlEntities(data);
-      const upstreamBlogsCount = (data?.['blogsCount'] as Record<string, unknown> | undefined)?.['count'];
-      const upstreamPagesCount = (data?.['pagesCount'] as Record<string, unknown> | undefined)?.['count'];
-      if (typeof upstreamBlogsCount === 'number') blogsCount = upstreamBlogsCount;
-      if (typeof upstreamPagesCount === 'number') pagesCount = upstreamPagesCount;
-    }
-  }
-
-  for (const [key, collection, normalize] of [
-    ['seedOnlineStoreBlogs', blogs, normalizeBlog],
-    ['seedOnlineStorePages', pages, normalizePage],
-    ['seedOnlineStoreArticles', articles, normalizeArticle],
-    ['seedOnlineStoreComments', comments, normalizeComment],
-  ] as const) {
-    const seeds = record[key];
-    if (!Array.isArray(seeds)) continue;
-    for (const seed of seeds) {
-      if (seed === null || typeof seed !== 'object') continue;
-      const normalized = normalize(seed as Record<string, unknown>);
-      if (normalized) mergeSeedRecord(collection, normalized);
-    }
-  }
-
-  return {
-    blogs: [...blogs.values()],
-    pages: [...pages.values()],
-    articles: [...articles.values()],
-    comments: [...comments.values()],
-    blogsCount,
-    pagesCount,
-  };
-}
-
 async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
@@ -1165,7 +947,6 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     }
   }
   const hasInventoryLevelCursors = Object.keys(inventoryLevelCursors).length > 0;
-  const onlineStoreSeeds = collectOnlineStoreSeedsFromCapture(capture);
   if (
     customers.length === 0 &&
     segments.length === 0 &&
@@ -1182,13 +963,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     customersCount === null &&
     customerOrders === null &&
     collectionCatalog === null &&
-    !hasInventoryLevelCursors &&
-    onlineStoreSeeds.blogs.length === 0 &&
-    onlineStoreSeeds.pages.length === 0 &&
-    onlineStoreSeeds.articles.length === 0 &&
-    onlineStoreSeeds.comments.length === 0 &&
-    onlineStoreSeeds.blogsCount === null &&
-    onlineStoreSeeds.pagesCount === null
+    !hasInventoryLevelCursors
   )
     return;
   await proxy.processRequest({
@@ -1211,12 +986,6 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       ...(customerOrders !== null ? { customerOrders } : {}),
       ...(collectionCatalog ? { collectionCatalog } : {}),
       ...(hasInventoryLevelCursors ? { inventoryLevelCursors } : {}),
-      ...(onlineStoreSeeds.blogs.length > 0 ? { blogs: onlineStoreSeeds.blogs } : {}),
-      ...(onlineStoreSeeds.pages.length > 0 ? { pages: onlineStoreSeeds.pages } : {}),
-      ...(onlineStoreSeeds.articles.length > 0 ? { articles: onlineStoreSeeds.articles } : {}),
-      ...(onlineStoreSeeds.comments.length > 0 ? { comments: onlineStoreSeeds.comments } : {}),
-      ...(onlineStoreSeeds.blogsCount !== null ? { blogsCount: onlineStoreSeeds.blogsCount } : {}),
-      ...(onlineStoreSeeds.pagesCount !== null ? { pagesCount: onlineStoreSeeds.pagesCount } : {}),
     },
   });
 }

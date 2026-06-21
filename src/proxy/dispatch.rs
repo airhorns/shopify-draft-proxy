@@ -1126,7 +1126,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.online_store_query_data(&fields) }))
+                    self.online_store_query_response(request, &fields)
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }

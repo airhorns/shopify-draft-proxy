@@ -74,22 +74,8 @@ const blogDeleteMutation = `#graphql
   }
 `;
 
-const commentHydrateQuery = `#graphql
-  query OnlineStoreCommentHydrate($id: ID!) {
-    comment(id: $id) {
-      __typename
-      id
-      status
-      body
-      bodyHtml
-      isPublished
-      publishedAt
-      createdAt
-      updatedAt
-      article { id }
-    }
-  }
-`;
+const commentHydrateQuery =
+  'query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }';
 
 const commentApproveMutation = `#graphql
   mutation CommentModerationStateApprove($id: ID!) {
@@ -251,6 +237,7 @@ function upstreamCall(operationName: string, variables: Record<string, unknown>,
   return {
     operationName,
     variables,
+    query: captureResult.request.query,
     response: {
       status: captureResult.status,
       body: captureResult.response,

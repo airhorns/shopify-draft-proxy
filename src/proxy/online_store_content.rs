@@ -6,6 +6,14 @@ const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;
 const ONLINE_STORE_PAGE_BODY_MAX_BYTES: usize = 524_287;
 const ONLINE_STORE_ARTICLE_BODY_MAX_BYTES: usize = 1_048_576;
+const ONLINE_STORE_COMMENT_HYDRATE_QUERY: &str = "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }";
+const ONLINE_STORE_PAGE_HYDRATE_QUERY: &str = "query OnlineStorePageHydrate($id: ID!) { page(id: $id) { __typename id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } }";
+const ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }";
+const ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreBlogDeleteCascadeHydrate($id: ID!) { blog(id: $id) { __typename id title handle createdAt updatedAt commentPolicy articles(first: 50) { nodes { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } } } }";
+const ONLINE_STORE_BLOGS_COUNT_HYDRATE_QUERY: &str =
+    "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }";
+const ONLINE_STORE_PAGES_COUNT_HYDRATE_QUERY: &str =
+    "query OnlineStorePagesCountHydrate { pagesCount { count precision } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn online_store_content_query_value(
@@ -127,28 +135,35 @@ impl DraftProxy {
     pub(in crate::proxy) fn online_store_content_mutation_value(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Option<Value> {
         match field.name.as_str() {
             "blogCreate" => Some(self.online_store_blog_create(field, staged_ids)),
-            "blogUpdate" => Some(self.online_store_blog_update(field, staged_ids)),
-            "blogDelete" => Some(self.online_store_blog_delete(field, staged_ids)),
+            "blogUpdate" => Some(self.online_store_blog_update(field, request, staged_ids)),
+            "blogDelete" => Some(self.online_store_blog_delete(field, request, staged_ids)),
             "pageCreate" => Some(self.online_store_page_create(field, staged_ids)),
-            "pageUpdate" => Some(self.online_store_page_update(field, staged_ids)),
-            "pageDelete" => Some(self.online_store_page_delete(field, staged_ids)),
+            "pageUpdate" => Some(self.online_store_page_update(field, request, staged_ids)),
+            "pageDelete" => Some(self.online_store_page_delete(field, request, staged_ids)),
             "articleCreate" => Some(self.online_store_article_create(field, staged_ids)),
-            "articleUpdate" => Some(self.online_store_article_update(field, staged_ids)),
-            "articleDelete" => Some(self.online_store_article_delete(field, staged_ids)),
-            "commentApprove" => {
-                Some(self.online_store_comment_moderate(field, "commentApprove", staged_ids))
-            }
+            "articleUpdate" => Some(self.online_store_article_update(field, request, staged_ids)),
+            "articleDelete" => Some(self.online_store_article_delete(field, request, staged_ids)),
+            "commentApprove" => Some(self.online_store_comment_moderate(
+                field,
+                request,
+                "commentApprove",
+                staged_ids,
+            )),
             "commentSpam" => {
-                Some(self.online_store_comment_moderate(field, "commentSpam", staged_ids))
+                Some(self.online_store_comment_moderate(field, request, "commentSpam", staged_ids))
             }
-            "commentNotSpam" => {
-                Some(self.online_store_comment_moderate(field, "commentNotSpam", staged_ids))
-            }
-            "commentDelete" => Some(self.online_store_comment_delete(field, staged_ids)),
+            "commentNotSpam" => Some(self.online_store_comment_moderate(
+                field,
+                request,
+                "commentNotSpam",
+                staged_ids,
+            )),
+            "commentDelete" => Some(self.online_store_comment_delete(field, request, staged_ids)),
             _ => None,
         }
     }
@@ -227,6 +242,243 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn online_store_content_query_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        let has_content_root = fields
+            .iter()
+            .any(|field| is_online_store_content_query_root(&field.name));
+        has_content_root
+            && fields
+                .iter()
+                .all(|field| is_online_store_content_query_root(&field.name))
+            && !self.has_online_store_content_state()
+    }
+
+    pub(in crate::proxy) fn hydrate_online_store_content_query_baselines(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        if fields.iter().any(|field| field.name == "blogsCount")
+            && self.store.staged.online_store_blogs_count_base.is_none()
+        {
+            self.hydrate_online_store_count_base(
+                request,
+                "blogsCount",
+                ONLINE_STORE_BLOGS_COUNT_HYDRATE_QUERY,
+            );
+        }
+        if fields.iter().any(|field| field.name == "pagesCount")
+            && self.store.staged.online_store_pages_count_base.is_none()
+        {
+            self.hydrate_online_store_count_base(
+                request,
+                "pagesCount",
+                ONLINE_STORE_PAGES_COUNT_HYDRATE_QUERY,
+            );
+        }
+    }
+
+    pub(in crate::proxy) fn observe_online_store_content_response(&mut self, body: &Value) {
+        let Some(data) = body.get("data") else {
+            return;
+        };
+        if let Some(count) = data
+            .get("blogsCount")
+            .and_then(|value| value.get("count"))
+            .and_then(Value::as_u64)
+        {
+            self.store.staged.online_store_blogs_count_base = Some(count as usize);
+        }
+        if let Some(count) = data
+            .get("pagesCount")
+            .and_then(|value| value.get("count"))
+            .and_then(Value::as_u64)
+        {
+            self.store.staged.online_store_pages_count_base = Some(count as usize);
+        }
+        self.observe_online_store_content_node(data, None, None);
+    }
+
+    fn has_online_store_content_state(&self) -> bool {
+        !self.store.staged.online_store_blogs.is_empty()
+            || !self.store.staged.online_store_pages.is_empty()
+            || !self.store.staged.online_store_articles.is_empty()
+            || !self.store.staged.online_store_comments.is_empty()
+            || !self.store.staged.deleted_online_store_blog_ids.is_empty()
+            || !self.store.staged.deleted_online_store_page_ids.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_online_store_article_ids
+                .is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_online_store_comment_ids
+                .is_empty()
+            || self.store.staged.online_store_blogs_count_base.is_some()
+            || self.store.staged.online_store_pages_count_base.is_some()
+    }
+
+    fn hydrate_online_store_count_base(&mut self, request: &Request, root: &str, query: &str) {
+        let response = self.upstream_post(request, json!({ "query": query, "variables": {} }));
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(count) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get(root))
+            .and_then(|value| value.get("count"))
+            .and_then(Value::as_u64)
+        {
+            match root {
+                "blogsCount" => {
+                    self.store.staged.online_store_blogs_count_base = Some(count as usize)
+                }
+                "pagesCount" => {
+                    self.store.staged.online_store_pages_count_base = Some(count as usize)
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn hydrate_online_store_comment_from_upstream(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ONLINE_STORE_COMMENT_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.observe_online_store_content_response(&response.body);
+        }
+    }
+
+    fn hydrate_online_store_page_from_upstream(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ONLINE_STORE_PAGE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.observe_online_store_content_response(&response.body);
+        }
+    }
+
+    fn hydrate_online_store_article_from_upstream(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.observe_online_store_content_response(&response.body);
+        }
+    }
+
+    fn hydrate_online_store_blog_from_upstream(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.observe_online_store_content_response(&response.body);
+        }
+    }
+
+    fn observe_online_store_content_node(
+        &mut self,
+        node: &Value,
+        parent_blog_id: Option<String>,
+        parent_article_id: Option<String>,
+    ) {
+        match node {
+            Value::Array(entries) => {
+                for entry in entries {
+                    self.observe_online_store_content_node(
+                        entry,
+                        parent_blog_id.clone(),
+                        parent_article_id.clone(),
+                    );
+                }
+            }
+            Value::Object(object) => {
+                let mut next_parent_blog_id = parent_blog_id.clone();
+                let mut next_parent_article_id = parent_article_id.clone();
+                if let Some(id) = object.get("id").and_then(Value::as_str) {
+                    match shopify_gid_resource_type(id) {
+                        Some("Blog") if should_stage_observed_blog(node) => {
+                            self.stage_online_store_blog(
+                                id.to_string(),
+                                normalize_observed_blog(node),
+                            );
+                            next_parent_blog_id = Some(id.to_string());
+                        }
+                        Some("Page") if should_stage_observed_page(node) => {
+                            self.stage_online_store_page(
+                                id.to_string(),
+                                normalize_observed_page(node),
+                            );
+                        }
+                        Some("Article") if should_stage_observed_article(node) => {
+                            self.stage_online_store_article(
+                                id.to_string(),
+                                normalize_observed_article(node, parent_blog_id.as_deref()),
+                            );
+                            next_parent_article_id = Some(id.to_string());
+                        }
+                        Some("Comment") if should_stage_observed_comment(node) => {
+                            self.stage_online_store_comment(
+                                id.to_string(),
+                                normalize_observed_comment(node, parent_article_id.as_deref()),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+                for value in object.values() {
+                    self.observe_online_store_content_node(
+                        value,
+                        next_parent_blog_id.clone(),
+                        next_parent_article_id.clone(),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn online_store_blog_create(
         &mut self,
         field: &RootFieldSelection,
@@ -270,9 +522,13 @@ impl DraftProxy {
     fn online_store_blog_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_blogs.contains_key(&id) {
+            self.hydrate_online_store_blog_from_upstream(request, &id);
+        }
         let Some(mut record) = self
             .store
             .staged
@@ -324,9 +580,13 @@ impl DraftProxy {
     fn online_store_blog_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_blogs.contains_key(&id) {
+            self.hydrate_online_store_blog_from_upstream(request, &id);
+        }
         if !self.store.staged.online_store_blogs.contains_key(&id)
             || self
                 .store
@@ -419,9 +679,13 @@ impl DraftProxy {
     fn online_store_page_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_pages.contains_key(&id) {
+            self.hydrate_online_store_page_from_upstream(request, &id);
+        }
         let Some(mut record) = self
             .store
             .staged
@@ -498,9 +762,13 @@ impl DraftProxy {
     fn online_store_page_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_pages.contains_key(&id) {
+            self.hydrate_online_store_page_from_upstream(request, &id);
+        }
         if !self.store.staged.online_store_pages.contains_key(&id)
             || self
                 .store
@@ -612,9 +880,13 @@ impl DraftProxy {
     fn online_store_article_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_articles.contains_key(&id) {
+            self.hydrate_online_store_article_from_upstream(request, &id);
+        }
         let Some(mut record) = self
             .store
             .staged
@@ -689,9 +961,13 @@ impl DraftProxy {
     fn online_store_article_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_articles.contains_key(&id) {
+            self.hydrate_online_store_article_from_upstream(request, &id);
+        }
         if !self.store.staged.online_store_articles.contains_key(&id)
             || self
                 .store
@@ -718,10 +994,14 @@ impl DraftProxy {
     fn online_store_comment_moderate(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         root: &str,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_comments.contains_key(&id) {
+            self.hydrate_online_store_comment_from_upstream(request, &id);
+        }
         let Some(mut comment) = self
             .store
             .staged
@@ -802,9 +1082,13 @@ impl DraftProxy {
     fn online_store_comment_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.online_store_comments.contains_key(&id) {
+            self.hydrate_online_store_comment_from_upstream(request, &id);
+        }
         if self
             .store
             .staged
@@ -818,6 +1102,28 @@ impl DraftProxy {
                 Value::Null,
                 vec![comment_not_found_error()],
             );
+        }
+        if let Some(article_id) = self
+            .store
+            .staged
+            .online_store_comments
+            .get(&id)
+            .and_then(|comment| string_value(comment, "articleId"))
+        {
+            if !article_id.is_empty()
+                && !self
+                    .store
+                    .staged
+                    .online_store_articles
+                    .contains_key(&article_id)
+                && !self
+                    .store
+                    .staged
+                    .deleted_online_store_article_ids
+                    .contains(&article_id)
+            {
+                self.hydrate_online_store_article_from_upstream(request, &article_id);
+            }
         }
         self.store.staged.online_store_comments.remove(&id);
         self.store
@@ -1637,6 +1943,24 @@ fn online_store_count_with_baseline(
     Some(baseline.saturating_sub(deleted_baseline) + synthetic_staged)
 }
 
+fn is_online_store_content_query_root(root: &str) -> bool {
+    matches!(
+        root,
+        "article"
+            | "articleAuthors"
+            | "articles"
+            | "articleTags"
+            | "blog"
+            | "blogs"
+            | "blogsCount"
+            | "page"
+            | "pages"
+            | "pagesCount"
+            | "comment"
+            | "comments"
+    )
+}
+
 fn article_matches_query(article: &Value, query: &str) -> bool {
     let query = query.trim().to_ascii_lowercase();
     if query.is_empty() {
@@ -1656,6 +1980,213 @@ fn article_matches_query(article: &Value, query: &str) -> bool {
                 .is_some_and(|tag| tag.to_ascii_lowercase().contains(&query))
         })
     })
+}
+
+fn should_stage_observed_blog(record: &Value) -> bool {
+    record.get("title").is_some()
+        || record.get("handle").is_some()
+        || record.get("commentPolicy").is_some()
+        || record.get("articles").is_some()
+}
+
+fn should_stage_observed_page(record: &Value) -> bool {
+    record.get("title").is_some() || record.get("handle").is_some() || record.get("body").is_some()
+}
+
+fn should_stage_observed_article(record: &Value) -> bool {
+    record.get("title").is_some()
+        || record.get("handle").is_some()
+        || record.get("body").is_some()
+        || record.get("comments").is_some()
+}
+
+fn should_stage_observed_comment(record: &Value) -> bool {
+    record.get("status").is_some()
+        || record.get("body").is_some()
+        || record.get("bodyHtml").is_some()
+        || record.get("article").is_some()
+}
+
+fn connection_nodes(record: &Value, key: &str) -> Vec<Value> {
+    record
+        .get(key)
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn string_value(record: &Value, key: &str) -> Option<String> {
+    record.get(key).and_then(Value::as_str).map(str::to_string)
+}
+
+fn bool_value(record: &Value, key: &str) -> Option<bool> {
+    record.get(key).and_then(Value::as_bool)
+}
+
+fn normalize_observed_blog(record: &Value) -> Value {
+    let mut record = record.clone();
+    let title = string_value(&record, "title").unwrap_or_default();
+    let handle = string_value(&record, "handle").unwrap_or_else(|| slugify_handle(&title));
+    let articles = connection_nodes(&record, "articles");
+    record["__typename"] = json!("Blog");
+    record["title"] = json!(title);
+    record["handle"] = json!(handle);
+    if record.get("commentPolicy").is_none() {
+        record["commentPolicy"] = json!("CLOSED");
+    }
+    if record.get("tags").is_none() {
+        record["tags"] = json!([]);
+    }
+    if record.get("templateSuffix").is_none() {
+        record["templateSuffix"] = Value::Null;
+    }
+    if record.get("createdAt").is_none() {
+        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("updatedAt").is_none() {
+        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("articlesCount").is_none() {
+        record["articlesCount"] = count_precision(articles.len());
+    }
+    if record.get("articles").is_none() {
+        record["articles"] = connection_json(Vec::new());
+    }
+    record
+}
+
+fn normalize_observed_page(record: &Value) -> Value {
+    let mut record = record.clone();
+    let title = string_value(&record, "title").unwrap_or_default();
+    let handle = string_value(&record, "handle").unwrap_or_else(|| slugify_handle(&title));
+    let body = string_value(&record, "body").unwrap_or_default();
+    record["__typename"] = json!("Page");
+    record["title"] = json!(title);
+    record["handle"] = json!(handle);
+    record["body"] = json!(body);
+    if record.get("bodySummary").is_none() {
+        record["bodySummary"] = json!(body_summary(record["body"].as_str().unwrap_or_default()));
+    }
+    if record.get("isPublished").is_none() {
+        record["isPublished"] = json!(false);
+    }
+    if record.get("publishedAt").is_none() {
+        record["publishedAt"] = Value::Null;
+    }
+    if record.get("createdAt").is_none() {
+        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("updatedAt").is_none() {
+        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("templateSuffix").is_none() {
+        record["templateSuffix"] = Value::Null;
+    }
+    record
+}
+
+fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> Value {
+    let mut record = record.clone();
+    let title = string_value(&record, "title").unwrap_or_default();
+    let handle = string_value(&record, "handle").unwrap_or_else(|| slugify_handle(&title));
+    let body = string_value(&record, "body").unwrap_or_default();
+    let blog_id = string_value(&record, "blogId")
+        .or_else(|| {
+            record
+                .get("blog")
+                .and_then(|blog| blog.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| parent_blog_id.map(str::to_string))
+        .unwrap_or_default();
+    let comments = connection_nodes(&record, "comments");
+    record["__typename"] = json!("Article");
+    record["blogId"] = json!(blog_id);
+    record["title"] = json!(title);
+    record["handle"] = json!(handle);
+    record["body"] = json!(body);
+    if record.get("summary").is_none() {
+        record["summary"] = Value::Null;
+    }
+    if record.get("tags").is_none() {
+        record["tags"] = json!([]);
+    }
+    if record.get("isPublished").is_none() {
+        record["isPublished"] = json!(false);
+    }
+    if record.get("publishedAt").is_none() {
+        record["publishedAt"] = Value::Null;
+    }
+    if record.get("createdAt").is_none() {
+        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("updatedAt").is_none() {
+        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("templateSuffix").is_none() {
+        record["templateSuffix"] = Value::Null;
+    }
+    if record.get("author").is_none() {
+        record["author"] = Value::Null;
+    }
+    if record.get("image").is_none() {
+        record["image"] = Value::Null;
+    }
+    if record.get("metafields").is_none() {
+        record["metafields"] = connection_json(Vec::new());
+    }
+    if record.get("commentsCount").is_none() {
+        record["commentsCount"] = count_precision(comments.len());
+    }
+    if record.get("comments").is_none() {
+        record["comments"] = connection_json(Vec::new());
+    }
+    record
+}
+
+fn normalize_observed_comment(record: &Value, parent_article_id: Option<&str>) -> Value {
+    let mut record = record.clone();
+    let status = string_value(&record, "status")
+        .map(|status| match status.as_str() {
+            "pending" => "UNAPPROVED".to_string(),
+            "published" => "PUBLISHED".to_string(),
+            "spam" => "SPAM".to_string(),
+            _ => status,
+        })
+        .unwrap_or_else(|| "UNAPPROVED".to_string());
+    let article_id = string_value(&record, "articleId")
+        .or_else(|| {
+            record
+                .get("article")
+                .and_then(|article| article.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| parent_article_id.map(str::to_string))
+        .unwrap_or_default();
+    let body = string_value(&record, "body")
+        .or_else(|| string_value(&record, "bodyHtml"))
+        .unwrap_or_default();
+    let body_html = string_value(&record, "bodyHtml").unwrap_or_else(|| body.clone());
+    let is_published = bool_value(&record, "isPublished").unwrap_or(status == "PUBLISHED");
+    record["__typename"] = json!("Comment");
+    record["articleId"] = json!(article_id);
+    record["status"] = json!(status);
+    record["isPublished"] = json!(is_published);
+    record["body"] = json!(body);
+    record["bodyHtml"] = json!(body_html);
+    if record.get("publishedAt").is_none() {
+        record["publishedAt"] = Value::Null;
+    }
+    if record.get("createdAt").is_none() {
+        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    if record.get("updatedAt").is_none() {
+        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    }
+    record
 }
 
 fn normalize_seed_blog(record: &Value) -> Value {

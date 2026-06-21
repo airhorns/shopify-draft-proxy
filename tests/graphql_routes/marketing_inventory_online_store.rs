@@ -5691,7 +5691,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         read_after_delete.body["data"]["articles"]["nodes"],
         json!([])
     );
-    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
 }
 
 #[test]
