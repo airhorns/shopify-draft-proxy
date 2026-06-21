@@ -5249,15 +5249,10 @@ impl DraftProxy {
         if location_id.is_empty() {
             return false;
         }
-        if matches!(
-            location_id,
-            "gid://shopify/Location/1"
-                | "gid://shopify/Location/2"
-                | DEFAULT_INVENTORY_LOCATION_ID
-                | "gid://shopify/Location/106318463282"
-        ) {
-            return true;
-        }
+        // A transfer endpoint must be a real, active location. Each scenario seeds its
+        // origin/destination via `locationAdd` (isActive: true), so this resolves the
+        // status from the live staged location registry rather than a hardcoded
+        // allow-list of capture-specific location ids.
         self.store
             .staged
             .locations
@@ -5289,8 +5284,7 @@ impl DraftProxy {
         )) {
             return true;
         }
-        inventory_item_id == "gid://shopify/InventoryItem/transfer-item"
-            && origin_location_id == "gid://shopify/Location/1"
+        false
     }
 
     fn hydrate_inventory_transfer_references<'a>(

@@ -4155,7 +4155,8 @@ impl DraftProxy {
                     )
                 {
                     self.observe_collection_passthrough_response(&response);
-                    let hydrate_ids = collection_passthrough_hydration_ids(root_field, &response);
+                    let hydrate_ids =
+                        collection_passthrough_hydration_ids(root_field, &response, variables);
                     self.hydrate_product_nodes_for_observation(hydrate_ids);
                 }
                 response
@@ -4591,7 +4592,7 @@ impl DraftProxy {
             "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
             "amount": store_credit_money(&amount_display, &currency),
             "balanceAfterTransaction": store_credit_money(&balance_display, &currency),
-            "createdAt": "2026-04-25T01:41:06Z",
+            "createdAt": self.next_product_timestamp(),
             "event": "ADJUSTMENT",
             "origin": Value::Null,
             "notify": resolved_bool_field(&input, "notify").unwrap_or(false),

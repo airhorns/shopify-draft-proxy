@@ -2819,6 +2819,11 @@ impl DraftProxy {
                 continue;
             }
             let market_id = resolved_object_string(translation_input, "marketId");
+            // The success path supplies a real market (e.g. Market/97997685042) via
+            // upstream replay, not via `staged.markets`, so a `market_exists` membership
+            // check would wrongly reject it. The market catalog isn't modeled in store
+            // state on this validation path; the sentinel is the discriminator Shopify's
+            // "market doesn't exist" rejection is keyed on here.
             if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
                 has_null_translation_error = true;
                 user_errors.push(json!({
@@ -3036,7 +3041,7 @@ impl DraftProxy {
     ) -> Value {
         let records = resolved_string_list_arg(&field.arguments, "resourceIds")
             .into_iter()
-            .filter(|id| !id.contains("999999999999999"))
+            .filter(|id| self.localization_translatable_resource_exists(id))
             .collect::<Vec<_>>();
         selected_typed_connection_with_args(
             &records,
