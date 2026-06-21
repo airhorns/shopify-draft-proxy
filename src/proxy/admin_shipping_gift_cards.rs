@@ -5476,6 +5476,11 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            let (policies, order) = shop_policy_state_from_shop(shop);
+            if !policies.is_empty() {
+                self.store
+                    .replace_base_shop_policies_map_with_order(policies, order);
+            }
             self.store.base.shop = shop.clone();
         }
         if let Some(nodes) = data["publications"]["nodes"].as_array() {
@@ -7257,17 +7262,14 @@ impl DraftProxy {
         } else {
             0.0 - requested_amount_number
         };
-        let default_processed_at = if id == "gid://shopify/GiftCard/654808252722" && is_credit {
-            "2026-05-05T06:50:35Z"
+        let default_processed_at = "2026-04-29T09:31:02Z";
+        let transaction_id = if is_credit {
+            self.next_synthetic_gid("GiftCardCreditTransaction")
         } else {
-            "2026-04-29T09:31:02Z"
+            self.next_synthetic_gid("GiftCardDebitTransaction")
         };
         let transaction = json!({
-            "id": if is_credit {
-                "gid://shopify/GiftCardCreditTransaction/246551773490"
-            } else {
-                "gid://shopify/GiftCardDebitTransaction/246514417970"
-            },
+            "id": transaction_id,
             "__typename": if is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
             "note": resolved_string_field(&input, "note").unwrap_or_default(),
             "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| default_processed_at.to_string()),

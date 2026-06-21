@@ -3158,7 +3158,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "futureCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
             "preEpochCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
             "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
-            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/246551773490", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-05-05T06:50:35Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-04-29T09:31:02Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
         })
     );
 }

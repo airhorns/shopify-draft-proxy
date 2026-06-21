@@ -3915,15 +3915,29 @@ impl DraftProxy {
                     | "scriptTag"
                     | "webPixel"
                     | "serverPixel"
+                    | "urlRedirect"
                     | "theme" => {
-                        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                        self.store
-                            .staged
-                            .online_store_integrations
-                            .get(&id)
-                            .map(|record| selected_json(record, &field.selection))
-                            .unwrap_or(Value::Null)
+                        if field.name == "urlRedirect" {
+                            self.url_redirect_query_data(std::slice::from_ref(field))
+                                .get(&field.response_key)
+                                .cloned()
+                                .unwrap_or(Value::Null)
+                        } else {
+                            let id =
+                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                            self.store
+                                .staged
+                                .online_store_integrations
+                                .get(&id)
+                                .map(|record| selected_json(record, &field.selection))
+                                .unwrap_or(Value::Null)
+                        }
                     }
+                    "urlRedirects" => self
+                        .url_redirect_query_data(std::slice::from_ref(field))
+                        .get(&field.response_key)
+                        .cloned()
+                        .unwrap_or(Value::Null),
                     "themes" => {
                         let roles = resolved_string_list_arg(&field.arguments, "roles");
                         let mut records: Vec<Value> = self

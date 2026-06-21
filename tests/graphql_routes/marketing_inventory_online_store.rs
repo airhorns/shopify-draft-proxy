@@ -2206,16 +2206,143 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
     );
 }
 
+/// Adds a real, active location via the public `locationAdd` mutation and returns
+/// its freshly-minted gid. Transfer endpoints must resolve to active locations in
+/// staged store state, so each transfer scenario seeds its origin/destination this
+/// way rather than leaning on capture-specific location ids being implicitly valid.
+fn add_active_transfer_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedTransferLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id isActive }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": name,
+            "address": {
+                "countryCode": "US",
+                "address1": "1 Transfer Way",
+                "city": "New York",
+                "zip": "10001"
+            }
+        }}),
+    ));
+    assert_eq!(
+        add.body["data"]["locationAdd"]["userErrors"],
+        json!([]),
+        "locationAdd should succeed while seeding a transfer endpoint"
+    );
+    assert_eq!(
+        add.body["data"]["locationAdd"]["location"]["isActive"],
+        json!(true)
+    );
+    add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .expect("seeded location must have an id")
+        .to_string()
+}
+
+/// Stocks `inventory_item_id` at `location_id` with the given available quantity via
+/// `inventoryActivate`, establishing the origin inventory level a transfer needs in
+/// order to pass its "item is stocked at origin" validation.
+fn stock_transfer_item_at_origin(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+    available: i64,
+) {
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedTransferStock($inventoryItemId: ID!, $locationId: ID!, $available: Int!) {
+          inventoryActivate(
+            inventoryItemId: $inventoryItemId
+            locationId: $locationId
+            available: $available
+          ) {
+            inventoryLevel { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "locationId": location_id,
+            "available": available
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([]),
+        "inventoryActivate should succeed while stocking a transfer item"
+    );
+}
+
+/// Reads the staged inventory level quantities for `inventory_item_id` at
+/// `location_id`. The transfer flow creates several levels (origin, destination, and
+/// the default location) whose relative ordering depends on their minted location
+/// ids, so callers locate the level they care about by location id rather than
+/// assuming a particular position in the connection.
+fn transfer_level_quantities(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+) -> Value {
+    let read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql"
+        ),
+        json!({"id": inventory_item_id}),
+    ));
+    read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|node| node["location"]["id"] == json!(location_id))
+        .map(|node| node["quantities"].clone())
+        .unwrap_or(Value::Null)
+}
+
+/// Collects the logged root operation names that belong to the inventory-transfer
+/// family, filtering out the location/inventory setup mutations a scenario stages
+/// before exercising the transfer itself. A wrongly-logged `inventoryTransfer*`
+/// operation still surfaces (the prefix match keeps the regression coverage).
+fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
+    proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .filter(|name| {
+            name.as_str()
+                .map(|n| n.starts_with("inventoryTransfer"))
+                .unwrap_or(false)
+        })
+        .collect()
+}
+
 #[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = snapshot_proxy();
 
+    // The transfer engine validates that both endpoints are real, active locations
+    // and that the moved item is stocked at the origin, then computes the reservation
+    // math against those staged inventory levels. Seed that world state up front via
+    // the same public mutations a merchant would use instead of relying on
+    // capture-specific ids being treated as implicitly valid/stocked.
+    let origin_id = add_active_transfer_location(&mut proxy, "Transfer Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Transfer Destination");
+    let inventory_item_id = "gid://shopify/InventoryItem/transfer-item";
+    stock_transfer_item_at_origin(&mut proxy, inventory_item_id, &origin_id, 5);
+
     let create_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
         json!({"input": {
-            "originLocationId": "gid://shopify/Location/1",
-            "destinationLocationId": "gid://shopify/Location/2",
-            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 2}]
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
         }}),
     ));
     assert_eq!(
@@ -2243,14 +2370,10 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
         json!(2)
     );
 
-    let inventory_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql"
-        ),
-        json!({"id": "gid://shopify/InventoryItem/transfer-item"}),
-    ));
+    // The reservation moves 2 units out of available into reserved at the origin,
+    // leaving on_hand untouched (available 5 -> 3, reserved 0 -> 2, on_hand 5).
     assert_eq!(
-        inventory_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        transfer_level_quantities(&mut proxy, inventory_item_id, &origin_id),
         json!([
             {"name": "available", "quantity": 3},
             {"name": "reserved", "quantity": 2},
@@ -2266,15 +2389,9 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
         cancel_response.body["data"]["inventoryTransferCancel"]["inventoryTransfer"]["status"],
         json!("CANCELED")
     );
-    let inventory_after_cancel = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventory-transfer-inventory-read.graphql"
-        ),
-        json!({"id": "gid://shopify/InventoryItem/transfer-item"}),
-    ));
+    // Canceling releases the reservation back to available (3 -> 5, reserved 2 -> 0).
     assert_eq!(
-        inventory_after_cancel.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]
-            ["quantities"],
+        transfer_level_quantities(&mut proxy, inventory_item_id, &origin_id),
         json!([
             {"name": "available", "quantity": 5},
             {"name": "reserved", "quantity": 0},
@@ -2295,15 +2412,8 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
         json!("Can't delete the transfer if it's not in the draft status.")
     );
 
-    let log = proxy.get_log_snapshot();
-    let roots: Vec<Value> = log["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|entry| entry["interpreted"]["operationName"].clone())
-        .collect();
     assert_eq!(
-        roots,
+        transfer_log_roots(&proxy),
         vec![
             json!("inventoryTransferCreate"),
             json!("inventoryTransferMarkAsReadyToShip"),
@@ -2316,12 +2426,22 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
 fn inventory_transfer_create_and_set_items_validate_before_staging() {
     let mut proxy = snapshot_proxy();
 
+    // Seed two active locations and stock the moved item at the origin so the only
+    // validation error in the same-location case below is the origin/destination
+    // clash itself (not a "location not found" or "item not stocked" rejection).
+    let origin_id = add_active_transfer_location(&mut proxy, "Validation Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Validation Destination");
+    let inventory_item_id = "gid://shopify/InventoryItem/transfer-item";
+    stock_transfer_item_at_origin(&mut proxy, inventory_item_id, &origin_id, 5);
+
     let create_validation = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/inventory-transfer-create-validation.graphql"),
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-create-validation.graphql"
+        ),
         json!({"input": {
-            "originLocationId": "gid://shopify/Location/1",
-            "destinationLocationId": "gid://shopify/Location/1",
-            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 1}]
+            "originLocationId": origin_id,
+            "destinationLocationId": origin_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
         }}),
     ));
     assert_eq!(
@@ -2335,14 +2455,16 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    // The rejected create stages nothing — only the setup mutations are logged, no
+    // transfer operation.
+    assert_eq!(transfer_log_roots(&proxy), Vec::<Value>::new());
 
     let create_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
         json!({"input": {
-            "originLocationId": "gid://shopify/Location/1",
-            "destinationLocationId": "gid://shopify/Location/2",
-            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 2}]
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
         }}),
     ));
     assert_eq!(
@@ -2360,8 +2482,8 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
         json!({"input": {
             "id": transfer_id,
             "lineItems": [
-                {"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 1},
-                {"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": -1},
+                {"inventoryItemId": inventory_item_id, "quantity": 1},
+                {"inventoryItemId": inventory_item_id, "quantity": -1},
                 {"inventoryItemId": "gid://shopify/InventoryItem/unknown", "quantity": 1}
             ]
         }}),
@@ -2415,26 +2537,73 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
         read_after_rejected_set.body["data"]["inventoryTransfer"]["totalQuantity"],
         json!(2)
     );
-    let roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|entry| entry["interpreted"]["operationName"].clone())
-        .collect();
-    assert_eq!(roots, vec![json!("inventoryTransferCreate")]);
+    // Only the successful create is logged; the rejected set-items call stages
+    // nothing.
+    assert_eq!(
+        transfer_log_roots(&proxy),
+        vec![json!("inventoryTransferCreate")]
+    );
 }
 
 #[test]
 fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthrough() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let upstream_forwarded = Arc::clone(&forwarded);
+    // In live-hybrid mode `inventoryTransferCreate` hydrates its referenced locations
+    // and inventory item from upstream before staging locally. That hydration node
+    // query is the one legitimate forward in this scenario (the test clears it below);
+    // answer it with two active locations and an item stocked at the origin so the
+    // create passes validation. `inventoryTransferEdit`/`Duplicate` do not hydrate, so
+    // any forward they make would be a real regression.
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             upstream_forwarded.lock().unwrap().push(request);
             Response {
-                status: 599,
+                status: 200,
                 headers: Default::default(),
-                body: json!({"errors": [{"message": "unexpected upstream"}]}),
+                body: json!({"data": {"nodes": [
+                    {
+                        "__typename": "Location",
+                        "id": "gid://shopify/Location/1",
+                        "name": "Origin",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "Location",
+                        "id": "gid://shopify/Location/2",
+                        "name": "Destination",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "InventoryItem",
+                        "id": "gid://shopify/InventoryItem/transfer-item",
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "variant": {
+                            "id": "gid://shopify/ProductVariant/transfer-variant",
+                            "title": "Transfer Variant",
+                            "inventoryQuantity": 5,
+                            "product": {
+                                "id": "gid://shopify/Product/transfer-product",
+                                "title": "Transfer Product",
+                                "handle": "transfer-product",
+                                "status": "ACTIVE",
+                                "totalInventory": 5,
+                                "tracksInventory": true
+                            }
+                        },
+                        "inventoryLevels": {"nodes": [
+                            {
+                                "id": "gid://shopify/InventoryLevel/transfer-item-origin",
+                                "location": {"id": "gid://shopify/Location/1", "name": "Origin"},
+                                "quantities": [
+                                    {"name": "available", "quantity": 5, "updatedAt": "2026-01-01T00:00:00Z"},
+                                    {"name": "on_hand", "quantity": 5, "updatedAt": "2026-01-01T00:00:00Z"}
+                                ]
+                            }
+                        ]}
+                    }
+                ]}}),
             }
         });
 
