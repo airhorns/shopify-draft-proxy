@@ -5126,6 +5126,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-update-ruleset-job-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-update-ruleset-job-conformance.mts',
+    purpose: 'collectionUpdate async job payload shape and ruleSet validation for custom collections and empty rules.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-update-ruleset-job-parity.json`,
+      'config/parity-specs/products/collection-update-ruleset-job-parity.json',
+      'config/parity-requests/products/collectionUpdate-ruleset-job-create.graphql',
+      'config/parity-requests/products/collectionUpdate-ruleset-job-update.graphql',
+      'config/parity-requests/products/collectionUpdate-ruleset-job-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable custom and smart collections, captures update validation and job payloads, then deletes both collections.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-create-and-add-products-parity',
     scriptPath: 'scripts/capture-collection-create-and-add-products-parity.ts',
     purpose:
