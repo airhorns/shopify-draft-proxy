@@ -1,3 +1,4 @@
+use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
 use sha2::{Digest, Sha256};
 
@@ -741,7 +742,7 @@ impl DraftProxy {
         if let Some((index, country_code)) = region_codes
             .iter()
             .enumerate()
-            .find(|(_, country_code)| country_code.as_str() == "CU")
+            .find(|(_, country_code)| is_unsupported_country_region(country_code))
         {
             return selected_json(
                 &json!({
