@@ -64,6 +64,28 @@ That early subset is not the current product coverage contract. Use `src/content
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: reverseFulfillmentOrderDispose public validation differs by setup
+
+A 2026-04 `reverseFulfillmentOrderDispose` capture against
+`harry-test-heelo.myshopify.com` confirmed public payload shapes for empty
+`dispositionInputs`, custom-line `RESTOCKED`, multiple-RFO inputs, successful
+`NOT_RESTOCKED` disposal, and downstream disposition reads. Failed dispose
+payloads returned `reverseFulfillmentOrderLineItems: null`, not an empty list.
+
+Two branches from internal-source notes did not reproduce on that public dev
+store setup:
+
+- disposing an unknown `ReverseFulfillmentOrderLineItem` GID (`/0` and a large
+  numeric ID were both tried) returned the multiple-RFO userError rather than
+  `NOT_FOUND`;
+- over-disposing a custom-line RFO with `NOT_RESTOCKED` was accepted and appended
+  another disposition, even after a prior disposal.
+
+Practical rule: keep focused runtime tests for the stricter local validation
+contract when product requirements call for it, and use
+`return-reverse-logistics-dispose-validation` as the public parity anchor only
+for the branches the live store actually rejected.
+
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
 Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`

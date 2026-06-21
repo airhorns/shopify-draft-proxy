@@ -65,6 +65,151 @@ fn seed_order_edit_existing(proxy: &mut DraftProxy, fixture: &Value) {
     assert_eq!(seed.status, 200);
 }
 
+fn seed_return_dispose_order(proxy: &mut DraftProxy) {
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "orders": [{
+                "id": "gid://shopify/Order/return-dispose-validation",
+                "name": "#RETURN-DISPOSE-VALIDATION",
+                "fulfillments": [{
+                    "fulfillmentLineItems": {
+                        "nodes": [{
+                            "id": "gid://shopify/FulfillmentLineItem/return-dispose-validation",
+                            "quantity": 10,
+                            "lineItem": {
+                                "id": "gid://shopify/LineItem/return-dispose-validation",
+                                "title": "Custom return line"
+                            }
+                        }]
+                    }
+                }]
+            }]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
+}
+
+fn approve_return_for_dispose(proxy: &mut DraftProxy) -> (Value, Value, Value) {
+    let request = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-request-reverse-local-staging.graphql"),
+        json!({
+            "input": {
+                "orderId": "gid://shopify/Order/return-dispose-validation",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-dispose-validation",
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let return_id = request.body["data"]["returnRequest"]["return"]["id"].clone();
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-approve-request-local-staging.graphql"
+        ),
+        json!({ "input": { "id": return_id.clone() } }),
+    ));
+    assert_eq!(approve.status, 200);
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["userErrors"],
+        json!([])
+    );
+    let rfo = &approve.body["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]
+        ["nodes"][0];
+    let rfo_id = rfo["id"].clone();
+    let rfo_line_id = rfo["lineItems"]["nodes"][0]["id"].clone();
+    (return_id, rfo_id, rfo_line_id)
+}
+
+fn dispose_rfo_line(proxy: &mut DraftProxy, disposition_inputs: Value) -> Value {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DisposeRfoLineValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {
+          reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {
+            reverseFulfillmentOrderLineItems {
+              id
+              remainingQuantity
+              dispositionType
+              dispositions {
+                type
+                quantity
+                location { id }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "dispositionInputs": disposition_inputs }),
+    ))
+    .body["data"]["reverseFulfillmentOrderDispose"]
+        .clone()
+}
+
+fn read_rfo_line(proxy: &mut DraftProxy, rfo_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        query ReadRfoLineAfterDisposeValidation($id: ID!) {
+          reverseFulfillmentOrder(id: $id) {
+            lineItems(first: 5) {
+              nodes {
+                id
+                remainingQuantity
+                dispositionType
+                dispositions {
+                  type
+                  quantity
+                  location { id }
+                }
+              }
+            }
+          }
+        }
+        "#,
+            json!({ "id": rfo_id }),
+        ))
+        .body["data"]["reverseFulfillmentOrder"]["lineItems"]["nodes"][0]
+        .clone()
+}
+
+fn assert_first_user_error(
+    payload: &Value,
+    expected_field: Value,
+    expected_code: &str,
+    expected_message: Option<&str>,
+) {
+    let error = &payload["userErrors"][0];
+    assert_eq!(error["field"], expected_field);
+    assert_eq!(error["code"], json!(expected_code));
+    if let Some(message) = expected_message {
+        assert_eq!(error["message"], json!(message));
+    }
+    assert_eq!(
+        payload["reverseFulfillmentOrderLineItems"],
+        Value::Null,
+        "failed dispose attempts should not return mutated line items"
+    );
+}
+
+fn assert_rfo_line_undisposed(proxy: &mut DraftProxy, rfo_id: Value, rfo_line_id: Value) {
+    let line = read_rfo_line(proxy, rfo_id);
+    assert_eq!(line["id"], rfo_line_id);
+    assert_eq!(line["remainingQuantity"], json!(1));
+    assert_eq!(line["dispositionType"], Value::Null);
+    assert_eq!(line["dispositions"], json!([]));
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
@@ -6580,7 +6725,7 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
             "dispositionInputs": [{
                 "reverseFulfillmentOrderLineItemId": reverse_fulfillment_order_line_item_id,
                 "quantity": 1,
-                "dispositionType": "RESTOCKED",
+                "dispositionType": "NOT_RESTOCKED",
                 "locationId": "gid://shopify/Location/return-flow"
             }]
         }),
@@ -6593,7 +6738,7 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     assert_eq!(
         dispose.body["data"]["reverseFulfillmentOrderDispose"]["reverseFulfillmentOrderLineItems"]
             [0]["dispositionType"],
-        json!("RESTOCKED")
+        json!("NOT_RESTOCKED")
     );
 
     let downstream = proxy.process_request(json_graphql_request(
@@ -6623,7 +6768,7 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     assert_eq!(
         downstream.body["data"]["reverseFulfillmentOrder"]["lineItems"]["nodes"][0]
             ["dispositionType"],
-        json!("RESTOCKED")
+        json!("NOT_RESTOCKED")
     );
 
     let log_roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
@@ -6643,6 +6788,126 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
         .as_str()
         .is_some_and(|body| body.contains("ReverseDeliveryCreateWithShipping")));
+}
+
+#[test]
+fn order_reverse_fulfillment_dispose_validation_errors_leave_state_unchanged() {
+    let mut proxy = snapshot_proxy();
+    seed_return_dispose_order(&mut proxy);
+    let (_, rfo_id, rfo_line_id) = approve_return_for_dispose(&mut proxy);
+
+    let empty = dispose_rfo_line(&mut proxy, json!([]));
+    assert_first_user_error(&empty, json!(["dispositionInputs"]), "BLANK", None);
+    assert_rfo_line_undisposed(&mut proxy, rfo_id.clone(), rfo_line_id.clone());
+
+    let unknown_line = dispose_rfo_line(
+        &mut proxy,
+        json!([{
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/999999999",
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/return-dispose-validation"
+        }]),
+    );
+    assert_first_user_error(
+        &unknown_line,
+        json!([
+            "dispositionInputs",
+            "0",
+            "reverseFulfillmentOrderLineItemId"
+        ]),
+        "NOT_FOUND",
+        Some("Reverse fulfillment order line item was not found."),
+    );
+    assert_rfo_line_undisposed(&mut proxy, rfo_id.clone(), rfo_line_id.clone());
+
+    let excessive_quantity = dispose_rfo_line(
+        &mut proxy,
+        json!([{
+            "reverseFulfillmentOrderLineItemId": rfo_line_id.clone(),
+            "quantity": 2,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/return-dispose-validation"
+        }]),
+    );
+    assert_first_user_error(
+        &excessive_quantity,
+        json!(["dispositionInputs", "0", "quantity"]),
+        "INVALID",
+        None,
+    );
+    assert_rfo_line_undisposed(&mut proxy, rfo_id.clone(), rfo_line_id.clone());
+
+    let custom_restocked = dispose_rfo_line(
+        &mut proxy,
+        json!([{
+            "reverseFulfillmentOrderLineItemId": rfo_line_id.clone(),
+            "quantity": 1,
+            "dispositionType": "RESTOCKED",
+            "locationId": "gid://shopify/Location/return-dispose-validation"
+        }]),
+    );
+    assert_first_user_error(
+        &custom_restocked,
+        json!(["dispositionInputs", "0", "dispositionType"]),
+        "INVALID",
+        Some("RESTOCKED is an invalid disposition type for a custom line item."),
+    );
+    assert_rfo_line_undisposed(&mut proxy, rfo_id.clone(), rfo_line_id.clone());
+
+    let missing_disposition_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DisposeRfoLineMissingDispositionType($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {
+          reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {
+            reverseFulfillmentOrderLineItems { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "dispositionInputs": [{
+                "reverseFulfillmentOrderLineItemId": rfo_line_id.clone(),
+                "quantity": 1,
+                "locationId": "gid://shopify/Location/return-dispose-validation"
+            }]
+        }),
+    ));
+    assert!(
+        missing_disposition_type.body["errors"]
+            .as_array()
+            .is_some_and(|errors| errors.iter().any(|error| error["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("dispositionType")))),
+        "omitted dispositionType should be rejected before local mutation handling"
+    );
+    assert_rfo_line_undisposed(&mut proxy, rfo_id.clone(), rfo_line_id.clone());
+
+    let (_, second_rfo_id, second_rfo_line_id) = approve_return_for_dispose(&mut proxy);
+    let multiple_rfos = dispose_rfo_line(
+        &mut proxy,
+        json!([
+            {
+                "reverseFulfillmentOrderLineItemId": rfo_line_id.clone(),
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": "gid://shopify/Location/return-dispose-validation"
+            },
+            {
+                "reverseFulfillmentOrderLineItemId": second_rfo_line_id.clone(),
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": "gid://shopify/Location/return-dispose-validation"
+            }
+        ]),
+    );
+    assert_first_user_error(
+        &multiple_rfos,
+        json!(["dispositionInputs"]),
+        "INVALID",
+        None,
+    );
+    assert_rfo_line_undisposed(&mut proxy, rfo_id, rfo_line_id);
+    assert_rfo_line_undisposed(&mut proxy, second_rfo_id, second_rfo_line_id);
 }
 
 #[test]

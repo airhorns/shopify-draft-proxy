@@ -161,10 +161,10 @@ original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
-Reverse delivery and order-edit shipping-line roots are modeled through the
-orders and returns local graph when covered by their parity specs. Their
-caller-visible order and return effects should be read with
-`/endpoints/orders/` and `/endpoints/returns/`.
+Reverse delivery, reverse fulfillment disposal, and order-edit shipping-line
+roots are modeled through the orders and returns local graph when covered by
+their parity specs. Their caller-visible order and return effects should be read
+with `/endpoints/orders/` and `/endpoints/returns/`.
 
 ### Boundaries
 
@@ -192,7 +192,7 @@ caller-visible order and return effects should be read with
 - Runtime coverage: `tests/graphql_routes.rs`
 - Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
 - Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
-- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
+- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
 
 ### Validation
 

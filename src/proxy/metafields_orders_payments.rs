@@ -3358,6 +3358,14 @@ fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
     })
 }
 
+fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
 fn return_status_invalid_error() -> Value {
     return_user_error(&["id"], "return_request_status_invalid", "INVALID")
 }
@@ -3430,6 +3438,14 @@ fn build_return_line_item(
     let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
     let reason = resolved_string_field(item, "returnReason").unwrap_or_else(|| "OTHER".to_string());
     let reason_note = resolved_string_field(item, "returnReasonNote").unwrap_or_default();
+    let line_item = if fulfillment_line_item["lineItem"].is_object() {
+        fulfillment_line_item["lineItem"].clone()
+    } else {
+        json!({
+            "id": fulfillment_line_item["lineItem"]["id"].clone(),
+            "title": fulfillment_line_item["lineItem"]["title"].clone()
+        })
+    };
     json!({
         "id": return_line_item_id,
         "quantity": quantity,
@@ -3440,10 +3456,7 @@ fn build_return_line_item(
         "customerNote": Value::Null,
         "fulfillmentLineItem": {
             "id": fulfillment_line_item["id"].clone(),
-            "lineItem": {
-                "id": fulfillment_line_item["lineItem"]["id"].clone(),
-                "title": fulfillment_line_item["lineItem"]["title"].clone()
-            }
+            "lineItem": line_item
         }
     })
 }
@@ -6181,26 +6194,154 @@ impl DraftProxy {
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
         let inputs = list_object_arg(&field.arguments, "dispositionInputs");
-        let mut line_items = Vec::new();
-        for input in inputs {
-            let line_id = resolved_string_field(&input, "reverseFulfillmentOrderLineItemId")
+        if inputs.is_empty() {
+            return selected_json(
+                &json!({
+                    "reverseFulfillmentOrderLineItems": Value::Null,
+                    "userErrors": [return_user_error(
+                        &["dispositionInputs"],
+                        "The array cannot be empty.",
+                        "BLANK",
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+
+        struct DispositionPlan {
+            order_id: String,
+            line_id: String,
+            quantity: i64,
+            disposition_type: String,
+            location_id: String,
+        }
+
+        let mut plans = Vec::new();
+        let mut user_errors = Vec::new();
+        let mut reverse_fulfillment_order_ids = BTreeSet::new();
+
+        for (index, input) in inputs.iter().enumerate() {
+            let index = index.to_string();
+            let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
                 .unwrap_or_default();
-            for order in self.store.staged.reverse_fulfillment_orders.values_mut() {
-                if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
-                    if let Some(node) = nodes.iter_mut().find(|node| node["id"] == line_id) {
-                        node["remainingQuantity"] = json!(0);
-                        node["dispositionType"] =
-                            json!(resolved_string_field(&input, "dispositionType")
-                                .unwrap_or_else(|| "RESTOCKED".to_string()));
-                        node["dispositions"] = json!([{
-                            "type": node["dispositionType"].clone(),
-                            "quantity": resolved_i64_field(&input, "quantity").unwrap_or(1),
-                            "location": {
-                                "id": resolved_string_field(&input, "locationId").unwrap_or_default()
-                            }
-                        }]);
-                        line_items.push(node.clone());
-                    }
+            let Some((order_id, line_item)) = self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .iter()
+                .find_map(|(order_id, order)| {
+                    order["lineItems"]["nodes"]
+                        .as_array()
+                        .and_then(|nodes| {
+                            nodes
+                                .iter()
+                                .find(|node| node["id"].as_str() == Some(line_id.as_str()))
+                        })
+                        .map(|line_item| (order_id.clone(), line_item.clone()))
+                })
+            else {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "reverseFulfillmentOrderLineItemId".to_string(),
+                    ],
+                    "Reverse fulfillment order line item was not found.",
+                    "NOT_FOUND",
+                ));
+                continue;
+            };
+
+            reverse_fulfillment_order_ids.insert(order_id.clone());
+            let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+            let disposable_quantity = line_item["remainingQuantity"]
+                .as_i64()
+                .or_else(|| line_item["totalQuantity"].as_i64())
+                .unwrap_or(0);
+            if quantity <= 0 || quantity > disposable_quantity {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "quantity".to_string(),
+                    ],
+                    "Quantity is invalid.",
+                    "INVALID",
+                ));
+                continue;
+            }
+
+            let disposition_type =
+                resolved_string_field(input, "dispositionType").unwrap_or_default();
+            let has_product_variant = line_item
+                .pointer("/fulfillmentLineItem/lineItem/variant")
+                .is_some_and(|variant| !variant.is_null());
+            if disposition_type == "RESTOCKED" && !has_product_variant {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "dispositionType".to_string(),
+                    ],
+                    "RESTOCKED is an invalid disposition type for a custom line item.",
+                    "INVALID",
+                ));
+                continue;
+            }
+
+            plans.push(DispositionPlan {
+                order_id,
+                line_id,
+                quantity,
+                disposition_type,
+                location_id: resolved_string_field(input, "locationId").unwrap_or_default(),
+            });
+        }
+
+        if user_errors.is_empty() && reverse_fulfillment_order_ids.len() > 1 {
+            user_errors.push(return_user_error(
+                &["dispositionInputs"],
+                "Cannot dispose items from more than one reverse fulfillment order.",
+                "INVALID",
+            ));
+        }
+
+        if !user_errors.is_empty() {
+            return selected_json(
+                &json!({
+                    "reverseFulfillmentOrderLineItems": Value::Null,
+                    "userErrors": user_errors
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut line_items = Vec::new();
+        for plan in plans {
+            let Some(order) = self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .get_mut(&plan.order_id)
+            else {
+                continue;
+            };
+            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+                if let Some(node) = nodes
+                    .iter_mut()
+                    .find(|node| node["id"].as_str() == Some(plan.line_id.as_str()))
+                {
+                    let remaining = node["remainingQuantity"].as_i64().unwrap_or(0);
+                    node["remainingQuantity"] = json!((remaining - plan.quantity).max(0));
+                    node["dispositionType"] = json!(plan.disposition_type);
+                    node["dispositions"] = json!([{
+                        "type": node["dispositionType"].clone(),
+                        "quantity": plan.quantity,
+                        "location": {
+                            "id": plan.location_id
+                        }
+                    }]);
+                    line_items.push(node.clone());
                 }
             }
         }

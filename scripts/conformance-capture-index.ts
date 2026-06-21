@@ -7832,6 +7832,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-reverse-logistics-dispose-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-reverse-logistics-dispose-validation-conformance.mts',
+    purpose:
+      'reverseFulfillmentOrderDispose validation userErrors for empty inputs, custom-line RESTOCKED, multiple reverse fulfillment orders, current public unknown-line behavior, plus valid NOT_RESTOCKED downstream readback.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-reverse-logistics-dispose-validation.json`,
+      'config/parity-specs/orders/return-reverse-logistics-dispose-validation.json',
+      'config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql',
+      'config/parity-requests/orders/return-reverse-logistics-dispose-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable custom-line order, records invalid dispose attempts before one valid disposal, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-shipping-fee',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-shipping-fee-conformance.mts',
