@@ -916,19 +916,11 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     let publication_validation = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductPublicationTargetValidation {
-          both: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
-            publication { id }
-            userErrors { field message code }
-          }
-          blankCatalog: publicationCreate(input: {}) {
-            publication { id }
+          omittedCatalog: publicationCreate(input: {}) {
+            publication { id name autoPublish }
             userErrors { field message code }
           }
           missingCatalog: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
-            publication { id }
-            userErrors { field message code }
-          }
-          missingChannel: publicationCreate(input: { channelId: "gid://shopify/Channel/999" }) {
             publication { id }
             userErrors { field message code }
           }
@@ -938,25 +930,14 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     ));
     assert_eq!(publication_validation.status, 200);
     assert_eq!(
-        publication_validation.body["data"]["both"],
+        publication_validation.body["data"]["omittedCatalog"],
         json!({
-            "publication": Value::Null,
-            "userErrors": [{
-                "field": ["input"],
-                "message": "Only one of catalog or channel can be provided",
-                "code": "INVALID"
-            }]
-        })
-    );
-    assert_eq!(
-        publication_validation.body["data"]["blankCatalog"],
-        json!({
-            "publication": Value::Null,
-            "userErrors": [{
-                "field": ["input", "catalogId"],
-                "message": "Catalog can't be blank",
-                "code": "BLANK"
-            }]
+            "publication": {
+                "id": "gid://shopify/Publication/2",
+                "name": "Publication 2",
+                "autoPublish": false
+            },
+            "userErrors": []
         })
     );
     assert_eq!(
@@ -965,56 +946,30 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "publication": Value::Null,
             "userErrors": [{
                 "field": ["input", "catalogId"],
-                "message": "Catalog not found",
-                "code": "NOT_FOUND"
+                "message": "A catalog was not found for id= gid://shopify/MarketCatalog/999.",
+                "code": "CATALOG_NOT_FOUND"
             }]
-        })
-    );
-    assert_eq!(
-        publication_validation.body["data"]["missingChannel"],
-        json!({
-            "publication": Value::Null,
-            "userErrors": [{
-                "field": ["input", "channelId"],
-                "message": "Channel not found",
-                "code": "NOT_FOUND"
-            }]
-        })
-    );
-
-    let create_publication = proxy.process_request(json_graphql_request(
-        r#"
-        mutation RustProductPublicationCreateSeed {
-          publicationCreate(input: { name: "Seed" }) {
-            publication { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(create_publication.status, 200);
-    assert_eq!(
-        create_publication.body["data"]["publicationCreate"],
-        json!({
-            "publication": { "id": "gid://shopify/Publication/2" },
-            "userErrors": []
         })
     );
 
     let publication_update_delete = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductPublicationUpdateDeleteValidation {
-          updateBoth: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
+          updateMissing: publicationUpdate(id: "gid://shopify/Publication/999", input: { autoPublish: true }) {
             publication { id }
             userErrors { field message code }
           }
-          updateMissingCatalog: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
-            publication { id }
+          deleteMissing: publicationDelete(id: "gid://shopify/Publication/999") {
+            deletedId
             userErrors { field message code }
           }
           deleteDefault: publicationDelete(id: "gid://shopify/Publication/1") {
             deletedId
+            userErrors { field message code }
+          }
+          deleteCreated: publicationDelete(id: "gid://shopify/Publication/2") {
+            deletedId
+            publication { id name }
             userErrors { field message code }
           }
         }
@@ -1023,24 +978,24 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     ));
     assert_eq!(publication_update_delete.status, 200);
     assert_eq!(
-        publication_update_delete.body["data"]["updateBoth"],
+        publication_update_delete.body["data"]["updateMissing"],
         json!({
             "publication": Value::Null,
             "userErrors": [{
-                "field": ["input"],
-                "message": "Only one of catalog or channel can be provided",
-                "code": "INVALID"
+                "field": ["id"],
+                "message": "Publication was not found",
+                "code": "PUBLICATION_NOT_FOUND"
             }]
         })
     );
     assert_eq!(
-        publication_update_delete.body["data"]["updateMissingCatalog"],
+        publication_update_delete.body["data"]["deleteMissing"],
         json!({
-            "publication": Value::Null,
+            "deletedId": Value::Null,
             "userErrors": [{
-                "field": ["input", "catalogId"],
-                "message": "Catalog not found",
-                "code": "NOT_FOUND"
+                "field": ["id"],
+                "message": "Publication was not found",
+                "code": "PUBLICATION_NOT_FOUND"
             }]
         })
     );
@@ -1053,6 +1008,13 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
                 "message": "Cannot delete the default publication",
                 "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
             }]
+        })
+    );
+    assert_eq!(
+        publication_update_delete.body["data"]["deleteCreated"],
+        json!({
+            "deletedId": "gid://shopify/Publication/2",
+            "userErrors": []
         })
     );
 
@@ -1425,8 +1387,191 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
 }
 
 #[test]
+fn publication_update_stages_publishables_and_validates_real_input_contract() {
+    let product_id = "gid://shopify/Product/publication-update-product";
+    let product = ProductRecord {
+        id: product_id.to_string(),
+        title: "Publication update product".to_string(),
+        handle: "publication-update-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    let mut proxy = snapshot_proxy().with_base_products(vec![product]);
+    let variant = create_legacy_variant(&mut proxy, product_id, "PUB-UPD", "1.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePublicationUpdateTarget($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id autoPublish }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
+
+    let update_query = r#"
+        mutation UpdatePublicationPublishables($id: ID!, $input: PublicationUpdateInput!) {
+          publicationUpdate(id: $id, input: $input) {
+            publication { id autoPublish }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let add_product = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": publication_id,
+            "input": { "publishablesToAdd": [product_id], "autoPublish": true }
+        }),
+    ));
+    assert_eq!(
+        add_product.body["data"]["publicationUpdate"],
+        json!({
+            "publication": {
+                "id": "gid://shopify/Publication/2",
+                "autoPublish": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPublicationUpdateProduct($id: ID!, $publicationId: ID!) {
+          product(id: $id) {
+            id
+            publishedOnPublication(publicationId: $publicationId)
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "publicationId": "gid://shopify/Publication/2" }),
+    ));
+    assert_eq!(
+        product_read.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let remove_product = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToRemove": [product_id] }
+        }),
+    ));
+    assert_eq!(
+        remove_product.body["data"]["publicationUpdate"],
+        json!({
+            "publication": {
+                "id": "gid://shopify/Publication/2",
+                "autoPublish": true
+            },
+            "userErrors": []
+        })
+    );
+    let product_after_remove = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPublicationUpdateProductAfterRemove($id: ID!, $publicationId: ID!) {
+          product(id: $id) {
+            publishedOnPublication(publicationId: $publicationId)
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "publicationId": "gid://shopify/Publication/2" }),
+    ));
+    assert_eq!(
+        product_after_remove.body["data"]["product"],
+        json!({
+            "publishedOnPublication": false,
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToAdd": [product_id, variant_id] }
+        }),
+    ));
+    assert_eq!(
+        mixed.body["data"]["publicationUpdate"]["userErrors"],
+        json!([{
+            "field": ["input"],
+            "message": "Cannot combine products and variants in the same publication update",
+            "code": "CANNOT_COMBINE_PRODUCTS_AND_VARIANTS"
+        }])
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToAdd": ["gid://shopify/Product/missing"] }
+        }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["publicationUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "publishablesToAdd", "0"],
+            "message": "Publishable ID not found.",
+            "code": "INVALID_PUBLISHABLE_ID"
+        }])
+    );
+
+    let too_many_publishables = (0..51)
+        .map(|index| format!("gid://shopify/Product/limit-{index}"))
+        .collect::<Vec<_>>();
+    let too_many = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToAdd": too_many_publishables }
+        }),
+    ));
+    assert_eq!(
+        too_many.body["data"]["publicationUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "publishablesToAdd", "51"],
+            "message": "The limit for simultaneous publication updates has been exceeded.",
+            "code": "PUBLICATION_UPDATE_LIMIT_EXCEEDED"
+        }])
+    );
+}
+
+#[test]
 fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
+    let undefined_publication_fields = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationUnknownFields($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Nope", "channelId": "gid://shopify/Channel/999" } }),
+    ));
+    assert_eq!(undefined_publication_fields.status, 200);
+    assert_eq!(undefined_publication_fields.body.get("data"), None);
+    assert_eq!(
+        undefined_publication_fields.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(undefined_publication_fields.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Field is not defined on PublicationCreateInput")));
+
     let default_state = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductPublicationInvalidDefaultState($input: PublicationCreateInput!) {
@@ -1732,7 +1877,7 @@ fn product_publish_unpublish_stage_publication_state_for_downstream_reads() {
           publicationCreate(input: $input) { publication { id } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "name": "Product publication target" } }),
+        json!({ "input": {} }),
     ));
     let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
         .as_str()
@@ -1937,7 +2082,7 @@ fn product_publish_unpublish_validate_publication_state_locally() {
           publicationCreate(input: $input) { publication { id } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "name": "Product publication validation target" } }),
+        json!({ "input": {} }),
     ));
     let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
         .as_str()
@@ -2040,7 +2185,7 @@ fn product_publish_live_hybrid_stages_seeded_product_without_upstream_write() {
           publicationCreate(input: $input) { publication { id } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "name": "Product publication no write target" } }),
+        json!({ "input": {} }),
     ));
     let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
         .as_str()
@@ -2204,7 +2349,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
           }
         }
         "#,
-        json!({ "input": { "name": "Local staged publication" } }),
+        json!({ "input": {} }),
     ));
     assert_eq!(
         create_publication.body["data"]["publicationCreate"],
@@ -6165,4 +6310,211 @@ fn collection_validations_and_reorder_are_store_backed() {
         too_many.body["errors"][0]["extensions"]["code"],
         json!("MAX_INPUT_SIZE_EXCEEDED")
     );
+}
+
+#[test]
+fn collection_update_rejects_custom_rule_set_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Manual Collection" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let state_after_create = proxy.get_state_snapshot();
+    let log_len_after_create = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCustomCollectionRules($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id ruleSet { appliedDisjunctively rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"],
+        json!({
+            "collection": null,
+            "job": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Cannot update rule set of a custom collection"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_after_create
+    );
+}
+
+#[test]
+fn collection_update_rejects_empty_rule_set_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSmartCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let state_after_create = proxy.get_state_snapshot();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateEmptyRules($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": []
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"],
+        json!({
+            "collection": null,
+            "job": null,
+            "userErrors": [{
+                "field": ["ruleSet", "rules"],
+                "message": "Rules cannot be an empty set"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+}
+
+#[test]
+fn collection_update_returns_selected_job_on_success() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSmartCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCollectionWithJob($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title ruleSet { rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Boots" }]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["collection"]["ruleSet"]["rules"][0]["condition"],
+        json!("Boots")
+    );
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["userErrors"],
+        json!([])
+    );
+    let job = &update.body["data"]["collectionUpdate"]["job"];
+    assert!(job["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Job/")));
+    assert_eq!(job["done"], json!(false));
 }

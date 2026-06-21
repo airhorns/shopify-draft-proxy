@@ -13,13 +13,28 @@ company-location tax settings, and B2B address behavior.
 
 The implemented read roots are:
 
+- `companies`
 - `company`
+- `companyContact`
 - `companyLocation`
+- `companyLocations`
 
 The implemented mutation roots are:
 
 - `companyAddressDelete`
+- `companyAssignCustomerAsContact`
+- `companyAssignMainContact`
+- `companiesDelete`
 - `companyCreate`
+- `companyContactAssignRole`
+- `companyContactAssignRoles`
+- `companyContactCreate`
+- `companyContactDelete`
+- `companyContactRemoveFromCompany`
+- `companyContactRevokeRoles`
+- `companyContactsDelete`
+- `companyContactUpdate`
+- `companyDelete`
 - `companyLocationAssignAddress`
 - `companyLocationAssignRoles`
 - `companyLocationAssignStaffMembers`
@@ -30,13 +45,12 @@ The implemented mutation roots are:
 - `companyLocationsDelete`
 - `companyLocationTaxSettingsUpdate`
 - `companyLocationUpdate`
+- `companyRevokeMainContact`
 - `companyUpdate`
 
 Tracked but unimplemented B2B roots remain registry-only until they have their
 own local lifecycle and downstream read-after-write model. This includes
-`companies`, `companiesCount`, company-contact lifecycle roots,
-company-main-contact roots, company delete roots, and
-`companyContactSendWelcomeEmail`.
+`companiesCount`, `companyContactRole`, and `companyContactSendWelcomeEmail`.
 
 ### Local behavior
 
@@ -59,6 +73,18 @@ character set, length, and duplicates, reject HTML or overlong notes, and
 reject `companyUpdate(input.customerSince)` without mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
 role setup when those input objects are present.
+
+`companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
+`companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
+company-contact lifecycle and keep company `contactIds`, contact customer data,
+role assignments, and downstream contact reads in sync. Deleting or removing
+the current main contact clears the company's `mainContact`.
+
+`companyAssignMainContact` and `companyRevokeMainContact` stage the company's
+single `mainContactId` pointer and derive each contact's `isMainContact` from
+that pointer. Assigning an unknown contact returns `RESOURCE_NOT_FOUND`;
+assigning a contact that exists on another staged company returns
+`INVALID_INPUT` at `["companyContactId"]` without mutating the target company.
 
 `companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`, and
 `companyLocationsDelete` stage the company-location lifecycle. Location create
@@ -99,10 +125,6 @@ the covered request shape, including `editableShippingAddress`,
 
 - `companyContactSendWelcomeEmail` remains unsupported because it is an outbound
   customer-visible email side effect. The proxy has no no-send model for it.
-- Company-contact lifecycle mutations are not fully implemented. Contacts and
-  contact roles can be staged through nested setup on `companyCreate` for role
-  assignment tests, but standalone contact create/update/delete/role roots
-  remain unsupported.
 - Staff assignment does not synthesize a full staff catalog or support staff
   catalog reads. The local model accepts structurally valid staged-test staff
   IDs for assignment rows and returns Shopify-like per-index errors for unknown
@@ -120,6 +142,8 @@ the covered request shape, including `editableShippingAddress`,
 
 - Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes/b2b.rs`
+- Company contact and main-contact lifecycle parity:
+  `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Address lifecycle parity: `config/parity-specs/b2b/b2b-location-address-management.json`
   and `config/parity-specs/b2b/location_assign_address_preserves_id.json`
 - Staff validation parity:

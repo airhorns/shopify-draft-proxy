@@ -74,14 +74,8 @@ impl DraftProxy {
             "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) { customerByIdentifier(identifier: $identifier) { id email defaultEmailAddress { emailAddress } } }",
             "operationName": "DataSaleOptOutCustomerLookup",
             "variables": { "identifier": { "emailAddress": email } }
-        })
-        .to_string();
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
         });
+        let response = self.upstream_post(request, body);
         if response.status != 200 {
             return None;
         }

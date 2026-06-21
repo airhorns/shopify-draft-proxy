@@ -1,0 +1,25 @@
+mutation WebhookSubscriptionApiVersionUpdate(
+  $id: ID!
+  $webhookSubscription: WebhookSubscriptionInput!
+) {
+  webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id
+      topic
+      format
+      uri
+      callbackUrl
+      createdAt
+      updatedAt
+      apiVersion {
+        handle
+        displayName
+        supported
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

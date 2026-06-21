@@ -1083,6 +1083,19 @@ fn selling_plan_input_user_errors(
                 "code": "GREATER_THAN"
             }));
         }
+        if let Some(cutoff) = resolved_int_field(delivery_recurring, "cutoff") {
+            if !is_non_negative_int32(cutoff) {
+                errors.push(range_invalid_error(
+                    selling_plan_recurring_field_path(
+                        list_field,
+                        &index,
+                        "deliveryPolicy",
+                        "cutoff",
+                    ),
+                    "Cutoff must be within the range of 0 to 2,147,483,647",
+                ));
+            }
+        }
     }
     if let Some(billing_recurring) = billing_recurring.as_ref() {
         if resolved_int_field(billing_recurring, "intervalCount") == Some(0) {
@@ -1091,6 +1104,32 @@ fn selling_plan_input_user_errors(
                 "message": "Interval count must be greater than 0",
                 "code": "GREATER_THAN"
             }));
+        }
+        if let Some(min_cycles) = resolved_int_field(billing_recurring, "minCycles") {
+            if !is_positive_int32(min_cycles) {
+                errors.push(range_invalid_error(
+                    selling_plan_recurring_field_path(
+                        list_field,
+                        &index,
+                        "billingPolicy",
+                        "minCycles",
+                    ),
+                    "Min cycles must be within the range of 1 to 2,147,483,647",
+                ));
+            }
+        }
+        if let Some(max_cycles) = resolved_int_field(billing_recurring, "maxCycles") {
+            if !is_positive_int32(max_cycles) {
+                errors.push(range_invalid_error(
+                    selling_plan_recurring_field_path(
+                        list_field,
+                        &index,
+                        "billingPolicy",
+                        "maxCycles",
+                    ),
+                    "Max cycles must be within the range of 1 to 2,147,483,647",
+                ));
+            }
         }
     }
     if let (Some(billing_recurring), Some(delivery_recurring)) =
@@ -1119,6 +1158,14 @@ fn is_int32(value: i64) -> bool {
     (INT32_MIN..=INT32_MAX).contains(&value)
 }
 
+fn is_positive_int32(value: i64) -> bool {
+    (1..=INT32_MAX).contains(&value)
+}
+
+fn is_non_negative_int32(value: i64) -> bool {
+    (0..=INT32_MAX).contains(&value)
+}
+
 fn position_invalid_error(field: Vec<impl Into<String>>) -> Value {
     let field = field.into_iter().map(Into::into).collect::<Vec<String>>();
     json!({
@@ -1126,6 +1173,30 @@ fn position_invalid_error(field: Vec<impl Into<String>>) -> Value {
         "message": "Position must be within the range of -2,147,483,648 to 2,147,483,647",
         "code": "INVALID"
     })
+}
+
+fn range_invalid_error(field: Vec<String>, message: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": "INVALID"
+    })
+}
+
+fn selling_plan_recurring_field_path(
+    list_field: &str,
+    index: &str,
+    policy_field: &str,
+    recurring_field: &str,
+) -> Vec<String> {
+    vec![
+        "input".to_string(),
+        list_field.to_string(),
+        index.to_string(),
+        policy_field.to_string(),
+        "recurring".to_string(),
+        recurring_field.to_string(),
+    ]
 }
 
 fn selling_plan_record_from_input(

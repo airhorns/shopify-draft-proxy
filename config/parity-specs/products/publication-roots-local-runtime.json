@@ -46,7 +46,6 @@
               "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
             },
             "input": {
-              "name": "Codex Updated Channel",
               "autoPublish": false
             }
           }
@@ -140,5 +139,5 @@
       }
     ]
   },
-  "notes": "HAR-319 publication root evidence now executes through the generic conformance parity harness. The scenario seeds a base publication, product, and collection; stages publicationCreate/update/delete locally; validates top-level channel/publication roots; publishes product and collection records to the staged publication; and verifies downstream reads before and after delete without runtime Shopify writes."
+  "notes": "Publication root evidence executes through the generic conformance parity harness. The scenario seeds a base publication, product, and collection; stages publicationCreate/update/delete locally using the public 2026-04 create/update input shapes; validates top-level channel/publication roots; publishes product and collection records to the staged publication; and verifies downstream reads before and after delete without runtime Shopify writes."
 }

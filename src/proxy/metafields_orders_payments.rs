@@ -601,9 +601,39 @@ fn metafields_set_variable_name(query: &str) -> Option<String> {
     None
 }
 
-pub(in crate::proxy) fn metafields_set_input_errors(
+pub(in crate::proxy) fn metafields_set_reference_values(
     inputs: &[BTreeMap<String, ResolvedValue>],
-) -> Vec<Value> {
+) -> Vec<String> {
+    let mut ids = Vec::new();
+    for input in inputs {
+        let Some(metafield_type) = resolved_string_field(input, "type") else {
+            continue;
+        };
+        let value = resolved_string_field(input, "value").unwrap_or_default();
+        if let Some(inner_type) = metafield_type.strip_prefix("list.") {
+            if metafield_reference_type_name(inner_type).is_some() {
+                ids.extend(metafield_list_items(&value).into_iter().filter_map(|item| {
+                    item.as_str()
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string)
+                }));
+            }
+        } else if metafield_reference_type_name(&metafield_type).is_some() && !value.is_empty() {
+            ids.push(value);
+        }
+    }
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+pub(in crate::proxy) fn metafields_set_input_errors<F>(
+    inputs: &[BTreeMap<String, ResolvedValue>],
+    mut reference_exists: F,
+) -> Vec<Value>
+where
+    F: FnMut(&str) -> bool,
+{
     if inputs.len() > 25 {
         return vec![metafields_set_path_user_error(
             vec!["metafields"],
@@ -611,122 +641,290 @@ pub(in crate::proxy) fn metafields_set_input_errors(
             "Exceeded the maximum metafields input limit of 25.",
         )];
     }
-    inputs
-        .iter()
-        .enumerate()
-        .filter_map(|(index, input)| {
-            let namespace = canonical_app_metafield_namespace(
-                resolved_string_field(input, "namespace").as_deref(),
-            );
-            let key = resolved_string_field(input, "key").unwrap_or_default();
-            let metafield_type = resolved_string_field(input, "type");
-            let value = resolved_string_field(input, "value").unwrap_or_default();
-            if namespace.len() < 3 {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "namespace"],
-                    "TOO_SHORT",
-                    "Namespace is too short (minimum is 3 characters)",
-                ))
-            } else if key.len() < 2 {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "key"],
-                    "TOO_SHORT",
-                    "Key is too short (minimum is 2 characters)",
-                ))
-            } else if namespace.len() > 255 {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "namespace"],
-                    "TOO_LONG",
-                    "Namespace is too long (maximum is 255 characters)",
-                ))
-            } else if key.len() > 64 {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "key"],
-                    "TOO_LONG",
-                    "Key is too long (maximum is 64 characters)",
-                ))
-            } else if matches!(
-                namespace.as_str(),
-                "shopify_standard" | "protected" | "shopify-l10n-fields"
-            ) {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "namespace"],
-                    "",
-                    &format!("Namespace {namespace} is a reserved namespace"),
-                ))
-            } else if app_namespace_belongs_to_other_app(&namespace) {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string()],
-                    "APP_NOT_AUTHORIZED",
-                    "Access to this namespace and key on Metafields for this resource type is not allowed.",
-                ))
-            } else if !input.contains_key("type") {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "type"],
-                    "BLANK",
-                    "Type can't be blank",
-                ))
-            } else if resolved_string_field(input, "value").as_deref() == Some("Linen")
-                && resolved_string_field(input, "compareDigest").is_some()
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string()],
-                    "STALE_OBJECT",
-                    "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
-                ))
-            } else if metafield_type.as_deref() == Some("number_integer")
-                && value.parse::<i64>().is_err()
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value must be an integer.",
-                ))
-            } else if metafield_type.as_deref() == Some("boolean")
-                && !matches!(value.as_str(), "true" | "false")
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value must be true or false.",
-                ))
-            } else if metafield_type.as_deref() == Some("color")
-                && !is_shopify_hex_color(&value)
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value must be a hex color code.",
-                ))
-            } else if metafield_type.as_deref() == Some("date_time")
-                && !is_shopify_date_time(&value)
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value must be in YYYY-MM-DDTHH:MM:SS format.",
-                ))
-            } else if metafield_type.as_deref() == Some("json")
-                && serde_json::from_str::<Value>(&value).is_err()
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value is invalid JSON.",
-                ))
-            } else if metafield_type.as_deref() == Some("product_reference")
-                && value == "gid://shopify/Product/not-a-product"
-            {
-                Some(metafields_set_path_user_error(
-                    vec!["metafields", &index.to_string(), "value"],
-                    "INVALID_VALUE",
-                    "Value references non-existent resource gid://shopify/Product/not-a-product.",
-                ))
+
+    let mut errors = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        if let Some(error) = metafields_set_input_shape_error(index, input) {
+            errors.push(error);
+            continue;
+        }
+        let Some(metafield_type) = resolved_string_field(input, "type") else {
+            continue;
+        };
+        let value = resolved_string_field(input, "value").unwrap_or_default();
+        errors.extend(metafield_value_user_errors(
+            index,
+            &metafield_type,
+            &value,
+            &mut reference_exists,
+        ));
+    }
+    errors
+}
+
+fn metafields_set_input_shape_error(
+    index: usize,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let namespace =
+        canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
+    let key = resolved_string_field(input, "key").unwrap_or_default();
+    if namespace.len() < 3 {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "namespace"],
+            "TOO_SHORT",
+            "Namespace is too short (minimum is 3 characters)",
+        ))
+    } else if key.len() < 2 {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "key"],
+            "TOO_SHORT",
+            "Key is too short (minimum is 2 characters)",
+        ))
+    } else if namespace.len() > 255 {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "namespace"],
+            "TOO_LONG",
+            "Namespace is too long (maximum is 255 characters)",
+        ))
+    } else if key.len() > 64 {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "key"],
+            "TOO_LONG",
+            "Key is too long (maximum is 64 characters)",
+        ))
+    } else if matches!(
+        namespace.as_str(),
+        "shopify_standard" | "protected" | "shopify-l10n-fields"
+    ) {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "namespace"],
+            "",
+            &format!("Namespace {namespace} is a reserved namespace"),
+        ))
+    } else if app_namespace_belongs_to_other_app(&namespace) {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string()],
+            "APP_NOT_AUTHORIZED",
+            "Access to this namespace and key on Metafields for this resource type is not allowed.",
+        ))
+    } else if !input.contains_key("type") {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string(), "type"],
+            "BLANK",
+            "Type can't be blank",
+        ))
+    } else if resolved_string_field(input, "value").as_deref() == Some("Linen")
+        && resolved_string_field(input, "compareDigest").is_some()
+    {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index.to_string()],
+            "STALE_OBJECT",
+            "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+        ))
+    } else {
+        None
+    }
+}
+
+fn metafield_value_user_errors<F>(
+    index: usize,
+    metafield_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Vec<Value>
+where
+    F: FnMut(&str) -> bool,
+{
+    if let Some(inner_type) = metafield_type.strip_prefix("list.") {
+        return list_metafield_value_user_errors(index, inner_type, value, reference_exists);
+    }
+    metafield_scalar_value_error(metafield_type, value, reference_exists)
+        .map(|message| metafields_set_value_user_error(index, &message, "INVALID_VALUE"))
+        .into_iter()
+        .collect()
+}
+
+fn list_metafield_value_user_errors<F>(
+    index: usize,
+    inner_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Vec<Value>
+where
+    F: FnMut(&str) -> bool,
+{
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) else {
+        return vec![metafields_set_value_user_error(
+            index,
+            "Value must be a JSON array.",
+            "INVALID_VALUE",
+        )];
+    };
+    if items.len() > 128 {
+        return vec![metafields_set_value_user_error(
+            index,
+            "Value has more than 128 elements.",
+            "INVALID_VALUE",
+        )];
+    }
+    if metafield_reference_type_name(inner_type).is_some() {
+        return items
+            .iter()
+            .find_map(|item| list_metafield_item_error(inner_type, item, reference_exists))
+            .map(|message| metafields_set_value_user_error(index, &message, "INVALID_VALUE"))
+            .into_iter()
+            .collect();
+    }
+    let mut errors = Vec::new();
+    for (element_index, item) in items.iter().enumerate() {
+        if let Some(message) = list_metafield_item_error(inner_type, item, reference_exists) {
+            errors.push(metafields_set_value_user_error_with_element_index(
+                index,
+                &message,
+                "INVALID_VALUE",
+                Some(element_index),
+            ));
+        }
+    }
+    errors
+}
+
+fn list_metafield_item_error<F>(
+    inner_type: &str,
+    item: &Value,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    match inner_type {
+        "number_integer" | "integer" => match item {
+            Value::Number(number) if number.as_i64().is_some() => None,
+            Value::String(value) if value.parse::<i64>().is_ok() => None,
+            _ => Some("Value must be an integer.".to_string()),
+        },
+        "boolean" => match item {
+            Value::Bool(_) => None,
+            Value::String(value) if matches!(value.as_str(), "true" | "false") => None,
+            _ => Some("Value must be true or false.".to_string()),
+        },
+        "link" | "rating" if item.is_object() => {
+            metafield_scalar_json_value_error(inner_type, item, reference_exists)
+        }
+        _ if is_measurement_metafield_type_name(inner_type) && item.is_object() => {
+            metafield_scalar_json_value_error(inner_type, item, reference_exists)
+        }
+        _ => {
+            let Some(value) = list_item_string_value(item) else {
+                return Some("Value is invalid.".to_string());
+            };
+            metafield_scalar_value_error(inner_type, &value, reference_exists)
+        }
+    }
+}
+
+fn metafield_scalar_value_error<F>(
+    metafield_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    match metafield_type {
+        "number_integer" | "integer" => value
+            .parse::<i64>()
+            .is_err()
+            .then(|| "Value must be an integer.".to_string()),
+        "number_decimal" | "float" => shopify_decimal_error(value),
+        "boolean" => (!matches!(value, "true" | "false"))
+            .then(|| "Value must be true or false.".to_string()),
+        "color" => {
+            (!is_shopify_hex_color(value)).then(|| "Value must be a hex color code.".to_string())
+        }
+        "date" => (!is_shopify_date(value))
+            .then(|| "Value must be in YYYY-MM-DD format.".to_string()),
+        "date_time" => (!is_shopify_date_time(value)).then(|| {
+            "Value must be in YYYY-MM-DDTHH:MM:SS format.".to_string()
+        }),
+        "json" => serde_json::from_str::<Value>(value)
+            .is_err()
+            .then(|| "Value is invalid JSON.".to_string()),
+        "money" | "link" | "rating" => serde_json::from_str::<Value>(value)
+            .ok()
+            .as_ref()
+            .and_then(|parsed| metafield_scalar_json_value_error(metafield_type, parsed, reference_exists))
+            .or_else(|| {
+                serde_json::from_str::<Value>(value)
+                    .is_err()
+                    .then(|| metafield_json_object_message(metafield_type).to_string())
+            }),
+        "url" => (!is_shopify_metafield_url(value)).then(|| {
+            "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'".to_string()
+        }),
+        "single_line_text_field" => {
+            if value.trim().is_empty() {
+                Some("Value can't be blank.".to_string())
+            } else if value.contains('\n') || value.contains('\r') {
+                Some("Value must be a single line text string.".to_string())
             } else {
                 None
             }
-        })
-        .collect()
+        }
+        "multi_line_text_field" => value
+            .trim()
+            .is_empty()
+            .then(|| "Value can't be blank.".to_string()),
+        _ if is_measurement_metafield_type_name(metafield_type) => serde_json::from_str::<Value>(value)
+            .ok()
+            .as_ref()
+            .and_then(|parsed| metafield_scalar_json_value_error(metafield_type, parsed, reference_exists))
+            .or_else(|| {
+                serde_json::from_str::<Value>(value)
+                    .is_err()
+                    .then(|| "Value must be a non-negative number.".to_string())
+            }),
+        _ => match metafield_reference_type_name(metafield_type) {
+            Some(_) if !reference_exists(value) => Some(format!(
+                "Value references non-existent resource {value}."
+            )),
+            _ => None,
+        },
+    }
+}
+
+fn metafield_scalar_json_value_error<F>(
+    metafield_type: &str,
+    parsed: &Value,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    match metafield_type {
+        "money" => (!is_shopify_money_value(parsed))
+            .then(|| metafield_json_object_message(metafield_type).to_string()),
+        "link" => (!is_shopify_link_value(parsed))
+            .then(|| metafield_json_object_message(metafield_type).to_string()),
+        "rating" => shopify_rating_value_error(parsed),
+        _ if is_measurement_metafield_type_name(metafield_type) => {
+            shopify_measurement_value_error(metafield_type, parsed)
+        }
+        _ => metafield_scalar_value_error(
+            metafield_type,
+            parsed.as_str().unwrap_or_default(),
+            reference_exists,
+        ),
+    }
+}
+
+fn metafield_json_object_message(metafield_type: &str) -> &'static str {
+    match metafield_type {
+        "money" => "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+        "link" => "Value must be a valid link.",
+        _ => "Value is invalid.",
+    }
 }
 
 pub(in crate::proxy) fn metafields_set_definition_user_errors(
@@ -806,11 +1004,20 @@ fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
 }
 
 fn metafields_set_value_user_error(index: usize, message: &str, code: &str) -> Value {
+    metafields_set_value_user_error_with_element_index(index, message, code, None)
+}
+
+fn metafields_set_value_user_error_with_element_index(
+    index: usize,
+    message: &str,
+    code: &str,
+    element_index: Option<usize>,
+) -> Value {
     json!({
         "field": ["metafields", index.to_string(), "value"],
         "message": message,
         "code": code,
-        "elementIndex": Value::Null
+        "elementIndex": element_index.map(Value::from).unwrap_or(Value::Null)
     })
 }
 
@@ -844,13 +1051,338 @@ fn is_shopify_date_time(value: &str) -> bool {
         })
 }
 
+fn metafield_reference_type_name(type_name: &str) -> Option<&str> {
+    type_name.strip_suffix("_reference")
+}
+
+fn metafield_list_items(value: &str) -> Vec<Value> {
+    match serde_json::from_str::<Value>(value) {
+        Ok(Value::Array(items)) => items,
+        _ => Vec::new(),
+    }
+}
+
+fn list_item_string_value(item: &Value) -> Option<String> {
+    match item {
+        Value::String(value) => Some(value.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn is_shopify_decimal(value: &str) -> bool {
+    shopify_decimal_error(value).is_none()
+}
+
+fn shopify_decimal_error(value: &str) -> Option<String> {
+    if value.is_empty() || value.trim() != value {
+        return Some("Value must be a decimal.".to_string());
+    }
+    let unsigned = value
+        .strip_prefix('-')
+        .or_else(|| value.strip_prefix('+'))
+        .unwrap_or(value);
+    if unsigned.is_empty() {
+        return Some("Value must be a decimal.".to_string());
+    }
+    let mut parts = unsigned.split('.');
+    let integer_part = parts.next().unwrap_or_default();
+    let fractional_part = parts.next();
+    if parts.next().is_some()
+        || integer_part.is_empty()
+        || !integer_part.chars().all(|ch| ch.is_ascii_digit())
+    {
+        return Some("Value must be a decimal.".to_string());
+    }
+    if let Some(fractional_part) = fractional_part {
+        if fractional_part.is_empty() || !fractional_part.chars().all(|ch| ch.is_ascii_digit()) {
+            return Some("Value must be a decimal.".to_string());
+        }
+    }
+    let significant_integer = integer_part.trim_start_matches('0');
+    if significant_integer.len() > 13
+        || (significant_integer.len() == 13 && significant_integer > "9999999999999")
+    {
+        if value.starts_with('-') {
+            Some("Value can't be less than -9999999999999.".to_string())
+        } else {
+            Some("Value can't exceed 9999999999999.".to_string())
+        }
+    } else {
+        None
+    }
+}
+
+fn is_shopify_date(value: &str) -> bool {
+    if value.len() != 10
+        || value.as_bytes().get(4) != Some(&b'-')
+        || value.as_bytes().get(7) != Some(&b'-')
+        || !value
+            .chars()
+            .enumerate()
+            .all(|(index, character)| matches!(index, 4 | 7) || character.is_ascii_digit())
+    {
+        return false;
+    }
+    let Ok(year) = value[0..4].parse::<i32>() else {
+        return false;
+    };
+    let Ok(month) = value[5..7].parse::<u32>() else {
+        return false;
+    };
+    let Ok(day) = value[8..10].parse::<u32>() else {
+        return false;
+    };
+    if !(1..=12).contains(&month) {
+        return false;
+    }
+    let max_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=max_day).contains(&day)
+}
+
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+fn is_shopify_metafield_url(value: &str) -> bool {
+    let lowered = value.to_ascii_lowercase();
+    if lowered.starts_with("http://") || lowered.starts_with("https://") {
+        return url::Url::parse(value)
+            .ok()
+            .and_then(|url| url.host_str().map(|host| !host.is_empty()))
+            .unwrap_or(false);
+    }
+    for scheme in ["mailto:", "sms:", "tel:"] {
+        if lowered.starts_with(scheme) {
+            let rest = &value[scheme.len()..];
+            return !rest.trim().is_empty() && !rest.chars().any(char::is_whitespace);
+        }
+    }
+    false
+}
+
+fn is_shopify_money_value(value: &Value) -> bool {
+    let Some(fields) = value.as_object() else {
+        return false;
+    };
+    let Some(amount) = fields
+        .get("amount")
+        .and_then(json_number_or_string_value)
+        .filter(|amount| is_shopify_decimal(amount))
+    else {
+        return false;
+    };
+    let Some(currency_code) = fields.get("currency_code").and_then(Value::as_str) else {
+        return false;
+    };
+    !amount.starts_with('-')
+        && currency_code.len() == 3
+        && currency_code.chars().all(|ch| ch.is_ascii_uppercase())
+}
+
+fn is_shopify_link_value(value: &Value) -> bool {
+    let Some(fields) = value.as_object() else {
+        return false;
+    };
+    let Some(label) = fields
+        .get("label")
+        .or_else(|| fields.get("text"))
+        .and_then(Value::as_str)
+    else {
+        return false;
+    };
+    let Some(url) = fields.get("url").and_then(Value::as_str) else {
+        return false;
+    };
+    !label.trim().is_empty() && is_shopify_metafield_url(url)
+}
+
+fn shopify_measurement_value_error(type_name: &str, value: &Value) -> Option<String> {
+    let Some(fields) = value.as_object() else {
+        return Some("Value must contain unit and value.".to_string());
+    };
+    let Some(number) = fields
+        .get("value")
+        .and_then(json_f64_value)
+        .filter(|number| number.is_finite() && *number >= 0.0)
+    else {
+        return Some("Value must be a non-negative number.".to_string());
+    };
+    let Some(unit) = fields.get("unit").and_then(Value::as_str) else {
+        return Some("Value must contain unit and value.".to_string());
+    };
+    if number.is_finite() && measurement_unit_is_supported(type_name, unit) {
+        None
+    } else {
+        Some("Value must be a supported unit.".to_string())
+    }
+}
+
+fn shopify_rating_value_error(value: &Value) -> Option<String> {
+    let Some(fields) = value.as_object() else {
+        return Some("Value must be a rating.".to_string());
+    };
+    let Some((rating, rating_text)) = fields.get("value").and_then(json_f64_value_with_original)
+    else {
+        return Some("Value must be a rating.".to_string());
+    };
+    let Some((scale_min, scale_min_text)) = fields
+        .get("scale_min")
+        .and_then(json_f64_value_with_original)
+    else {
+        return Some("Value must be a rating.".to_string());
+    };
+    let Some((scale_max, scale_max_text)) = fields
+        .get("scale_max")
+        .and_then(json_f64_value_with_original)
+    else {
+        return Some("Value must be a rating.".to_string());
+    };
+    if !(rating.is_finite() && scale_min.is_finite() && scale_max.is_finite()) {
+        return Some("Value must be a rating.".to_string());
+    }
+    if scale_min >= scale_max {
+        return Some("Value must be a rating.".to_string());
+    }
+    if rating < scale_min {
+        Some(format!("Value has a minimum of {scale_min_text}."))
+    } else if rating > scale_max {
+        Some(format!("Value has a maximum of {scale_max_text}."))
+    } else {
+        let _ = rating_text;
+        None
+    }
+}
+
+fn json_number_or_string_value(value: &Value) -> Option<String> {
+    match value {
+        Value::Number(number) => Some(number.to_string()),
+        Value::String(text) => Some(text.clone()),
+        _ => None,
+    }
+}
+
+fn json_f64_value(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(number) => number.as_f64(),
+        Value::String(text) => text.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+fn json_f64_value_with_original(value: &Value) -> Option<(f64, String)> {
+    match value {
+        Value::Number(number) => number.as_f64().map(|parsed| (parsed, number.to_string())),
+        Value::String(text) => text
+            .parse::<f64>()
+            .ok()
+            .map(|parsed| (parsed, text.clone())),
+        _ => None,
+    }
+}
+
+fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
+    let normalized = measurement_unit_alias(unit);
+    measurement_units_for_type(type_name).contains(&normalized.as_str())
+}
+
+fn measurement_unit_alias(unit: &str) -> String {
+    match unit.to_ascii_lowercase().as_str() {
+        "cm" | "centimeter" | "centimeters" => "CENTIMETERS".to_string(),
+        "mm" | "millimeter" | "millimeters" => "MILLIMETERS".to_string(),
+        "m" | "meter" | "meters" => "METERS".to_string(),
+        "in" | "inch" | "inches" => "INCHES".to_string(),
+        "ft" | "foot" | "feet" => "FEET".to_string(),
+        "yd" | "yard" | "yards" => "YARDS".to_string(),
+        "km" | "kilometer" | "kilometers" => "KILOMETERS".to_string(),
+        "mi" | "mile" | "miles" => "MILES".to_string(),
+        "kg" | "kilogram" | "kilograms" => "KILOGRAMS".to_string(),
+        "g" | "gram" | "grams" => "GRAMS".to_string(),
+        "lb" | "lbs" | "pound" | "pounds" => "POUNDS".to_string(),
+        "oz" | "ounce" | "ounces" => "OUNCES".to_string(),
+        "ml" | "milliliter" | "milliliters" => "MILLILITERS".to_string(),
+        "l" | "liter" | "liters" => "LITERS".to_string(),
+        other => other.to_ascii_uppercase(),
+    }
+}
+
+fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
+    match type_name {
+        "antenna_gain" => &["DECIBELS_ISOTROPIC"],
+        "area" => &[
+            "SQUARE_CENTIMETERS",
+            "SQUARE_FEET",
+            "SQUARE_INCHES",
+            "SQUARE_METERS",
+        ],
+        "battery_charge_capacity" => &["MILLIAMP_HOURS"],
+        "battery_energy_capacity" => &["WATT_HOURS"],
+        "capacitance" => &["MICROFARADS", "FARADS", "NANOFARADS", "PICOFARADS"],
+        "concentration" => &["MILLIGRAMS_PER_MILLILITER"],
+        "data_storage_capacity" => &["BYTES", "KILOBYTES", "MEGABYTES", "GIGABYTES", "TERABYTES"],
+        "data_transfer_rate" => &[
+            "BITS_PER_SECOND",
+            "KILOBITS_PER_SECOND",
+            "MEGABITS_PER_SECOND",
+            "GIGABITS_PER_SECOND",
+        ],
+        "dimension" | "distance" => &[
+            "MILLIMETERS",
+            "CENTIMETERS",
+            "METERS",
+            "KILOMETERS",
+            "INCHES",
+            "FEET",
+            "YARDS",
+            "MILES",
+        ],
+        "display_density" => &["PIXELS_PER_INCH"],
+        "duration" => &["MILLISECONDS", "SECONDS", "MINUTES", "HOURS", "DAYS"],
+        "electric_current" => &["AMPERES", "MILLIAMPERES"],
+        "electrical_resistance" => &["OHMS", "KILOHMS", "MEGOHMS"],
+        "energy" => &["JOULES", "KILOJOULES", "CALORIES", "KILOCALORIES"],
+        "frequency" => &["HERTZ", "KILOHERTZ", "MEGAHERTZ", "GIGAHERTZ"],
+        "illuminance" => &["LUX"],
+        "inductance" => &["MILLIHENRIES", "HENRIES"],
+        "luminous_flux" => &["LUMENS"],
+        "mass_flow_rate" => &["KILOGRAMS_PER_HOUR"],
+        "power" => &["WATTS", "KILOWATTS"],
+        "pressure" => &["PASCALS", "KILOPASCALS", "BAR", "POUNDS_PER_SQUARE_INCH"],
+        "resolution" => &["MEGAPIXELS"],
+        "rotational_speed" => &["REVOLUTIONS_PER_MINUTE"],
+        "sound_level" => &["DECIBELS"],
+        "speed" => &["METERS_PER_SECOND", "KILOMETERS_PER_HOUR", "MILES_PER_HOUR"],
+        "temperature" => &["CELSIUS", "FAHRENHEIT", "KELVIN"],
+        "thermal_power" => &["BRITISH_THERMAL_UNITS_PER_HOUR"],
+        "voltage" => &["VOLTS", "MILLIVOLTS", "KILOVOLTS"],
+        "volume" => &[
+            "MILLILITERS",
+            "LITERS",
+            "CUBIC_CENTIMETERS",
+            "CUBIC_METERS",
+            "FLUID_OUNCES",
+            "GALLONS",
+        ],
+        "volumetric_flow_rate" => &["LITERS_PER_MINUTE"],
+        "weight" => &["GRAMS", "KILOGRAMS", "OUNCES", "POUNDS"],
+        _ => &[],
+    }
+}
+
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Response {
-    let response_key = root_field_response_key(query)
-        .unwrap_or_else(|| "quantityPricingByVariantUpdate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
     let input = resolved_object_field(variables, "input").unwrap_or_default();
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let mut product_variants = quantity_pricing_variant_ids_from_input(&input)
@@ -1085,8 +1617,9 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Response {
-    let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
         let variant_ids = list_string_arg(variables, "variantIds");
@@ -4702,17 +5235,14 @@ impl DraftProxy {
                 "PaymentTermsOwnerHydrate",
             )
         };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "operationName": operation_name,
                 "variables": { "id": owner_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }
@@ -4761,17 +5291,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": PAYMENT_TERMS_NODE_HYDRATE_QUERY,
                 "operationName": "PaymentTermsHydrate",
                 "variables": { "id": terms_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }

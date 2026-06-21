@@ -57,7 +57,6 @@ The registry-only read roots are:
 - `deliverySettings`
 - `deliveryProfile`
 - `deliveryProfiles`
-- `fulfillmentConstraintRules`
 
 The registry-only mutation roots are:
 
@@ -75,9 +74,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `fulfillmentConstraintRuleCreate`
-- `fulfillmentConstraintRuleDelete`
-- `fulfillmentConstraintRuleUpdate`
 - `deliveryProfileCreate`
 - `deliveryProfileRemove`
 - `deliveryProfileUpdate`
@@ -178,8 +174,8 @@ caller-visible order and return effects should be read with
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,
   cleanup, and downstream reads are modeled locally.
-- Fulfillment constraint rules remain registry-only because current evidence is
-  access-scope blocker evidence, not success/read-after-write behavior.
+- Fulfillment constraint rule metadata roots are covered by the Functions
+  endpoint group, not by the shipping/fulfillments local slices.
 - Validation-only shipping and fulfillment specs prove guardrail payloads and
   no-stage behavior for those inputs only. They do not make the corresponding
   mutation roots generally supported.

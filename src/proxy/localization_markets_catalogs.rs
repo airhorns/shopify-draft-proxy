@@ -1,3 +1,4 @@
+use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
 use sha2::{Digest, Sha256};
 
@@ -40,6 +41,35 @@ const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str =
 /// deterministic value keeps state round-tripping reproducible.
 const SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP: &str = "2026-01-01T00:00:00Z";
 
+pub(in crate::proxy) struct PriceListFieldOutcome {
+    value: Value,
+    errors: Vec<Value>,
+}
+
+impl PriceListFieldOutcome {
+    fn payload(value: Value) -> Self {
+        Self {
+            value,
+            errors: Vec::new(),
+        }
+    }
+
+    fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
+        Self {
+            value: Value::Null,
+            errors: vec![json!({
+                "message": format!("Invalid id: {id}"),
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [field.response_key.clone()]
+            })],
+        }
+    }
+}
+
+fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
+    matches!(shopify_gid_resource_type(id), Some(resource_type) if resource_type != "MarketCatalog")
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
         &mut self,
@@ -57,6 +87,15 @@ impl DraftProxy {
                 "validationDelete" => self.function_validation_delete_payload(field),
                 "cartTransformCreate" => self.function_cart_transform_create_payload(field),
                 "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
+                "fulfillmentConstraintRuleCreate" => {
+                    self.function_fulfillment_constraint_rule_create_payload(field)
+                }
+                "fulfillmentConstraintRuleUpdate" => {
+                    self.function_fulfillment_constraint_rule_update_payload(field)
+                }
+                "fulfillmentConstraintRuleDelete" => {
+                    self.function_fulfillment_constraint_rule_delete_payload(field)
+                }
                 "taxAppConfigure" => self.function_tax_app_configure_payload(field),
                 _ => Value::Null,
             };
@@ -105,12 +144,34 @@ impl DraftProxy {
                         })
                         .collect(),
                 ),
+                "fulfillmentConstraintRules" => Value::Array(
+                    self.store
+                        .staged
+                        .function_fulfillment_constraint_rule_order
+                        .iter()
+                        .filter_map(|id| {
+                            self.store
+                                .staged
+                                .function_fulfillment_constraint_rules
+                                .get(id)
+                                .map(|record| {
+                                    fulfillment_constraint_rule_record_for_selection(
+                                        record,
+                                        &field.selection,
+                                    )
+                                })
+                        })
+                        .map(|record| selected_json(&record, &field.selection))
+                        .collect(),
+                ),
                 "shopifyFunctions" => {
                     let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
-                    let api_type = if api_type == "CART_TRANSFORM" {
-                        "CART_TRANSFORM"
-                    } else {
-                        "VALIDATION"
+                    let api_type = match api_type.as_str() {
+                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
+                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
+                            "FULFILLMENT_CONSTRAINT_RULE"
+                        }
+                        _ => "VALIDATION",
                     };
                     json!({ "nodes": self.function_catalog_read_nodes(api_type) })
                 }
@@ -124,6 +185,8 @@ impl DraftProxy {
             };
             if value.is_null() {
                 data.insert(field.response_key.clone(), Value::Null);
+            } else if field.name == "fulfillmentConstraintRules" {
+                data.insert(field.response_key.clone(), value);
             } else {
                 data.insert(
                     field.response_key.clone(),
@@ -149,6 +212,18 @@ impl DraftProxy {
                     .function_cart_transform_order
                     .iter()
                     .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
+            )
+            .chain(
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rule_order
+                    .iter()
+                    .filter_map(|id| {
+                        self.store
+                            .staged
+                            .function_fulfillment_constraint_rules
+                            .get(id)
+                    }),
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
@@ -179,6 +254,16 @@ impl DraftProxy {
             || !self.store.staged.function_validation_order.is_empty()
             || !self.store.staged.function_cart_transforms.is_empty()
             || !self.store.staged.function_cart_transform_order.is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .is_empty()
     }
 
     pub(in crate::proxy) fn localization_query_data(
@@ -657,7 +742,7 @@ impl DraftProxy {
         if let Some((index, country_code)) = region_codes
             .iter()
             .enumerate()
-            .find(|(_, country_code)| country_code.as_str() == "CU")
+            .find(|(_, country_code)| is_unsupported_country_region(country_code))
         {
             return selected_json(
                 &json!({
@@ -1401,46 +1486,69 @@ impl DraftProxy {
     ) -> Value {
         self.fixed_price_mutation_preflight(fields, request, variables);
         let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
         let mut touched_ids = Vec::new();
         for field in fields {
-            let value = match field.name.as_str() {
+            let outcome = match field.name.as_str() {
                 "priceListCreate" => self.price_list_create_response(field),
                 "priceListUpdate" => self.price_list_update_response(field),
-                "priceListDelete" => self.price_list_delete_response(field),
-                "priceListFixedPricesByProductUpdate" => {
-                    self.price_list_fixed_prices_by_product_update_response(field)
+                "priceListDelete" => {
+                    PriceListFieldOutcome::payload(self.price_list_delete_response(field))
                 }
-                "priceListFixedPricesAdd" => self.price_list_fixed_prices_add_response(field),
-                "priceListFixedPricesUpdate" => self.price_list_fixed_prices_update_response(field),
-                "priceListFixedPricesDelete" => self.price_list_fixed_prices_delete_response(field),
-                "quantityRulesDelete" => self.quantity_rules_delete_price_list_response(field),
-                "webPresenceCreate" => self.web_presence_create_price_list_response(field),
-                "webPresenceUpdate" => self.web_presence_update_price_list_response(field),
-                "webPresenceDelete" => self.web_presence_delete_price_list_response(field),
-                _ => Value::Null,
+                "priceListFixedPricesByProductUpdate" => PriceListFieldOutcome::payload(
+                    self.price_list_fixed_prices_by_product_update_response(field),
+                ),
+                "priceListFixedPricesAdd" => {
+                    PriceListFieldOutcome::payload(self.price_list_fixed_prices_add_response(field))
+                }
+                "priceListFixedPricesUpdate" => PriceListFieldOutcome::payload(
+                    self.price_list_fixed_prices_update_response(field),
+                ),
+                "priceListFixedPricesDelete" => PriceListFieldOutcome::payload(
+                    self.price_list_fixed_prices_delete_response(field),
+                ),
+                "quantityRulesDelete" => PriceListFieldOutcome::payload(
+                    self.quantity_rules_delete_price_list_response(field),
+                ),
+                "webPresenceCreate" => PriceListFieldOutcome::payload(
+                    self.web_presence_create_price_list_response(field),
+                ),
+                "webPresenceUpdate" => PriceListFieldOutcome::payload(
+                    self.web_presence_update_price_list_response(field),
+                ),
+                "webPresenceDelete" => PriceListFieldOutcome::payload(
+                    self.web_presence_delete_price_list_response(field),
+                ),
+                _ => PriceListFieldOutcome::payload(Value::Null),
             };
-            if let Some(id) = value["priceList"]["id"]
+            if let Some(id) = outcome.value["priceList"]["id"]
                 .as_str()
-                .or_else(|| value["deletedId"].as_str())
+                .or_else(|| outcome.value["deletedId"].as_str())
             {
                 touched_ids.push(id.to_string());
             }
-            data.insert(field.response_key.clone(), value);
+            errors.extend(outcome.errors);
+            data.insert(field.response_key.clone(), outcome.value);
         }
         if !touched_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
-        Value::Object(data)
+        let mut body = serde_json::Map::new();
+        body.insert("data".to_string(), Value::Object(data));
+        if !errors.is_empty() {
+            body.insert("errors".to_string(), Value::Array(errors));
+        }
+        Value::Object(body)
     }
 
     pub(in crate::proxy) fn price_list_create_response(
         &mut self,
         field: &RootFieldSelection,
-    ) -> Value {
+    ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         if name.trim().is_empty() {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "name"],
@@ -1448,10 +1556,10 @@ impl DraftProxy {
                     "BLANK",
                 ),
                 &field.selection,
-            );
+            ));
         }
         if name.chars().count() > 255 {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "name"],
@@ -1459,7 +1567,7 @@ impl DraftProxy {
                     "TOO_LONG",
                 ),
                 &field.selection,
-            );
+            ));
         }
         if self
             .store
@@ -1468,7 +1576,7 @@ impl DraftProxy {
             .values()
             .any(|price_list| price_list["name"].as_str() == Some(name.as_str()))
         {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "name"],
@@ -1476,10 +1584,10 @@ impl DraftProxy {
                     "TAKEN",
                 ),
                 &field.selection,
-            );
+            ));
         }
         let Some(currency) = resolved_string_field(&input, "currency") else {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "currency"],
@@ -1487,10 +1595,10 @@ impl DraftProxy {
                     "BLANK",
                 ),
                 &field.selection,
-            );
+            ));
         };
         let Some(parent) = resolved_object_field(&input, "parent") else {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "parent"],
@@ -1498,7 +1606,7 @@ impl DraftProxy {
                     "REQUIRED",
                 ),
                 &field.selection,
-            );
+            ));
         };
         let adjustment = resolved_object_field(&parent, "adjustment").unwrap_or_default();
         let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
@@ -1506,7 +1614,7 @@ impl DraftProxy {
             adjustment_type.as_str(),
             "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
         ) {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "parent", "adjustment", "type"],
@@ -1514,14 +1622,14 @@ impl DraftProxy {
                     "INVALID",
                 ),
                 &field.selection,
-            );
+            ));
         }
         let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
         let invalid_adjustment = adjustment_value < 0.0
             || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
             || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
         if invalid_adjustment {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["input", "parent", "adjustment", "value"],
@@ -1529,16 +1637,19 @@ impl DraftProxy {
                     "INVALID_ADJUSTMENT_VALUE",
                 ),
                 &field.selection,
-            );
+            ));
         }
 
         let catalog_id = resolved_string_field(&input, "catalogId");
         if let Some(catalog_id) = catalog_id.as_deref() {
+            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
+                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
+            }
             if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &json!({"priceList": null, "userErrors": [error]}),
                     &field.selection,
-                );
+                ));
             }
         }
 
@@ -1555,19 +1666,19 @@ impl DraftProxy {
             self.attach_price_list_to_catalog(catalog_id, &id);
         }
         self.store.staged.price_lists.insert(id, price_list.clone());
-        selected_json(
+        PriceListFieldOutcome::payload(selected_json(
             &json!({"priceList": price_list, "userErrors": []}),
             &field.selection,
-        )
+        ))
     }
 
     pub(in crate::proxy) fn price_list_update_response(
         &mut self,
         field: &RootFieldSelection,
-    ) -> Value {
+    ) -> PriceListFieldOutcome {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.price_lists.get(&id).cloned() else {
-            return selected_json(
+            return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
                     "priceList",
                     vec!["id"],
@@ -1575,12 +1686,12 @@ impl DraftProxy {
                     "PRICE_LIST_NOT_FOUND",
                 ),
                 &field.selection,
-            );
+            ));
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(name) = resolved_string_field(&input, "name") {
             if name.trim().is_empty() {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &price_list_payload_error(
                         "priceList",
                         vec!["input", "name"],
@@ -1588,10 +1699,10 @@ impl DraftProxy {
                         "BLANK",
                     ),
                     &field.selection,
-                );
+                ));
             }
             if name.chars().count() > 255 {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &price_list_payload_error(
                         "priceList",
                         vec!["input", "name"],
@@ -1599,7 +1710,7 @@ impl DraftProxy {
                         "TOO_LONG",
                     ),
                     &field.selection,
-                );
+                ));
             }
             if self
                 .store
@@ -1610,7 +1721,7 @@ impl DraftProxy {
                     existing_id != &id && price_list["name"].as_str() == Some(name.as_str())
                 })
             {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &price_list_payload_error(
                         "priceList",
                         vec!["input", "name"],
@@ -1618,7 +1729,7 @@ impl DraftProxy {
                         "TAKEN",
                     ),
                     &field.selection,
-                );
+                ));
             }
         }
         let parent_update = resolved_object_field(&input, "parent");
@@ -1629,31 +1740,34 @@ impl DraftProxy {
                 adjustment_type.as_str(),
                 "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
             ) {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "type"], "Type is invalid", "INVALID")]}),
                     &field.selection,
-                );
+                ));
             }
             let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
             let invalid_adjustment = adjustment_value < 0.0
                 || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
                 || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
             if invalid_adjustment {
-                return selected_json(
+                return PriceListFieldOutcome::payload(selected_json(
                     &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "value"], PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE, "INVALID_ADJUSTMENT_VALUE")]}),
                     &field.selection,
-                );
+                ));
             }
         }
         if input.get("catalogId") != Some(&ResolvedValue::Null) {
             if let Some(catalog_id) = resolved_string_field(&input, "catalogId") {
+                if price_list_catalog_id_has_wrong_gid_type(&catalog_id) {
+                    return PriceListFieldOutcome::resource_not_found(&catalog_id, field);
+                }
                 if let Some(error) =
                     self.price_list_catalog_validation_error(&catalog_id, Some(&id))
                 {
-                    return selected_json(
+                    return PriceListFieldOutcome::payload(selected_json(
                         &json!({"priceList": null, "userErrors": [error]}),
                         &field.selection,
-                    );
+                    ));
                 }
             }
         }
@@ -1694,10 +1808,10 @@ impl DraftProxy {
             }
         }
         self.store.staged.price_lists.insert(id, updated.clone());
-        selected_json(
+        PriceListFieldOutcome::payload(selected_json(
             &json!({"priceList": updated, "userErrors": []}),
             &field.selection,
-        )
+        ))
     }
 
     pub(in crate::proxy) fn price_list_delete_response(
@@ -1761,15 +1875,18 @@ impl DraftProxy {
         } else {
             return;
         };
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
+        self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
+    }
+
+    fn run_markets_preflight(
+        &mut self,
+        request: &Request,
+        body: Value,
+        stage: impl FnOnce(&mut Self, &Value),
+    ) {
+        let response = self.upstream_post(request, body);
         if response.status < 400 {
-            self.stage_fixed_price_preflight(&response.body);
+            stage(self, &response.body);
         }
     }
 
@@ -2161,16 +2278,7 @@ impl DraftProxy {
             "variables": resolved_variables_json(variables),
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
-        if response.status < 400 {
-            self.stage_web_presence_preflight(&response.body);
-        }
+        self.run_markets_preflight(request, body, Self::stage_web_presence_preflight);
     }
 
     /// Forward a market-localization mutation preflight on a cold store so the
@@ -2198,16 +2306,7 @@ impl DraftProxy {
             "variables": resolved_variables_json(variables),
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
-        if response.status < 400 {
-            self.hydrate_markets_from_upstream(&response.body);
-        }
+        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
     }
 
     /// Stage the baseline `webPresences` a preflight returns. Records insert only
@@ -2231,9 +2330,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new(), BTreeMap::new()));
         let payload = match root_field {
             "webPresenceCreate" => {
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
@@ -3090,17 +3189,14 @@ impl DraftProxy {
         if first == 0 {
             return Vec::new();
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": "query LocalizationMarketsHydrate($first: Int!) { markets(first: $first) { nodes { id name handle status type } } }",
                 "operationName": "LocalizationMarketsHydrate",
                 "variables": { "first": first }
-            }))
-            .unwrap_or_default(),
-        });
+            }),
+        );
         self.stage_observed_localization_source_data(&response.body["data"]);
         if response.status >= 400 {
             return self.hydrate_localization_markets_from_original_request(field, request);

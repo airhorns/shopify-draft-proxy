@@ -177,7 +177,7 @@ pub fn root_field_arguments(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    let root_field = root_fields(query, variables)?.into_iter().next()?;
+    let root_field = primary_root_field(query, variables)?;
     Some(root_field.arguments)
 }
 
@@ -188,13 +188,20 @@ pub fn root_fields(
     Some(parsed_document(query, variables)?.root_fields)
 }
 
+pub fn primary_root_field(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<RootFieldSelection> {
+    root_fields(query, variables)?.into_iter().next()
+}
+
 pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
-    let root_field = first_root_field(query)?;
+    let root_field = primary_root_field(query, &BTreeMap::new())?;
     Some(root_field.selection)
 }
 
 pub fn root_field_response_key(query: &str) -> Option<String> {
-    let root_field = first_root_field(query)?;
+    let root_field = primary_root_field(query, &BTreeMap::new())?;
     Some(root_field.response_key)
 }
 
@@ -213,12 +220,8 @@ pub fn variable_definition_info(
 }
 
 pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
-    let root_field = first_root_field(query)?;
+    let root_field = primary_root_field(query, &BTreeMap::new())?;
     nested_selected_field(&root_field.selection, path).map(|field| field.selection.clone())
-}
-
-fn first_root_field(query: &str) -> Option<RootFieldSelection> {
-    root_fields(query, &BTreeMap::new())?.into_iter().next()
 }
 
 fn selected_fields<'a>(

@@ -1,0 +1,34 @@
+{
+  "scenarioId": "price-list-create-catalog-wrong-gid-type",
+  "operationNames": ["priceListCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["top-level-errors-parity", "payload-shape", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-catalog-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+    "variablesCapturePath": "$.cases[8].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture proves priceListCreate with a wrong-resource catalogId GID returns a top-level RESOURCE_NOT_FOUND invalid-id error with data.priceListCreate null. Correctly typed absent MarketCatalog ids remain covered by price-list-create-catalog-does-not-exist.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-create-catalog-wrong-gid-type-errors",
+        "capturePath": "$.cases[8].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"]
+      },
+      {
+        "name": "price-list-create-catalog-wrong-gid-type-data",
+        "capturePath": "$.cases[8].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

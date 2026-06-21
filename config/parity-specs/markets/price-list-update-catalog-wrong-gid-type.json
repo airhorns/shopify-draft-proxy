@@ -1,0 +1,77 @@
+{
+  "scenarioId": "price-list-update-catalog-wrong-gid-type",
+  "operationNames": ["priceListCreate", "priceListUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["top-level-errors-parity", "payload-shape", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-catalog-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-catalog-validation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture proves priceListUpdate with a wrong-resource catalogId GID returns a top-level RESOURCE_NOT_FOUND invalid-id error with data.priceListUpdate null. Correctly typed absent MarketCatalog ids remain covered by price-list-update-catalog-does-not-exist.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-update-wrong-type-setup",
+        "capturePath": "$.cases[5].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[5].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "price-list-update-catalog-wrong-gid-type-errors",
+        "capturePath": "$.cases[9].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-update-wrong-type-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[9].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "price-list-update-catalog-wrong-gid-type-data",
+        "capturePath": "$.cases[9].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-update-wrong-type-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[9].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

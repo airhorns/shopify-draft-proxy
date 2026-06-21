@@ -1,0 +1,175 @@
+{
+  "scenarioId": "collection-update-ruleset-job-parity",
+  "operationNames": ["collectionCreate", "collectionUpdate", "collection"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-update-ruleset-job-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-create.graphql",
+    "variablesCapturePath": "$.customCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 evidence for collectionUpdate returning a selected async job for accepted smart ruleSet updates, keeping job null for plain custom title updates, rejecting ruleSet on a custom collection without changing the stored ruleSet, and rejecting empty ruleSet.rules. Replay uses public collectionCreate/setup and collectionUpdate requests only.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "custom-create",
+        "capturePath": "$.customCreate.response.data.collectionCreate",
+        "proxyPath": "$.data.collectionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local parity harness allocate collection identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "custom-title-update-job-null",
+        "capturePath": "$.successfulUpdate.response.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "custom-create",
+                "path": "$.data.collectionCreate.collection.id"
+              },
+              "title": {
+                "fromCapturePath": "$.successfulUpdate.variables.input.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.successfulUpdate.variables.input.handle"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.collectionUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The update target is the collection id allocated by each replay run."
+          }
+        ]
+      },
+      {
+        "name": "custom-ruleset-rejected",
+        "capturePath": "$.customRuleSetUpdate.response.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "custom-create",
+                "path": "$.data.collectionCreate.collection.id"
+              },
+              "ruleSet": {
+                "fromCapturePath": "$.customRuleSetUpdate.variables.input.ruleSet"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.collectionUpdate"
+      },
+      {
+        "name": "custom-ruleset-read-unchanged",
+        "capturePath": "$.postCustomRuleSetRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The downstream read targets the collection id allocated by each replay run."
+          }
+        ]
+      },
+      {
+        "name": "smart-create",
+        "capturePath": "$.smartCreate.response.data.collectionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-create.graphql",
+          "variablesCapturePath": "$.smartCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.collectionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local parity harness allocate collection identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "smart-ruleset-update-job",
+        "capturePath": "$.smartRuleSetUpdate.response.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "smart-create",
+                "path": "$.data.collectionCreate.collection.id"
+              },
+              "ruleSet": {
+                "fromCapturePath": "$.smartRuleSetUpdate.variables.input.ruleSet"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.collectionUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The update target is the collection id allocated by each replay run."
+          },
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Shopify and the local parity harness allocate async job identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "empty-rules-rejected",
+        "capturePath": "$.emptyRulesUpdate.response.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-ruleset-job-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "smart-create",
+                "path": "$.data.collectionCreate.collection.id"
+              },
+              "ruleSet": {
+                "fromCapturePath": "$.emptyRulesUpdate.variables.input.ruleSet"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.collectionUpdate"
+      }
+    ]
+  }
+}

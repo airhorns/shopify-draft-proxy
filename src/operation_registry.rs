@@ -270,6 +270,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("validation", CapabilityDomain::Functions),
     local_query("validations", CapabilityDomain::Functions),
     local_query("cartTransforms", CapabilityDomain::Functions),
+    local_query("fulfillmentConstraintRules", CapabilityDomain::Functions),
     local_query("shopifyFunction", CapabilityDomain::Functions),
     local_query("shopifyFunctions", CapabilityDomain::Functions),
     local_query("pointOfSaleDevice", CapabilityDomain::Payments),
@@ -624,6 +625,18 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("validationDelete", CapabilityDomain::Functions),
     local_mutation("cartTransformCreate", CapabilityDomain::Functions),
     local_mutation("cartTransformDelete", CapabilityDomain::Functions),
+    local_mutation(
+        "fulfillmentConstraintRuleCreate",
+        CapabilityDomain::Functions,
+    ),
+    local_mutation(
+        "fulfillmentConstraintRuleUpdate",
+        CapabilityDomain::Functions,
+    ),
+    local_mutation(
+        "fulfillmentConstraintRuleDelete",
+        CapabilityDomain::Functions,
+    ),
     local_mutation("taxAppConfigure", CapabilityDomain::Functions),
     local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
     local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),

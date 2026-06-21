@@ -433,6 +433,14 @@ impl DraftProxy {
         {
             return Some(selected_json(cart_transform, selection));
         }
+        if let Some(rule) = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(id)
+        {
+            return Some(selected_json(rule, selection));
+        }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
@@ -1857,7 +1865,9 @@ impl DraftProxy {
                                 | "priceListFixedPricesDelete"
                         )
                     }) {
-                        self.price_list_mutation_data(&fields, request, &query, &variables)
+                        return ok_json(
+                            self.price_list_mutation_data(&fields, request, &query, &variables),
+                        );
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),

@@ -1,3 +1,5 @@
+#[path = "graphql_routes/admin_app.rs"]
+mod admin_app;
 #[path = "graphql_routes/admin_app_shipping.rs"]
 mod admin_app_shipping;
 #[path = "graphql_routes/admin_graphql_webhooks.rs"]

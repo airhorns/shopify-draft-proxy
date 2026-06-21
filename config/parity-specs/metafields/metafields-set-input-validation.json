@@ -12,7 +12,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-695 live Shopify evidence for metafieldsSet namespace/key validation, protected write namespaces, primitive value validation, JSON/color/date-time validation, and product_reference GID validation. The capture creates one disposable product owner and deletes it during cleanup; all compared mutation branches are validation-only and should not create metafields.",
+  "notes": "Live Shopify evidence for metafieldsSet namespace/key validation, protected write namespaces, primitive and structured value validation, JSON/color/date/date-time validation, text/list validation, and product_reference existence validation. The capture creates one disposable product owner and deletes it during cleanup; all compared mutation branches are validation-only and should not create metafields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -61,7 +61,7 @@
             "path": "$",
             "ignore": true,
             "regrettable": true,
-            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace namespace probes in live capture, while HAR-695 requires the proxy to enforce the stricter internal Metafield model namespace character guardrail."
+            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace namespace probes in live capture, while the proxy enforces the stricter internal Metafield model namespace character guardrail."
           }
         ],
         "proxyRequest": {
@@ -79,7 +79,7 @@
             "path": "$",
             "ignore": true,
             "regrettable": true,
-            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace key probes in live capture, while HAR-695 requires the proxy to enforce the stricter internal Metafield model key character guardrail."
+            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace key probes in live capture, while the proxy enforces the stricter internal Metafield model key character guardrail."
           }
         ],
         "proxyRequest": {
@@ -196,6 +196,166 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
           "variablesCapturePath": "$.cases.invalidReference.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-number-decimal-userErrors",
+        "capturePath": "$.cases.invalidValueNumberDecimal.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueNumberDecimal.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-money-userErrors",
+        "capturePath": "$.cases.invalidValueMoney.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueMoney.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-url-userErrors",
+        "capturePath": "$.cases.invalidValueUrl.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueUrl.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-dimension-negative-userErrors",
+        "capturePath": "$.cases.invalidValueDimensionNegative.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueDimensionNegative.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-weight-unit-userErrors",
+        "capturePath": "$.cases.invalidValueWeightUnit.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueWeightUnit.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-volume-numeric-userErrors",
+        "capturePath": "$.cases.invalidValueVolumeNumeric.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueVolumeNumeric.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-rating-bounds-userErrors",
+        "capturePath": "$.cases.invalidValueRatingBounds.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueRatingBounds.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-date-userErrors",
+        "capturePath": "$.cases.invalidValueDate.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueDate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-link-scheme-userErrors",
+        "capturePath": "$.cases.invalidValueLinkScheme.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueLinkScheme.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-single-line-blank-userErrors",
+        "capturePath": "$.cases.invalidValueSingleLineBlank.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueSingleLineBlank.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-single-line-newline-userErrors",
+        "capturePath": "$.cases.invalidValueSingleLineNewline.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueSingleLineNewline.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-multi-line-blank-userErrors",
+        "capturePath": "$.cases.invalidValueMultiLineBlank.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueMultiLineBlank.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-list-number-integer-element-userErrors",
+        "capturePath": "$.cases.invalidValueListNumberIntegerElement.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueListNumberIntegerElement.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-list-text-length-userErrors",
+        "capturePath": "$.cases.invalidValueListTextLength.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueListTextLength.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-reference-missing-product-userErrors",
+        "capturePath": "$.cases.invalidReferenceMissingProduct.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidReferenceMissingProduct.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-list-product-reference-userErrors",
+        "capturePath": "$.cases.invalidValueListProductReference.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueListProductReference.request.variables",
           "apiVersion": "2025-01"
         }
       }
