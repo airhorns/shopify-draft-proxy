@@ -1650,6 +1650,309 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
 }
 
 #[test]
+fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({
+                "errors": [{ "message": "fulfillment constraint rule should not hit upstream" }]
+            }),
+        }
+    });
+
+    let create_query = r#"
+        mutation CreateFulfillmentConstraintRule {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING, LOCAL]
+            metafields: [{ namespace: "custom", key: "config", type: "json", value: "{\"mode\":\"local\"}" }]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType }
+              metafields(first: 5) { nodes { namespace key type value ownerType } }
+            }
+            userErrors { code field message }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(create_query, json!({})));
+    assert_eq!(create.status, 200);
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]["id"],
+        json!("gid://shopify/FulfillmentConstraintRule/1")
+    );
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]
+            ["deliveryMethodTypes"],
+        json!(["SHIPPING", "LOCAL"])
+    );
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]
+            ["function"],
+        json!({
+            "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
+            "handle": "fulfillment-constraint-local",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+        })
+    );
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]
+            ["metafields"]["nodes"][0]["ownerType"],
+        json!("FULFILLMENTCONSTRAINTRULE")
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["rootFields"],
+        json!(["fulfillmentConstraintRuleCreate"])
+    );
+    assert_eq!(
+        log["entries"][0]["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains("CreateFulfillmentConstraintRule"),
+        true
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentConstraintRules {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle apiType }
+            metafield(namespace: "custom", key: "config") { namespace key value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"][0],
+        json!({
+            "id": "gid://shopify/FulfillmentConstraintRule/1",
+            "deliveryMethodTypes": ["SHIPPING", "LOCAL"],
+            "function": {
+                "handle": "fulfillment-constraint-local",
+                "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+            },
+            "metafield": {
+                "namespace": "custom",
+                "key": "config",
+                "value": "{\"mode\":\"local\"}"
+            }
+        })
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentConstraintRuleNode($id: ID!) {
+          node(id: $id) {
+            ... on FulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { handle }
+            }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentConstraintRule/1" }),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        json!({
+            "id": "gid://shopify/FulfillmentConstraintRule/1",
+            "deliveryMethodTypes": ["SHIPPING", "LOCAL"],
+            "function": { "handle": "fulfillment-constraint-local" }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [PICK_UP]) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentConstraintRule/1" }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/1",
+                "deliveryMethodTypes": ["PICK_UP"],
+                "function": { "handle": "fulfillment-constraint-local" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentConstraintRule/1" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let empty_read = proxy.process_request(json_graphql_request(
+        r#"query ReadDeletedFulfillmentConstraintRules { fulfillmentConstraintRules { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty_read.body["data"]["fulfillmentConstraintRules"],
+        json!([])
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintRuleUserErrors {
+          missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          multiple: fulfillmentConstraintRuleCreate(
+            functionId: "gid://shopify/ShopifyFunction/fulfillment-constraint-local"
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          emptyDelivery: fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: []
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownFunction: fulfillmentConstraintRuleCreate(
+            functionHandle: "definitely-missing-fulfillment-constraint"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          wrongApi: fulfillmentConstraintRuleCreate(
+            functionHandle: "conformance-validation"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          deleteUnknown: fulfillmentConstraintRuleDelete(
+            id: "gid://shopify/FulfillmentConstraintRule/999999999999"
+          ) {
+            success
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "missing": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "MISSING_FUNCTION_IDENTIFIER",
+                    "field": ["functionHandle"],
+                    "message": "Either function_id or function_handle must be provided."
+                }]
+            },
+            "multiple": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
+                    "field": ["functionHandle"],
+                    "message": "Only one of function_id or function_handle can be provided, not both."
+                }]
+            },
+            "emptyDelivery": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "INPUT_INVALID",
+                    "field": ["deliveryMethodTypes"],
+                    "message": "Delivery method types cannot be empty."
+                }]
+            },
+            "unknownFunction": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionHandle"],
+                    "message": "Could not find function with handle: definitely-missing-fulfillment-constraint."
+                }]
+            },
+            "wrongApi": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_DOES_NOT_IMPLEMENT",
+                    "field": ["functionHandle"],
+                    "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.fulfillment-constraint-rule.run, cart.fulfillment-constraints.generate.run]."
+                }]
+            },
+            "deleteUnknown": {
+                "success": false,
+                "userErrors": [{
+                    "code": "NOT_FOUND",
+                    "field": ["id"],
+                    "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
+                }]
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleErrorsDoNotStage { fulfillmentConstraintRules { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
 fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_translations() {
     let mut proxy = snapshot_proxy();
     let title_digest = fallback_product_title_digest();

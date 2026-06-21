@@ -409,6 +409,7 @@ struct StagedState {
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
+    metafield_reference_ids: BTreeSet<String>,
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
@@ -462,6 +463,8 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -740,6 +743,7 @@ impl Default for StagedState {
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
+            metafield_reference_ids: BTreeSet::new(),
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
@@ -786,6 +790,8 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            function_fulfillment_constraint_rules: BTreeMap::new(),
+            function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
@@ -1688,6 +1694,7 @@ mod core;
 mod discounts;
 mod dispatch;
 mod localization_markets_catalogs;
+mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;

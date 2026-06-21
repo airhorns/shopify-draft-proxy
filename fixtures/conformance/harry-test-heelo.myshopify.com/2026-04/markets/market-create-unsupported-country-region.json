@@ -1,14 +1,14 @@
 {
-  "capturedAt": "2026-05-07T10:49:38.634Z",
+  "capturedAt": "2026-06-21T18:08:09.102Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
     {
       "name": "marketCreateUnsupportedCountryRegion",
-      "query": "#graphql\nmutation MarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "query": "mutation MarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Unsupported Region 20260507104904",
+          "name": "Draft Proxy Unsupported Region CU 20260621180737",
           "regions": [
             {
               "countryCode": "CU"
@@ -38,6 +38,125 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreateUnsupportedCountryRegionNonCu",
+      "query": "mutation MarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Unsupported Region KP 20260621180737",
+          "regions": [
+            {
+              "countryCode": "KP"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "regions", "0", "countryCode"],
+                  "message": "KP is not a supported country or region code.",
+                  "code": "UNSUPPORTED_COUNTRY_REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketsReadAfterUnsupportedCountryRegionNonCu",
+      "query": "#graphql\nquery MarketsReadAfterUnsupportedCountryRegion($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "enabled": true
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "enabled": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5Nzk5NzY4NTA0MiwibGFzdF92YWx1ZSI6IkRyYWZ0IFByb3h5IEN1cnJlbmN5IFNldHRpbmdzIDIwMjYwNTA3MTY0MzUyIE1hbnVhbCBSYXRlIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -4127,7 +4246,7 @@
         "outcome": "error",
         "userErrors": [],
         "errorMessages": [
-          "Internal error. Looks like something went wrong on our end.\nRequest ID: 9f1c19d6-a472-4dbc-9d23-4bc646fb0799-1778150978 (include this in support requests)."
+          "Internal error. Looks like something went wrong on our end.\nRequest ID: 375ee455-6a58-4d8c-825d-11d87959e0f2-1782065288 (include this in support requests)."
         ]
       }
     ]

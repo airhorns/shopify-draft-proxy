@@ -1,0 +1,141 @@
+{
+  "scenarioId": "product-duplicate-status-inheritance-and-new-status",
+  "operationNames": ["productCreate", "productDuplicate", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-status-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productDuplicate-status-source-create.graphql",
+    "variablesCapturePath": "$.activeSourceCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured real Shopify productDuplicate status behavior for an ACTIVE source without newStatus and a DRAFT source duplicated with newStatus: ACTIVE. Replay earns source products through public productCreate setup mutations, then proves mutation payload and downstream product(id:) read-after-write status without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "active-source-create",
+        "capturePath": "$.activeSourceCreate.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a local synthetic product GID for the public productCreate setup; Shopify returns the dev-store product GID."
+          }
+        ]
+      },
+      {
+        "name": "active-no-newStatus-mutation",
+        "capturePath": "$.activeNoStatusDuplicate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-status-no-newStatus.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "newTitle": {
+              "fromCapturePath": "$.activeNoStatusDuplicate.variables.newTitle"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productDuplicate.newProduct.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a local synthetic product GID for the staged duplicate; Shopify returns the dev-store duplicate product GID."
+          }
+        ]
+      },
+      {
+        "name": "active-no-newStatus-downstream-read",
+        "capturePath": "$.activeNoStatusRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-status-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "active-no-newStatus-mutation",
+              "path": "$.data.productDuplicate.newProduct.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads back the locally generated duplicate product GID while Shopify reads back the live duplicate product GID."
+          }
+        ]
+      },
+      {
+        "name": "draft-source-create",
+        "capturePath": "$.draftSourceCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-status-source-create.graphql",
+          "variablesCapturePath": "$.draftSourceCreate.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a local synthetic product GID for the public productCreate setup; Shopify returns the dev-store product GID."
+          }
+        ]
+      },
+      {
+        "name": "draft-newStatus-override-mutation",
+        "capturePath": "$.draftOverrideDuplicate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-status-newStatus.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "draft-source-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "newTitle": {
+              "fromCapturePath": "$.draftOverrideDuplicate.variables.newTitle"
+            },
+            "newStatus": {
+              "fromCapturePath": "$.draftOverrideDuplicate.variables.newStatus"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productDuplicate.newProduct.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a local synthetic product GID for the staged duplicate; Shopify returns the dev-store duplicate product GID."
+          }
+        ]
+      },
+      {
+        "name": "draft-newStatus-override-downstream-read",
+        "capturePath": "$.draftOverrideRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-status-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-newStatus-override-mutation",
+              "path": "$.data.productDuplicate.newProduct.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads back the locally generated duplicate product GID while Shopify reads back the live duplicate product GID."
+          }
+        ]
+      }
+    ]
+  }
+}

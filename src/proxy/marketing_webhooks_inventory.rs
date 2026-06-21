@@ -786,6 +786,23 @@ impl DraftProxy {
                 .filter(Value::is_array)
                 .unwrap_or_else(|| json!([]))
         };
+        let metafields = if webhook_input.contains_key("metafields") {
+            json!(resolved_object_list_field(&webhook_input, "metafields")
+                .into_iter()
+                .filter_map(|identifier| {
+                    Some(json!({
+                        "namespace": resolved_string_field(&identifier, "namespace")?,
+                        "key": resolved_string_field(&identifier, "key")?
+                    }))
+                })
+                .collect::<Vec<Value>>())
+        } else {
+            existing
+                .as_ref()
+                .map(|record| record["metafields"].clone())
+                .filter(Value::is_array)
+                .unwrap_or_else(|| json!([]))
+        };
         let filter = match webhook_input.get("filter") {
             Some(ResolvedValue::String(value)) => json!(value),
             Some(ResolvedValue::Null) => Value::Null,
@@ -843,6 +860,7 @@ impl DraftProxy {
             "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
             "metafieldNamespaces": metafield_namespaces,
+            "metafields": metafields,
             "filter": filter,
             "createdAt": created_at,
             "updatedAt": updated_at,

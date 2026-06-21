@@ -1,3 +1,4 @@
+use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
 use sha2::{Digest, Sha256};
 
@@ -86,6 +87,15 @@ impl DraftProxy {
                 "validationDelete" => self.function_validation_delete_payload(field),
                 "cartTransformCreate" => self.function_cart_transform_create_payload(field),
                 "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
+                "fulfillmentConstraintRuleCreate" => {
+                    self.function_fulfillment_constraint_rule_create_payload(field)
+                }
+                "fulfillmentConstraintRuleUpdate" => {
+                    self.function_fulfillment_constraint_rule_update_payload(field)
+                }
+                "fulfillmentConstraintRuleDelete" => {
+                    self.function_fulfillment_constraint_rule_delete_payload(field)
+                }
                 "taxAppConfigure" => self.function_tax_app_configure_payload(field),
                 _ => Value::Null,
             };
@@ -134,12 +144,34 @@ impl DraftProxy {
                         })
                         .collect(),
                 ),
+                "fulfillmentConstraintRules" => Value::Array(
+                    self.store
+                        .staged
+                        .function_fulfillment_constraint_rule_order
+                        .iter()
+                        .filter_map(|id| {
+                            self.store
+                                .staged
+                                .function_fulfillment_constraint_rules
+                                .get(id)
+                                .map(|record| {
+                                    fulfillment_constraint_rule_record_for_selection(
+                                        record,
+                                        &field.selection,
+                                    )
+                                })
+                        })
+                        .map(|record| selected_json(&record, &field.selection))
+                        .collect(),
+                ),
                 "shopifyFunctions" => {
                     let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
-                    let api_type = if api_type == "CART_TRANSFORM" {
-                        "CART_TRANSFORM"
-                    } else {
-                        "VALIDATION"
+                    let api_type = match api_type.as_str() {
+                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
+                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
+                            "FULFILLMENT_CONSTRAINT_RULE"
+                        }
+                        _ => "VALIDATION",
                     };
                     json!({ "nodes": self.function_catalog_read_nodes(api_type) })
                 }
@@ -153,6 +185,8 @@ impl DraftProxy {
             };
             if value.is_null() {
                 data.insert(field.response_key.clone(), Value::Null);
+            } else if field.name == "fulfillmentConstraintRules" {
+                data.insert(field.response_key.clone(), value);
             } else {
                 data.insert(
                     field.response_key.clone(),
@@ -178,6 +212,18 @@ impl DraftProxy {
                     .function_cart_transform_order
                     .iter()
                     .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
+            )
+            .chain(
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rule_order
+                    .iter()
+                    .filter_map(|id| {
+                        self.store
+                            .staged
+                            .function_fulfillment_constraint_rules
+                            .get(id)
+                    }),
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
@@ -208,6 +254,16 @@ impl DraftProxy {
             || !self.store.staged.function_validation_order.is_empty()
             || !self.store.staged.function_cart_transforms.is_empty()
             || !self.store.staged.function_cart_transform_order.is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .is_empty()
     }
 
     pub(in crate::proxy) fn localization_query_data(
@@ -686,7 +742,7 @@ impl DraftProxy {
         if let Some((index, country_code)) = region_codes
             .iter()
             .enumerate()
-            .find(|(_, country_code)| country_code.as_str() == "CU")
+            .find(|(_, country_code)| is_unsupported_country_region(country_code))
         {
             return selected_json(
                 &json!({

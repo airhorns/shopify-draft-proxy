@@ -1293,6 +1293,34 @@ impl DraftProxy {
         ) {
             return MutationOutcome::response(response);
         }
+        if input.contains_key("ruleSet") {
+            if collection_rule_set_rules_empty(&input) {
+                return MutationOutcome::response(self.collection_payload_response(
+                    query,
+                    variables,
+                    "collectionUpdate",
+                    None,
+                    None,
+                    vec![collection_user_error(
+                        ["ruleSet", "rules"],
+                        "Rules cannot be an empty set",
+                    )],
+                ));
+            }
+            if !collection_is_smart(&existing) {
+                return MutationOutcome::response(self.collection_payload_response(
+                    query,
+                    variables,
+                    "collectionUpdate",
+                    None,
+                    None,
+                    vec![collection_user_error(
+                        ["id"],
+                        "Cannot update rule set of a custom collection",
+                    )],
+                ));
+            }
+        }
 
         let mut updated = existing;
         if let Some(object) = updated.as_object_mut() {
@@ -1332,6 +1360,20 @@ impl DraftProxy {
         }
         self.store.stage_collection(updated.clone());
         self.refresh_collection_summary_on_products(&id);
+        let job = input.contains_key("ruleSet").then(|| {
+            let staged_job = self.stage_collection_job();
+            let job_id = staged_job
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let payload_job = collection_inline_job(&staged_job);
+            (payload_job, job_id)
+        });
+        let resource_ids = job
+            .as_ref()
+            .map(|(_, job_id)| vec![id.clone(), job_id.clone()])
+            .unwrap_or_else(|| vec![id.clone()]);
 
         MutationOutcome::staged(
             self.collection_payload_response(
@@ -1339,10 +1381,10 @@ impl DraftProxy {
                 variables,
                 "collectionUpdate",
                 Some(&updated),
-                None,
+                job.as_ref().map(|(payload_job, _)| payload_job),
                 Vec::new(),
             ),
-            LogDraft::staged("collectionUpdate", "products", vec![id]),
+            LogDraft::staged("collectionUpdate", "products", resource_ids),
         )
     }
 
@@ -2376,6 +2418,12 @@ fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
             }))
             .collect::<Vec<_>>()
     })
+}
+
+fn collection_rule_set_rules_empty(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_field(input, "ruleSet")
+        .map(|rule_set| resolved_object_list_field(&rule_set, "rules").is_empty())
+        .unwrap_or(false)
 }
 
 fn collection_is_smart(collection: &Value) -> bool {

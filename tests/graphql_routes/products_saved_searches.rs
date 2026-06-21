@@ -6311,3 +6311,210 @@ fn collection_validations_and_reorder_are_store_backed() {
         json!("MAX_INPUT_SIZE_EXCEEDED")
     );
 }
+
+#[test]
+fn collection_update_rejects_custom_rule_set_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Manual Collection" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let state_after_create = proxy.get_state_snapshot();
+    let log_len_after_create = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCustomCollectionRules($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id ruleSet { appliedDisjunctively rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"],
+        json!({
+            "collection": null,
+            "job": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Cannot update rule set of a custom collection"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_after_create
+    );
+}
+
+#[test]
+fn collection_update_rejects_empty_rule_set_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSmartCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let state_after_create = proxy.get_state_snapshot();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateEmptyRules($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": []
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"],
+        json!({
+            "collection": null,
+            "job": null,
+            "userErrors": [{
+                "field": ["ruleSet", "rules"],
+                "message": "Rules cannot be an empty set"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+}
+
+#[test]
+fn collection_update_returns_selected_job_on_success() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSmartCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Shoes" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCollectionWithJob($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title ruleSet { rules { column relation condition } } }
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": collection_id,
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "Boots" }]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["collection"]["ruleSet"]["rules"][0]["condition"],
+        json!("Boots")
+    );
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["userErrors"],
+        json!([])
+    );
+    let job = &update.body["data"]["collectionUpdate"]["job"];
+    assert!(job["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Job/")));
+    assert_eq!(job["done"], json!(false));
+}

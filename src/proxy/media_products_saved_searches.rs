@@ -1530,7 +1530,11 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
-        let mut user_errors = metafields_set_input_errors(&inputs);
+        if inputs.len() <= 25 {
+            self.hydrate_metafield_reference_ids(request, metafields_set_reference_values(&inputs));
+        }
+        let mut user_errors =
+            metafields_set_input_errors(&inputs, |id| self.metafield_reference_exists(id));
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
@@ -1847,6 +1851,144 @@ impl DraftProxy {
             for node in nodes {
                 self.stage_observed_owner_metafield_node(node);
             }
+        }
+    }
+
+    fn hydrate_metafield_reference_ids(&mut self, request: &Request, ids: Vec<String>) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut ids = ids
+            .into_iter()
+            .filter(|id| !id.is_empty() && !self.metafield_reference_exists(id))
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids.dedup();
+        if ids.is_empty() {
+            return;
+        }
+
+        let mut product_domain_ids = Vec::new();
+        let mut generic_ids = Vec::new();
+        for id in ids {
+            match shopify_gid_resource_type(&id) {
+                Some("Product" | "ProductVariant" | "Collection") => product_domain_ids.push(id),
+                _ => generic_ids.push(id),
+            }
+        }
+        if !product_domain_ids.is_empty() {
+            self.hydrate_product_nodes_for_observation_with_request(request, product_domain_ids);
+        }
+        if generic_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": "query MetafieldReferenceHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { id __typename } }",
+                "operationName": "MetafieldReferenceHydrateNodes",
+                "variables": { "ids": generic_ids },
+            }),
+        );
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+            for node in nodes {
+                self.stage_metafield_reference_node(node);
+            }
+        }
+    }
+
+    fn stage_metafield_reference_node(&mut self, node: &Value) {
+        let Some(id) = node
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.store.staged.metafield_reference_ids.insert(id.clone());
+        match shopify_gid_resource_type(&id) {
+            Some("Product") => self.store.stage_observed_product_json(node),
+            Some("ProductVariant") => {
+                if let Some(variant) = product_variant_state_from_observed_json(node) {
+                    self.store.stage_product_variant(variant);
+                }
+            }
+            Some("Collection") => {
+                self.store
+                    .staged
+                    .collections
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Customer") => {
+                self.store
+                    .staged
+                    .customers
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Order") => {
+                self.store
+                    .staged
+                    .orders
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Company") => {
+                self.store
+                    .staged
+                    .b2b_companies
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Metaobject") => {
+                if !self.store.staged.deleted_metaobject_ids.contains(&id) {
+                    self.store
+                        .staged
+                        .metaobjects
+                        .entry(id)
+                        .or_insert_with(|| node.clone());
+                }
+            }
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
+                if let Some(record) = media_file_record_from_node(node) {
+                    self.store.staged.media_files.entry(id).or_insert(record);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn metafield_reference_exists(&self, id: &str) -> bool {
+        if self.store.staged.metafield_reference_ids.contains(id) {
+            return true;
+        }
+        match shopify_gid_resource_type(id) {
+            Some("Product") => self.store.product_by_id(id).is_some(),
+            Some("ProductVariant") => self.store.product_variant_by_id(id).is_some(),
+            Some("Collection") => self.store.collection_by_id(id).is_some(),
+            Some("Customer") => {
+                self.store.staged.customers.contains_key(id)
+                    && !self.store.staged.deleted_customer_ids.contains(id)
+            }
+            Some("Order") => {
+                self.store.staged.orders.contains_key(id)
+                    && !self.store.staged.deleted_order_ids.contains(id)
+            }
+            Some("Company") => self.store.staged.b2b_companies.contains_key(id),
+            Some("Metaobject") => {
+                self.store.staged.metaobjects.contains_key(id)
+                    && !self.store.staged.deleted_metaobject_ids.contains(id)
+            }
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
+                self.store.staged.media_files.contains_key(id)
+                    && !self.store.staged.deleted_media_file_ids.contains(id)
+            }
+            _ => false,
         }
     }
 
