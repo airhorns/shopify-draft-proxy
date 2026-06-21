@@ -288,17 +288,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY,
                 "operationName": "BulkOperationRunQueryProxyFallback",
                 "variables": { "query": query_text }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }
@@ -528,18 +525,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "operationName": "BulkOperationHydrate",
                 "query": BULK_OPERATION_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status != 200 {
             return;
         }
@@ -1226,18 +1219,14 @@ impl DraftProxy {
         if missing_ids.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": MEDIA_FILE_UPDATE_HYDRATE_QUERY,
                 "operationName": "MediaFileUpdateHydrate",
                 "variables": { "fileIds": missing_ids },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -1277,18 +1266,14 @@ impl DraftProxy {
             if product_id.is_empty() || self.store.product_by_id(&product_id).is_some() {
                 continue;
             }
-            let hydrate_request = Request {
-                method: "POST".to_string(),
-                path: request.path.clone(),
-                headers: request.headers.clone(),
-                body: serde_json::to_string(&json!({
+            let response = self.upstream_post(
+                request,
+                json!({
                     "query": MEDIA_PRODUCT_HYDRATE_QUERY,
                     "operationName": "MediaProductHydrate",
                     "variables": { "id": product_id },
-                }))
-                .unwrap_or_default(),
-            };
-            let response = (self.upstream_transport)(hydrate_request);
+                }),
+            );
             if response.status >= 400 {
                 continue;
             }
@@ -1319,18 +1304,14 @@ impl DraftProxy {
         if missing.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": MEDIA_FILE_REFERENCES_HYDRATE_QUERY,
                 "operationName": "MediaFileReferencesHydrate",
                 "variables": { "fileIds": missing },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -1851,18 +1832,14 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": OWNER_METAFIELD_HYDRATE_QUERY,
                 "operationName": "OwnerMetafieldsHydrateNodes",
                 "variables": { "ids": ids },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -5116,16 +5093,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
                 "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5228,16 +5202,13 @@ impl DraftProxy {
             "DraftOrder" => (TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY, "draftOrder"),
             _ => return None,
         };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5720,16 +5691,13 @@ impl DraftProxy {
         if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
                 "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }

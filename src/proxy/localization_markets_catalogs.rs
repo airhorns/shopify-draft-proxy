@@ -1819,15 +1819,18 @@ impl DraftProxy {
         } else {
             return;
         };
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
+        self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
+    }
+
+    fn run_markets_preflight(
+        &mut self,
+        request: &Request,
+        body: Value,
+        stage: impl FnOnce(&mut Self, &Value),
+    ) {
+        let response = self.upstream_post(request, body);
         if response.status < 400 {
-            self.stage_fixed_price_preflight(&response.body);
+            stage(self, &response.body);
         }
     }
 
@@ -2219,16 +2222,7 @@ impl DraftProxy {
             "variables": resolved_variables_json(variables),
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
-        if response.status < 400 {
-            self.stage_web_presence_preflight(&response.body);
-        }
+        self.run_markets_preflight(request, body, Self::stage_web_presence_preflight);
     }
 
     /// Forward a market-localization mutation preflight on a cold store so the
@@ -2256,16 +2250,7 @@ impl DraftProxy {
             "variables": resolved_variables_json(variables),
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        let preflight_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: body.to_string(),
-        };
-        let response = (self.upstream_transport)(preflight_request);
-        if response.status < 400 {
-            self.hydrate_markets_from_upstream(&response.body);
-        }
+        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
     }
 
     /// Stage the baseline `webPresences` a preflight returns. Records insert only
@@ -3148,17 +3133,14 @@ impl DraftProxy {
         if first == 0 {
             return Vec::new();
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": "query LocalizationMarketsHydrate($first: Int!) { markets(first: $first) { nodes { id name handle status type } } }",
                 "operationName": "LocalizationMarketsHydrate",
                 "variables": { "first": first }
-            }))
-            .unwrap_or_default(),
-        });
+            }),
+        );
         self.stage_observed_localization_source_data(&response.body["data"]);
         if response.status >= 400 {
             return self.hydrate_localization_markets_from_original_request(field, request);

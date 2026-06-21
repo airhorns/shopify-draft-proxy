@@ -6108,17 +6108,14 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_HYDRATE_QUERY,
                 "operationName": "CustomerHydrate",
                 "variables": { "id": id },
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6151,17 +6148,14 @@ impl DraftProxy {
             return None;
         }
         let query_value = format!("{field}:{value}");
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_DUPLICATE_HYDRATE_QUERY,
                 "operationName": "CustomerDuplicateHydrate",
                 "variables": { "query": query_value },
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6334,17 +6328,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_COUNT_HYDRATE_QUERY,
                 "operationName": "CustomerCountHydrate",
                 "variables": {},
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }

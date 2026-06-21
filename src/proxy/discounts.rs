@@ -810,17 +810,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let lookup = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DISCOUNT_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(lookup);
+            }),
+        );
         if response.status != 200 {
             return None;
         }
@@ -890,17 +886,13 @@ impl DraftProxy {
     /// cannot be resolved (no upstream / no recorded call) we assume the function
     /// is available so non-revocation scenarios activate normally.
     fn app_discount_function_available(&self, request: &Request, handle: &str) -> bool {
-        let lookup = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHOPIFY_FUNCTION_AVAILABILITY_QUERY,
                 "variables": { "handle": handle }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(lookup);
+            }),
+        );
         if response.status != 200 {
             return true;
         }
@@ -1515,17 +1507,13 @@ impl DraftProxy {
     }
 
     fn fetch_shopify_function_by_id(&self, request: &Request, id: &str) -> Option<Value> {
-        let lookup = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHOPIFY_FUNCTION_BY_ID_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(lookup);
+            }),
+        );
         if response.status != 200 {
             return None;
         }
@@ -1534,17 +1522,13 @@ impl DraftProxy {
     }
 
     fn fetch_shopify_function_by_handle(&self, request: &Request, handle: &str) -> Option<Value> {
-        let lookup = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHOPIFY_FUNCTION_BY_HANDLE_QUERY,
                 "variables": { "handle": handle }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(lookup);
+            }),
+        );
         if response.status != 200 {
             return None;
         }
@@ -1576,17 +1560,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
-        let lookup = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHOP_SUBSCRIPTION_CAPABILITY_QUERY,
                 "variables": {}
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(lookup);
+            }),
+        );
         if response.status != 200 {
             return false;
         }

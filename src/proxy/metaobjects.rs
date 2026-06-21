@@ -2293,17 +2293,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
             return None;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
                 "variables": {"id": id}
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         let record = response.body["data"]["metaobject"].clone();
         if !record.is_object() {
             return None;
@@ -2327,17 +2323,13 @@ impl DraftProxy {
         {
             return None;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
                 "variables": {"type": meta_type, "handle": meta_handle}
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         let mut record = response.body["data"]["metaobjectByHandle"].clone();
         if !record.is_object() {
             return None;
@@ -2461,17 +2453,13 @@ impl DraftProxy {
     }
   }
 ";
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "variables": {"type": meta_type}
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if let Some(definition) = response.body["data"]
             .get("definition")
             .or_else(|| response.body["data"].get("metaobjectDefinitionByType"))
@@ -3686,17 +3674,11 @@ impl DraftProxy {
             return None;
         }
         let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
-        let body = serde_json::to_string(&json!({
+        let body = json!({
             "query": query,
             "variables": {"type": meta_type}
-        }))
-        .ok()?;
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
         });
+        let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
             return None;
         }
