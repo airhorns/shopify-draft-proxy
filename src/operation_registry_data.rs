@@ -1444,7 +1444,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "customerGenerateAccountActivationUrl",
                 "CustomerGenerateAccountActivationUrl",
             ],
-            &["tests/graphql_routes.rs"],
+            &[],
         ),
         registry_entry(
             "customerSendAccountInviteEmail",
@@ -1456,7 +1456,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "customerSendAccountInviteEmail",
                 "CustomerSendAccountInviteEmail",
             ],
-            &["tests/graphql_routes.rs"],
+            &[],
         ),
         registry_entry(
             "storeCreditAccountCredit",

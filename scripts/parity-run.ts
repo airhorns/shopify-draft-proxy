@@ -200,6 +200,9 @@ function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
 function deletePathParts(cursor: unknown, parts: string[]): void {
   if (parts.length === 0 || cursor === undefined || cursor === null) return;
   const [head, ...rest] = parts;
+  // parts.length !== 0 is guaranteed above, so head is always defined; this guard
+  // only narrows `string | undefined` to `string` for the index accesses below.
+  if (head === undefined) return;
   if (head === '*') {
     // Wildcard array segment: recurse into every element.
     if (Array.isArray(cursor)) for (const item of cursor) deletePathParts(item, rest);
