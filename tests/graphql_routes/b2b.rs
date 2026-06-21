@@ -1925,6 +1925,362 @@ fn b2b_location_delete_bulk_delete_and_indexed_errors() {
 }
 
 #[test]
+fn b2b_location_delete_rejects_failed_deletable_check_blockers() {
+    let mut proxy = snapshot_proxy();
+
+    let only_location_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BOnlyLocationDeleteCompany($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              locations(first: 5) { nodes { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "company": { "name": "Only Location Blocked" } } }),
+    ));
+    let only_company_id = only_location_company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .expect("only location company id")
+        .to_string();
+    let only_location_id = only_location_company.body["data"]["companyCreate"]["company"]
+        ["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("only location id")
+        .to_string();
+
+    let only_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BOnlyLocationDelete($id: ID!) {
+          companyLocationDelete(companyLocationId: $id) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": only_location_id }),
+    ));
+    assert_eq!(
+        only_delete.body["data"]["companyLocationDelete"],
+        json!({
+            "deletedCompanyLocationId": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "Failed to delete the company location.",
+                "code": "FAILED_TO_DELETE"
+            }]
+        })
+    );
+
+    let draft_company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let draft_location_id = create_b2b_location(&mut proxy, &draft_company_id, "Draft Blocked");
+    let draft_company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BDraftLocationDeleteSetup($id: ID!) {
+          company(id: $id) {
+            contacts(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": draft_company_id }),
+    ));
+    let draft_contact_id = draft_company.body["data"]["company"]["contacts"]["nodes"][0]["id"]
+        .as_str()
+        .expect("draft contact id")
+        .to_string();
+    let draft_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDraftLocationDeleteBlock($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "purchasingEntity": {
+                    "purchasingCompany": {
+                        "companyId": draft_company_id,
+                        "companyContactId": draft_contact_id,
+                        "companyLocationId": draft_location_id
+                    }
+                },
+                "email": "b2b-location-draft-block@example.com",
+                "lineItems": [{
+                    "title": "Draft blocker",
+                    "quantity": 1,
+                    "originalUnitPrice": "1.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        draft_order.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDraftLocationDelete($id: ID!) {
+          companyLocationDelete(companyLocationId: $id) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": draft_location_id }),
+    ));
+    assert_eq!(
+        draft_delete.body["data"]["companyLocationDelete"]["userErrors"][0]["code"],
+        json!("FAILED_TO_DELETE")
+    );
+
+    let credit_company_id = create_b2b_company(&mut proxy, "Store Credit Blocked");
+    let credit_location_id = create_b2b_location(&mut proxy, &credit_company_id, "Credit Blocked");
+    let credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "5.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction { account { id balance { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": credit_location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    let credit_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCreditLocationDelete($id: ID!) {
+          companyLocationDelete(companyLocationId: $id) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": credit_location_id }),
+    ));
+    assert_eq!(
+        credit_delete.body["data"]["companyLocationDelete"]["userErrors"][0]["code"],
+        json!("FAILED_TO_DELETE")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BBlockedLocationsRead($onlyCompanyId: ID!, $onlyLocationId: ID!, $draftLocationId: ID!, $creditLocationId: ID!) {
+          company(id: $onlyCompanyId) { locations(first: 5) { nodes { id } } }
+          onlyLocation: companyLocation(id: $onlyLocationId) { id }
+          draftLocation: companyLocation(id: $draftLocationId) { id }
+          creditLocation: companyLocation(id: $creditLocationId) { id }
+        }
+        "#,
+        json!({
+            "onlyCompanyId": only_company_id,
+            "onlyLocationId": only_location_id,
+            "draftLocationId": draft_location_id,
+            "creditLocationId": credit_location_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["company"]["locations"]["nodes"][0]["id"],
+        json!(only_location_id)
+    );
+    assert_eq!(
+        read.body["data"]["onlyLocation"]["id"],
+        json!(only_location_id)
+    );
+    assert_eq!(
+        read.body["data"]["draftLocation"]["id"],
+        json!(draft_location_id)
+    );
+    assert_eq!(
+        read.body["data"]["creditLocation"]["id"],
+        json!(credit_location_id)
+    );
+}
+
+#[test]
+fn b2b_locations_delete_preserves_partial_success_for_blocked_locations() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Bulk Location Delete");
+    let blocked_location_id = create_b2b_location(&mut proxy, &company_id, "Blocked Credit");
+    let deleted_location_id = create_b2b_location(&mut proxy, &company_id, "Deleted OK");
+    let unknown_location_id = "gid://shopify/CompanyLocation/999999999999999";
+
+    let credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBulkLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "7.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction { account { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": blocked_location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+
+    let bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLocationsDeletePartial($ids: [ID!]!) {
+          companyLocationsDelete(companyLocationIds: $ids) {
+            deletedCompanyLocationIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ids": [blocked_location_id, deleted_location_id, unknown_location_id] }),
+    ));
+    let blocked_location_tail = blocked_location_id
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .split('?')
+        .next()
+        .unwrap_or_default();
+    assert_eq!(
+        bulk.body["data"]["companyLocationsDelete"],
+        json!({
+            "deletedCompanyLocationIds": [deleted_location_id],
+            "userErrors": [
+                {
+                    "field": ["companyLocationIds", "0"],
+                    "message": format!("Failed to delete CompanyLocation {blocked_location_tail}: CompanyLocation has non-zero store credit balance"),
+                    "code": "INTERNAL_ERROR"
+                },
+                {
+                    "field": ["companyLocationIds", "2"],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }
+            ]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLocationsDeletePartialRead($blockedId: ID!, $deletedId: ID!) {
+          blocked: companyLocation(id: $blockedId) { id }
+          deleted: companyLocation(id: $deletedId) { id }
+        }
+        "#,
+        json!({ "blockedId": blocked_location_id, "deletedId": deleted_location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["blocked"]["id"],
+        json!(blocked_location_id)
+    );
+    assert_eq!(read.body["data"]["deleted"], Value::Null);
+}
+
+#[test]
+fn b2b_location_delete_success_cascades_role_assignments_and_addresses() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let location_id = create_b2b_location_with_shared_address(&mut proxy, &company_id);
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLocationDeleteCascadeSetup($id: ID!) {
+          company(id: $id) {
+            contacts(first: 5) { nodes { id } }
+            contactRoles(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    let contact_id = company.body["data"]["company"]["contacts"]["nodes"][0]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let role_id = company.body["data"]["company"]["contactRoles"]["nodes"][0]["id"]
+        .as_str()
+        .expect("role id")
+        .to_string();
+
+    let assign = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLocationDeleteCascadeAssignRole($companyContactId: ID!, $companyContactRoleId: ID!, $companyLocationId: ID!) {
+          companyContactAssignRole(
+            companyContactId: $companyContactId
+            companyContactRoleId: $companyContactRoleId
+            companyLocationId: $companyLocationId
+          ) {
+            companyContactRoleAssignment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "companyContactRoleId": role_id,
+            "companyLocationId": location_id
+        }),
+    ));
+    assert_eq!(
+        assign.body["data"]["companyContactAssignRole"]["userErrors"],
+        json!([])
+    );
+    let assignment_id = assign.body["data"]["companyContactAssignRole"]
+        ["companyContactRoleAssignment"]["id"]
+        .as_str()
+        .expect("assignment id")
+        .to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLocationDeleteCascade($id: ID!) {
+          companyLocationDelete(companyLocationId: $id) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["companyLocationDelete"],
+        json!({
+            "deletedCompanyLocationId": location_id,
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLocationDeleteCascadeRead($companyId: ID!, $contactId: ID!, $locationId: ID!) {
+          company(id: $companyId) { locations(first: 5) { nodes { id } } }
+          companyContact(id: $contactId) { roleAssignments(first: 5) { nodes { id } } }
+          companyLocation(id: $locationId) { id shippingAddress { id } billingAddress { id } }
+        }
+        "#,
+        json!({ "companyId": company_id, "contactId": contact_id, "locationId": location_id }),
+    ));
+    let company_location_ids = read.body["data"]["company"]["locations"]["nodes"]
+        .as_array()
+        .expect("company location nodes");
+    assert!(!company_location_ids
+        .iter()
+        .any(|location| location["id"] == json!(location_id)));
+    let contact_assignment_ids = read.body["data"]["companyContact"]["roleAssignments"]["nodes"]
+        .as_array()
+        .expect("contact assignment nodes");
+    assert!(!contact_assignment_ids
+        .iter()
+        .any(|assignment| assignment["id"] == json!(assignment_id)));
+    assert_eq!(read.body["data"]["companyLocation"], Value::Null);
+}
+
+#[test]
 fn b2b_staff_assign_remove_validates_per_index_dedups_and_caps() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company(&mut proxy, "Staff Co");

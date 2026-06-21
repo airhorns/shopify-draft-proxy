@@ -4,6 +4,26 @@ use super::*;
 /// `(firstName, lastName, addressesV2.nodes, defaultAddress.id)`.
 type CustomerAddressContext = (Option<String>, Option<String>, Vec<Value>, Option<String>);
 
+enum B2bCompanyLocationDeleteBlocker {
+    OnlyLocation,
+    Order,
+    DraftOrder,
+    StoreCredit,
+}
+
+impl B2bCompanyLocationDeleteBlocker {
+    fn bulk_message(&self, location_id: &str) -> String {
+        let location_tail = resource_id_tail(location_id);
+        let reason = match self {
+            Self::OnlyLocation => "CompanyLocation is the only location for the company",
+            Self::Order => "CompanyLocation has orders",
+            Self::DraftOrder => "CompanyLocation has draft orders",
+            Self::StoreCredit => "CompanyLocation has non-zero store credit balance",
+        };
+        format!("Failed to delete CompanyLocation {location_tail}: {reason}")
+    }
+}
+
 const CUSTOMER_HYDRATE_QUERY: &str = r#"
 query CustomerHydrate($id: ID!) {
   customer(id: $id) {
@@ -1801,13 +1821,7 @@ impl DraftProxy {
             || self
                 .b2b_company_location_ids(company_id)
                 .iter()
-                .any(|location_id| {
-                    self.store
-                        .staged
-                        .b2b_locations
-                        .get(location_id)
-                        .is_some_and(b2b_location_has_store_credit_balance)
-                })
+                .any(|location_id| self.b2b_location_has_store_credit_balance(location_id))
     }
 
     /// Every staged location id that belongs to a company, whether tracked via the
@@ -1866,6 +1880,23 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if self
+            .b2b_company_location_delete_blocker(&location_id)
+            .is_some()
+        {
+            return (
+                json!({
+                    "deletedCompanyLocationId": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "Failed to delete the company location.",
+                        "code": "FAILED_TO_DELETE"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
         self.b2b_delete_company_location(&location_id);
         (
             json!({
@@ -1886,17 +1917,26 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
-            if self.store.staged.b2b_locations.contains_key(location_id) {
-                self.b2b_delete_company_location(location_id);
-                deleted_ids.push(location_id.clone());
-            } else {
+            if !self.store.staged.b2b_locations.contains_key(location_id) {
                 user_errors.push(b2b_indexed_user_error(
                     "companyLocationIds",
                     index,
                     "Resource requested does not exist.",
                     "RESOURCE_NOT_FOUND",
                 ));
+            } else if let Some(blocker) = self.b2b_company_location_delete_blocker(location_id) {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyLocationIds",
+                    index,
+                    &blocker.bulk_message(location_id),
+                    "INTERNAL_ERROR",
+                ));
+            } else {
+                deleted_ids.push(location_id.clone());
             }
+        }
+        for location_id in &deleted_ids {
+            self.b2b_delete_company_location(location_id);
         }
         let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
             "failed"
@@ -1911,6 +1951,71 @@ impl DraftProxy {
             status,
             deleted_ids,
         )
+    }
+
+    fn b2b_company_location_delete_blocker(
+        &self,
+        location_id: &str,
+    ) -> Option<B2bCompanyLocationDeleteBlocker> {
+        let location = self.store.staged.b2b_locations.get(location_id)?;
+        if self.b2b_company_location_is_only_location(location_id, location) {
+            return Some(B2bCompanyLocationDeleteBlocker::OnlyLocation);
+        }
+        if self
+            .store
+            .staged
+            .orders
+            .values()
+            .any(|order| b2b_record_references_company_location(order, location_id))
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .values()
+                .any(|order| b2b_record_references_company_location(order, location_id))
+        {
+            return Some(B2bCompanyLocationDeleteBlocker::Order);
+        }
+        if self
+            .store
+            .staged
+            .draft_orders
+            .values()
+            .any(|draft_order| b2b_record_references_company_location(draft_order, location_id))
+        {
+            return Some(B2bCompanyLocationDeleteBlocker::DraftOrder);
+        }
+        self.b2b_location_has_store_credit_balance(location_id)
+            .then_some(B2bCompanyLocationDeleteBlocker::StoreCredit)
+    }
+
+    fn b2b_company_location_is_only_location(&self, location_id: &str, location: &Value) -> bool {
+        let Some(company_id) = b2b_location_company_id(location) else {
+            return false;
+        };
+        self.b2b_company_location_ids(company_id)
+            .iter()
+            .filter(|id| self.store.staged.b2b_locations.contains_key(id.as_str()))
+            .count()
+            <= 1
+            && self.store.staged.b2b_locations.contains_key(location_id)
+    }
+
+    fn b2b_location_has_store_credit_balance(&self, location_id: &str) -> bool {
+        self.store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .is_some_and(b2b_location_has_embedded_store_credit_balance)
+            || self
+                .store
+                .staged
+                .store_credit_accounts
+                .values()
+                .any(|account| {
+                    account["owner"]["id"].as_str() == Some(location_id)
+                        && store_credit_account_has_positive_balance(account)
+                })
     }
 
     pub(in crate::proxy) fn b2b_company_location_assign_address_payload(
@@ -2830,12 +2935,20 @@ impl DraftProxy {
                 .b2b_role_assignments
                 .remove(&assignment_id);
         }
+        self.store
+            .staged
+            .b2b_role_assignments
+            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
         for assignment_id in b2b_json_id_list(&location, "staffAssignmentIds") {
             self.store
                 .staged
                 .b2b_staff_assignments
                 .remove(&assignment_id);
         }
+        self.store
+            .staged
+            .b2b_staff_assignments
+            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
     }
 
     /// Cascade-delete a company contact and every artifact that referenced it,
@@ -9135,10 +9248,39 @@ fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
             return true;
         }
     }
+    if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
+        if b2b_value_contains_company_id(entity, company_id) {
+            return true;
+        }
+    }
     if let Some(order) = record.get("order") {
         if order
             .get("purchasingEntity")
             .is_some_and(|entity| b2b_value_contains_company_id(entity, company_id))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when a staged order/draft-order record references the given company
+/// location through its purchasing entity.
+fn b2b_record_references_company_location(record: &Value, location_id: &str) -> bool {
+    if let Some(entity) = record.get("purchasingEntity") {
+        if b2b_value_contains_company_location_id(entity, location_id) {
+            return true;
+        }
+    }
+    if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
+        if b2b_value_contains_company_location_id(entity, location_id) {
+            return true;
+        }
+    }
+    if let Some(order) = record.get("order") {
+        if order
+            .get("purchasingEntity")
+            .is_some_and(|entity| b2b_value_contains_company_location_id(entity, location_id))
         {
             return true;
         }
@@ -9173,19 +9315,62 @@ fn b2b_value_contains_company_id(value: &Value, company_id: &str) -> bool {
     }
 }
 
+/// Recursively searches a purchasing entity for a company-location reference,
+/// covering both public input (`companyLocationId`) and staged read shapes
+/// (`location.id` / `companyLocation.id`).
+fn b2b_value_contains_company_location_id(value: &Value, location_id: &str) -> bool {
+    match value {
+        Value::Object(map) => {
+            if map.get("companyLocationId").and_then(Value::as_str) == Some(location_id) {
+                return true;
+            }
+            if map
+                .get("location")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                == Some(location_id)
+            {
+                return true;
+            }
+            if map
+                .get("companyLocation")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                == Some(location_id)
+            {
+                return true;
+            }
+            map.values()
+                .any(|value| b2b_value_contains_company_location_id(value, location_id))
+        }
+        Value::Array(items) => items
+            .iter()
+            .any(|item| b2b_value_contains_company_location_id(item, location_id)),
+        Value::String(string) => string == location_id,
+        _ => false,
+    }
+}
+
 /// True when a company location carries a positive store-credit balance on any
-/// of its accounts, which blocks deleting the owning company.
-fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
+/// embedded account nodes.
+fn b2b_location_has_embedded_store_credit_balance(location: &Value) -> bool {
     location["storeCreditAccounts"]["nodes"]
         .as_array()
-        .is_some_and(|nodes| {
-            nodes.iter().any(|account| {
-                account["balance"]["amount"]
-                    .as_str()
-                    .and_then(|amount| amount.parse::<f64>().ok())
-                    .is_some_and(|amount| amount > 0.0)
-            })
-        })
+        .is_some_and(|nodes| nodes.iter().any(store_credit_account_has_positive_balance))
+}
+
+fn store_credit_account_has_positive_balance(account: &Value) -> bool {
+    account["balance"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .is_some_and(|amount| amount > 0.0)
+}
+
+fn b2b_location_company_id(location: &Value) -> Option<&str> {
+    location
+        .get("companyId")
+        .and_then(Value::as_str)
+        .or_else(|| location["company"]["id"].as_str())
 }
 
 fn b2b_unique_strings(values: &[String]) -> bool {
