@@ -431,6 +431,23 @@ impl DraftProxy {
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
+        if !self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .is_empty()
+        {
+            snapshot["stagedState"]["functionFulfillmentConstraintRules"] = json!(self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .clone());
+            snapshot["stagedState"]["functionFulfillmentConstraintRuleOrder"] = json!(self
+                .store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .clone());
+        }
         if let Some(order) = &self.store.staged.order_edit_existing_order {
             snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
         }
@@ -1860,6 +1877,27 @@ impl DraftProxy {
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
+        self.store.staged.function_fulfillment_constraint_rules = state["stagedState"]
+            ["functionFulfillmentConstraintRules"]
+            .as_object()
+            .map(|rules| {
+                rules
+                    .iter()
+                    .map(|(id, rule)| (id.clone(), rule.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.function_fulfillment_constraint_rule_order = state["stagedState"]
+            .get("functionFulfillmentConstraintRuleOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rules
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

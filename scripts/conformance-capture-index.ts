@@ -7029,6 +7029,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-fulfillment-constraint-rule-errors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-errors-conformance.ts',
+    purpose:
+      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
+    requiredAuthScopes: [
+      'read_fulfillment_constraint_rules for fulfillmentConstraintRules empty read',
+      'write_fulfillment_constraint_rules for create/delete userError capture',
+      'released fulfillment-constraint Function required only for future success-path and wrong-API-type capture',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-fulfillment-constraint-rule-errors.json`,
+      'config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql',
+    ],
+    cleanupBehavior:
+      'Captures deterministic userErrors and an empty read only; no live fulfillment constraint rule is created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-validation-update-defaults',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-validation-update-defaults-conformance.ts',

@@ -462,6 +462,8 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -786,6 +788,8 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            function_fulfillment_constraint_rules: BTreeMap::new(),
+            function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
