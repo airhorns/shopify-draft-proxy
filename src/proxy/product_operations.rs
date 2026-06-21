@@ -28,13 +28,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| "productSet".into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| ("productSet".into(), Vec::new(), BTreeMap::new()));
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let operation_selection =
             selected_child_selection(&payload_selection, "productSetOperation").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let input = match product_input(query, variables) {
             Some(input) => input,
             None => return MutationOutcome::response(json_error(400, "productSet requires input")),
@@ -346,15 +346,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productDuplicate".into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| ("productDuplicate".into(), Vec::new(), BTreeMap::new()));
         let new_product_selection =
             selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
         let operation_selection =
             selected_child_selection(&payload_selection, "productDuplicateOperation")
                 .unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();
         let new_title = resolved_string_field(&arguments, "newTitle").unwrap_or_default();
         let synchronous = resolved_bool_field(&arguments, "synchronous").unwrap_or(true);
@@ -460,12 +459,12 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| (root_field.into(), Vec::new(), BTreeMap::new()));
         let operation_selection =
             selected_child_selection(&payload_selection, "productBundleOperation")
                 .unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let input = match arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input.clone(),
             _ => BTreeMap::new(),

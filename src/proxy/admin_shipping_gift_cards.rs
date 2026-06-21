@@ -192,8 +192,16 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "backupRegionUpdate".to_string());
+        let document = parsed_document(query, variables);
+        let root_field = document.as_ref().and_then(|document| {
+            document
+                .root_fields
+                .iter()
+                .find(|field| field.name == "backupRegionUpdate")
+        });
+        let response_key = root_field
+            .map(|field| field.response_key.clone())
+            .unwrap_or_else(|| "backupRegionUpdate".to_string());
         if request.headers.iter().any(|(name, token)| {
             name.eq_ignore_ascii_case("X-Shopify-Access-Token") && token == "shpat_delegate_proxy_1"
         }) {
@@ -211,17 +219,10 @@ impl DraftProxy {
                 "data": { response_key: null }
             }));
         }
-        let document = parsed_document(query, variables);
         let operation_path = document
             .as_ref()
             .map(|document| document.operation_path.as_str())
             .unwrap_or("mutation");
-        let root_field = document.as_ref().and_then(|document| {
-            document
-                .root_fields
-                .iter()
-                .find(|field| field.name == "backupRegionUpdate")
-        });
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
             BackupRegionCountryCodeInput::CountryCode(country_code) => Some(country_code),
@@ -280,11 +281,11 @@ impl DraftProxy {
                     ("message".to_string(), json!("Region not found.")),
                     ("code".to_string(), json!("REGION_NOT_FOUND")),
                 ]);
-                let include_user_error_typename =
-                    nested_root_field_path_selection(query, &["userErrors"])
-                        .unwrap_or_default()
-                        .iter()
-                        .any(|field| field.name == "__typename");
+                let include_user_error_typename = root_field
+                    .map(|field| nested_selected_fields(&field.selection, &["userErrors"]))
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|field| field.name == "__typename");
                 if include_user_error_typename {
                     user_error.insert("__typename".to_string(), json!("MarketUserError"));
                 }
@@ -348,11 +349,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "appUninstall".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "appUninstall".to_string());
         let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let requested_id = resolved_object_field(&arguments, "input")
             .and_then(|input| resolved_string_field(&input, "id"));
 
@@ -409,12 +408,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "appSubscriptionCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "appSubscriptionCreate".to_string());
         let subscription_selection =
-            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
         let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
         let name =
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
@@ -515,12 +512,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "appSubscriptionCancel".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "appSubscriptionCancel".to_string());
         let subscription_selection =
-            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
 
         let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
@@ -572,12 +567,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "appSubscriptionTrialExtend".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "appSubscriptionTrialExtend".to_string()
+            });
         let subscription_selection =
-            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let days = resolved_int_field(&arguments, "days").unwrap_or(0);
 
@@ -843,10 +838,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "appUsageRecordCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "appUsageRecordCreate".to_string());
         let usage_record_selection =
             selected_child_selection(&payload_selection, "appUsageRecord").unwrap_or_default();
         let line_item_id =
@@ -1004,12 +997,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "delegateAccessTokenCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "delegateAccessTokenCreate".to_string()
+            });
         let token_selection =
-            nested_root_field_selection(query, "delegateAccessToken").unwrap_or_default();
+            selected_child_selection(&payload_selection, "delegateAccessToken").unwrap_or_default();
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let scopes = input
             .get("delegateAccessScope")
@@ -1124,10 +1117,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "delegateAccessTokenDestroy".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "delegateAccessTokenDestroy".to_string()
+            });
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
         let caller_token = request_access_token(request).unwrap_or_default();
         let caller_api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
@@ -1198,10 +1191,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "appRevokeAccessScopes".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "appRevokeAccessScopes".to_string());
         let scopes = arguments
             .get("scopes")
             .map(resolved_string_list)
@@ -1275,12 +1266,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "appPurchaseOneTimeCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "appPurchaseOneTimeCreate".to_string()
+            });
         let purchase_selection =
-            nested_root_field_selection(query, "appPurchaseOneTime").unwrap_or_default();
+            selected_child_selection(&payload_selection, "appPurchaseOneTime").unwrap_or_default();
 
         if !arguments.contains_key("returnUrl") {
             return ok_json(json!({
@@ -3982,10 +3973,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderHold".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrderHold".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return self.fulfillment_order_not_found_response(
@@ -4202,10 +4191,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentOrderReleaseHold".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "fulfillmentOrderReleaseHold".to_string()
+            });
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return self.fulfillment_order_not_found_response(
@@ -4289,10 +4278,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderMove".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrderMove".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if self
             .shipping_fulfillment_order_by_id(&id)
@@ -4462,9 +4449,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || root_field.to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return self.fulfillment_order_not_found_response(root_field, &response_key, &id);
@@ -4541,10 +4527,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderCancel".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrderCancel".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return self.fulfillment_order_not_found_response(
@@ -4643,10 +4627,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentOrdersSetFulfillmentDeadline".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "fulfillmentOrdersSetFulfillmentDeadline".to_string()
+            });
         let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
         for id in &ids {
             self.ensure_shipping_fulfillment_order_hydrated(request, id);
@@ -4723,10 +4707,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderClose".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrderClose".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return self.fulfillment_order_guardrail_response(
@@ -4797,8 +4779,8 @@ impl DraftProxy {
         query: &str,
         message: &str,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
         ok_json(json!({
             "data": {
                 response_key: fulfillment_order_simple_payload_json(
@@ -4811,9 +4793,10 @@ impl DraftProxy {
     }
 
     fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentOrdersReroute".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "fulfillmentOrdersReroute".to_string()
+            });
         ok_json(json!({
             "data": {
                 response_key: fulfillment_orders_reroute_payload_json(
@@ -5106,10 +5089,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderMove".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrderMove".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let new_location_id = resolved_string_field(&arguments, "newLocationId")
             .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
@@ -5157,8 +5138,8 @@ impl DraftProxy {
         query: &str,
         _variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, _variables, || root_field.to_string());
         let message = if root_field == "fulfillmentOrderOpen" {
             "Fulfillment order must be scheduled."
         } else {
@@ -5185,10 +5166,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentOrdersSetFulfillmentDeadline".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "fulfillmentOrdersSetFulfillmentDeadline".to_string()
+            });
         let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
         let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
         let unknown = ids
@@ -5345,10 +5326,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrder".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "fulfillmentOrder".to_string());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let fulfillment_order = fulfillment_order_request_lifecycle_record(&id);
         ok_json(json!({
@@ -5821,10 +5800,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "customerSegmentMembersQueryCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "customerSegmentMembersQueryCreate".to_string()
+            });
         let query_selection =
             selected_child_selection(&payload_selection, "customerSegmentMembersQuery")
                 .unwrap_or_default();
@@ -6657,8 +6636,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let (response_key, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.arguments))
+            .unwrap_or_else(|| (root_field.to_string(), BTreeMap::new()));
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return ok_json(
                 json!({ "data": { response_key: { "userErrors": [{ "field": ["id"], "message": "ID is required" }] } } }),

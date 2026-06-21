@@ -187,10 +187,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "bulkOperationRunQuery".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "bulkOperationRunQuery".to_string());
         let query_text = resolved_string_arg(&arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
@@ -318,10 +316,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "bulkOperationRunMutation".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "bulkOperationRunMutation".to_string()
+            });
         let mutation_text = resolved_string_arg(&arguments, "mutation").unwrap_or_default();
         let staged_upload_path =
             resolved_string_arg(&arguments, "stagedUploadPath").unwrap_or_default();
@@ -473,9 +471,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let id = resolved_string_arg(variables, "id").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "bulkOperationCancel".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "bulkOperationCancel".to_string());
 
         if self.bulk_operation_by_id(&id).is_none() {
             self.hydrate_bulk_operation_for_cancel(request, &id);
@@ -618,9 +615,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileCreate".to_string());
         let inputs = media_object_list_arg(query, variables, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
@@ -739,9 +735,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileUpdate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileUpdate".to_string());
         let inputs = media_object_list_arg(query, variables, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
@@ -961,9 +956,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileDelete".to_string());
         let ids = media_string_list_arg(query, variables, "fileIds")
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
@@ -1007,9 +1001,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fileAcknowledgeUpdateFailed".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || {
+                "fileAcknowledgeUpdateFailed".to_string()
+            });
         let file_ids = media_string_list_arg(query, variables, "fileIds");
         let missing_ids = dedupe_media_strings(
             file_ids
@@ -1069,9 +1064,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "stagedUploadsCreate".to_string());
         let user_error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         if user_error_selection
@@ -1552,9 +1546,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
         let mut user_errors = metafields_set_input_errors(&inputs);
         user_errors.extend(metafields_set_definition_user_errors(
@@ -1697,9 +1690,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "metafieldsDelete".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
@@ -2885,8 +2877,9 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let Some(input) = product_create_input(query, variables) else {
-            let response_key =
-                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+            let response_key = primary_root_field(query, variables)
+                .map(|field| field.response_key)
+                .unwrap_or_else(|| "productCreate".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: {
@@ -2930,9 +2923,8 @@ impl DraftProxy {
         let Some(title) =
             resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
         else {
-            let response_key =
-                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let (response_key, payload_selection) =
+                primary_root_response_selection(query, variables, || "productCreate".to_string());
             let error_selection =
                 selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
             let user_error = selected_json(
@@ -3092,10 +3084,10 @@ impl DraftProxy {
             self.add_product_to_collection_membership(collection_id, &product);
         }
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productCreate".to_string());
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
@@ -3367,17 +3359,18 @@ impl DraftProxy {
 
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.iter().any(|tag| tag.chars().count() > 255) {
+                let (response_key, payload_selection) =
+                    primary_root_response_selection(query, variables, || {
+                        "productUpdate".to_string()
+                    });
                 let product_selection =
-                    nested_root_field_selection(query, "product").unwrap_or_default();
-                let payload_selection = root_field_selection(query).unwrap_or_default();
+                    selected_child_selection(&payload_selection, "product").unwrap_or_default();
                 let error_selection =
                     selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
                 let user_error = selected_json(
                     &json!({"field": ["tags"], "message": "Product tags is invalid"}),
                     &error_selection,
                 );
-                let response_key =
-                    root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
                 return MutationOutcome::response(ok_json(json!({
                     "data": {
                         response_key: selected_json(
@@ -3424,10 +3417,10 @@ impl DraftProxy {
         };
         self.store.stage_product(product.clone());
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productUpdate".to_string());
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
@@ -3448,16 +3441,18 @@ impl DraftProxy {
         field: &str,
         message: &str,
     ) -> MutationOutcome {
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productUpdate".to_string()
+            });
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let user_error = selected_json(
             &json!({"field": [field], "message": message}),
             &error_selection,
         );
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
         MutationOutcome::response(ok_json(json!({
             "data": {
                 response_key: selected_json(
@@ -3510,8 +3505,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || root_field.to_string());
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_media = resolved_object_list_field(variables, "variantMedia");
         self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
@@ -4555,10 +4550,12 @@ impl DraftProxy {
         variant: Option<&ProductVariantRecord>,
         user_errors: Vec<Value>,
     ) -> Response {
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
         ok_json(json!({
             "data": {
-                root_field_response_key(query).unwrap_or_else(|| root_field.to_string()): self.product_variant_payload_json(
-                    query,
+                response_key: self.product_variant_payload_json(
+                    &payload_selection,
                     product,
                     variant,
                     user_errors
@@ -4600,19 +4597,18 @@ impl DraftProxy {
 
     fn product_variant_payload_json(
         &self,
-        query: &str,
+        payload_selection: &[SelectedField],
         product: Option<&ProductRecord>,
         variant: Option<&ProductVariantRecord>,
         user_errors: Vec<Value>,
     ) -> Value {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
         let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
+            selected_child_selection(payload_selection, "product").unwrap_or_default();
         let variant_selection =
-            selected_child_selection(&payload_selection, "productVariant").unwrap_or_default();
+            selected_child_selection(payload_selection, "productVariant").unwrap_or_default();
         let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        selected_payload_json(&payload_selection, |selection| {
+            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
+        selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" => Some(match product {
                     Some(product) => {
@@ -4836,11 +4832,12 @@ impl DraftProxy {
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productVariantDelete".to_string()
+            });
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productVariantDelete".to_string());
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
@@ -4879,6 +4876,8 @@ impl DraftProxy {
             return MutationOutcome::response(product_delete_missing_product(query));
         }
 
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productDelete".to_string());
         if resolved_bool_field(variables, "synchronous") == Some(false) {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
             if self
@@ -4890,7 +4889,7 @@ impl DraftProxy {
             {
                 return MutationOutcome::response(ok_json(json!({
                     "data": {
-                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_duplicate_payload()
+                        response_key.clone(): product_delete_async_duplicate_payload()
                     }
                 })));
             }
@@ -4901,7 +4900,7 @@ impl DraftProxy {
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {
-                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_operation_payload(&operation_id)
+                        response_key: product_delete_async_operation_payload(&operation_id)
                     }
                 })),
                 LogDraft::staged("productDelete", "products", vec![id.clone()]),
@@ -4910,9 +4909,6 @@ impl DraftProxy {
 
         self.store.delete_product(&id);
 
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
@@ -4981,16 +4977,16 @@ impl DraftProxy {
             .product_staged_or_base(id)
             .or_else(|| known_product_change_status_seed(id))
         else {
-            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let payload_selection = &field.selection;
             let error_selection =
-                selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+                selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
             let error = selected_json(
                 &json!({"field": ["productId"], "message": "Product does not exist"}),
                 &error_selection,
             );
             return MutationOutcome::response(ok_json(json!({
                 "data": {
-                    field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
+                    field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), payload_selection)
                 }
             })));
         };
@@ -4998,12 +4994,13 @@ impl DraftProxy {
         product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let product_selection =
+            selected_child_selection(&field.selection, "product").unwrap_or_default();
+        let payload_selection = &field.selection;
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                    field.response_key.clone(): product_mutation_payload_json(&product, payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productChangeStatus", "products", vec![id.clone()]),
@@ -5095,8 +5092,8 @@ impl DraftProxy {
         product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
-        let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
+        let payload_selection = &field.selection;
         let payload = json!({
             "node": product_json(&product, &node_selection),
             "userErrors": []
@@ -5104,7 +5101,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    field.response_key.clone(): selected_json(&payload, &payload_selection)
+                    field.response_key.clone(): selected_json(&payload, payload_selection)
                 }
             })),
             LogDraft::staged(root_field, "products", vec![id.clone()]),
