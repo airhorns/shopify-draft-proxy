@@ -6018,6 +6018,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-complete-already-paid',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-complete-already-paid-conformance.ts',
+    purpose:
+      'draftOrderComplete state-machine guard for rejecting a second completion after the draft has already been paid.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-complete-already-paid.json`,
+      'config/parity-specs/orders/draftOrderComplete-already-paid.json',
+      'config/parity-requests/orders/draftOrderComplete-already-paid-create.graphql',
+      'config/parity-requests/orders/draftOrderComplete-already-paid-complete.graphql',
+      'config/parity-requests/orders/draftOrderComplete-already-paid-order-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order, completes it, records the rejected second completion and before/after reads of the resulting order, then attempts to cancel the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-residual-helpers',
     scriptPath: 'scripts/capture-draft-order-residual-helper-conformance.mts',
     purpose: 'Residual draft-order helper roots such as calculate, bulk tags, invoices, and delivery options.',

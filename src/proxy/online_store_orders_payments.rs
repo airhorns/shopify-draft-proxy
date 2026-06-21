@@ -8326,6 +8326,18 @@ impl DraftProxy {
         if draft_order.get("__draftProxyLineItems").is_none() {
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
+        if draft_order["status"].as_str() == Some("COMPLETED") {
+            return selected_json(
+                &json!({
+                    "draftOrder": draft_order,
+                    "userErrors": [{
+                        "field": Value::Null,
+                        "message": "This order has been paid"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
         let payment_gateway_id = resolved_string_arg(&field.arguments, "paymentGatewayId");
         if payment_gateway_id.is_some() {
             return selected_json(

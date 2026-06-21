@@ -4592,6 +4592,105 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
 }
 
 #[test]
+fn draft_order_complete_rejects_already_completed_draft_without_rewriting_order() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let first_complete = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-complete.graphql"),
+        json!({"id": draft_id.clone(), "paymentPending": false}),
+    ));
+    assert_eq!(first_complete.status, 200);
+    assert_eq!(
+        first_complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    let first_completed_order =
+        first_complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"].clone();
+
+    let orders_after_first = proxy.process_request(json_graphql_request(
+        r#"
+            query CompletedDraftOrderList {
+              orders(first: 10) {
+                nodes {
+                  id
+                  name
+                  displayFinancialStatus
+                }
+              }
+              ordersCount { count precision }
+            }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(orders_after_first.status, 200);
+
+    let second_complete = proxy.process_request(json_graphql_request(
+        r#"
+            mutation CompleteDraftAgain($id: ID!) {
+              draftOrderComplete(id: $id, sourceName: "hermes-cron-orders") {
+                draftOrder {
+                  id
+                  status
+                  order { id name }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+        "#,
+        json!({"id": draft_id}),
+    ));
+    assert_eq!(second_complete.status, 200);
+    assert_eq!(
+        second_complete.body["data"]["draftOrderComplete"]["draftOrder"]["id"],
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+    );
+    assert_eq!(
+        second_complete.body["data"]["draftOrderComplete"]["draftOrder"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(
+        second_complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"],
+        json!({
+            "id": first_completed_order["id"].clone(),
+            "name": first_completed_order["name"].clone()
+        })
+    );
+    assert_eq!(
+        second_complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([{
+            "field": Value::Null,
+            "message": "This order has been paid"
+        }])
+    );
+
+    let orders_after_second = proxy.process_request(json_graphql_request(
+        r#"
+            query CompletedDraftOrderList {
+              orders(first: 10) {
+                nodes {
+                  id
+                  name
+                  displayFinancialStatus
+                }
+              }
+              ordersCount { count precision }
+            }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(orders_after_second.body, orders_after_first.body);
+}
+
+#[test]
 fn draft_order_complete_dispatches_by_root_for_ordinary_operation_names() {
     let mut proxy = snapshot_proxy();
 

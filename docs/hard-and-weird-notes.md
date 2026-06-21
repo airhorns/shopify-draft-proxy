@@ -456,6 +456,9 @@ Current and historical live findings on this host:
     - Shopify reports the completed order `paymentGatewayNames` as `["manual"]` for the default paid completion path
     - Shopify normalizes the completed order `sourceName` to the app/channel identifier rather than echoing the requested `sourceName` string
     - empty variant SKUs on draft order lines come back as `null` on the completed order line item
+  - calling `draftOrderComplete` again on that paid/completed draft returns the completed `draftOrder` object with the original nested `order` plus `userErrors[{ field: null, message: "This order has been paid" }]`
+    - the public `UserError` type for `DraftOrderCompletePayload.userErrors` exposes only `field` and `message` on both 2025-01 and 2026-04; there is no selectable `code` field for this payload
+    - order-search proof was unreliable for this branch on the conformance store: searching the completed order by inherited draft tag or by completed order name returned zero results, so the durable fixture records direct `order(id:)` reads before and after the rejected second completion instead
 - additional schema trap for that same root on this host: `DraftOrderCompletePayload` does **not** expose a top-level `order` field
   - probing `draftOrderComplete { order { ... } }` fails schema validation with `Field 'order' doesn't exist on type 'DraftOrderCompletePayload'`
   - current 2026-04 docs instead expose the created order through `draftOrder { order { ... } }`; keep the parity scaffold on that nested link and do not reintroduce the stale top-level payload `order` selection
