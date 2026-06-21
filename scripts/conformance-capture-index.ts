@@ -3675,8 +3675,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}price-list-catalog-validation.json`,
       'config/parity-specs/markets/price-list-create-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-create-catalog-wrong-gid-type.json',
       'config/parity-specs/markets/price-list-create-catalog-taken.json',
       'config/parity-specs/markets/price-list-update-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-update-catalog-wrong-gid-type.json',
       'config/parity-specs/markets/price-list-update-catalog-taken.json',
       'config/parity-requests/markets/price-list-input-validation-markets-read.graphql',
       'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
@@ -3687,7 +3689,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates disposable price lists and a market catalog for taken-branch setup, records validation failures that do not create or update records, then deletes all created price lists and catalogs.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
+      'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST, a wrong-resource CatalogMarket gid for RESOURCE_NOT_FOUND invalid-id behavior, and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
   },
   {
     domain: 'markets',

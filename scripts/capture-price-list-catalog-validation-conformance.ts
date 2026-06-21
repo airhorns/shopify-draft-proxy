@@ -196,6 +196,37 @@ function assertUserError<TData>(
   }
 }
 
+function assertResourceNotFound<TData>(
+  result: ConformanceGraphqlResult<TData>,
+  root: string,
+  id: string,
+  label: string,
+): void {
+  if (result.status !== 200) {
+    throw new Error(`${label} returned HTTP ${result.status}: ${JSON.stringify(result.payload)}`);
+  }
+  const errors = result.payload.errors;
+  const matched =
+    Array.isArray(errors) &&
+    errors.some((error) => {
+      const entry = error as {
+        message?: unknown;
+        path?: unknown;
+        extensions?: { code?: unknown };
+      };
+      return (
+        entry.message === `Invalid id: ${id}` &&
+        JSON.stringify(entry.path ?? null) === JSON.stringify([root]) &&
+        entry.extensions?.code === 'RESOURCE_NOT_FOUND'
+      );
+    });
+  const data = result.payload.data;
+  const rootValue = typeof data === 'object' && data !== null ? (data as Record<string, unknown>)[root] : undefined;
+  if (!matched || rootValue !== null) {
+    throw new Error(`${label} missing RESOURCE_NOT_FOUND invalid-id envelope: ${JSON.stringify(result.payload)}`);
+  }
+}
+
 function assertPriceListNull<TData>(result: ConformanceGraphqlResult<TData>, root: string, label: string): void {
   if (mutationPayload(result, root).priceList !== null) {
     throw new Error(`${label} should return priceList null: ${JSON.stringify(result.payload)}`);
@@ -278,6 +309,7 @@ function catalogInput(title: string, marketId: string, extra: Record<string, unk
 
 const unique = Date.now().toString(36);
 const missingCatalogId = 'gid://shopify/MarketCatalog/99999999';
+const wrongTypeCatalogId = 'gid://shopify/CatalogMarket/99999999';
 const catalogField = ['input', 'catalogId'];
 const createdPriceListIds: string[] = [];
 const createdCatalogIds: string[] = [];
@@ -400,6 +432,37 @@ try {
     'priceListUpdate catalog taken',
   );
   cases.push(updateTakenCatalog);
+
+  const createWrongTypeCatalog = await captureCase(
+    'priceListCreate wrong-type catalogId validation',
+    priceListCreateMutation,
+    priceListInput(`Price list wrong type catalog ${unique}`, 'USD', { catalogId: wrongTypeCatalogId }),
+  );
+  assertResourceNotFound(
+    createWrongTypeCatalog.response,
+    'priceListCreate',
+    wrongTypeCatalogId,
+    'priceListCreate wrong-type catalogId',
+  );
+  cases.push(createWrongTypeCatalog);
+
+  const updateWrongTypeCatalog = await captureCase(
+    'priceListUpdate wrong-type catalogId validation',
+    priceListUpdateMutation,
+    {
+      id: updateMissingPriceListId,
+      input: {
+        catalogId: wrongTypeCatalogId,
+      },
+    },
+  );
+  assertResourceNotFound(
+    updateWrongTypeCatalog.response,
+    'priceListUpdate',
+    wrongTypeCatalogId,
+    'priceListUpdate wrong-type catalogId',
+  );
+  cases.push(updateWrongTypeCatalog);
 } finally {
   for (const id of [...createdPriceListIds].reverse()) {
     cleanup.push({
@@ -429,7 +492,8 @@ await writeFile(
       setup: {
         market,
         missingCatalogId,
-        note: 'Records public Admin GraphQL 2026-04 PriceListUserError semantics for priceListCreate/priceListUpdate catalogId relation validation. Validation failures do not create or update price lists.',
+        wrongTypeCatalogId,
+        note: 'Records public Admin GraphQL 2026-04 catalogId validation for priceListCreate/priceListUpdate. Correctly typed never-created MarketCatalog ids return PriceListUserError CATALOG_DOES_NOT_EXIST, taken MarketCatalog ids return CATALOG_TAKEN, and wrong-resource Shopify catalog ids return top-level RESOURCE_NOT_FOUND invalid-id errors. Validation failures do not create or update price lists.',
       },
       cases,
       cleanup,
