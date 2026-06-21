@@ -1,0 +1,295 @@
+{
+  "scenarioId": "localization-translations-validation-order",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-15T13:51:18.741Z",
+  "setup": {
+    "initialShopLocales": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "es",
+            "name": "Spanish",
+            "primary": false,
+            "published": false
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "preCaptureDisable": null,
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Translation validation order 1781531477167",
+          "handle": "translation-validation-order-1781531477167",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10213687198002",
+              "handle": "translation-validation-order-1781531477167",
+              "title": "Translation validation order 1781531477167",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setupRead": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10213687198002"
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "es",
+            "name": "Spanish",
+            "primary": false,
+            "published": false
+          }
+        ],
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10213687198002",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Translation validation order 1781531477167",
+              "digest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "translation-validation-order-1781531477167",
+              "digest": "debb98f52f5e6022441b60cca5cdc3e26c8c89695657d36e9a47b5ef95256be0",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "blankNonEnabledLocale": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10213687198002",
+      "translations": [
+        {
+          "locale": "it",
+          "key": "title",
+          "value": "",
+          "translatableContentDigest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "locale"],
+              "message": "Locale is not a valid locale for the shop",
+              "code": "INVALID_LOCALE_FOR_SHOP"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "blankPrimaryLocale": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10213687198002",
+      "translations": [
+        {
+          "locale": "en",
+          "key": "title",
+          "value": "",
+          "translatableContentDigest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "locale"],
+              "message": "Locale cannot be the same as the shop's primary locale",
+              "code": "INVALID_LOCALE_FOR_SHOP"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10213687198002",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationTranslationsValidationOrderSetupRead",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10213687198002"
+      },
+      "query": "query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopLocales": [
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              },
+              {
+                "locale": "es",
+                "name": "Spanish",
+                "primary": false,
+                "published": false
+              }
+            ],
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10213687198002",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Translation validation order 1781531477167",
+                  "digest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "translation-validation-order-1781531477167",
+                  "digest": "debb98f52f5e6022441b60cca5cdc3e26c8c89695657d36e9a47b5ef95256be0",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

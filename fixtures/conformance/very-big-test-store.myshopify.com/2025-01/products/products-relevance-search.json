@@ -47,7 +47,7 @@
         "first": 3,
         "query": "swoo* status:active"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductsRelevanceSearchRead($first: Int!, $query: String!) {\n  products(first: $first, query: $query, sortKey: RELEVANCE) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        vendor\n        productType\n        tags\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

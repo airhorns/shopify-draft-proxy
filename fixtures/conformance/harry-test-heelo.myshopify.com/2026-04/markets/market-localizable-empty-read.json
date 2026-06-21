@@ -57,7 +57,7 @@
         "first": 5,
         "marketId": "gid://shopify/Market/92276719922"
       },
-      "query": "captured live market localizable empty read",
+      "query": "#graphql\nquery MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {\n  marketLocalizableResource(resourceId: $resourceId) {\n    resourceId\n    marketLocalizableContent {\n      key\n      value\n      digest\n    }\n    marketLocalizations(marketId: $marketId) {\n      key\n      value\n      updatedAt\n      outdated\n      market {\n        id\n        name\n      }\n    }\n  }\n  marketLocalizableResources(first: $first, resourceType: METAFIELD) {\n    edges {\n      cursor\n      node {\n        resourceId\n        marketLocalizableContent {\n          key\n          value\n          digest\n        }\n      }\n    }\n    nodes {\n      resourceId\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    edges {\n      cursor\n      node {\n        resourceId\n        marketLocalizableContent {\n          key\n          value\n          digest\n        }\n      }\n    }\n    nodes {\n      resourceId\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

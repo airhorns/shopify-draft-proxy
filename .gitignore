@@ -43,3 +43,4 @@ vitest.config.ts.timestamp-*
 # Explicitly keep recorded conformance fixtures versioned
 !fixtures/conformance/
 !fixtures/conformance/**
+.codex/port-plans/

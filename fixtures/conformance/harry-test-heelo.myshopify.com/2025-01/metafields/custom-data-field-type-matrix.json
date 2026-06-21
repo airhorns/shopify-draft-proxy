@@ -17935,7 +17935,7 @@
       "variables": {
         "type": "codex_har294_type_matrix_1777417244499_1"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
@@ -18368,7 +18368,7 @@
       "variables": {
         "type": "codex_har294_type_matrix_1777417244499_2"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
@@ -18801,7 +18801,7 @@
       "variables": {
         "type": "codex_har294_type_matrix_1777417244499_3"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {

@@ -1,0 +1,54 @@
+#graphql
+query OrderMarkAsPaidSnapshotStagingRead($id: ID!) {
+  order(id: $id) {
+    id
+    displayFinancialStatus
+    paymentGatewayNames
+    totalOutstandingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalReceivedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    netPaymentSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    transactions {
+      id
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+}

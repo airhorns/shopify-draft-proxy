@@ -1,0 +1,43 @@
+mutation ProductPublishUnpublishUnpublish($input: ProductUnpublishInput!, $publicationId: ID!) {
+  productUnpublish(input: $input) {
+    product {
+      id
+      publishedAt
+      publishedOnCurrentPublication
+      publishedOnPublication(publicationId: $publicationId)
+      availablePublicationsCount {
+        count
+        precision
+      }
+      resourcePublicationsCount {
+        count
+        precision
+      }
+      resourcePublicationsV2(first: 10) {
+        nodes {
+          publication {
+            id
+          }
+          publishable {
+            ... on Product {
+              id
+            }
+          }
+        }
+      }
+      publications(first: 10) {
+        nodes {
+          isPublished
+          publishDate
+          product {
+            id
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

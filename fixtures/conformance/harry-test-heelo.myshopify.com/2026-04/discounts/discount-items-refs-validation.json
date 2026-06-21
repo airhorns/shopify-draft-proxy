@@ -104,6 +104,23 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
+  "seedProducts": [{ "id": "gid://shopify/Product/10179023995186" }, { "id": "gid://shopify/Product/10179024027954" }],
+  "seedProductVariants": [
+    {
+      "id": "gid://shopify/ProductVariant/51133416702258",
+      "productId": "gid://shopify/Product/10179023995186"
+    },
+    {
+      "id": "gid://shopify/ProductVariant/51133416735026",
+      "productId": "gid://shopify/Product/10179024027954"
+    }
+  ],
+  "seedCollections": [
+    {
+      "id": "gid://shopify/Collection/512477167922",
+      "title": "discount refs collection 1778109432052"
+    }
+  ],
   "setup": {
     "products": [
       {

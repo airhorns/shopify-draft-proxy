@@ -151,7 +151,7 @@
         "smartCollectionId": "gid://shopify/Collection/429826146537",
         "productId": "gid://shopify/Product/8397254426857"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query CollectionDetailRead($customCollectionId: ID!, $smartCollectionId: ID!, $productId: ID!) {\n  customCollection: collection(id: $customCollectionId) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  smartCollection: collection(id: $smartCollectionId) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -309,7 +309,7 @@
         "customCollectionHandle": "frontpage",
         "productId": "gid://shopify/Product/8397254426857"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 collection identifier passthrough",
+      "query": "query CollectionIdentifierRead($customCollectionId: ID!, $customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByIdentifier(identifier: { id: $customCollectionId }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  customCollectionByHandle: collectionByIdentifier(identifier: { handle: $customCollectionHandle }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByIdentifier(identifier: { handle: \"missing-handle-for-parity\" }) {\n    id\n  }\n  customIdCollection: collectionByIdentifier(\n    identifier: { customId: { namespace: \"custom\", key: \"external_id\", value: \"missing\" } }\n  ) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -500,7 +500,7 @@
         "customCollectionHandle": "frontpage",
         "productId": "gid://shopify/Product/8397254426857"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 collection identifier passthrough",
+      "query": "query CollectionHandleRead($customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByHandle(handle: $customCollectionHandle) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByHandle(handle: \"missing-handle-for-parity\") {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -560,6 +560,67 @@
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1965,
                 "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionIdentifierRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/402476531945",
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/8397254426857"
+      },
+      "query": "query CollectionIdentifierRead($customCollectionId: ID!, $customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByIdentifier(identifier: { id: $customCollectionId }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  customCollectionByHandle: collectionByIdentifier(identifier: { handle: $customCollectionHandle }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByIdentifier(identifier: { handle: \"missing-handle-for-parity\" }) {\n    id\n  }\n  customIdCollection: collectionByIdentifier(\n    identifier: { customId: { namespace: \"custom\", key: \"external_id\", value: \"missing\" } }\n  ) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollectionByHandle": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
               }
             }
           }

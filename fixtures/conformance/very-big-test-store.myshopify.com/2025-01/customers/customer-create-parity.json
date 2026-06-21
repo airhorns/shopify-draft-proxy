@@ -158,16 +158,34 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "CustomerCountHydrate",
-      "variables": {},
-      "query": "hand-synthesized from checked-in customer parity capture",
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:hermes-customer-create-1777081266467@example.com"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customersCount": {
-              "count": 177,
-              "precision": "EXACT"
+            "customers": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+14155550123"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
             }
           }
         }

@@ -1,0 +1,16 @@
+query SavedSearchBlankNameUpdateRead {
+  productSavedSearches(first: 1, reverse: true) {
+    nodes {
+      id
+      name
+      query
+      resourceType
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

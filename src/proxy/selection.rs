@@ -20,18 +20,64 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
         } else if value.is_null() {
             Value::Null
         } else if let Some(values) = value.as_array() {
-            Value::Array(
-                values
-                    .iter()
-                    .map(|item| nullable_selected_json(item, &selection.selection))
-                    .collect(),
-            )
+            quantities_selection_by_names(selection, values).unwrap_or_else(|| {
+                Value::Array(
+                    values
+                        .iter()
+                        .map(|item| nullable_selected_json(item, &selection.selection))
+                        .collect(),
+                )
+            })
         } else {
             selected_json(value, &selection.selection)
         };
         fields.insert(selection.response_key.clone(), value);
     }
     Value::Object(fields)
+}
+
+/// Honor the `quantities(names: [...])` argument on an `InventoryLevel` selection when
+/// projecting a materialized quantity array. Shopify returns exactly one entry per
+/// requested name, in request order, synthesizing a zero/`null` row for any name with
+/// no recorded quantity. The generic projector is otherwise selection-only and would
+/// echo every materialized row in storage order, so this filters/reorders to match the
+/// argument. Returns `None` for any non-`quantities` field, an absent/empty `names`
+/// list, or an array that is not shaped like quantity rows, leaving such arrays to the
+/// default element-wise projection.
+fn quantities_selection_by_names(selection: &SelectedField, values: &[Value]) -> Option<Value> {
+    if selection.name != "quantities" {
+        return None;
+    }
+    let ResolvedValue::List(name_values) = selection.arguments.get("names")? else {
+        return None;
+    };
+    let names: Vec<&str> = name_values
+        .iter()
+        .filter_map(|value| match value {
+            ResolvedValue::String(name) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    // Only intervene when the array looks like inventory quantity rows (each carries a
+    // `name`), so unrelated `quantities` arrays fall through to the default projection.
+    if !values.iter().all(|value| value.get("name").is_some()) {
+        return None;
+    }
+    let rows = names
+        .into_iter()
+        .map(|name| {
+            let row = values
+                .iter()
+                .find(|value| value.get("name").and_then(Value::as_str) == Some(name))
+                .cloned()
+                .unwrap_or_else(|| json!({ "name": name, "quantity": 0, "updatedAt": null }));
+            nullable_selected_json(&row, &selection.selection)
+        })
+        .collect();
+    Some(Value::Array(rows))
 }
 
 fn type_condition_matches(record: &Value, typename: Option<&str>, type_condition: &str) -> bool {

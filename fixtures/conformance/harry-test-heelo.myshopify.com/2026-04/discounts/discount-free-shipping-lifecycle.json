@@ -966,6 +966,7 @@
   "upstreamCalls": [
     {
       "operationName": "DraftProxyShopSubscriptionCapability",
+      "query": "query DraftProxyShopSubscriptionCapability {\n  shop {\n    features {\n      sellsSubscriptions\n    }\n  }\n}\n",
       "variables": {},
       "response": {
         "status": 200,

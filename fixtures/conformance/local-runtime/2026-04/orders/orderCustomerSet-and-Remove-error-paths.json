@@ -95,7 +95,7 @@
           "order": {
             "id": "gid://shopify/Order/1?shopify-draft-proxy=synthetic",
             "customer": {
-              "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+              "id": "gid://shopify/Customer/1",
               "email": "order-customer-error-paths@example.com",
               "displayName": "Order Customer Error Paths"
             }

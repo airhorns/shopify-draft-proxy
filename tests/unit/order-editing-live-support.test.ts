@@ -19,7 +19,7 @@ describe('order editing live support registry/docs', () => {
     const registry = loadOperationRegistry(repoRoot) as OperationRegistryEntry[];
     const weirdNotes = readFileSync(resolve(repoRoot, 'docs/hard-and-weird-notes.md'), 'utf8');
 
-    for (const name of ['orderEditBegin', 'orderEditAddVariant', 'orderEditSetQuantity', 'orderEditCommit']) {
+    for (const name of ['orderEditAddVariant', 'orderEditSetQuantity']) {
       expect(registry).toContainEqual(
         expect.objectContaining({
           name,
@@ -31,6 +31,21 @@ describe('order editing live support registry/docs', () => {
       );
       expect(weirdNotes).toContain(name);
     }
+
+    // orderEditBegin and orderEditCommit are now implemented locally
+    for (const name of ['orderEditBegin', 'orderEditCommit']) {
+      expect(registry).toContainEqual(
+        expect.objectContaining({
+          name,
+          domain: 'orders',
+          execution: 'stage-locally',
+          implemented: true,
+        }),
+      );
+    }
+
+    expect(weirdNotes).toContain('orderEditBegin');
+    expect(weirdNotes).toContain('orderEditCommit');
 
     expect(weirdNotes).toContain('Variable $id of type ID! was provided invalid value');
   });

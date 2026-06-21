@@ -51,7 +51,7 @@
     {
       "operationName": "StorePropertiesBusinessEntitiesCatalog",
       "variables": {},
-      "query": "sha:hand-synthesized-StorePropertiesBusinessEntitiesCatalog",
+      "query": "query StorePropertiesBusinessEntitiesCatalog {\n  businessEntities {\n    id\n    displayName\n    companyName\n    primary\n    archived\n    address {\n      address1\n      address2\n      city\n      countryCode\n      province\n      zip\n    }\n    shopifyPaymentsAccount {\n      id\n      activated\n      country\n      defaultCurrency\n      onboardable\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

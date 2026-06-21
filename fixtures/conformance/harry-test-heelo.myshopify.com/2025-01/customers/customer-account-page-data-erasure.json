@@ -401,7 +401,8 @@
             }
           }
         }
-      }
+      },
+      "query": "query CustomerDataErasureCustomerRead($id: ID!) {\n  customer(id: $id) {\n    id\n    email\n    firstName\n    lastName\n    tags\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n}\n"
     },
     {
       "operationName": "CustomerAccountPagesHydrate",

@@ -1,0 +1,342 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10213936759090",
+    "title": "Hermes Product Publication Conformance 1781587861405",
+    "status": "ACTIVE"
+  },
+  "seedPublications": [
+    {
+      "id": "gid://shopify/Publication/268039389490",
+      "name": "Online Store"
+    },
+    {
+      "id": "gid://shopify/Publication/268039455026",
+      "name": "Point of Sale"
+    },
+    {
+      "id": "gid://shopify/Publication/268039487794",
+      "name": "Shop"
+    },
+    {
+      "id": "gid://shopify/Publication/273897881906",
+      "name": "Shopify GraphiQL App"
+    },
+    {
+      "id": "gid://shopify/Publication/292074258738",
+      "name": "example.com"
+    }
+  ],
+  "publish": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10213936759090",
+        "productPublications": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      }
+    },
+    "mutation": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productPublish": {
+              "product": {
+                "id": "gid://shopify/Product/10213936759090",
+                "publishedAt": "2026-06-16T05:31:19Z",
+                "publishedOnCurrentPublication": false,
+                "publishedOnPublication": true,
+                "availablePublicationsCount": {
+                  "count": 3,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsCount": {
+                  "count": 3,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsV2": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/268039389490"
+                      },
+                      "publishable": {
+                        "id": "gid://shopify/Product/10213936759090"
+                      }
+                    }
+                  ]
+                },
+                "publications": {
+                  "nodes": [
+                    {
+                      "isPublished": true,
+                      "publishDate": "2026-06-16T05:31:18Z",
+                      "product": {
+                        "id": "gid://shopify/Product/10213936759090"
+                      }
+                    },
+                    {
+                      "isPublished": true,
+                      "publishDate": "2026-06-16T05:31:19Z",
+                      "product": {
+                        "id": "gid://shopify/Product/10213936759090"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 36,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "blocker": null
+    },
+    "downstreamRead": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10213936759090",
+              "publishedAt": "2026-06-16T05:31:19Z",
+              "publishedOnCurrentPublication": false,
+              "publishedOnPublication": true,
+              "availablePublicationsCount": {
+                "count": 3,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 3,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsV2": {
+                "nodes": [
+                  {
+                    "publication": {
+                      "id": "gid://shopify/Publication/268039389490"
+                    },
+                    "publishable": {
+                      "id": "gid://shopify/Product/10213936759090"
+                    }
+                  }
+                ]
+              },
+              "publications": {
+                "nodes": [
+                  {
+                    "isPublished": true,
+                    "publishDate": "2026-06-16T05:31:18Z",
+                    "product": {
+                      "id": "gid://shopify/Product/10213936759090"
+                    }
+                  },
+                  {
+                    "isPublished": true,
+                    "publishDate": "2026-06-16T05:31:19Z",
+                    "product": {
+                      "id": "gid://shopify/Product/10213936759090"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "blocker": null
+    }
+  },
+  "unpublish": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10213936759090",
+        "productPublications": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      }
+    },
+    "mutation": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUnpublish": {
+              "product": {
+                "id": "gid://shopify/Product/10213936759090",
+                "publishedAt": null,
+                "publishedOnCurrentPublication": false,
+                "publishedOnPublication": false,
+                "availablePublicationsCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsV2": {
+                  "nodes": []
+                },
+                "publications": {
+                  "nodes": [
+                    {
+                      "isPublished": true,
+                      "publishDate": "2026-06-16T05:31:18Z",
+                      "product": {
+                        "id": "gid://shopify/Product/10213936759090"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 36,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "blocker": null
+    },
+    "downstreamRead": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10213936759090",
+              "publishedAt": null,
+              "publishedOnCurrentPublication": false,
+              "publishedOnPublication": false,
+              "availablePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsV2": {
+                "nodes": []
+              },
+              "publications": {
+                "nodes": [
+                  {
+                    "isPublished": true,
+                    "publishDate": "2026-06-16T05:31:18Z",
+                    "product": {
+                      "id": "gid://shopify/Product/10213936759090"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "blocker": null
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10213936759090"]
+      },
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10213936759090",
+                "legacyResourceId": "10213936759090",
+                "title": "Hermes Product Publication Conformance 1781587861405",
+                "handle": "hermes-product-publication-conformance-1781587861405",
+                "status": "ACTIVE",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-06-16T05:31:18Z",
+                "updatedAt": "2026-06-16T05:31:18Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://l4qd2wh4nkpww6x5-92891250994.shopifypreview.com/products_preview?preview_key=4ea5ff4efdcdb813d1fd4860746be531&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNi0xNlQwNjozMToxOC45OTlaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--bb8dc79b084ba1b73fa675948cf317c387611e0f",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "resourcePublicationsV2": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 mutation MobilePlatformApplicationCreateDuplicateAndroid {
-  mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.app", appLinksEnabled: true } }) {
+  mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.app", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
     mobilePlatformApplication {
       __typename
       ... on AndroidApplication {

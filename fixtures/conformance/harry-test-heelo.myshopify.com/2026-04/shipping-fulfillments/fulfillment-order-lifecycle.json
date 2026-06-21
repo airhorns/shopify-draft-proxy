@@ -8702,70 +8702,73 @@
       }
     },
     {
-      "operationName": "ShippingFulfillmentOrderHydrate",
+      "operationName": "OrdersFulfillmentOrderHydrate",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652742684978"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/8728437457202",
-              "name": "#1056",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9652742684978",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "fulfillAt": "2026-05-04T23:00:00Z",
-                    "fulfillBy": null,
-                    "updatedAt": "2026-05-04T23:51:06Z",
-                    "supportedActions": [
-                      {
-                        "action": "CREATE_FULFILLMENT"
-                      },
-                      {
-                        "action": "REPORT_PROGRESS"
-                      },
-                      {
-                        "action": "MOVE"
-                      },
-                      {
-                        "action": "HOLD"
-                      },
-                      {
-                        "action": "SPLIT"
-                      }
-                    ],
-                    "assignedLocation": {
-                      "name": "My Custom Location",
-                      "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
-                      }
-                    },
-                    "fulfillmentHolds": [],
-                    "lineItems": {
-                      "nodes": [
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652742684978",
+              "order": {
+                "id": "gid://shopify/Order/8728437457202",
+                "name": "#1056",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652742684978",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-05-04T23:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-05-04T23:51:06Z",
+                      "supportedActions": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450673758514",
-                          "totalQuantity": 2,
-                          "remainingQuantity": 2,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19301528994098",
-                            "title": "HAR-234 fulfillment item hold-release 20260504235106",
-                            "quantity": 2,
-                            "fulfillableQuantity": 2
-                          }
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
                         }
-                      ]
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450673758514",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301528994098",
+                              "title": "HAR-234 fulfillment item hold-release 20260504235106",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -8773,70 +8776,73 @@
       }
     },
     {
-      "operationName": "ShippingFulfillmentOrderHydrate",
+      "operationName": "OrdersFulfillmentOrderHydrate",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652742783282"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/8728437588274",
-              "name": "#1057",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9652742783282",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "fulfillAt": "2026-05-04T23:00:00Z",
-                    "fulfillBy": null,
-                    "updatedAt": "2026-05-04T23:51:09Z",
-                    "supportedActions": [
-                      {
-                        "action": "CREATE_FULFILLMENT"
-                      },
-                      {
-                        "action": "REPORT_PROGRESS"
-                      },
-                      {
-                        "action": "MOVE"
-                      },
-                      {
-                        "action": "HOLD"
-                      },
-                      {
-                        "action": "SPLIT"
-                      }
-                    ],
-                    "assignedLocation": {
-                      "name": "My Custom Location",
-                      "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
-                      }
-                    },
-                    "fulfillmentHolds": [],
-                    "lineItems": {
-                      "nodes": [
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652742783282",
+              "order": {
+                "id": "gid://shopify/Order/8728437588274",
+                "name": "#1057",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652742783282",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-05-04T23:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-05-04T23:51:09Z",
+                      "supportedActions": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450673856818",
-                          "totalQuantity": 2,
-                          "remainingQuantity": 2,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19301529125170",
-                            "title": "HAR-234 fulfillment item move 20260504235109",
-                            "quantity": 2,
-                            "fulfillableQuantity": 2
-                          }
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
                         }
-                      ]
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450673856818",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301529125170",
+                              "title": "HAR-234 fulfillment item move 20260504235109",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -8844,67 +8850,70 @@
       }
     },
     {
-      "operationName": "ShippingFulfillmentOrderHydrate",
+      "operationName": "OrdersFulfillmentOrderHydrate",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652742881586"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/8728437653810",
-              "name": "#1058",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9652742881586",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "fulfillAt": "2026-05-04T23:00:00Z",
-                    "fulfillBy": null,
-                    "updatedAt": "2026-05-04T23:51:11Z",
-                    "supportedActions": [
-                      {
-                        "action": "CREATE_FULFILLMENT"
-                      },
-                      {
-                        "action": "REPORT_PROGRESS"
-                      },
-                      {
-                        "action": "MOVE"
-                      },
-                      {
-                        "action": "HOLD"
-                      }
-                    ],
-                    "assignedLocation": {
-                      "name": "My Custom Location",
-                      "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
-                      }
-                    },
-                    "fulfillmentHolds": [],
-                    "lineItems": {
-                      "nodes": [
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652742881586",
+              "order": {
+                "id": "gid://shopify/Order/8728437653810",
+                "name": "#1058",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652742881586",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-05-04T23:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-05-04T23:51:11Z",
+                      "supportedActions": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450673987890",
-                          "totalQuantity": 1,
-                          "remainingQuantity": 1,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19301529157938",
-                            "title": "HAR-234 fulfillment item schedule-progress-open-close 20260504235111",
-                            "quantity": 1,
-                            "fulfillableQuantity": 1
-                          }
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
                         }
-                      ]
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450673987890",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301529157938",
+                              "title": "HAR-234 fulfillment item schedule-progress-open-close 20260504235111",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -8912,67 +8921,70 @@
       }
     },
     {
-      "operationName": "ShippingFulfillmentOrderHydrate",
+      "operationName": "OrdersFulfillmentOrderHydrate",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652743012658"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/8728437719346",
-              "name": "#1059",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9652743012658",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "fulfillAt": "2026-05-04T23:00:00Z",
-                    "fulfillBy": null,
-                    "updatedAt": "2026-05-04T23:51:15Z",
-                    "supportedActions": [
-                      {
-                        "action": "CREATE_FULFILLMENT"
-                      },
-                      {
-                        "action": "REPORT_PROGRESS"
-                      },
-                      {
-                        "action": "MOVE"
-                      },
-                      {
-                        "action": "HOLD"
-                      }
-                    ],
-                    "assignedLocation": {
-                      "name": "My Custom Location",
-                      "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
-                      }
-                    },
-                    "fulfillmentHolds": [],
-                    "lineItems": {
-                      "nodes": [
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652743012658",
+              "order": {
+                "id": "gid://shopify/Order/8728437719346",
+                "name": "#1059",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652743012658",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-05-04T23:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-05-04T23:51:15Z",
+                      "supportedActions": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450674217266",
-                          "totalQuantity": 1,
-                          "remainingQuantity": 1,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19301529387314",
-                            "title": "HAR-234 fulfillment item reroute-cancel 20260504235115",
-                            "quantity": 1,
-                            "fulfillableQuantity": 1
-                          }
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
                         }
-                      ]
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450674217266",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301529387314",
+                              "title": "HAR-234 fulfillment item reroute-cancel 20260504235115",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -8980,70 +8992,73 @@
       }
     },
     {
-      "operationName": "ShippingFulfillmentOrderHydrate",
+      "operationName": "OrdersFulfillmentOrderHydrate",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652743110962"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/8728437784882",
-              "name": "#1060",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9652743110962",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "fulfillAt": "2026-05-04T23:00:00Z",
-                    "fulfillBy": null,
-                    "updatedAt": "2026-05-04T23:51:18Z",
-                    "supportedActions": [
-                      {
-                        "action": "CREATE_FULFILLMENT"
-                      },
-                      {
-                        "action": "REPORT_PROGRESS"
-                      },
-                      {
-                        "action": "MOVE"
-                      },
-                      {
-                        "action": "HOLD"
-                      },
-                      {
-                        "action": "SPLIT"
-                      }
-                    ],
-                    "assignedLocation": {
-                      "name": "My Custom Location",
-                      "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
-                      }
-                    },
-                    "fulfillmentHolds": [],
-                    "lineItems": {
-                      "nodes": [
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652743110962",
+              "order": {
+                "id": "gid://shopify/Order/8728437784882",
+                "name": "#1060",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652743110962",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-05-04T23:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-05-04T23:51:18Z",
+                      "supportedActions": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450674282802",
-                          "totalQuantity": 3,
-                          "remainingQuantity": 3,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19301529452850",
-                            "title": "HAR-234 fulfillment item residual-split-deadline-merge 20260504235117",
-                            "quantity": 3,
-                            "fulfillableQuantity": 3
-                          }
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
                         }
-                      ]
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450674282802",
+                            "totalQuantity": 3,
+                            "remainingQuantity": 3,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301529452850",
+                              "title": "HAR-234 fulfillment item residual-split-deadline-merge 20260504235117",
+                              "quantity": 3,
+                              "fulfillableQuantity": 3
+                            }
+                          }
+                        ]
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -9055,7 +9070,7 @@
       "variables": {
         "id": "gid://shopify/Order/8728437457202"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderLifecycleOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9203,7 +9218,7 @@
       "variables": {
         "id": "gid://shopify/Order/8728437588274"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderLifecycleOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9327,7 +9342,7 @@
       "variables": {
         "id": "gid://shopify/Order/8728437653810"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderLifecycleOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9406,7 +9421,7 @@
       "variables": {
         "id": "gid://shopify/Order/8728437719346"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderLifecycleOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9485,7 +9500,7 @@
       "variables": {
         "id": "gid://shopify/Order/8728437784882"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderLifecycleOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

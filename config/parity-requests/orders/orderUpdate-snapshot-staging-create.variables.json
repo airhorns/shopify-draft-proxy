@@ -1,0 +1,25 @@
+{
+  "order": {
+    "email": "order-update-snapshot-before@example.com",
+    "note": "order update snapshot baseline",
+    "tags": ["snapshot-baseline"],
+    "currency": "CAD",
+    "lineItems": [
+      {
+        "title": "Order update snapshot item",
+        "quantity": 2,
+        "priceSet": {
+          "shopMoney": {
+            "amount": "12.00",
+            "currencyCode": "CAD"
+          }
+        }
+      }
+    ]
+  },
+  "options": {
+    "inventoryBehaviour": "BYPASS",
+    "sendReceipt": false,
+    "sendFulfillmentReceipt": false
+  }
+}

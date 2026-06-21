@@ -7,7 +7,13 @@ The privacy group covers shop-level privacy settings, consent policy configurati
 
 ## Current support and limitations
 
-`src/operation_registry.rs` currently keeps all privacy roots conservative with `implemented: false`, and `src/proxy.rs` does not currently dispatch a Rust privacy-domain local handler. Checked-in parity specs and fixtures remain useful evidence for the intended `dataSaleOptOut` behavior, but they do not make the root supported by the current Rust runtime until a local dispatcher is present.
+The privacy domain currently supports the customer data-sale opt-out mutation. Shop-level privacy settings and consent policy roots remain registry-only until their local state, side-effect boundaries, and commit replay behavior are modeled.
+
+### Supported roots
+
+Local staged mutations:
+
+- `dataSaleOptOut`
 
 ### Registry-only roots
 
@@ -24,14 +30,6 @@ Planned local staged mutations:
 
 All five roots are `implemented: false` until captured fixtures, parity specs, and runtime behavior exist. Registry presence is a local-model commitment only; it does not make either privacy mutation a supported runtime operation.
 
-### Validation-only evidence
-
-Parity-backed but not currently supported by Rust runtime dispatch:
-
-- `dataSaleOptOut`
-
-`dataSaleOptOut` is tracked separately because it is a customer email data-sale opt-out mutation, not a shop privacy settings read and not the unsupported consent-policy update flow. The current docs keep its captured behavior visible as validation evidence, but do not mark it as supported operation handling while both the registry snapshot and Rust dispatcher remain conservative.
-
 The customer data-erasure request/cancel roots are documented under the customers endpoint group:
 
 - `customerRequestDataErasure`
@@ -41,6 +39,7 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 
 ### Coverage boundaries
 
+- `dataSaleOptOut` stages locally, keeps the original raw mutation for commit replay, and stores its read-after-write effect on the normalized customer record so `customer(id:)` and `customerByIdentifier(...)` can serialize `dataSaleOptOut`.
 - `privacySettings` returns shop privacy settings such as cookie banner, data sale opt-out page, and privacy policy settings. Shopify documents the `PrivacySettings` object as requiring the `read_privacy_settings` access scope.
 - `consentPolicy` and `consentPolicyRegions` are shop consent policy reads. They are separate from customer contact consent fields.
 - `consentPolicyUpdate` and `privacyFeaturesDisable` require `write_privacy_settings` and have real shop side effects. They must remain unsupported at runtime until the proxy can stage the changes locally and replay the original raw mutations during commit.
@@ -48,8 +47,7 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - `dataSaleOptOut.email` is a non-null `String!` schema argument. Missing inline `email` and explicit null variable values are rejected by GraphQL coercion before the resolver runs, so the proxy returns a top-level `errors` envelope with no `data.dataSaleOptOut` payload. This differs from `email: ""`, which reaches the resolver and returns the captured `FAILED` userError shape.
 - `dataSaleOptOut` sanitizes the email before validation by stripping the whitespace characters observed in live Admin API capture: internal spaces and newlines are removed. For example, `her mes@example.com` is validated and staged as `hermes@example.com`; if stripping leaves an empty value or the remaining value does not match the email validator approximation, the mutation returns the captured `FAILED` userError and stages nothing. Live 2025-01 capture rejected tab characters with the same `FAILED` shape, so the proxy deliberately preserves that boundary instead of treating tabs as removable whitespace.
 - `dataSaleOptOut` is related to, but distinct from, shop privacy settings fields such as `privacySettings.dataSaleOptOutPage` and consent policy fields such as `dataSaleOptOutRequired`: those reads describe shop configuration and policy requirements, while the mutation records an opt-out action for a customer email.
-- The intended local staging model keeps the operation under the privacy registry domain, but stores its read-after-write effect on the normalized customer record so `customer(id:)` and `customerByIdentifier(...)` can serialize `dataSaleOptOut`.
-- In cassette-backed `LiveHybrid` parity evidence, existing-email `dataSaleOptOut` first reads `customerByIdentifier(identifier: { emailAddress })` from upstream to learn Shopify's authoritative customer ID, then stages the opt-out locally without sending the mutation upstream. That evidence is not a current Rust support claim until the dispatcher path is present.
+- In `LiveHybrid`, existing-email `dataSaleOptOut` can first read `customerByIdentifier(identifier: { emailAddress })` from upstream to learn Shopify's authoritative customer ID, then stage the opt-out locally without sending the mutation upstream.
 - Customer email/SMS marketing consent is tracked under the customers endpoint group through `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate`.
 - Executable parity evidence covers existing-customer opt-out, repeat idempotency, invalid-email userErrors, downstream customer reads, and fresh-customer defaults. Shop-level privacy settings roots remain the deliberate fidelity gap for this endpoint group and must stay unsupported until local shop privacy state, side-effect boundaries, and commit replay are modeled.
 - Legal policy body updates are tracked under store properties through `shopPolicyUpdate`.
@@ -73,5 +71,7 @@ Do not check in planned-only parity specs or parity request placeholders for thi
 - Fixture-backed parity scenario: `config/parity-specs/privacy/dataSaleOptOut-parity.json`
 - Fixture-backed whitespace sanitization scenario: `config/parity-specs/privacy/data-sale-opt-out-whitespace-email.json`
 - Fixture-backed missing-email coercion scenario: `config/parity-specs/privacy/data-sale-opt-out-missing-email.json`
+- Fixture-backed fresh customer defaults scenario: `config/parity-specs/privacy/data-sale-opt-out-new-customer-defaults.json`
+- Runtime tests: `tests/graphql_routes/admin_app_shipping.rs`
 - General registry checks: `tests/unit/operation-registry.test.ts`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

@@ -27,7 +27,7 @@
       "variables": {
         "query": null
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query DraftOrdersCountReadParityPlan($query: String) {\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

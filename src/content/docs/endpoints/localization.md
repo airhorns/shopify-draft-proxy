@@ -60,13 +60,21 @@ enable/update/disable effects are merged with that baseline for subsequent
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 ported product, collection, product-metafield, and market-scoped translation
-scenarios. The local slice validates unknown resources, enabled non-primary
-locale requirements, translatable keys, digest mismatches, non-blank values,
-the 100-key mutation limit, market scope, and selected handle-normalization
+scenarios. For Product resource IDs, the local slice validates existence against
+known localization Product resources plus normalized product state before
+applying translation-specific validation; unknown Product GIDs return
+`RESOURCE_NOT_FOUND` with `field: ["resourceId"]` and `translations: null`. The
+slice also validates enabled non-primary locale requirements, translatable keys,
+digest mismatches, non-blank values, the 100-key mutation limit, market scope,
+and selected handle-normalization
 branches. Successful translations are staged in local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state.
+For `translationsRegister` rows that violate multiple rules, captured Shopify
+behavior validates locale and market gates before translation-record value and
+digest validation, so the local first `userErrors` entry follows that
+precedence.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has
@@ -81,8 +89,11 @@ cleanly.
   ported request families fall through to passthrough and must not be treated as
   supported local behavior.
 - `TranslatableResource` support is limited to product, collection, and
-  product-metafield evidence. Other resource families return null/empty results
-  or remain unsupported until local lifecycle behavior is modeled.
+  product-metafield evidence. Product existence checks use localization baseline
+  resources and normalized product state; collection and product-metafield
+  translation scenarios remain fixture-backed. Other resource families return
+  null/empty results or remain unsupported until local lifecycle behavior is
+  modeled.
 - Validation-only localization specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make unmodeled translation or
   resource families generally supported.

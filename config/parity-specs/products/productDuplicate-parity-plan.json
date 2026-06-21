@@ -8,7 +8,6 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productDuplicate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productDuplicate-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -42,22 +41,22 @@
         "reason": "Duplicated product option value IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productDuplicate.newProduct.variants[\"nodes\"][0].id",
+        "path": "$.productDuplicate.newProduct.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Duplicated variant IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productDuplicate.newProduct.variants[\"nodes\"][0].inventoryItem.id",
+        "path": "$.productDuplicate.newProduct.variants.nodes[0].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "Duplicated inventory item IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productDuplicate.newProduct.variants[\"nodes\"][1].id",
+        "path": "$.productDuplicate.newProduct.variants.nodes[1].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Duplicated variant IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productDuplicate.newProduct.variants[\"nodes\"][1].inventoryItem.id",
+        "path": "$.productDuplicate.newProduct.variants.nodes[1].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "Duplicated inventory item IDs are allocated independently by Shopify and the local staging identity registry."
       },
@@ -97,22 +96,22 @@
         "reason": "The downstream proxy read returns the locally generated duplicate option value ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][0].id",
+        "path": "$.product.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "The downstream proxy read returns the locally generated duplicate variant ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][0].inventoryItem.id",
+        "path": "$.product.variants.nodes[0].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "The downstream proxy read returns the locally generated duplicate inventory item ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][1].id",
+        "path": "$.product.variants.nodes[1].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "The downstream proxy read returns the locally generated duplicate variant ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][1].inventoryItem.id",
+        "path": "$.product.variants.nodes[1].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "The downstream proxy read returns the locally generated duplicate inventory item ID."
       },

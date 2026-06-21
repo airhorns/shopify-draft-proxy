@@ -126,7 +126,7 @@
       "variables": {
         "id": "gid://shopify/BulkOperation/7749099127090"
       },
-      "query": "hand-synthesized from captured first run operation",
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
       "response": {
         "status": 200,
         "body": {

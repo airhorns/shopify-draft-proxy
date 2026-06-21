@@ -103,6 +103,9 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
 }
 
 function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
+  // Pass the request via stdin rather than an environment variable to avoid
+  // E2BIG failures when the body is large (e.g. dumpState/restoreState with
+  // hundreds of staged variants).
   const script = `
     const fs = require('node:fs');
     const request = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -125,14 +128,15 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
       process.exit(1);
     });
   `;
+  const input = JSON.stringify({
+    method: request.method,
+    path: request.path,
+    headers: normalizeHeaders(request.headers),
+    body: bodyToString(request.body),
+  });
   const result = spawnSync(process.execPath, ['-e', script], {
+    input,
     encoding: 'utf8',
-    input: JSON.stringify({
-      method: request.method,
-      path: request.path,
-      headers: normalizeHeaders(request.headers),
-      body: bodyToString(request.body),
-    }),
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
@@ -187,7 +191,7 @@ export class DraftProxy {
     const port = allocatePort();
     this.#origin = `http://127.0.0.1:${port}`;
     registerCleanup();
-    this.#child = spawn('cargo', ['run', '--bin', 'shopify-draft-proxy-server', '--quiet'], {
+    this.#child = spawn('./target/release/shopify-draft-proxy-server', [], {
       cwd: repoRoot,
       env: envForConfig(options, port),
     });

@@ -1,0 +1,135 @@
+{
+  "capturedAt": "2026-06-16T06:41:31.529Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures DeliveryCarrierServiceCreateInput required-field validation against live Shopify Admin GraphQL.",
+    "Omitted active and supportsServiceDiscovery inputs fail at GraphQL variable coercion before the carrierServiceCreate resolver runs.",
+    "The capture is validation-only and creates no live carrier service objects."
+  ],
+  "captures": {
+    "missingActive": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+      "variables": {
+        "input": {
+          "name": "Hermes Missing Active mqg9xjlq",
+          "callbackUrl": "https://mock.shop/carrier-service-rates",
+          "supportsServiceDiscovery": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for active (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 45
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Missing Active mqg9xjlq",
+                  "callbackUrl": "https://mock.shop/carrier-service-rates",
+                  "supportsServiceDiscovery": false
+                },
+                "problems": [
+                  {
+                    "path": ["active"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingSupportsServiceDiscovery": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+      "variables": {
+        "input": {
+          "name": "Hermes Missing Supports mqg9xjlq",
+          "callbackUrl": "https://mock.shop/carrier-service-rates",
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for supportsServiceDiscovery (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 45
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Missing Supports mqg9xjlq",
+                  "callbackUrl": "https://mock.shop/carrier-service-rates",
+                  "active": false
+                },
+                "problems": [
+                  {
+                    "path": ["supportsServiceDiscovery"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingBoth": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+      "variables": {
+        "input": {
+          "name": "Hermes Missing Both mqg9xjlq",
+          "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for supportsServiceDiscovery (Expected value to not be null), active (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 45
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Missing Both mqg9xjlq",
+                  "callbackUrl": "https://mock.shop/carrier-service-rates"
+                },
+                "problems": [
+                  {
+                    "path": ["supportsServiceDiscovery"],
+                    "explanation": "Expected value to not be null"
+                  },
+                  {
+                    "path": ["active"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

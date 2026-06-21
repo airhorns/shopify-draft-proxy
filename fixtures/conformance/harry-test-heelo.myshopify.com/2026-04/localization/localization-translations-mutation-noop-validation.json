@@ -379,7 +379,7 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10212146807090"
       },
-      "query": "#graphql\n  query LocalizationTranslationsMutationNoopValidationRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"it\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n",
+      "query": "query LocalizationTranslationsMutationNoopValidationRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"it\") {\n      key\n      value\n      locale\n      outdated\n      market {\n        id\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

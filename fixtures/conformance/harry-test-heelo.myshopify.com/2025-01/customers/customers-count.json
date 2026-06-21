@@ -128,7 +128,8 @@
             ]
           }
         }
-      }
+      },
+      "query": "query CustomersCountRead($query: String!, $disabledQuery: String!) {\n  total: customersCount {\n    count\n    precision\n  }\n  matching: customersCount(query: $query) {\n    count\n    precision\n  }\n  disabled: customersCount(query: $disabledQuery) {\n    count\n    precision\n  }\n}\n"
     }
   ]
 }

@@ -41,7 +41,7 @@
       "variables": {
         "id": "gid://shopify/Product/8971842846953"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductDetailRead($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    descriptionHtml\n    onlineStorePreviewUrl\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    category {\n      id\n      fullName\n    }\n    collections(first: 3) {\n      edges {\n        node {\n          id\n          title\n          handle\n        }\n      }\n    }\n    media(first: 5) {\n      edges {\n        node {\n          mediaContentType\n          alt\n          preview {\n            image {\n              url\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

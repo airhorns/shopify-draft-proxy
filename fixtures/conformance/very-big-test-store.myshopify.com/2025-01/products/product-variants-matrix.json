@@ -112,7 +112,7 @@
         "variantId": "gid://shopify/ProductVariant/48540157378793",
         "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductVariantsRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    variants(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement {\n              weight {\n                unit\n                value\n              }\n            }\n            countryCodeOfOrigin\n            provinceCodeOfOrigin\n            harmonizedSystemCode\n            inventoryLevels(first: 5) {\n              edges {\n                cursor\n                node {\n                  id\n                  location {\n                    id\n                    name\n                  }\n                  quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n                    name\n                    quantity\n                    updatedAt\n                  }\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  variant: productVariant(id: $variantId) {\n    id\n    title\n    sku\n    barcode\n    price\n    compareAtPrice\n    taxable\n    inventoryPolicy\n    inventoryQuantity\n    selectedOptions {\n      name\n      value\n    }\n    inventoryItem {\n      id\n      tracked\n      requiresShipping\n      measurement {\n        weight {\n          unit\n          value\n        }\n      }\n      countryCodeOfOrigin\n      provinceCodeOfOrigin\n      harmonizedSystemCode\n      inventoryLevels(first: 5) {\n        edges {\n          cursor\n          node {\n            id\n            location {\n              id\n              name\n            }\n            quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    product {\n      id\n      title\n    }\n  }\n  stock: inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    measurement {\n      weight {\n        unit\n        value\n      }\n    }\n    countryCodeOfOrigin\n    provinceCodeOfOrigin\n    harmonizedSystemCode\n    inventoryLevels(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  stockBackreference: inventoryItem(id: $inventoryItemId) {\n    id\n    variant {\n      id\n      title\n      sku\n      inventoryQuantity\n      product {\n        id\n        title\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -413,7 +413,7 @@
       "variables": {
         "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 inventory level passthrough",
+      "query": "query InventoryLevelRead($inventoryLevelId: ID!) {\n  inventoryLevel(id: $inventoryLevelId) {\n    id\n    location {\n      id\n      name\n    }\n    quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n      name\n      quantity\n      updatedAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -453,6 +453,94 @@
                 "restoreRate": 100
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/50643009569001"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/50643009569001",
+                "tracked": false,
+                "requiresShipping": true,
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null,
+                "measurement": {
+                  "weight": {
+                    "value": 0,
+                    "unit": "KILOGRAMS"
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/48540157378793",
+                  "title": "Default Title",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/8971842846953",
+                    "title": "Test Product - 6635",
+                    "handle": null,
+                    "status": null,
+                    "totalInventory": null,
+                    "tracksInventory": null
+                  }
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2025-07-01T23:57:25Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
           }
         }
       }

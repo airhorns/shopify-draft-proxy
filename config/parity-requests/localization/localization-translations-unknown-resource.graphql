@@ -1,0 +1,39 @@
+mutation LocalizationTranslationsUnknownResource(
+  $resourceId: ID!
+  $translations: [TranslationInput!]!
+  $keys: [String!]!
+  $locales: [String!]!
+) {
+  register: translationsRegister(resourceId: $resourceId, translations: $translations) {
+    translations {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  remove: translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+    translations {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
