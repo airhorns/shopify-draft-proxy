@@ -2783,7 +2783,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-operation-errors-conformance.ts',
     purpose:
-      'metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and multi-conflict ordering.',
+      'metaobjectDefinitionUpdate field-operation conflict plus create-key validation userError codes, field paths, messages, and multi-conflict ordering.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-field-operation-errors.json`,
