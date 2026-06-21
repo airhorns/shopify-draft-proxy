@@ -1,0 +1,50 @@
+{
+  "scenarioId": "functions-fulfillment-constraint-rule-errors",
+  "operationNames": [
+    "fulfillmentConstraintRuleCreate",
+    "fulfillmentConstraintRuleDelete",
+    "fulfillmentConstraintRuleUpdate",
+    "fulfillmentConstraintRules"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "user-errors-parity",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "function-identifier-validation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-errors.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql",
+    "variablesCapturePath": "$.errorShape.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fulfillment-constraint-rule-deterministic-user-errors",
+        "capturePath": "$.errorShape.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "fulfillment-constraint-rules-empty-read",
+        "capturePath": "$.readEmpty.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql",
+          "variablesCapturePath": "$.readEmpty.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, fulfillmentConstraintRuleDelete unknown id, and an empty fulfillmentConstraintRules read. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
+}

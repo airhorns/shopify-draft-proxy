@@ -3,7 +3,9 @@ title: 'Functions'
 description: 'Coverage notes and fidelity boundaries for Functions.'
 ---
 
-This endpoint group covers Shopify Function-backed Admin metadata roots for validations, cart transforms, Shopify Function catalog reads, and tax app readiness.
+This endpoint group covers Shopify Function-backed Admin metadata roots for validations,
+cart transforms, fulfillment constraint rules, Shopify Function catalog reads, and
+tax app readiness.
 
 ## Current support and limitations
 
@@ -14,6 +16,7 @@ Read roots:
 - `validation(id:)`
 - `validations(...)`
 - `cartTransforms(...)`
+- `fulfillmentConstraintRules`
 - `shopifyFunction(id:)`
 - `shopifyFunctions(...)`
 
@@ -24,6 +27,9 @@ Mutation roots:
 - `validationDelete`
 - `cartTransformCreate`
 - `cartTransformDelete`
+- `fulfillmentConstraintRuleCreate`
+- `fulfillmentConstraintRuleUpdate`
+- `fulfillmentConstraintRuleDelete`
 - `taxAppConfigure`
 
 ### Local behavior
@@ -54,6 +60,16 @@ Cart transform behavior:
 - `cartTransformDelete` checks ownership against the staged transform's resolved `ShopifyFunction` owner and current app installation when that metadata exists. Missing installation, Function, or owner metadata returns `UNAUTHORIZED_APP_SCOPE`.
 - `CartTransform` reads expose the modeled Admin field set: `id`, `functionId`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and HasMetafields selections. Fabricated scalar fields such as `title`, `functionHandle`, `createdAt`, or `updatedAt` are not projected.
 
+Fulfillment constraint rule behavior:
+
+- `fulfillmentConstraintRuleCreate` accepts direct top-level `functionId` or `functionHandle`, `deliveryMethodTypes`, and optional `metafields`.
+- Valid create input resolves a fulfillment-constraint `ShopifyFunction`, stages a local `FulfillmentConstraintRule` with `id`, `function`, `deliveryMethodTypes`, and HasMetafields data, and appends the original raw request for commit replay.
+- Create rejects missing identifiers, multiple identifiers, unknown Functions, known wrong API types, and empty `deliveryMethodTypes` with mutation-scoped `userErrors` and no staged rule.
+- `fulfillmentConstraintRuleUpdate` updates staged rule `deliveryMethodTypes` and returns the updated rule. Unknown IDs and empty `deliveryMethodTypes` return userErrors without staging a replacement.
+- `fulfillmentConstraintRuleDelete` removes the staged rule and returns `{ success: true, userErrors: [] }`. Unknown IDs return `{ success: false, userErrors: [...] }`; the payload does not use `deletedId`.
+- `fulfillmentConstraintRules` lists staged rules in local insertion order and returns `[]` when no local rules exist. The captured 2026-04 schema exposes no singular `fulfillmentConstraintRule(id:)` query root; direct lookup is available through generic `node(id:)` for staged rule IDs.
+- The local model stores Function metadata on the rule for downstream `FulfillmentConstraintRule.function` projections. It does not execute fulfillment-constraint Functions or model checkout/order-routing runtime decisions.
+
 Function catalog and guardrails:
 
 - `shopifyFunction` and `shopifyFunctions` preserve captured Function identity, handle, API type, `appKey`, and selected `app` fields from seeded or hydrated metadata.
@@ -66,6 +82,7 @@ Function catalog and guardrails:
 - Function catalog reads prove Admin metadata shape only; they do not prove that the corresponding extension code can run.
 - Cross-app Function reference behavior is limited to the owner metadata available in local/captured state.
 - Tax-app authority and real tax-service readiness are not emulated beyond local readiness metadata.
+- Fulfillment constraint success-path live parity requires a released `FULFILLMENT_CONSTRAINT_RULE` Function in the conformance app. The checked-in live fixture covers deterministic validation branches and empty reads because the current conformance app has no released fulfillment-constraint Function.
 - No root listed here is registry-only. Validation-only behavior is limited to captured input coercion, userErrors, and guardrails that fail before local staging.
 
 ### Evidence
@@ -85,6 +102,7 @@ Function catalog and guardrails:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-errors.json`
 - `config/parity-specs/functions/functions-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-owner-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-create-guardrails.json`
@@ -100,6 +118,7 @@ Function catalog and guardrails:
 - `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
 - `config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
+- `config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
 ### Validation
@@ -107,4 +126,5 @@ Function catalog and guardrails:
 - `corepack pnpm parity -- functions-metadata-local-staging`
 - `corepack pnpm parity -- functions-validation-create-validation`
 - `corepack pnpm parity -- functions-cart-transform-create-metafields`
+- `corepack pnpm parity -- functions-fulfillment-constraint-rule-errors`
 - `corepack pnpm conformance:check`

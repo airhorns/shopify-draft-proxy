@@ -433,6 +433,14 @@ impl DraftProxy {
         {
             return Some(selected_json(cart_transform, selection));
         }
+        if let Some(rule) = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(id)
+        {
+            return Some(selected_json(rule, selection));
+        }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
