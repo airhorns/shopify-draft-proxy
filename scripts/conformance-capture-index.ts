@@ -2104,6 +2104,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-duplicate-status',
+    scriptPath: 'scripts/capture-product-duplicate-status-conformance.mts',
+    purpose: 'productDuplicate status inheritance from the source product and explicit newStatus overrides.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-duplicate-status-parity.json`,
+      'config/parity-specs/products/productDuplicate-status-inheritance-and-newStatus.json',
+      'config/parity-requests/products/productDuplicate-status-source-create.graphql',
+      'config/parity-requests/products/productDuplicate-status-no-newStatus.graphql',
+      'config/parity-requests/products/productDuplicate-status-newStatus.graphql',
+      'config/parity-requests/products/productDuplicate-status-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates ACTIVE and DRAFT disposable source products, duplicates each source, records downstream duplicate reads, and deletes all four products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-duplicate-async',
     scriptPath: 'scripts/capture-product-duplicate-async-conformance.ts',
     purpose: 'Asynchronous productDuplicate operation success and missing-product completion behavior.',
