@@ -5035,8 +5035,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/online-store/theme-publish-publish.graphql',
       'config/parity-requests/online-store/theme-publish-read.graphql',
     ],
-    cleanupBehavior:
-      'Local-runtime only; all theme records are staged locally and no Shopify store state is modified.',
+    cleanupBehavior: 'Local-runtime only; all theme records are staged locally and no Shopify store state is modified.',
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
   },
   {

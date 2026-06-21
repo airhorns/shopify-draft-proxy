@@ -132,12 +132,8 @@
   "unknownKeyRemove": {
     "variables": {
       "resourceId": "gid://shopify/Product/10212146807090",
-      "keys": [
-        "bogus_key"
-      ],
-      "locales": [
-        "fr"
-      ]
+      "keys": ["bogus_key"],
+      "locales": ["fr"]
     },
     "response": {
       "data": {
@@ -256,12 +252,8 @@
     "remove": {
       "variables": {
         "resourceId": "gid://shopify/Product/10212146807090",
-        "keys": [
-          "title"
-        ],
-        "locales": [
-          "it"
-        ]
+        "keys": ["title"],
+        "locales": ["it"]
       },
       "response": {
         "data": {
@@ -301,11 +293,7 @@
             "translations": [],
             "userErrors": [
               {
-                "field": [
-                  "translations",
-                  "0",
-                  "locale"
-                ],
+                "field": ["translations", "0", "locale"],
                 "message": "Locale is not a valid locale for the shop",
                 "code": "INVALID_LOCALE_FOR_SHOP"
               }
@@ -344,11 +332,7 @@
           "translations": [],
           "userErrors": [
             {
-              "field": [
-                "translations",
-                "0",
-                "locale"
-              ],
+              "field": ["translations", "0", "locale"],
               "message": "Locale cannot be the same as the shop's primary locale",
               "code": "INVALID_LOCALE_FOR_SHOP"
             }

@@ -37,9 +37,7 @@
           "deletedProductId": null,
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Product does not exist"
             }
           ]
@@ -78,9 +76,7 @@
               "value": {},
               "problems": [
                 {
-                  "path": [
-                    "id"
-                  ],
+                  "path": ["id"],
                   "explanation": "Expected value to not be null"
                 }
               ]
@@ -100,12 +96,7 @@
                 "column": 26
               }
             ],
-            "path": [
-              "mutation",
-              "productDelete",
-              "input",
-              "id"
-            ],
+            "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
               "code": "missingRequiredInputObjectAttribute",
               "argumentName": "id",
@@ -127,12 +118,7 @@
                 "column": 26
               }
             ],
-            "path": [
-              "mutation",
-              "productDelete",
-              "input",
-              "id"
-            ],
+            "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "InputObject",
@@ -166,9 +152,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/9257218801897"
-        ]
+        "ids": ["gid://shopify/Product/9257218801897"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -229,9 +213,7 @@
                   "deletedProductId": null,
                   "userErrors": [
                     {
-                      "field": [
-                        "id"
-                      ],
+                      "field": ["id"],
                       "message": "Product does not exist"
                     }
                   ]
@@ -270,9 +252,7 @@
                       "value": {},
                       "problems": [
                         {
-                          "path": [
-                            "id"
-                          ],
+                          "path": ["id"],
                           "explanation": "Expected value to not be null"
                         }
                       ]
@@ -292,12 +272,7 @@
                         "column": 26
                       }
                     ],
-                    "path": [
-                      "mutation",
-                      "productDelete",
-                      "input",
-                      "id"
-                    ],
+                    "path": ["mutation", "productDelete", "input", "id"],
                     "extensions": {
                       "code": "missingRequiredInputObjectAttribute",
                       "argumentName": "id",
@@ -319,12 +294,7 @@
                         "column": 26
                       }
                     ],
-                    "path": [
-                      "mutation",
-                      "productDelete",
-                      "input",
-                      "id"
-                    ],
+                    "path": ["mutation", "productDelete", "input", "id"],
                     "extensions": {
                       "code": "argumentLiteralsIncompatible",
                       "typeName": "InputObject",

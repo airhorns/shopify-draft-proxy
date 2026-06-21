@@ -189,11 +189,7 @@
           "return": null,
           "userErrors": [
             {
-              "field": [
-                "returnLineItems",
-                "0",
-                "quantity"
-              ],
+              "field": ["returnLineItems", "0", "quantity"],
               "message": "Quantity is not available for return.",
               "code": "INVALID"
             }
@@ -207,11 +203,7 @@
           "return": null,
           "userErrors": [
             {
-              "field": [
-                "returnLineItems",
-                "0",
-                "quantity"
-              ],
+              "field": ["returnLineItems", "0", "quantity"],
               "message": "Quantity is not available for return.",
               "code": "INVALID"
             }
@@ -225,11 +217,7 @@
           "return": null,
           "userErrors": [
             {
-              "field": [
-                "returnLineItems",
-                "0",
-                "quantity"
-              ],
+              "field": ["returnLineItems", "0", "quantity"],
               "message": "Quantity is not removable from return.",
               "code": "INVALID"
             }
@@ -243,11 +231,7 @@
           "return": null,
           "userErrors": [
             {
-              "field": [
-                "returnLineItems",
-                "0",
-                "quantity"
-              ],
+              "field": ["returnLineItems", "0", "quantity"],
               "message": "Quantity is not removable from return.",
               "code": "INVALID"
             }

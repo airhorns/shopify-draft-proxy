@@ -551,11 +551,7 @@
               "status": "ACTIVE",
               "vendor": "harry-test-heelo",
               "productType": "snowboard",
-              "tags": [
-                "Accessory",
-                "Sport",
-                "Winter"
-              ],
+              "tags": ["Accessory", "Sport", "Winter"],
               "totalInventory": 0,
               "tracksInventory": false,
               "createdAt": "2025-03-26T19:51:37Z",
@@ -770,9 +766,7 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
           },
-          "path": [
-            "productResourceFeedback"
-          ]
+          "path": ["productResourceFeedback"]
         }
       ],
       "data": {
@@ -827,11 +821,7 @@
           "precision": "EXACT"
         },
         "productTags": {
-          "nodes": [
-            "1/8\"",
-            "10mm",
-            "14mm"
-          ],
+          "nodes": ["1/8\"", "10mm", "14mm"],
           "edges": [
             {
               "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
@@ -854,11 +844,7 @@
           }
         },
         "productTypes": {
-          "nodes": [
-            "accessories",
-            "Apparel",
-            "Badge"
-          ],
+          "nodes": ["accessories", "Apparel", "Badge"],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
@@ -867,11 +853,7 @@
           }
         },
         "productVendors": {
-          "nodes": [
-            "ACS",
-            "Aerospoke",
-            "Bookman"
-          ],
+          "nodes": ["ACS", "Aerospoke", "Bookman"],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
@@ -938,9 +920,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
               },
-              "path": [
-                "productResourceFeedback"
-              ]
+              "path": ["productResourceFeedback"]
             }
           ],
           "data": {
@@ -995,11 +975,7 @@
               "precision": "EXACT"
             },
             "productTags": {
-              "nodes": [
-                "1/8\"",
-                "10mm",
-                "14mm"
-              ],
+              "nodes": ["1/8\"", "10mm", "14mm"],
               "edges": [
                 {
                   "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
@@ -1022,11 +998,7 @@
               }
             },
             "productTypes": {
-              "nodes": [
-                "accessories",
-                "Apparel",
-                "Badge"
-              ],
+              "nodes": ["accessories", "Apparel", "Badge"],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
@@ -1035,11 +1007,7 @@
               }
             },
             "productVendors": {
-              "nodes": [
-                "ACS",
-                "Aerospoke",
-                "Bookman"
-              ],
+              "nodes": ["ACS", "Aerospoke", "Bookman"],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,

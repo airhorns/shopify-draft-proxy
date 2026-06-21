@@ -113,9 +113,7 @@
           "firstName": "HAR390",
           "lastName": "Buyer Context",
           "email": "har390-buyer-context-1777346878525@example.com",
-          "tags": [
-            "har390-buyer-1777346878525"
-          ]
+          "tags": ["har390-buyer-1777346878525"]
         }
       },
       "response": {
@@ -129,9 +127,7 @@
                 "lastName": "Buyer Context",
                 "displayName": "HAR390 Buyer Context",
                 "email": "har390-buyer-context-1777346878525@example.com",
-                "tags": [
-                  "har390-buyer-1777346878525"
-                ],
+                "tags": ["har390-buyer-1777346878525"],
                 "createdAt": "2026-04-28T03:27:58Z",
                 "updatedAt": "2026-04-28T03:27:58Z"
               },
@@ -203,9 +199,7 @@
           },
           "context": {
             "customers": {
-              "add": [
-                "gid://shopify/Customer/10548596015410"
-              ]
+              "add": ["gid://shopify/Customer/10548596015410"]
             }
           },
           "customerGets": {
@@ -234,9 +228,7 @@
           },
           "context": {
             "customerSegments": {
-              "add": [
-                "gid://shopify/Segment/647746715954"
-              ]
+              "add": ["gid://shopify/Segment/647746715954"]
             }
           },
           "customerGets": {
@@ -272,9 +264,7 @@
           },
           "context": {
             "customers": {
-              "add": [
-                "gid://shopify/Customer/10548596015410"
-              ]
+              "add": ["gid://shopify/Customer/10548596015410"]
             }
           },
           "customerGets": {
@@ -302,9 +292,7 @@
           },
           "context": {
             "customerSegments": {
-              "add": [
-                "gid://shopify/Segment/647746715954"
-              ]
+              "add": ["gid://shopify/Segment/647746715954"]
             }
           },
           "customerGets": {

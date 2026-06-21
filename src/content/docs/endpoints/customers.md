@@ -7,7 +7,6 @@ The customers group has Rust runtime local slices for the documented parity-back
 
 ## Current support and limitations
 
-
 ### Supported roots
 
 Overlay reads:

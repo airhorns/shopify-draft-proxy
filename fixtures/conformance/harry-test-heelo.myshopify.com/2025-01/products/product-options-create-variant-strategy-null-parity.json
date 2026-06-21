@@ -8,9 +8,7 @@
             "id": "gid://shopify/ProductOption/12769749434674",
             "name": "Title",
             "position": 1,
-            "values": [
-              "Default Title"
-            ],
+            "values": ["Default Title"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/8182809755954",
@@ -88,9 +86,7 @@
                 "id": "gid://shopify/ProductOption/12769749467442",
                 "name": "Color",
                 "position": 1,
-                "values": [
-                  "Red"
-                ],
+                "values": ["Red"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/8182809788722",
@@ -156,9 +152,7 @@
             "id": "gid://shopify/ProductOption/12769749467442",
             "name": "Color",
             "position": 1,
-            "values": [
-              "Red"
-            ],
+            "values": ["Red"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/8182809788722",
@@ -216,9 +210,7 @@
     {
       "operationName": "ProductOptionLifecycleHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10213991973170"
-        ]
+        "ids": ["gid://shopify/Product/10213991973170"]
       },
       "query": "query ProductOptionLifecycleHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      totalInventory\n      tracksInventory\n      variants(first: 110) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          inventoryQuantity\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
@@ -231,9 +223,7 @@
                   "id": "gid://shopify/ProductOption/12769749434674",
                   "name": "Title",
                   "position": 1,
-                  "values": [
-                    "Default Title"
-                  ],
+                  "values": ["Default Title"],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/8182809755954",

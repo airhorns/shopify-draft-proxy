@@ -194,11 +194,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Location/1",
-          "gid://shopify/Location/2",
-          "gid://shopify/InventoryItem/97011"
-        ]
+        "ids": ["gid://shopify/Location/1", "gid://shopify/Location/2", "gid://shopify/InventoryItem/97011"]
       },
       "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on InventoryItem {\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n      }\n      ... on Location {\n        id\n        name\n        isActive\n      }\n    }\n  }\n",
       "response": {

@@ -20,11 +20,7 @@
         "taxesIncluded": false,
         "reserveInventoryUntil": "2026-05-23T12:00:00Z",
         "paymentTerms": null,
-        "tags": [
-          "detail",
-          "draft-order-family",
-          "parity-capture"
-        ],
+        "tags": ["detail", "draft-order-family", "parity-capture"],
         "customAttributes": [
           {
             "key": "source",
@@ -252,11 +248,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "detail",
-                "draft-order-family",
-                "parity-capture"
-              ],
+              "tags": ["detail", "draft-order-family", "parity-capture"],
               "customAttributes": [
                 {
                   "key": "source",

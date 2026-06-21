@@ -18,9 +18,7 @@
             "createdAt": "2026-04-25T15:28:45Z",
             "updatedAt": "2026-04-25T15:28:45Z",
             "asyncUsageCount": 0,
-            "discountClasses": [
-              "ORDER"
-            ],
+            "discountClasses": ["ORDER"],
             "combinesWith": {
               "productDiscounts": false,
               "orderDiscounts": true,
@@ -95,9 +93,7 @@
           "createdAt": "2026-04-25T15:28:45Z",
           "updatedAt": "2026-04-25T15:28:45Z",
           "asyncUsageCount": 0,
-          "discountClasses": [
-            "ORDER"
-          ],
+          "discountClasses": ["ORDER"],
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -199,9 +195,7 @@
           "createdAt": "2026-04-25T15:28:45Z",
           "updatedAt": "2026-04-25T15:28:45Z",
           "asyncUsageCount": 0,
-          "discountClasses": [
-            "ORDER"
-          ],
+          "discountClasses": ["ORDER"],
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -289,9 +283,7 @@
                 "createdAt": "2026-04-25T15:28:45Z",
                 "updatedAt": "2026-04-25T15:28:45Z",
                 "asyncUsageCount": 0,
-                "discountClasses": [
-                  "ORDER"
-                ],
+                "discountClasses": ["ORDER"],
                 "combinesWith": {
                   "productDiscounts": false,
                   "orderDiscounts": true,
@@ -393,9 +385,7 @@
                 "createdAt": "2026-04-25T15:28:45Z",
                 "updatedAt": "2026-04-25T15:28:45Z",
                 "asyncUsageCount": 0,
-                "discountClasses": [
-                  "ORDER"
-                ],
+                "discountClasses": ["ORDER"],
                 "combinesWith": {
                   "productDiscounts": false,
                   "orderDiscounts": true,

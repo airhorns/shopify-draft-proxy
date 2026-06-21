@@ -86,9 +86,7 @@ export function formatRecordedCallMismatch(
   const parsed = parsedRequestBody(body);
   const requestQuery = typeof parsed['query'] === 'string' ? parsed['query'] : '<missing query>';
   const requestVariables = stableJson(parsed['variables'] ?? {});
-  const candidates = calls
-    .map((call, index) => ({ call, index }))
-    .filter(({ index }) => !consumedCalls.has(index));
+  const candidates = calls.map((call, index) => ({ call, index })).filter(({ index }) => !consumedCalls.has(index));
   const candidateSummary = candidates
     .slice(0, 12)
     .map(({ call, index }) => {
@@ -110,6 +108,8 @@ export function formatRecordedCallMismatch(
     `Outgoing variables: ${requestVariables}`,
     'Outgoing query:',
     truncate(requestQuery),
-    candidateSummary ? `Unconsumed recorded upstream candidates:\n${candidateSummary}${omitted}` : 'No unconsumed recorded upstream candidates remain.',
+    candidateSummary
+      ? `Unconsumed recorded upstream candidates:\n${candidateSummary}${omitted}`
+      : 'No unconsumed recorded upstream candidates remain.',
   ].join('\n');
 }

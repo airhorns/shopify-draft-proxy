@@ -146,11 +146,7 @@
           "translations": [],
           "userErrors": [
             {
-              "field": [
-                "translations",
-                "0",
-                "locale"
-              ],
+              "field": ["translations", "0", "locale"],
               "message": "Locale is not a valid locale for the shop",
               "code": "INVALID_LOCALE_FOR_SHOP"
             }
@@ -188,11 +184,7 @@
           "translations": [],
           "userErrors": [
             {
-              "field": [
-                "translations",
-                "0",
-                "locale"
-              ],
+              "field": ["translations", "0", "locale"],
               "message": "Locale cannot be the same as the shop's primary locale",
               "code": "INVALID_LOCALE_FOR_SHOP"
             }

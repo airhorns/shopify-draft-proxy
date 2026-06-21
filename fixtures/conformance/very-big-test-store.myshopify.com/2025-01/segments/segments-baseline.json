@@ -176,9 +176,7 @@
       "extensions": {
         "code": "NOT_FOUND"
       },
-      "path": [
-        "missingSegment"
-      ]
+      "path": ["missingSegment"]
     }
   ],
   "data": {
@@ -369,9 +367,7 @@
               "extensions": {
                 "code": "NOT_FOUND"
               },
-              "path": [
-                "missingSegment"
-              ]
+              "path": ["missingSegment"]
             }
           ],
           "data": {

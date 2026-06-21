@@ -48,12 +48,7 @@
               "column": 43
             }
           ],
-          "path": [
-            "mutation ValidationUpdateRebind",
-            "validationUpdate",
-            "validation",
-            "functionId"
-          ],
+          "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "ValidationUpdateInput",

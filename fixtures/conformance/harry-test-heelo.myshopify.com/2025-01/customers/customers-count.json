@@ -29,9 +29,7 @@
     },
     "search": [
       {
-        "path": [
-          "matching"
-        ],
+        "path": ["matching"],
         "query": "email:grace@example.com",
         "parsed": {
           "field": "email",
@@ -46,9 +44,7 @@
         ]
       },
       {
-        "path": [
-          "disabled"
-        ],
+        "path": ["disabled"],
         "query": "state:DISABLED",
         "parsed": {
           "field": "state",
@@ -100,9 +96,7 @@
             },
             "search": [
               {
-                "path": [
-                  "matching"
-                ],
+                "path": ["matching"],
                 "query": "email:grace@example.com",
                 "parsed": {
                   "field": "email",
@@ -117,9 +111,7 @@
                 ]
               },
               {
-                "path": [
-                  "disabled"
-                ],
+                "path": ["disabled"],
                 "query": "state:DISABLED",
                 "parsed": {
                   "field": "state",

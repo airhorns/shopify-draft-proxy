@@ -10,18 +10,11 @@
     "customers"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity",
-    "state-invariance"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "state-invariance"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-validation-parity.json"
   ],
-  "runtimeTestFiles": [
-    "tests/integration/customer-draft-flow.test.ts"
-  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
     "variablesCapturePath": "$.createScenarios.blankScalarNormalization.variables"
@@ -122,9 +115,7 @@
           "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
           "variablesCapturePath": "$.preconditions.primary.variables"
         },
-        "selectedPaths": [
-          "$.customerCreate.userErrors"
-        ]
+        "selectedPaths": ["$.customerCreate.userErrors"]
       },
       {
         "name": "setup-duplicate-target-customer",
@@ -134,9 +125,7 @@
           "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
           "variablesCapturePath": "$.preconditions.duplicateTarget.variables"
         },
-        "selectedPaths": [
-          "$.customerCreate.userErrors"
-        ]
+        "selectedPaths": ["$.customerCreate.userErrors"]
       },
       {
         "name": "create-duplicate-email",

@@ -9,11 +9,7 @@
         "order": {
           "email": "hermes-fulfillment-event-1777156118907@example.com",
           "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-          "tags": [
-            "parity-probe",
-            "har-235",
-            "fulfillment-event"
-          ],
+          "tags": ["parity-probe", "har-235", "fulfillment-event"],
           "test": true,
           "lineItems": [
             {
@@ -59,11 +55,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-              "tags": [
-                "fulfillment-event",
-                "har-235",
-                "parity-probe"
-              ],
+              "tags": ["fulfillment-event", "har-235", "parity-probe"],
               "customAttributes": [],
               "subtotalPriceSet": {
                 "shopMoney": {

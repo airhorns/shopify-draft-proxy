@@ -10,11 +10,7 @@
           "status": "DRAFT",
           "vendor": "HERMES",
           "productType": "SNOWBOARD",
-          "tags": [
-            "1776550889941",
-            "conformance",
-            "product-graph"
-          ],
+          "tags": ["1776550889941", "conformance", "product-graph"],
           "descriptionHtml": "",
           "templateSuffix": null,
           "seo": {
@@ -27,10 +23,7 @@
               "id": "gid://shopify/ProductOption/11660598378729",
               "name": "Color",
               "position": 1,
-              "values": [
-                "Blue",
-                "Black"
-              ],
+              "values": ["Blue", "Black"],
               "optionValues": [
                 {
                   "id": "gid://shopify/ProductOptionValue/4718346371305",
@@ -198,9 +191,7 @@
     "collectionAddProducts": {
       "variables": {
         "id": "gid://shopify/Collection/468143964393",
-        "productIds": [
-          "gid://shopify/Product/9257219817705"
-        ]
+        "productIds": ["gid://shopify/Product/9257219817705"]
       },
       "response": {
         "data": {
@@ -282,11 +273,7 @@
             "status": "DRAFT",
             "vendor": "HERMES",
             "productType": "SNOWBOARD",
-            "tags": [
-              "1776550889941",
-              "conformance",
-              "product-graph"
-            ],
+            "tags": ["1776550889941", "conformance", "product-graph"],
             "descriptionHtml": "",
             "templateSuffix": null,
             "seo": {
@@ -299,10 +286,7 @@
                 "id": "gid://shopify/ProductOption/11660598509801",
                 "name": "Color",
                 "position": 1,
-                "values": [
-                  "Blue",
-                  "Black"
-                ],
+                "values": ["Blue", "Black"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/4718346600681",
@@ -442,11 +426,7 @@
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "SNOWBOARD",
-              "tags": [
-                "1776550889941",
-                "conformance",
-                "product-graph"
-              ],
+              "tags": ["1776550889941", "conformance", "product-graph"],
               "descriptionHtml": "",
               "templateSuffix": null,
               "seo": {
@@ -459,10 +439,7 @@
                   "id": "gid://shopify/ProductOption/11660598509801",
                   "name": "Color",
                   "position": 1,
-                  "values": [
-                    "Blue",
-                    "Black"
-                  ],
+                  "values": ["Blue", "Black"],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/4718346600681",
@@ -599,11 +576,7 @@
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "SNOWBOARD",
-              "tags": [
-                "1776550889941",
-                "conformance",
-                "product-graph"
-              ],
+              "tags": ["1776550889941", "conformance", "product-graph"],
               "descriptionHtml": "",
               "templateSuffix": null,
               "seo": {
@@ -616,10 +589,7 @@
                   "id": "gid://shopify/ProductOption/11660598542569",
                   "name": "Color",
                   "position": 1,
-                  "values": [
-                    "Blue",
-                    "Black"
-                  ],
+                  "values": ["Blue", "Black"],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/4718346666217",
@@ -757,11 +727,7 @@
         "status": "DRAFT",
         "vendor": "HERMES",
         "productType": "SNOWBOARD",
-        "tags": [
-          "1776550889941",
-          "conformance",
-          "product-graph"
-        ],
+        "tags": ["1776550889941", "conformance", "product-graph"],
         "descriptionHtml": "",
         "templateSuffix": null,
         "seo": {
@@ -774,10 +740,7 @@
             "id": "gid://shopify/ProductOption/11660598509801",
             "name": "Color",
             "position": 1,
-            "values": [
-              "Blue",
-              "Black"
-            ],
+            "values": ["Blue", "Black"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/4718346600681",
@@ -906,9 +869,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/9257219817705"
-        ]
+        "ids": ["gid://shopify/Product/9257219817705"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -923,11 +884,7 @@
                 "status": "DRAFT",
                 "vendor": "HERMES",
                 "productType": "SNOWBOARD",
-                "tags": [
-                  "1776550889941",
-                  "conformance",
-                  "product-graph"
-                ],
+                "tags": ["1776550889941", "conformance", "product-graph"],
                 "descriptionHtml": "",
                 "templateSuffix": null,
                 "seo": {
@@ -940,10 +897,7 @@
                     "id": "gid://shopify/ProductOption/11660598378729",
                     "name": "Color",
                     "position": 1,
-                    "values": [
-                      "Blue",
-                      "Black"
-                    ],
+                    "values": ["Blue", "Black"],
                     "optionValues": [
                       {
                         "id": "gid://shopify/ProductOptionValue/4718346371305",

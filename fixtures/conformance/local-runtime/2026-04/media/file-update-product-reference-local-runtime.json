@@ -3,15 +3,8 @@
   "apiVersion": "2026-04",
   "scenarioId": "file-update-product-reference-local-staging",
   "issue": "HAR-429",
-  "runtimeTestFiles": [
-    "tests/integration/media-draft-flow.test.ts"
-  ],
-  "coveredOperations": [
-    "fileCreate",
-    "fileUpdate",
-    "files",
-    "product"
-  ],
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "coveredOperations": ["fileCreate", "fileUpdate", "files", "product"],
   "liveEvidenceFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json",
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-update-parity.json"
@@ -52,9 +45,7 @@
           "files": [],
           "userErrors": [
             {
-              "field": [
-                "files"
-              ],
+              "field": ["files"],
               "message": "Non-ready files cannot be updated.",
               "code": "NON_READY_STATE"
             }

@@ -8,9 +8,7 @@
             "id": "gid://shopify/ProductOption/12718316683570",
             "name": "Title",
             "position": 1,
-            "values": [
-              "Default Title"
-            ],
+            "values": ["Default Title"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/7979703533874",
@@ -90,9 +88,7 @@
                 "id": "gid://shopify/ProductOption/12718316683570",
                 "name": "Title",
                 "position": 1,
-                "values": [
-                  "Default Blue"
-                ],
+                "values": ["Default Blue"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7979703566642",
@@ -174,9 +170,7 @@
             "id": "gid://shopify/ProductOption/12718316683570",
             "name": "Title",
             "position": 1,
-            "values": [
-              "Default Blue"
-            ],
+            "values": ["Default Blue"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/7979703566642",
@@ -229,9 +223,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10172135440690"
-        ]
+        "ids": ["gid://shopify/Product/10172135440690"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -246,9 +238,7 @@
                     "id": "gid://shopify/ProductOption/12718316683570",
                     "name": "Title",
                     "position": 1,
-                    "values": [
-                      "Default Title"
-                    ],
+                    "values": ["Default Title"],
                     "optionValues": [
                       {
                         "id": "gid://shopify/ProductOptionValue/7979703533874",

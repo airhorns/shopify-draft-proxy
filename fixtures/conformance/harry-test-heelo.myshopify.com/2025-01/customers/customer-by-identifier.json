@@ -94,9 +94,7 @@
           "extensions": {
             "code": "NOT_FOUND"
           },
-          "path": [
-            "customId"
-          ]
+          "path": ["customId"]
         }
       ],
       "data": {

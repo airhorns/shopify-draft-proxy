@@ -16,9 +16,7 @@
       "variables": {
         "first": 1,
         "resourceType": "COLLECTION",
-        "ids": [
-          "gid://shopify/Collection/512485261618"
-        ],
+        "ids": ["gid://shopify/Collection/512485261618"],
         "resourceId": "gid://shopify/Collection/512485261618"
       }
     },
@@ -124,12 +122,8 @@
     "request": {
       "variables": {
         "resourceId": "gid://shopify/Collection/512485261618",
-        "keys": [
-          "title"
-        ],
-        "locales": [
-          "fr"
-        ]
+        "keys": ["title"],
+        "locales": ["fr"]
       }
     },
     "response": {
@@ -199,9 +193,7 @@
       "variables": {
         "first": 1,
         "resourceType": "COLLECTION",
-        "ids": [
-          "gid://shopify/Collection/512485261618"
-        ],
+        "ids": ["gid://shopify/Collection/512485261618"],
         "resourceId": "gid://shopify/Collection/512485261618"
       }
     },
@@ -323,12 +315,8 @@
     "request": {
       "variables": {
         "resourceId": "gid://shopify/Collection/512485261618",
-        "keys": [
-          "title"
-        ],
-        "locales": [
-          "fr"
-        ]
+        "keys": ["title"],
+        "locales": ["fr"]
       }
     },
     "response": {
@@ -362,9 +350,7 @@
       "variables": {
         "first": 1,
         "resourceType": "COLLECTION",
-        "ids": [
-          "gid://shopify/Collection/512485261618"
-        ],
+        "ids": ["gid://shopify/Collection/512485261618"],
         "resourceId": "gid://shopify/Collection/512485261618"
       }
     },
@@ -557,9 +543,7 @@
       "variables": {
         "first": 1,
         "resourceType": "COLLECTION",
-        "ids": [
-          "gid://shopify/Collection/512485261618"
-        ],
+        "ids": ["gid://shopify/Collection/512485261618"],
         "resourceId": "gid://shopify/Collection/512485261618"
       },
       "query": "query LocalizationCollectionTranslationRead(\n  $first: Int!\n  $resourceType: TranslatableResourceType!\n  $ids: [ID!]!\n  $resourceId: ID!\n) {\n  allShopLocales: shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  resources: translatableResources(first: $first, resourceType: $resourceType) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"fr\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n  byIds: translatableResourcesByIds(first: $first, resourceIds: $ids) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"fr\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n  single: translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"fr\") {\n      key\n      value\n      locale\n      outdated\n      market {\n        id\n      }\n    }\n  }\n}\n",

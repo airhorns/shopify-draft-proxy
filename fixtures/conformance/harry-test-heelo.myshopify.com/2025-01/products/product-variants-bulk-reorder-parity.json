@@ -24,9 +24,7 @@
                 "id": "gid://shopify/ProductOption/12716235194674",
                 "name": "Color",
                 "position": 1,
-                "values": [
-                  "Red"
-                ],
+                "values": ["Red"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7972139237682",
@@ -211,9 +209,7 @@
                     "id": "gid://shopify/ProductOption/12716235194674",
                     "name": "Color",
                     "position": 1,
-                    "values": [
-                      "Red"
-                    ],
+                    "values": ["Red"],
                     "optionValues": [
                       {
                         "id": "gid://shopify/ProductOptionValue/7972139237682",

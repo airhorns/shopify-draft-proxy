@@ -16,11 +16,7 @@
             "status": "DRAFT",
             "vendor": "HERMES",
             "productType": "ACCESSORIES",
-            "tags": [
-              "1776550632328",
-              "conformance",
-              "product-mutation"
-            ],
+            "tags": ["1776550632328", "conformance", "product-mutation"],
             "descriptionHtml": "<p>Hermes product mutation conformance 1776550632328</p>",
             "templateSuffix": "product-mutation-parity",
             "seo": {
@@ -31,9 +27,7 @@
           },
           "userErrors": [
             {
-              "field": [
-                "title"
-              ],
+              "field": ["title"],
               "message": "Title can't be blank"
             }
           ]
@@ -46,9 +40,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/9257218801897"
-        ]
+        "ids": ["gid://shopify/Product/9257218801897"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -63,11 +55,7 @@
                 "status": "DRAFT",
                 "vendor": "HERMES",
                 "productType": "ACCESSORIES",
-                "tags": [
-                  "1776550632328",
-                  "conformance",
-                  "product-mutation"
-                ],
+                "tags": ["1776550632328", "conformance", "product-mutation"],
                 "descriptionHtml": "<p>Hermes product mutation conformance 1776550632328</p>",
                 "templateSuffix": "product-mutation-parity",
                 "seo": {

@@ -739,9 +739,7 @@
               "deletedLocationId": null,
               "locationDeleteUserErrors": [
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it is active.",
                   "code": "LOCATION_IS_ACTIVE"
                 }
@@ -776,16 +774,12 @@
               "deletedLocationId": null,
               "locationDeleteUserErrors": [
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it is active.",
                   "code": "LOCATION_IS_ACTIVE"
                 },
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it has inventory.",
                   "code": "LOCATION_HAS_INVENTORY"
                 }
@@ -820,23 +814,17 @@
               "deletedLocationId": null,
               "locationDeleteUserErrors": [
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it is active.",
                   "code": "LOCATION_IS_ACTIVE"
                 },
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it has inventory.",
                   "code": "LOCATION_HAS_INVENTORY"
                 },
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it has pending orders.",
                   "code": "LOCATION_HAS_PENDING_ORDERS"
                 }
@@ -871,9 +859,7 @@
               "deletedLocationId": null,
               "locationDeleteUserErrors": [
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "Location not found.",
                   "code": "LOCATION_NOT_FOUND"
                 }
@@ -1249,11 +1235,7 @@
                 "city": "Boston",
                 "country": "United States",
                 "countryCode": "US",
-                "formatted": [
-                  "663 State St",
-                  "Boston MA 02110",
-                  "United States"
-                ],
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
                 "latitude": 42.3596375,
                 "longitude": -71.0517783,
                 "phone": null,
@@ -1265,11 +1247,7 @@
                 {
                   "address1": "663 State St",
                   "countryCode": "US",
-                  "formatted": [
-                    "663 State St",
-                    "Boston MA 02109",
-                    "United States"
-                  ]
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
                 }
               ],
               "metafield": null,
@@ -1342,11 +1320,7 @@
                 "city": "Boston",
                 "country": "United States",
                 "countryCode": "US",
-                "formatted": [
-                  "663 State St",
-                  "Boston MA 02110",
-                  "United States"
-                ],
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
                 "latitude": 42.3596375,
                 "longitude": -71.0517783,
                 "phone": null,
@@ -1358,11 +1332,7 @@
                 {
                   "address1": "663 State St",
                   "countryCode": "US",
-                  "formatted": [
-                    "663 State St",
-                    "Boston MA 02109",
-                    "United States"
-                  ]
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
                 }
               ],
               "metafield": null,
@@ -1435,11 +1405,7 @@
                 "city": "Boston",
                 "country": "United States",
                 "countryCode": "US",
-                "formatted": [
-                  "663 State St",
-                  "Boston MA 02110",
-                  "United States"
-                ],
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
                 "latitude": 42.3596375,
                 "longitude": -71.0517783,
                 "phone": null,
@@ -1451,11 +1417,7 @@
                 {
                   "address1": "663 State St",
                   "countryCode": "US",
-                  "formatted": [
-                    "663 State St",
-                    "Boston MA 02109",
-                    "United States"
-                  ]
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
                 }
               ],
               "metafield": null,
@@ -1556,11 +1518,7 @@
                 "city": "Ottawa",
                 "country": "Canada",
                 "countryCode": "CA",
-                "formatted": [
-                  "103 ossington",
-                  "Ottawa ON K1S 3B7",
-                  "Canada"
-                ],
+                "formatted": ["103 ossington", "Ottawa ON K1S 3B7", "Canada"],
                 "latitude": 45.3898157,
                 "longitude": -75.6869358,
                 "phone": null,
@@ -1572,11 +1530,7 @@
                 {
                   "address1": "103 Ossington Ave",
                   "countryCode": "CA",
-                  "formatted": [
-                    "103 Ossington Ave",
-                    "Ottawa ON K1S 3B7",
-                    "Canada"
-                  ]
+                  "formatted": ["103 Ossington Ave", "Ottawa ON K1S 3B7", "Canada"]
                 }
               ],
               "metafield": null,
@@ -1735,9 +1689,7 @@
                 "city": null,
                 "country": "Canada",
                 "countryCode": "CA",
-                "formatted": [
-                  "Canada"
-                ],
+                "formatted": ["Canada"],
                 "latitude": null,
                 "longitude": null,
                 "phone": null,

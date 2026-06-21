@@ -260,16 +260,12 @@
   },
   "locationA": {
     "variables": {
-      "locationIds": [
-        "gid://shopify/Location/A"
-      ]
+      "locationIds": ["gid://shopify/Location/A"]
     }
   },
   "locationB": {
     "variables": {
-      "locationIds": [
-        "gid://shopify/Location/B"
-      ]
+      "locationIds": ["gid://shopify/Location/B"]
     }
   },
   "allLocations": {
@@ -681,9 +677,7 @@
     {
       "operationName": "AssignedFulfillmentOrdersFiltering",
       "variables": {
-        "locationIds": [
-          "gid://shopify/Location/A"
-        ]
+        "locationIds": ["gid://shopify/Location/A"]
       },
       "query": "query AssignedFulfillmentOrdersFiltering($locationIds: [ID!]) {\n  requested: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: FULFILLMENT_REQUESTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  accepted: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: FULFILLMENT_ACCEPTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  cancellationRequested: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: CANCELLATION_REQUESTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
@@ -837,9 +831,7 @@
     {
       "operationName": "AssignedFulfillmentOrdersFiltering",
       "variables": {
-        "locationIds": [
-          "gid://shopify/Location/B"
-        ]
+        "locationIds": ["gid://shopify/Location/B"]
       },
       "query": "query AssignedFulfillmentOrdersFiltering($locationIds: [ID!]) {\n  requested: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: FULFILLMENT_REQUESTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  accepted: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: FULFILLMENT_ACCEPTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  cancellationRequested: assignedFulfillmentOrders(\n    first: 10\n    assignmentStatus: CANCELLATION_REQUESTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          id\n          kind\n          message\n          requestOptions\n          responseData\n          sentAt\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {

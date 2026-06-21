@@ -219,11 +219,7 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
           },
-          "path": [
-            "inventoryAdjustQuantities",
-            "inventoryAdjustmentGroup",
-            "staffMember"
-          ]
+          "path": ["inventoryAdjustQuantities", "inventoryAdjustmentGroup", "staffMember"]
         }
       ],
       "data": {
@@ -949,19 +945,11 @@
           "inventoryAdjustmentGroup": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock."
             },
             {
-              "field": [
-                "input",
-                "changes",
-                "0",
-                "ledgerDocumentUri"
-              ],
+              "field": ["input", "changes", "0", "ledgerDocumentUri"],
               "message": "A ledger document URI is required except when adjusting available."
             }
           ]
@@ -1022,11 +1010,7 @@
               },
               "problems": [
                 {
-                  "path": [
-                    "changes",
-                    0,
-                    "inventoryItemId"
-                  ],
+                  "path": ["changes", 0, "inventoryItemId"],
                   "explanation": "Expected value to not be null"
                 }
               ]
@@ -1076,11 +1060,7 @@
               },
               "problems": [
                 {
-                  "path": [
-                    "changes",
-                    0,
-                    "delta"
-                  ],
+                  "path": ["changes", 0, "delta"],
                   "explanation": "Expected value to not be null"
                 }
               ]
@@ -1130,11 +1110,7 @@
               },
               "problems": [
                 {
-                  "path": [
-                    "changes",
-                    0,
-                    "locationId"
-                  ],
+                  "path": ["changes", 0, "locationId"],
                   "explanation": "Expected value to not be null"
                 }
               ]
@@ -1165,12 +1141,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "changes",
-                  "0",
-                  "inventoryItemId"
-                ],
+                "field": ["input", "changes", "0", "inventoryItemId"],
                 "message": "The specified inventory item could not be found."
               }
             ]
@@ -1210,12 +1181,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "changes",
-                  "0",
-                  "locationId"
-                ],
+                "field": ["input", "changes", "0", "locationId"],
                 "message": "The specified location could not be found."
               }
             ]
@@ -1239,10 +1205,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/InventoryItem/53044947747049",
-          "gid://shopify/InventoryItem/53044947779817"
-        ]
+        "ids": ["gid://shopify/InventoryItem/53044947747049", "gid://shopify/InventoryItem/53044947779817"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {

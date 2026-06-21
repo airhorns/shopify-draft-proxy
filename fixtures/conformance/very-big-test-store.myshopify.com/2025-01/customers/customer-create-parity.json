@@ -8,10 +8,7 @@
         "locale": "en",
         "note": "customer create parity probe",
         "phone": "+14155550123",
-        "tags": [
-          "parity",
-          "create-1777081266467"
-        ],
+        "tags": ["parity", "create-1777081266467"],
         "taxExempt": true
       }
     },
@@ -29,10 +26,7 @@
             "verifiedEmail": true,
             "taxExempt": true,
             "taxExemptions": [],
-            "tags": [
-              "create-1777081266467",
-              "parity"
-            ],
+            "tags": ["create-1777081266467", "parity"],
             "state": "DISABLED",
             "canDelete": true,
             "loyalty": null,
@@ -84,10 +78,7 @@
         "verifiedEmail": true,
         "taxExempt": true,
         "taxExemptions": [],
-        "tags": [
-          "create-1777081266467",
-          "parity"
-        ],
+        "tags": ["create-1777081266467", "parity"],
         "state": "DISABLED",
         "canDelete": true,
         "loyalty": null,

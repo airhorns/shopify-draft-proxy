@@ -10,11 +10,7 @@
           "note": "draft order create-from-order setup",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-          "tags": [
-            "parity-capture",
-            "draft-order-family",
-            "create-from-order"
-          ],
+          "tags": ["parity-capture", "draft-order-family", "create-from-order"],
           "customAttributes": [
             {
               "key": "source",
@@ -107,11 +103,7 @@
                 "taxesIncluded": false,
                 "reserveInventoryUntil": "2026-05-23T12:00:00Z",
                 "paymentTerms": null,
-                "tags": [
-                  "create-from-order",
-                  "draft-order-family",
-                  "parity-capture"
-                ],
+                "tags": ["create-from-order", "draft-order-family", "parity-capture"],
                 "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
                 "customAttributes": [
                   {
@@ -333,11 +325,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "create-from-order",
-                "draft-order-family",
-                "parity-capture"
-              ],
+              "tags": ["create-from-order", "draft-order-family", "parity-capture"],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
               "customAttributes": [
                 {
@@ -581,17 +569,11 @@
                   "id": "gid://shopify/Order/8710700237106",
                   "name": "#1022",
                   "sourceName": "347082227713",
-                  "paymentGatewayNames": [
-                    "manual"
-                  ],
+                  "paymentGatewayNames": ["manual"],
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
                   "note": "draft order create-from-order setup",
-                  "tags": [
-                    "create-from-order",
-                    "draft-order-family",
-                    "parity-capture"
-                  ],
+                  "tags": ["create-from-order", "draft-order-family", "parity-capture"],
                   "currentTotalPriceSet": {
                     "shopMoney": {
                       "amount": "988.2",
@@ -658,11 +640,7 @@
             "name": "#1022",
             "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
             "note": "draft order create-from-order setup",
-            "tags": [
-              "create-from-order",
-              "draft-order-family",
-              "parity-capture"
-            ],
+            "tags": ["create-from-order", "draft-order-family", "parity-capture"],
             "customAttributes": [
               {
                 "key": "source",
@@ -711,9 +689,7 @@
                 "currencyCode": "CAD"
               }
             },
-            "discountCodes": [
-              "Loyalty credit"
-            ],
+            "discountCodes": ["Loyalty credit"],
             "lineItems": {
               "nodes": [
                 {
@@ -764,11 +740,7 @@
             "status": "OPEN",
             "ready": true,
             "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
-            "tags": [
-              "create-from-order",
-              "draft-order-family",
-              "parity-capture"
-            ],
+            "tags": ["create-from-order", "draft-order-family", "parity-capture"],
             "subtotalPriceSet": {
               "shopMoney": {
                 "amount": "989.95",
@@ -827,11 +799,7 @@
           "status": "OPEN",
           "ready": true,
           "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
-          "tags": [
-            "create-from-order",
-            "draft-order-family",
-            "parity-capture"
-          ],
+          "tags": ["create-from-order", "draft-order-family", "parity-capture"],
           "subtotalPriceSet": {
             "shopMoney": {
               "amount": "989.95",
@@ -891,11 +859,7 @@
               "name": "#1022",
               "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
               "note": "draft order create-from-order setup",
-              "tags": [
-                "create-from-order",
-                "draft-order-family",
-                "parity-capture"
-              ],
+              "tags": ["create-from-order", "draft-order-family", "parity-capture"],
               "customAttributes": [
                 {
                   "key": "source",
@@ -944,9 +908,7 @@
                   "currencyCode": "CAD"
                 }
               },
-              "discountCodes": [
-                "Loyalty credit"
-              ],
+              "discountCodes": ["Loyalty credit"],
               "lineItems": {
                 "nodes": [
                   {

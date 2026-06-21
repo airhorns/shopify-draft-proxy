@@ -1,19 +1,12 @@
 {
   "scenarioId": "localization-translations-validation-order",
-  "operationNames": [
-    "translationsRegister"
-  ],
+  "operationNames": ["translationsRegister"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "user-errors-parity",
-    "validation-order-parity"
-  ],
+  "assertionKinds": ["user-errors-parity", "validation-order-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-validation-order.json"
   ],
-  "runtimeTestFiles": [
-    "tests/graphql_routes/discounts_gift_cards_functions_localization.rs"
-  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/localization/localization-translations-validation-order-read.graphql",

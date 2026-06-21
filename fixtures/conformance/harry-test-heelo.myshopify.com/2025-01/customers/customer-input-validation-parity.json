@@ -16,10 +16,7 @@
           "firstName": "Hermes",
           "lastName": "primary",
           "phone": "+14155551001",
-          "tags": [
-            "input-validation",
-            "primary"
-          ]
+          "tags": ["input-validation", "primary"]
         }
       },
       "response": {
@@ -35,10 +32,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "primary"
-              ],
+              "tags": ["input-validation", "primary"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -76,10 +70,7 @@
           "firstName": "Hermes",
           "lastName": "duplicate-target",
           "phone": "+14155551002",
-          "tags": [
-            "input-validation",
-            "duplicate-target"
-          ]
+          "tags": ["input-validation", "duplicate-target"]
         }
       },
       "response": {
@@ -95,10 +86,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "duplicate-target",
-                "input-validation"
-              ],
+              "tags": ["duplicate-target", "input-validation"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -138,10 +126,7 @@
       "note": null,
       "verifiedEmail": true,
       "taxExempt": false,
-      "tags": [
-        "input-validation",
-        "merge-source"
-      ],
+      "tags": ["input-validation", "merge-source"],
       "state": "DISABLED",
       "canDelete": true,
       "defaultEmailAddress": {
@@ -194,10 +179,7 @@
       "note": null,
       "verifiedEmail": true,
       "taxExempt": false,
-      "tags": [
-        "input-validation",
-        "merge-target"
-      ],
+      "tags": ["input-validation", "merge-target"],
       "state": "DISABLED",
       "canDelete": true,
       "defaultEmailAddress": {
@@ -254,9 +236,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -289,9 +269,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "phone"
-                ],
+                "field": ["phone"],
                 "message": "Phone is invalid"
               }
             ]
@@ -325,9 +303,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email has already been taken"
               }
             ]
@@ -361,9 +337,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "phone"
-                ],
+                "field": ["phone"],
                 "message": "Phone has already been taken"
               }
             ]
@@ -397,9 +371,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "locale"
-                ],
+                "field": ["locale"],
                 "message": "Locale is invalid"
               }
             ]
@@ -682,13 +654,7 @@
       "variables": {
         "input": {
           "email": "hermes-input-validation-create-tags-1781561719980@example.com",
-          "tags": [
-            "Zulu",
-            "alpha",
-            "alpha",
-            " spaced tag ",
-            ""
-          ]
+          "tags": ["Zulu", "alpha", "alpha", " spaced tag ", ""]
         }
       },
       "response": {
@@ -704,11 +670,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -755,11 +717,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -779,11 +737,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -837,9 +791,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "tags"
-                ],
+                "field": ["tags"],
                 "message": "Tags is too long (maximum is 255 characters)"
               }
             ]
@@ -875,21 +827,15 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "firstName"
-                ],
+                "field": ["firstName"],
                 "message": "First name is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "lastName"
-                ],
+                "field": ["lastName"],
                 "message": "Last name is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "note"
-                ],
+                "field": ["note"],
                 "message": "Note is too long (maximum is 5000 characters)"
               }
             ]
@@ -930,9 +876,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -971,9 +915,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "phone"
-                ],
+                "field": ["phone"],
                 "message": "Phone is invalid"
               }
             ]
@@ -1012,9 +954,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email has already been taken"
               }
             ]
@@ -1053,9 +993,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "phone"
-                ],
+                "field": ["phone"],
                 "message": "Phone has already been taken"
               }
             ]
@@ -1094,9 +1032,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "locale"
-                ],
+                "field": ["locale"],
                 "message": "Locale is invalid"
               }
             ]
@@ -1145,10 +1081,7 @@
               "note": "",
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-blank-scalars"
-              ],
+              "tags": ["input-validation", "update-blank-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1195,10 +1128,7 @@
               "note": "",
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-blank-scalars"
-              ],
+              "tags": ["input-validation", "update-blank-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1218,10 +1148,7 @@
               "note": "",
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-blank-scalars"
-              ],
+              "tags": ["input-validation", "update-blank-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1288,10 +1215,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-null-scalars"
-              ],
+              "tags": ["input-validation", "update-null-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1338,10 +1262,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-null-scalars"
-              ],
+              "tags": ["input-validation", "update-null-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1361,10 +1282,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-null-scalars"
-              ],
+              "tags": ["input-validation", "update-null-scalars"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1412,13 +1330,7 @@
       "variables": {
         "input": {
           "id": "gid://shopify/Customer/10806771876146",
-          "tags": [
-            "Zulu",
-            "alpha",
-            "alpha",
-            " spaced tag ",
-            ""
-          ]
+          "tags": ["Zulu", "alpha", "alpha", " spaced tag ", ""]
         }
       },
       "response": {
@@ -1434,11 +1346,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1487,11 +1395,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1513,11 +1417,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "alpha",
-                "spaced tag",
-                "Zulu"
-              ],
+              "tags": ["alpha", "spaced tag", "Zulu"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1578,9 +1478,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "tags"
-                ],
+                "field": ["tags"],
                 "message": "Tags is too long (maximum is 255 characters)"
               }
             ]
@@ -1621,21 +1519,15 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "firstName"
-                ],
+                "field": ["firstName"],
                 "message": "First name is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "lastName"
-                ],
+                "field": ["lastName"],
                 "message": "Last name is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "note"
-                ],
+                "field": ["note"],
                 "message": "Note is too long (maximum is 5000 characters)"
               }
             ]
@@ -1668,10 +1560,7 @@
           "firstName": "Hermes",
           "lastName": "update-deleted",
           "phone": "+14155551016",
-          "tags": [
-            "input-validation",
-            "update-deleted"
-          ]
+          "tags": ["input-validation", "update-deleted"]
         }
       },
       "response": {
@@ -1687,10 +1576,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-deleted"
-              ],
+              "tags": ["input-validation", "update-deleted"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1758,9 +1644,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Customer does not exist"
               }
             ]
@@ -1792,10 +1676,7 @@
           "firstName": "Hermes",
           "lastName": "merge-source",
           "phone": "+14155551017",
-          "tags": [
-            "input-validation",
-            "merge-source"
-          ]
+          "tags": ["input-validation", "merge-source"]
         }
       },
       "response": {
@@ -1811,10 +1692,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "merge-source"
-              ],
+              "tags": ["input-validation", "merge-source"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1852,10 +1730,7 @@
           "firstName": "Hermes",
           "lastName": "merge-target",
           "phone": "+14155551018",
-          "tags": [
-            "input-validation",
-            "merge-target"
-          ]
+          "tags": ["input-validation", "merge-target"]
         }
       },
       "response": {
@@ -1871,10 +1746,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "merge-target"
-              ],
+              "tags": ["input-validation", "merge-target"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {
@@ -1945,9 +1817,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Customer does not exist"
               }
             ]
@@ -2783,10 +2653,7 @@
               "note": null,
               "verifiedEmail": true,
               "taxExempt": false,
-              "tags": [
-                "input-validation",
-                "update-deleted"
-              ],
+              "tags": ["input-validation", "update-deleted"],
               "state": "DISABLED",
               "canDelete": true,
               "defaultEmailAddress": {

@@ -141,11 +141,7 @@
           "translations": [],
           "userErrors": [
             {
-              "field": [
-                "translations",
-                "0",
-                "value"
-              ],
+              "field": ["translations", "0", "value"],
               "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
               "code": "FAILS_RESOURCE_VALIDATION"
             }

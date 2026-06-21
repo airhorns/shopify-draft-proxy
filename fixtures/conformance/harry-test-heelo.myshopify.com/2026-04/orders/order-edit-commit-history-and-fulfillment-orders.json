@@ -25,10 +25,7 @@
         "order": {
           "email": "order-edit-commit-20260506060521@example.com",
           "note": "order edit commit history fulfillment capture 20260506060521",
-          "tags": [
-            "order-edit-commit-history-fulfillment",
-            "20260506060521"
-          ],
+          "tags": ["order-edit-commit-history-fulfillment", "20260506060521"],
           "test": true,
           "currency": "CAD",
           "shippingAddress": {
@@ -83,10 +80,7 @@
                 "displayFulfillmentStatus": "UNFULFILLED",
                 "presentmentCurrencyCode": "CAD",
                 "note": "order edit commit history fulfillment capture 20260506060521",
-                "tags": [
-                  "20260506060521",
-                  "order-edit-commit-history-fulfillment"
-                ],
+                "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
                 "customAttributes": [],
                 "currentSubtotalLineItemsQuantity": 3,
                 "currentSubtotalPriceSet": {
@@ -231,10 +225,7 @@
               "displayFulfillmentStatus": "UNFULFILLED",
               "presentmentCurrencyCode": "CAD",
               "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": [
-                "20260506060521",
-                "order-edit-commit-history-fulfillment"
-              ],
+              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
               "customAttributes": [],
               "currentSubtotalLineItemsQuantity": 3,
               "currentSubtotalPriceSet": {
@@ -564,9 +555,7 @@
               "id": "gid://shopify/Order/8731795030322",
               "name": "#1215"
             },
-            "successMessages": [
-              "Order updated"
-            ],
+            "successMessages": ["Order updated"],
             "userErrors": []
           }
         },
@@ -775,10 +764,7 @@
               "displayFulfillmentStatus": "UNFULFILLED",
               "presentmentCurrencyCode": "CAD",
               "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": [
-                "20260506060521",
-                "order-edit-commit-history-fulfillment"
-              ],
+              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
               "customAttributes": [],
               "currentSubtotalLineItemsQuantity": 3,
               "currentSubtotalPriceSet": {

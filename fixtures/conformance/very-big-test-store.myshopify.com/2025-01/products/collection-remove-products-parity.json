@@ -2,9 +2,7 @@
   "mutation": {
     "variables": {
       "id": "gid://shopify/Collection/468787822825",
-      "productIds": [
-        "gid://shopify/Product/8971842846953"
-      ]
+      "productIds": ["gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {
@@ -97,10 +95,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Collection/468787822825",
-          "gid://shopify/Product/8971842846953"
-        ]
+        "ids": ["gid://shopify/Collection/468787822825", "gid://shopify/Product/8971842846953"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -110,9 +105,7 @@
             "nodes": [
               {
                 "id": "gid://shopify/Collection/468787822825",
-                "productIds": [
-                  "gid://shopify/Product/8971842846953"
-                ],
+                "productIds": ["gid://shopify/Product/8971842846953"],
                 "title": "Hermes Collection Conformance 1777078305206 Updated",
                 "handle": "hermes-collection-conformance-1777078305206-updated",
                 "products": {

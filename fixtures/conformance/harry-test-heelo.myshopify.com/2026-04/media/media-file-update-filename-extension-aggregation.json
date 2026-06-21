@@ -245,9 +245,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "The filename extension provided must match the original filename.",
                 "code": "INVALID_FILENAME_EXTENSION"
               }
@@ -286,9 +284,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "The filename extension provided must match the original filename.",
                 "code": "INVALID_FILENAME_EXTENSION"
               }
@@ -327,9 +323,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "Updating the filename is only supported on images and generic files",
                 "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
               }
@@ -354,9 +348,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/43688017887538"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/43688017887538"]
       },
       "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
@@ -391,9 +383,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/43688017920306"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/43688017920306"]
       },
       "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
@@ -428,10 +418,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/ExternalVideo/43688017953074",
-          "gid://shopify/ExternalVideo/43688017985842"
-        ]
+        "fileIds": ["gid://shopify/ExternalVideo/43688017953074", "gid://shopify/ExternalVideo/43688017985842"]
       },
       "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {

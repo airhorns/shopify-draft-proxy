@@ -104,10 +104,7 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
-  "seedProducts": [
-    { "id": "gid://shopify/Product/10179023995186" },
-    { "id": "gid://shopify/Product/10179024027954" }
-  ],
+  "seedProducts": [{ "id": "gid://shopify/Product/10179023995186" }, { "id": "gid://shopify/Product/10179024027954" }],
   "seedProductVariants": [
     {
       "id": "gid://shopify/ProductVariant/51133416702258",

@@ -119,9 +119,7 @@
     {
       "operationName": "AdminPlatformMetafieldNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/Metafield/42952770224434"
-        ]
+        "ids": ["gid://shopify/Metafield/42952770224434"]
       },
       "query": "query AdminPlatformMetafieldNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Node {\n      id\n    }\n    ... on Metafield {\n      namespace\n      key\n      type\n      value\n      compareDigest\n      jsonValue\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n      }\n    }\n  }\n}\n",
       "response": {
@@ -273,9 +271,7 @@
     {
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10170511687986"
-        ]
+        "ids": ["gid://shopify/Product/10170511687986"]
       },
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
       "response": {

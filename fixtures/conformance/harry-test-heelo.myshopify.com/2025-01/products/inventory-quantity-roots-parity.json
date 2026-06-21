@@ -2,47 +2,24 @@
   "capturedAt": "2026-04-27T00:56:09Z",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "operations": [
-    "inventoryItems",
-    "inventoryProperties",
-    "inventorySetQuantities",
-    "inventoryMoveQuantities"
-  ],
+  "operations": ["inventoryItems", "inventoryProperties", "inventorySetQuantities", "inventoryMoveQuantities"],
   "schema": {
     "inventoryItems": {
-      "args": [
-        "first",
-        "after",
-        "last",
-        "before",
-        "reverse",
-        "query"
-      ],
+      "args": ["first", "after", "last", "before", "reverse", "query"],
       "type": "InventoryItemConnection!"
     },
     "inventoryProperties": {
       "type": "InventoryProperties!",
-      "fields": [
-        "quantityNames"
-      ]
+      "fields": ["quantityNames"]
     },
     "inventorySetQuantities": {
       "input": "InventorySetQuantitiesInput!",
-      "payloadFields": [
-        "inventoryAdjustmentGroup",
-        "userErrors"
-      ],
-      "deprecatedInputFields": [
-        "ignoreCompareQuantity",
-        "InventoryQuantityInput.compareQuantity"
-      ]
+      "payloadFields": ["inventoryAdjustmentGroup", "userErrors"],
+      "deprecatedInputFields": ["ignoreCompareQuantity", "InventoryQuantityInput.compareQuantity"]
     },
     "inventoryMoveQuantities": {
       "input": "InventoryMoveQuantitiesInput!",
-      "payloadFields": [
-        "inventoryAdjustmentGroup",
-        "userErrors"
-      ]
+      "payloadFields": ["inventoryAdjustmentGroup", "userErrors"]
     }
   },
   "safeReadEvidence": {
@@ -68,27 +45,21 @@
               "name": "available",
               "displayName": "Available",
               "isInUse": true,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             },
             {
               "name": "committed",
               "displayName": "Committed",
               "isInUse": true,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             },
             {
               "name": "damaged",
               "displayName": "Damaged",
               "isInUse": false,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             },
             {
@@ -103,40 +74,27 @@
               "displayName": "On hand",
               "isInUse": true,
               "belongsTo": [],
-              "comprises": [
-                "available",
-                "committed",
-                "damaged",
-                "quality_control",
-                "reserved",
-                "safety_stock"
-              ]
+              "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]
             },
             {
               "name": "quality_control",
               "displayName": "Quality control",
               "isInUse": false,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             },
             {
               "name": "reserved",
               "displayName": "Reserved",
               "isInUse": true,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             },
             {
               "name": "safety_stock",
               "displayName": "Safety stock",
               "isInUse": false,
-              "belongsTo": [
-                "on_hand"
-              ],
+              "belongsTo": ["on_hand"],
               "comprises": []
             }
           ]
@@ -325,10 +283,7 @@
       "setWithoutCompareOrIgnore": {
         "userErrors": [
           {
-            "field": [
-              "input",
-              "ignoreCompareQuantity"
-            ],
+            "field": ["input", "ignoreCompareQuantity"],
             "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."
           }
         ]
@@ -336,11 +291,7 @@
       "moveBetweenDifferentLocations": {
         "userErrors": [
           {
-            "field": [
-              "input",
-              "changes",
-              "0"
-            ],
+            "field": ["input", "changes", "0"],
             "message": "The quantities can't be moved between different locations."
           }
         ]
@@ -351,9 +302,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/InventoryItem/53204673823026"
-        ]
+        "ids": ["gid://shopify/InventoryItem/53204673823026"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
@@ -479,27 +428,21 @@
                   "name": "available",
                   "displayName": "Available",
                   "isInUse": true,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 },
                 {
                   "name": "committed",
                   "displayName": "Committed",
                   "isInUse": true,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 },
                 {
                   "name": "damaged",
                   "displayName": "Damaged",
                   "isInUse": false,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 },
                 {
@@ -514,40 +457,27 @@
                   "displayName": "On hand",
                   "isInUse": true,
                   "belongsTo": [],
-                  "comprises": [
-                    "available",
-                    "committed",
-                    "damaged",
-                    "quality_control",
-                    "reserved",
-                    "safety_stock"
-                  ]
+                  "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]
                 },
                 {
                   "name": "quality_control",
                   "displayName": "Quality control",
                   "isInUse": false,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 },
                 {
                   "name": "reserved",
                   "displayName": "Reserved",
                   "isInUse": true,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 },
                 {
                   "name": "safety_stock",
                   "displayName": "Safety stock",
                   "isInUse": false,
-                  "belongsTo": [
-                    "on_hand"
-                  ],
+                  "belongsTo": ["on_hand"],
                   "comprises": []
                 }
               ]

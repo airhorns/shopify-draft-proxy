@@ -511,10 +511,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr",
-            "de"
-          ],
+          "alternateLocales": ["fr", "de"],
           "subfolderSuffix": "intl"
         }
       },
@@ -641,9 +638,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "pt-BR"
-          ],
+          "alternateLocales": ["pt-BR"],
           "subfolderSuffix": "haryrbgnrqxru"
         }
       },
@@ -760,10 +755,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "zz",
-            "yy"
-          ],
+          "alternateLocales": ["zz", "yy"],
           "subfolderSuffix": "harftkaxwppdp"
         }
       },
@@ -775,10 +767,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "alternateLocales"
-                  ],
+                  "field": ["input", "alternateLocales"],
                   "message": "Invalid locale codes: zz and yy",
                   "code": "INVALID"
                 }
@@ -858,9 +847,7 @@
       "variables": {
         "id": "gid://shopify/MarketWebPresence/69721489714",
         "input": {
-          "alternateLocales": [
-            "de"
-          ]
+          "alternateLocales": ["de"]
         }
       },
       "response": {
@@ -1036,9 +1023,7 @@
               "deletedId": null,
               "userErrors": [
                 {
-                  "field": [
-                    "id"
-                  ],
+                  "field": ["id"],
                   "message": "The shop must have a web presence that uses the primary domain.",
                   "code": "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"
                 }
@@ -1251,9 +1236,7 @@
       "variables": {
         "id": "gid://shopify/Market/98008334642",
         "input": {
-          "webPresencesToAdd": [
-            "gid://shopify/MarketWebPresence/69721227570"
-          ]
+          "webPresencesToAdd": ["gid://shopify/MarketWebPresence/69721227570"]
         }
       },
       "response": {
@@ -1307,10 +1290,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix has already been taken",
                   "code": "TAKEN"
                 }
@@ -1479,9 +1459,7 @@
       "variables": {
         "id": "gid://shopify/Market/98008367410",
         "input": {
-          "webPresencesToAdd": [
-            "gid://shopify/MarketWebPresence/69721293106"
-          ]
+          "webPresencesToAdd": ["gid://shopify/MarketWebPresence/69721293106"]
         }
       },
       "response": {
@@ -1534,10 +1512,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix has already been taken",
                   "code": "TAKEN"
                 }
@@ -1576,10 +1551,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1618,10 +1590,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1660,10 +1629,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1807,10 +1773,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1848,10 +1811,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1889,10 +1849,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "subfolderSuffix"
-                  ],
+                  "field": ["input", "subfolderSuffix"],
                   "message": "Subfolder suffix must contain only letters",
                   "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"
                 }
@@ -1971,10 +1928,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "en",
-            "fr"
-          ],
+          "alternateLocales": ["en", "fr"],
           "subfolderSuffix": "harewogdfeatc"
         }
       },
@@ -1986,18 +1940,12 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "defaultLocale"
-                  ],
+                  "field": ["input", "defaultLocale"],
                   "message": "Default locale The alternate languages already include en.",
                   "code": "DUPLICATE_LANGUAGES"
                 },
                 {
-                  "field": [
-                    "input",
-                    "alternateLocales"
-                  ],
+                  "field": ["input", "alternateLocales"],
                   "message": "Alternate locales Duplicates were found in the following languages: en, en, and fr",
                   "code": "DUPLICATE_LANGUAGES"
                 }
@@ -2024,10 +1972,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "en",
-            "en"
-          ],
+          "alternateLocales": ["en", "en"],
           "subfolderSuffix": "harbfwjbevlxg"
         }
       },
@@ -2039,18 +1984,12 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "defaultLocale"
-                  ],
+                  "field": ["input", "defaultLocale"],
                   "message": "Default locale The alternate languages already include en.",
                   "code": "DUPLICATE_LANGUAGES"
                 },
                 {
-                  "field": [
-                    "input",
-                    "alternateLocales"
-                  ],
+                  "field": ["input", "alternateLocales"],
                   "message": "Alternate locales Duplicates were found in the following languages: en and en",
                   "code": "DUPLICATE_LANGUAGES"
                 }
@@ -2077,9 +2016,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr"
-          ],
+          "alternateLocales": ["fr"],
           "subfolderSuffix": "harywjswapjqq"
         }
       },
@@ -2154,10 +2091,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "defaultLocale"
-                  ],
+                  "field": ["input", "defaultLocale"],
                   "message": "Default locale The alternate languages already include fr.",
                   "code": "DUPLICATE_LANGUAGES"
                 }
@@ -2237,10 +2171,7 @@
       "variables": {
         "id": "gid://shopify/MarketWebPresence/69721555250",
         "input": {
-          "alternateLocales": [
-            "en",
-            "en"
-          ]
+          "alternateLocales": ["en", "en"]
         }
       },
       "response": {
@@ -2251,10 +2182,7 @@
               "webPresence": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "alternateLocales"
-                  ],
+                  "field": ["input", "alternateLocales"],
                   "message": "Alternate locales Duplicates were found in the following languages: en and en",
                   "code": "DUPLICATE_LANGUAGES"
                 }
@@ -3052,10 +2980,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr",
-            "de"
-          ],
+          "alternateLocales": ["fr", "de"],
           "subfolderSuffix": "intl"
         }
       },
@@ -3325,9 +3250,7 @@
       "variables": {
         "id": "gid://shopify/MarketWebPresence/69721489714",
         "input": {
-          "alternateLocales": [
-            "de"
-          ]
+          "alternateLocales": ["de"]
         }
       },
       "query": "hand-synthesized from checked-in capture",
@@ -3416,9 +3339,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "pt-BR"
-          ],
+          "alternateLocales": ["pt-BR"],
           "subfolderSuffix": "haryrbgnrqxru"
         }
       },
@@ -3598,10 +3519,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "zz",
-            "yy"
-          ],
+          "alternateLocales": ["zz", "yy"],
           "subfolderSuffix": "harftkaxwppdp"
         }
       },
@@ -4568,10 +4486,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "en",
-            "fr"
-          ],
+          "alternateLocales": ["en", "fr"],
           "subfolderSuffix": "harewogdfeatc"
         }
       },
@@ -4661,10 +4576,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "en",
-            "en"
-          ],
+          "alternateLocales": ["en", "en"],
           "subfolderSuffix": "harbfwjbevlxg"
         }
       },
@@ -4754,9 +4666,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr"
-          ],
+          "alternateLocales": ["fr"],
           "subfolderSuffix": "harywjswapjqq"
         }
       },
@@ -5025,10 +4935,7 @@
       "variables": {
         "id": "gid://shopify/MarketWebPresence/69721555250",
         "input": {
-          "alternateLocales": [
-            "en",
-            "en"
-          ]
+          "alternateLocales": ["en", "en"]
         }
       },
       "query": "hand-synthesized from checked-in capture",

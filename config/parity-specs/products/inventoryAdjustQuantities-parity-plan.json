@@ -1,15 +1,8 @@
 {
   "scenarioId": "inventory-adjust-quantities-live-parity",
-  "operationNames": [
-    "inventoryAdjustQuantities"
-  ],
+  "operationNames": ["inventoryAdjustQuantities"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity",
-    "inventory-quantity-side-effect"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "inventory-quantity-side-effect"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
   ],

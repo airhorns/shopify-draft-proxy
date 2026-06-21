@@ -71,9 +71,7 @@
           },
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Customer can't be found"
             }
           ]

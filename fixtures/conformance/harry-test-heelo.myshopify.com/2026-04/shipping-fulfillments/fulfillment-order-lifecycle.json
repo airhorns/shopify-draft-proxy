@@ -20,10 +20,7 @@
       "fulfillmentOrderLineItemsPreparedForPickup",
       "fulfillmentOrderMerge"
     ],
-    "locationIds": [
-      "gid://shopify/Location/106318463282",
-      "gid://shopify/Location/106318430514"
-    ],
+    "locationIds": ["gid://shopify/Location/106318463282", "gid://shopify/Location/106318430514"],
     "createdOrders": [
       {
         "id": "gid://shopify/Order/8728437457202",
@@ -130,9 +127,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderHold"
-              ]
+              "path": ["fulfillmentOrderHold"]
             }
           ],
           "data": {
@@ -156,9 +151,7 @@
       "query": "#graphql\n  fragment FulfillmentOrderLifecycleFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderReleaseHoldLifecycle($id: ID!, $holdIds: [ID!], $externalId: String) {\n    fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds, externalId: $externalId) {\n      fulfillmentOrder {\n        ...FulfillmentOrderLifecycleFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/0",
-        "holdIds": [
-          "gid://shopify/FulfillmentHold/0"
-        ],
+        "holdIds": ["gid://shopify/FulfillmentHold/0"],
         "externalId": "har-234-unknown-release"
       },
       "response": {
@@ -176,9 +169,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderReleaseHold"
-              ]
+              "path": ["fulfillmentOrderReleaseHold"]
             }
           ],
           "data": {
@@ -220,9 +211,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderMove"
-              ]
+              "path": ["fulfillmentOrderMove"]
             }
           ],
           "data": {
@@ -262,9 +251,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderOpen"
-              ]
+              "path": ["fulfillmentOrderOpen"]
             }
           ],
           "data": {
@@ -305,9 +292,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderClose"
-              ]
+              "path": ["fulfillmentOrderClose"]
             }
           ],
           "data": {
@@ -347,9 +332,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderCancel"
-              ]
+              "path": ["fulfillmentOrderCancel"]
             }
           ],
           "data": {
@@ -390,9 +373,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderReschedule"
-              ]
+              "path": ["fulfillmentOrderReschedule"]
             }
           ],
           "data": {
@@ -435,9 +416,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrderReportProgress"
-              ]
+              "path": ["fulfillmentOrderReportProgress"]
             }
           ],
           "data": {
@@ -460,12 +439,8 @@
     "rerouteUnknownId": {
       "query": "#graphql\n  fragment FulfillmentOrderLifecycleFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrdersRerouteLifecycle(\n    $fulfillmentOrderIds: [ID!]!\n    $includedLocationIds: [ID!]\n    $excludedLocationIds: [ID!]\n  ) {\n    fulfillmentOrdersReroute(\n      fulfillmentOrderIds: $fulfillmentOrderIds\n      includedLocationIds: $includedLocationIds\n      excludedLocationIds: $excludedLocationIds\n    ) {\n      movedFulfillmentOrders {\n        ...FulfillmentOrderLifecycleFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "fulfillmentOrderIds": [
-          "gid://shopify/FulfillmentOrder/0"
-        ],
-        "includedLocationIds": [
-          "gid://shopify/Location/106318463282"
-        ],
+        "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/0"],
+        "includedLocationIds": ["gid://shopify/Location/106318463282"],
         "excludedLocationIds": null
       },
       "response": {
@@ -483,9 +458,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "fulfillmentOrdersReroute"
-              ]
+              "path": ["fulfillmentOrdersReroute"]
             }
           ],
           "data": {
@@ -514,11 +487,7 @@
           "order": {
             "email": "har-234-hold-release-20260504235106@example.com",
             "note": "HAR-234 fulfillment-order lifecycle hold-release 20260504235106",
-            "tags": [
-              "har-234",
-              "fulfillment-order-lifecycle",
-              "hold-release"
-            ],
+            "tags": ["har-234", "fulfillment-order-lifecycle", "hold-release"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -666,13 +635,7 @@
                   "documentation": "https://shopify.dev/api/usage/access-scopes",
                   "requiredAccess": "`read_apps` access scope."
                 },
-                "path": [
-                  "fulfillmentOrderHold",
-                  "fulfillmentOrder",
-                  "fulfillmentHolds",
-                  0,
-                  "heldByApp"
-                ]
+                "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
               }
             ],
             "data": {
@@ -822,15 +785,7 @@
                     "documentation": "https://shopify.dev/api/usage/access-scopes",
                     "requiredAccess": "`read_apps` access scope."
                   },
-                  "path": [
-                    "order",
-                    "fulfillmentOrders",
-                    "nodes",
-                    0,
-                    "fulfillmentHolds",
-                    0,
-                    "heldByApp"
-                  ]
+                  "path": ["order", "fulfillmentOrders", "nodes", 0, "fulfillmentHolds", 0, "heldByApp"]
                 }
               ],
               "data": {
@@ -978,12 +933,7 @@
                     "documentation": "https://shopify.dev/api/usage/access-scopes",
                     "requiredAccess": "`read_apps` access scope."
                   },
-                  "path": [
-                    "fulfillmentOrder",
-                    "fulfillmentHolds",
-                    0,
-                    "heldByApp"
-                  ]
+                  "path": ["fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
                 },
                 {
                   "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
@@ -998,14 +948,7 @@
                     "documentation": "https://shopify.dev/api/usage/access-scopes",
                     "requiredAccess": "`read_apps` access scope."
                   },
-                  "path": [
-                    "manualHoldsFulfillmentOrders",
-                    "nodes",
-                    0,
-                    "fulfillmentHolds",
-                    0,
-                    "heldByApp"
-                  ]
+                  "path": ["manualHoldsFulfillmentOrders", "nodes", 0, "fulfillmentHolds", 0, "heldByApp"]
                 }
               ],
               "data": {
@@ -1473,9 +1416,7 @@
         "query": "#graphql\n  fragment FulfillmentOrderLifecycleFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderReleaseHoldLifecycle($id: ID!, $holdIds: [ID!], $externalId: String) {\n    fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds, externalId: $externalId) {\n      fulfillmentOrder {\n        ...FulfillmentOrderLifecycleFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
         "variables": {
           "id": "gid://shopify/FulfillmentOrder/9652742684978",
-          "holdIds": [
-            "gid://shopify/FulfillmentHold/262880297266"
-          ],
+          "holdIds": ["gid://shopify/FulfillmentHold/262880297266"],
           "externalId": "har-234-hold-release"
         },
         "response": {
@@ -2083,11 +2024,7 @@
           "order": {
             "email": "har-234-move-20260504235109@example.com",
             "note": "HAR-234 fulfillment-order lifecycle move 20260504235109",
-            "tags": [
-              "har-234",
-              "fulfillment-order-lifecycle",
-              "move"
-            ],
+            "tags": ["har-234", "fulfillment-order-lifecycle", "move"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -2912,11 +2849,7 @@
           "order": {
             "email": "har-234-schedule-progress-open-close-20260504235111@example.com",
             "note": "HAR-234 fulfillment-order lifecycle schedule-progress-open-close 20260504235111",
-            "tags": [
-              "har-234",
-              "fulfillment-order-lifecycle",
-              "schedule-progress-open-close"
-            ],
+            "tags": ["har-234", "fulfillment-order-lifecycle", "schedule-progress-open-close"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -4128,9 +4061,7 @@
                 "replacementFulfillmentOrder": null,
                 "userErrors": [
                   {
-                    "field": [
-                      "id"
-                    ],
+                    "field": ["id"],
                     "message": "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first."
                   }
                 ]
@@ -5242,11 +5173,7 @@
           "order": {
             "email": "har-234-reroute-cancel-20260504235115@example.com",
             "note": "HAR-234 fulfillment-order lifecycle reroute-cancel 20260504235115",
-            "tags": [
-              "har-234",
-              "fulfillment-order-lifecycle",
-              "reroute-cancel"
-            ],
+            "tags": ["har-234", "fulfillment-order-lifecycle", "reroute-cancel"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -5356,18 +5283,12 @@
           }
         }
       },
-      "attemptedIncludedLocationIds": [
-        "gid://shopify/Location/106318430514"
-      ],
+      "attemptedIncludedLocationIds": ["gid://shopify/Location/106318430514"],
       "reroute": {
         "query": "#graphql\n  fragment FulfillmentOrderLifecycleFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrdersRerouteLifecycle(\n    $fulfillmentOrderIds: [ID!]!\n    $includedLocationIds: [ID!]\n    $excludedLocationIds: [ID!]\n  ) {\n    fulfillmentOrdersReroute(\n      fulfillmentOrderIds: $fulfillmentOrderIds\n      includedLocationIds: $includedLocationIds\n      excludedLocationIds: $excludedLocationIds\n    ) {\n      movedFulfillmentOrders {\n        ...FulfillmentOrderLifecycleFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
         "variables": {
-          "fulfillmentOrderIds": [
-            "gid://shopify/FulfillmentOrder/9652743012658"
-          ],
-          "includedLocationIds": [
-            "gid://shopify/Location/106318430514"
-          ],
+          "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9652743012658"],
+          "includedLocationIds": ["gid://shopify/Location/106318430514"],
           "excludedLocationIds": null
         },
         "response": {
@@ -6493,11 +6414,7 @@
           "order": {
             "email": "har-234-residual-split-deadline-merge-20260504235117@example.com",
             "note": "HAR-234 fulfillment-order lifecycle residual-split-deadline-merge 20260504235117",
-            "tags": [
-              "har-234",
-              "fulfillment-order-lifecycle",
-              "residual-split-deadline-merge"
-            ],
+            "tags": ["har-234", "fulfillment-order-lifecycle", "residual-split-deadline-merge"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -7901,22 +7818,12 @@
               "fulfillmentOrderLineItemsPreparedForPickup": {
                 "userErrors": [
                   {
-                    "field": [
-                      "input",
-                      "lineItemsByFulfillmentOrder",
-                      "0",
-                      "fulfillmentOrderId"
-                    ],
+                    "field": ["input", "lineItemsByFulfillmentOrder", "0", "fulfillmentOrderId"],
                     "message": "Invalid fulfillment_order_id provided 9652743110962",
                     "code": "FULFILLMENT_ORDER_INVALID"
                   },
                   {
-                    "field": [
-                      "input",
-                      "lineItemsByFulfillmentOrder",
-                      "1",
-                      "fulfillmentOrderId"
-                    ],
+                    "field": ["input", "lineItemsByFulfillmentOrder", "1", "fulfillmentOrderId"],
                     "message": "Invalid fulfillment_order_id provided 9652743143730",
                     "code": "FULFILLMENT_ORDER_INVALID"
                   }
@@ -9181,15 +9088,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_apps` access scope."
               },
-              "path": [
-                "order",
-                "fulfillmentOrders",
-                "nodes",
-                0,
-                "fulfillmentHolds",
-                0,
-                "heldByApp"
-              ]
+              "path": ["order", "fulfillmentOrders", "nodes", 0, "fulfillmentHolds", 0, "heldByApp"]
             }
           ],
           "data": {

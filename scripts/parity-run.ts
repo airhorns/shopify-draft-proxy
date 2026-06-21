@@ -210,9 +210,7 @@ function deletePathParts(cursor: unknown, parts: string[]): void {
     else if (typeof cursor === 'object' && cursor !== null) delete (cursor as Record<string, unknown>)[head];
     return;
   }
-  const next = Array.isArray(cursor)
-    ? cursor[Number(head)]
-    : (cursor as Record<string, unknown> | undefined)?.[head];
+  const next = Array.isArray(cursor) ? cursor[Number(head)] : (cursor as Record<string, unknown> | undefined)?.[head];
   deletePathParts(next, rest);
 }
 
@@ -238,7 +236,9 @@ function resolveSpecialVariables(
   namedResponses: Map<string, ProxyResponse>,
 ): unknown {
   if (Array.isArray(value))
-    return value.map((entry) => resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses));
+    return value.map((entry) =>
+      resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses),
+    );
   if (typeof value === 'object' && value !== null) {
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
@@ -246,7 +246,8 @@ function resolveSpecialVariables(
       return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
     }
     if (typeof object['fromPreviousProxyPath'] === 'string') {
-      if (previousResponse === null) throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
+      if (previousResponse === null)
+        throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
       return getPath(previousResponse.body, object['fromPreviousProxyPath']);
     }
     if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
@@ -334,13 +335,10 @@ async function loadRequest(
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
-  variables = resolveSpecialVariables(
-    variables,
-    capture,
-    primaryResponse,
-    previousResponse,
-    namedResponses,
-  ) as Record<string, unknown>;
+  variables = resolveSpecialVariables(variables, capture, primaryResponse, previousResponse, namedResponses) as Record<
+    string,
+    unknown
+  >;
   return {
     query,
     variables,
@@ -426,7 +424,8 @@ async function startCassetteServer(): Promise<CassetteServer> {
       consumedCalls.clear();
     },
     setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => {
-      fallbackResponse = response && request ? { response, call: { query: request.query, variables: request.variables } } : null;
+      fallbackResponse =
+        response && request ? { response, call: { query: request.query, variables: request.variables } } : null;
     },
     consumed: () => consumedCalls.size,
     expected: () => calls.length + fallbackCount,
@@ -467,7 +466,13 @@ async function sendProxyUpload(
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<ProxyResponse> {
   const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, previousResponse, namedResponses);
-  const resolvedBody = resolveSpecialVariables(upload.body ?? '', capture, primaryResponse, previousResponse, namedResponses);
+  const resolvedBody = resolveSpecialVariables(
+    upload.body ?? '',
+    capture,
+    primaryResponse,
+    previousResponse,
+    namedResponses,
+  );
   const request: { method: string; path: string; headers?: Record<string, string>; body: unknown } = {
     method: upload.method ?? 'POST',
     path: localUploadPath(resolvedPath, targetName),
@@ -682,9 +687,7 @@ function collectSetupEntitySeeds(capture: unknown): {
       | Record<string, unknown>
       | undefined;
     const data = (
-      (obj['mutation'] as Record<string, unknown> | undefined)?.['response'] as
-        | Record<string, unknown>
-        | undefined
+      (obj['mutation'] as Record<string, unknown> | undefined)?.['response'] as Record<string, unknown> | undefined
     )?.['data'] as Record<string, unknown> | undefined;
     if (input && typeof input === 'object' && data && typeof data === 'object') {
       for (const op of Object.values(data)) {
@@ -811,11 +814,7 @@ function collectInventoryLevelCursors(node: unknown, out: Record<string, string>
   const cursor = record['cursor'];
   const inner = record['node'] as Record<string, unknown> | undefined;
   const id = inner?.['id'];
-  if (
-    typeof cursor === 'string' &&
-    typeof id === 'string' &&
-    id.includes('/InventoryLevel/')
-  ) {
+  if (typeof cursor === 'string' && typeof id === 'string' && id.includes('/InventoryLevel/')) {
     out[id] = cursor;
   }
   for (const value of Object.values(record)) collectInventoryLevelCursors(value, out);
@@ -826,9 +825,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
   const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
   const products = Array.isArray(record['seedProducts']) ? record['seedProducts'] : [];
-  const productVariants = Array.isArray(record['seedProductVariants'])
-    ? record['seedProductVariants']
-    : [];
+  const productVariants = Array.isArray(record['seedProductVariants']) ? record['seedProductVariants'] : [];
   const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
   // `seedPublications` declares the store's base/default publications (id + name);
   // the proxy derives each backing channel and drives the local publication/channel
@@ -863,9 +860,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   // unit price). Re-establishing the catalog lets the local edit engine build
   // the added calculated line item from store state instead of echoing the
   // recorded response.
-  let orderEditVariants = Array.isArray(record['seedOrderEditVariants'])
-    ? record['seedOrderEditVariants']
-    : [];
+  let orderEditVariants = Array.isArray(record['seedOrderEditVariants']) ? record['seedOrderEditVariants'] : [];
   // When a capture does not carry an explicit `seedOrderEditVariants` array, derive
   // the order-edit variant catalog from the recorded `productVariant` hydration
   // calls. Those hydrate responses are real store state (variant id, product title,
@@ -903,9 +898,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   // Re-establishing it lets the local commit engine compute the edited-order event
   // message generically from the seeded author instead of echoing the recorded text.
   const orderEditAuthor =
-    typeof record['seedOrderEditAuthor'] === 'string'
-      ? (record['seedOrderEditAuthor'] as string)
-      : null;
+    typeof record['seedOrderEditAuthor'] === 'string' ? (record['seedOrderEditAuthor'] as string) : null;
   // `seedSegmentCatalog` mirrors the captured segment-catalog read roots (filters,
   // filter/value suggestions, migrations, the segments connection, and the live
   // total count) so local replay can serve their recorded cursors/pageInfo that
@@ -919,9 +912,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   // not reconstructable from the staged customers) and track deletions/merges as
   // `base - deletions`.
   const customersCount =
-    typeof record['seedCustomersCount'] === 'number'
-      ? (record['seedCustomersCount'] as number)
-      : null;
+    typeof record['seedCustomersCount'] === 'number' ? (record['seedCustomersCount'] as number) : null;
   // `seedCustomerOrders` maps a customer id to the recorded order nodes attached to
   // it (each optionally carrying an opaque `__cursor`). Customer reads and merges
   // that reparent orders resolve these from store state; the live connection cursors
@@ -1064,7 +1055,13 @@ async function runSpec(
         previousResponse = uploadResponse;
         proxySource = getPath(capture, target.capturePath);
       } else if (target.proxyRequest) {
-        const request = await loadRequest(target.proxyRequest, capture, primaryResponse, previousResponse, namedResponses);
+        const request = await loadRequest(
+          target.proxyRequest,
+          capture,
+          primaryResponse,
+          previousResponse,
+          namedResponses,
+        );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
         await hydrateInventoryNodes(proxy, request);

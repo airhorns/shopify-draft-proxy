@@ -51,9 +51,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "base"
-              ],
+              "field": ["base"],
               "message": "Discount could not be activated.",
               "code": "INTERNAL_ERROR"
             }
@@ -69,9 +67,7 @@
           "automaticDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "base"
-              ],
+              "field": ["base"],
               "message": "Discount could not be activated.",
               "code": "INTERNAL_ERROR"
             }
@@ -87,9 +83,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Code discount does not exist.",
               "code": "INVALID"
             }
@@ -99,9 +93,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Code discount does not exist.",
               "code": "INVALID"
             }
@@ -111,9 +103,7 @@
           "automaticDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Automatic discount does not exist.",
               "code": "INVALID"
             }
@@ -123,9 +113,7 @@
           "automaticDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "id"
-              ],
+              "field": ["id"],
               "message": "Automatic discount does not exist.",
               "code": "INVALID"
             }
