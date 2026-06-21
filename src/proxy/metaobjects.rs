@@ -2590,6 +2590,70 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "urlRedirect" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .url_redirects
+                        .get(&id)
+                        .map(|redirect| selected_json(redirect, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "urlRedirects" => self.url_redirect_connection(field),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
+        let query = resolved_string_arg(&field.arguments, "query");
+        let mut records = self
+            .store
+            .staged
+            .url_redirect_order
+            .iter()
+            .filter_map(|id| self.store.staged.url_redirects.get(id))
+            .filter(|redirect| {
+                query
+                    .as_deref()
+                    .is_none_or(|query| url_redirect_matches_query(redirect, query))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if records.is_empty() && self.store.staged.url_redirect_order.is_empty() {
+            records = self
+                .store
+                .staged
+                .url_redirects
+                .values()
+                .filter(|redirect| {
+                    query
+                        .as_deref()
+                        .is_none_or(|query| url_redirect_matches_query(redirect, query))
+                })
+                .cloned()
+                .collect();
+        }
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |redirect| {
+                redirect
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("url-redirect")
+                    .to_string()
+            },
+        )
+    }
+
     pub(in crate::proxy) fn metaobject_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3750,4 +3814,23 @@ impl DraftProxy {
         }
         unreachable!("infinite suffix search must return")
     }
+}
+
+fn url_redirect_matches_query(redirect: &Value, query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return true;
+    }
+    if let Some(path) = query.strip_prefix("path:") {
+        let path = path.trim_matches('"').trim_matches('\'');
+        return redirect.get("path").and_then(Value::as_str) == Some(path);
+    }
+    redirect
+        .get("path")
+        .and_then(Value::as_str)
+        .is_some_and(|path| path.contains(query))
+        || redirect
+            .get("target")
+            .and_then(Value::as_str)
+            .is_some_and(|target| target.contains(query))
 }

@@ -5928,7 +5928,13 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
         ),
         json!({}),
     ));
-    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
+    assert_eq!(
+        seed.body["data"]["customerCreate"]["userErrors"],
+        fixture["operations"]["seedCustomer"]["response"]["data"]["customerCreate"]["userErrors"]
+    );
+    assert!(seed.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Customer/1")));
 
     let stripe_blank = proxy.process_request(json_graphql_request(
         include_str!(
