@@ -1177,12 +1177,62 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema);
+        extend_publication_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
         extend_shipping_input_schema(&mut schema);
         extend_fulfillment_event_input_schema(&mut schema);
         extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_publication_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "PublicationCreateInput".to_string(),
+        BTreeMap::from([
+            ("catalogId".to_string(), input_field(named("ID"))),
+            (
+                "defaultState".to_string(),
+                input_field(named("PublicationCreateInputPublicationDefaultState")),
+            ),
+            ("autoPublish".to_string(), input_field(named("Boolean"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "PublicationUpdateInput".to_string(),
+        BTreeMap::from([
+            (
+                "publishablesToAdd".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "publishablesToRemove".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            ("autoPublish".to_string(), input_field(named("Boolean"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "publicationCreate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("PublicationCreateInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "publicationUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "input".to_string(),
+                mutation_arg(non_null("PublicationUpdateInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "publicationDelete".to_string(),
+        BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+    );
 }
 
 fn extend_fulfillment_event_input_schema(schema: &mut AdminInputSchema) {
