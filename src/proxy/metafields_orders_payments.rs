@@ -848,9 +848,9 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Response {
-    let response_key = root_field_response_key(query)
-        .unwrap_or_else(|| "quantityPricingByVariantUpdate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
     let input = resolved_object_field(variables, "input").unwrap_or_default();
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let mut product_variants = quantity_pricing_variant_ids_from_input(&input)
@@ -1085,8 +1085,9 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Response {
-    let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
         let variant_ids = list_string_arg(variables, "variantIds");
@@ -4702,17 +4703,14 @@ impl DraftProxy {
                 "PaymentTermsOwnerHydrate",
             )
         };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "operationName": operation_name,
                 "variables": { "id": owner_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }
@@ -4761,17 +4759,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": PAYMENT_TERMS_NODE_HYDRATE_QUERY,
                 "operationName": "PaymentTermsHydrate",
                 "variables": { "id": terms_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }

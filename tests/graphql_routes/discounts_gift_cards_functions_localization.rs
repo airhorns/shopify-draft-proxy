@@ -626,10 +626,10 @@ fn discount_basic_customer_gets_value_bounds_match_captured_shopify_behavior() {
 }
 
 #[test]
-fn discount_automatic_basic_update_uses_shared_customer_gets_value_bounds() {
+fn discount_automatic_basic_customer_gets_value_bounds_match_captured_shopify_behavior() {
     let mut proxy = snapshot_proxy();
 
-    let create = proxy.process_request(json_graphql_request(
+    let setup = proxy.process_request(json_graphql_request(
         r#"
         mutation Setup($input: DiscountAutomaticBasicInput!) {
           discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
@@ -645,19 +645,95 @@ fn discount_automatic_basic_update_uses_shared_customer_gets_value_bounds() {
             "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
         }}),
     ));
-    let id = create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"]
+    assert_eq!(
+        setup.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let id = setup.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"]
         .as_str()
         .unwrap()
         .to_string();
 
-    let update = proxy.process_request(json_graphql_request(
+    let base = json!({
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerGets": { "items": { "all": true } }
+    });
+    let input = |title: &str, value: Value| {
+        let mut input = base.clone();
+        input["title"] = json!(title);
+        input["customerGets"]["value"] = value;
+        input
+    };
+
+    let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation Update($id: ID!, $zeroPercent: DiscountAutomaticBasicInput!, $negativeAmount: DiscountAutomaticBasicInput!) {
-          zeroPercent: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $zeroPercent) {
+        mutation Create(
+          $percentageHigh: DiscountAutomaticBasicInput!
+          $percentageNegative: DiscountAutomaticBasicInput!
+          $percentageZero: DiscountAutomaticBasicInput!
+          $amountNegative: DiscountAutomaticBasicInput!
+          $amountZero: DiscountAutomaticBasicInput!
+        ) {
+          percentageHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageHigh) {
             automaticDiscountNode { id }
             userErrors { field message code extraInfo }
           }
-          negativeAmount: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $negativeAmount) {
+          percentageNegative: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageNegative) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          percentageZero: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageZero) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          amountNegative: discountAutomaticBasicCreate(automaticBasicDiscount: $amountNegative) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          amountZero: discountAutomaticBasicCreate(automaticBasicDiscount: $amountZero) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "percentageHigh": input("Automatic bounds create percentage high", json!({ "percentage": 1.5 })),
+            "percentageNegative": input("Automatic bounds create percentage negative", json!({ "percentage": -0.1 })),
+            "percentageZero": input("Automatic bounds create percentage zero", json!({ "percentage": 0 })),
+            "amountNegative": input("Automatic bounds create amount negative", json!({ "discountAmount": { "amount": "-1", "appliesOnEachItem": false } })),
+            "amountZero": input("Automatic bounds create amount zero", json!({ "discountAmount": { "amount": "0", "appliesOnEachItem": false } }))
+        }),
+    ));
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation Update(
+          $id: ID!
+          $percentageHigh: DiscountAutomaticBasicInput!
+          $percentageNegative: DiscountAutomaticBasicInput!
+          $percentageZero: DiscountAutomaticBasicInput!
+          $amountNegative: DiscountAutomaticBasicInput!
+          $amountZero: DiscountAutomaticBasicInput!
+        ) {
+          percentageHigh: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageHigh) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          percentageNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageNegative) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          percentageZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageZero) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          amountNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountNegative) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          amountZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountZero) {
             automaticDiscountNode { id }
             userErrors { field message code extraInfo }
           }
@@ -665,39 +741,52 @@ fn discount_automatic_basic_update_uses_shared_customer_gets_value_bounds() {
         "#,
         json!({
             "id": id,
-            "zeroPercent": {
-                "title": "Automatic shared bounds zero percent",
-                "startsAt": "2026-04-25T00:00:00Z",
-                "context": { "all": "ALL" },
-                "customerGets": { "value": { "percentage": 0 }, "items": { "all": true } }
-            },
-            "negativeAmount": {
-                "title": "Automatic shared bounds negative amount",
-                "startsAt": "2026-04-25T00:00:00Z",
-                "context": { "all": "ALL" },
-                "customerGets": { "value": { "discountAmount": { "amount": "-1", "appliesOnEachItem": false } }, "items": { "all": true } }
-            }
+            "percentageHigh": input("Automatic bounds update percentage high", json!({ "percentage": 1.5 })),
+            "percentageNegative": input("Automatic bounds update percentage negative", json!({ "percentage": -0.1 })),
+            "percentageZero": input("Automatic bounds update percentage zero", json!({ "percentage": 0 })),
+            "amountNegative": input("Automatic bounds update amount negative", json!({ "discountAmount": { "amount": "-1", "appliesOnEachItem": false } })),
+            "amountZero": input("Automatic bounds update amount zero", json!({ "discountAmount": { "amount": "0", "appliesOnEachItem": false } }))
         }),
     ));
 
-    assert_eq!(
-        update.body["data"]["zeroPercent"]["automaticDiscountNode"]["id"],
-        json!(id)
-    );
-    assert_eq!(update.body["data"]["zeroPercent"]["userErrors"], json!([]));
-    assert_eq!(
-        update.body["data"]["negativeAmount"]["automaticDiscountNode"],
-        json!(null)
-    );
-    assert_eq!(
-        update.body["data"]["negativeAmount"]["userErrors"],
-        json!([{
-            "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
-            "message": "Value must be less than or equal to 0",
-            "code": "LESS_THAN_OR_EQUAL_TO",
-            "extraInfo": null
-        }])
-    );
+    let percentage_error = json!([{
+        "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+        "message": "Value must be between 0.0 and 1.0",
+        "code": "VALUE_OUTSIDE_RANGE",
+        "extraInfo": null
+    }]);
+    let amount_error = json!([{
+        "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+        "message": "Value must be less than 0",
+        "code": "GREATER_THAN",
+        "extraInfo": null
+    }]);
+
+    for root in ["percentageHigh", "percentageNegative", "percentageZero"] {
+        assert_eq!(
+            create.body["data"][root]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(create.body["data"][root]["userErrors"], percentage_error);
+        assert_eq!(
+            update.body["data"][root]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(update.body["data"][root]["userErrors"], percentage_error);
+    }
+
+    for root in ["amountNegative", "amountZero"] {
+        assert_eq!(
+            create.body["data"][root]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(create.body["data"][root]["userErrors"], amount_error);
+        assert_eq!(
+            update.body["data"][root]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(update.body["data"][root]["userErrors"], amount_error);
+    }
 }
 
 #[test]

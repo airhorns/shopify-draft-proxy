@@ -4,6 +4,26 @@ use super::*;
 /// `(firstName, lastName, addressesV2.nodes, defaultAddress.id)`.
 type CustomerAddressContext = (Option<String>, Option<String>, Vec<Value>, Option<String>);
 
+enum B2bCompanyLocationDeleteBlocker {
+    OnlyLocation,
+    Order,
+    DraftOrder,
+    StoreCredit,
+}
+
+impl B2bCompanyLocationDeleteBlocker {
+    fn bulk_message(&self, location_id: &str) -> String {
+        let location_tail = resource_id_tail(location_id);
+        let reason = match self {
+            Self::OnlyLocation => "CompanyLocation is the only location for the company",
+            Self::Order => "CompanyLocation has orders",
+            Self::DraftOrder => "CompanyLocation has draft orders",
+            Self::StoreCredit => "CompanyLocation has non-zero store credit balance",
+        };
+        format!("Failed to delete CompanyLocation {location_tail}: {reason}")
+    }
+}
+
 const CUSTOMER_HYDRATE_QUERY: &str = r#"
 query CustomerHydrate($id: ID!) {
   customer(id: $id) {
@@ -1372,6 +1392,20 @@ impl DraftProxy {
             .iter()
             .any(|id| id == &contact_id)
         {
+            if self.store.staged.b2b_contacts.contains_key(&contact_id) {
+                return (
+                    b2b_company_payload(
+                        None,
+                        vec![json!({
+                            "field": ["companyContactId"],
+                            "message": "The company contact does not belong to the company.",
+                            "code": "INVALID_INPUT"
+                        })],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
             return (
                 b2b_company_payload(
                     None,
@@ -1801,13 +1835,7 @@ impl DraftProxy {
             || self
                 .b2b_company_location_ids(company_id)
                 .iter()
-                .any(|location_id| {
-                    self.store
-                        .staged
-                        .b2b_locations
-                        .get(location_id)
-                        .is_some_and(b2b_location_has_store_credit_balance)
-                })
+                .any(|location_id| self.b2b_location_has_store_credit_balance(location_id))
     }
 
     /// Every staged location id that belongs to a company, whether tracked via the
@@ -1866,6 +1894,23 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if self
+            .b2b_company_location_delete_blocker(&location_id)
+            .is_some()
+        {
+            return (
+                json!({
+                    "deletedCompanyLocationId": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "Failed to delete the company location.",
+                        "code": "FAILED_TO_DELETE"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
         self.b2b_delete_company_location(&location_id);
         (
             json!({
@@ -1886,17 +1931,26 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
-            if self.store.staged.b2b_locations.contains_key(location_id) {
-                self.b2b_delete_company_location(location_id);
-                deleted_ids.push(location_id.clone());
-            } else {
+            if !self.store.staged.b2b_locations.contains_key(location_id) {
                 user_errors.push(b2b_indexed_user_error(
                     "companyLocationIds",
                     index,
                     "Resource requested does not exist.",
                     "RESOURCE_NOT_FOUND",
                 ));
+            } else if let Some(blocker) = self.b2b_company_location_delete_blocker(location_id) {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyLocationIds",
+                    index,
+                    &blocker.bulk_message(location_id),
+                    "INTERNAL_ERROR",
+                ));
+            } else {
+                deleted_ids.push(location_id.clone());
             }
+        }
+        for location_id in &deleted_ids {
+            self.b2b_delete_company_location(location_id);
         }
         let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
             "failed"
@@ -1911,6 +1965,71 @@ impl DraftProxy {
             status,
             deleted_ids,
         )
+    }
+
+    fn b2b_company_location_delete_blocker(
+        &self,
+        location_id: &str,
+    ) -> Option<B2bCompanyLocationDeleteBlocker> {
+        let location = self.store.staged.b2b_locations.get(location_id)?;
+        if self.b2b_company_location_is_only_location(location_id, location) {
+            return Some(B2bCompanyLocationDeleteBlocker::OnlyLocation);
+        }
+        if self
+            .store
+            .staged
+            .orders
+            .values()
+            .any(|order| b2b_record_references_company_location(order, location_id))
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .values()
+                .any(|order| b2b_record_references_company_location(order, location_id))
+        {
+            return Some(B2bCompanyLocationDeleteBlocker::Order);
+        }
+        if self
+            .store
+            .staged
+            .draft_orders
+            .values()
+            .any(|draft_order| b2b_record_references_company_location(draft_order, location_id))
+        {
+            return Some(B2bCompanyLocationDeleteBlocker::DraftOrder);
+        }
+        self.b2b_location_has_store_credit_balance(location_id)
+            .then_some(B2bCompanyLocationDeleteBlocker::StoreCredit)
+    }
+
+    fn b2b_company_location_is_only_location(&self, location_id: &str, location: &Value) -> bool {
+        let Some(company_id) = b2b_location_company_id(location) else {
+            return false;
+        };
+        self.b2b_company_location_ids(company_id)
+            .iter()
+            .filter(|id| self.store.staged.b2b_locations.contains_key(id.as_str()))
+            .count()
+            <= 1
+            && self.store.staged.b2b_locations.contains_key(location_id)
+    }
+
+    fn b2b_location_has_store_credit_balance(&self, location_id: &str) -> bool {
+        self.store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .is_some_and(b2b_location_has_embedded_store_credit_balance)
+            || self
+                .store
+                .staged
+                .store_credit_accounts
+                .values()
+                .any(|account| {
+                    account["owner"]["id"].as_str() == Some(location_id)
+                        && store_credit_account_has_positive_balance(account)
+                })
     }
 
     pub(in crate::proxy) fn b2b_company_location_assign_address_payload(
@@ -2830,12 +2949,20 @@ impl DraftProxy {
                 .b2b_role_assignments
                 .remove(&assignment_id);
         }
+        self.store
+            .staged
+            .b2b_role_assignments
+            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
         for assignment_id in b2b_json_id_list(&location, "staffAssignmentIds") {
             self.store
                 .staged
                 .b2b_staff_assignments
                 .remove(&assignment_id);
         }
+        self.store
+            .staged
+            .b2b_staff_assignments
+            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
     }
 
     /// Cascade-delete a company contact and every artifact that referenced it,
@@ -4466,7 +4593,7 @@ impl DraftProxy {
                 )],
             ));
         }
-        if !store_credit_supported_currency(&currency) {
+        if is_credit && !store_credit_supported_currency(&currency) {
             return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
                 &field.selection,
                 &field.name,
@@ -4962,9 +5089,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "orderCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| ("orderCreate".to_string(), Vec::new()));
         let order_input = resolved_object_field(variables, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
         let customer = self
@@ -6108,17 +6235,14 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_HYDRATE_QUERY,
                 "operationName": "CustomerHydrate",
                 "variables": { "id": id },
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6151,17 +6275,14 @@ impl DraftProxy {
             return None;
         }
         let query_value = format!("{field}:{value}");
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_DUPLICATE_HYDRATE_QUERY,
                 "operationName": "CustomerDuplicateHydrate",
                 "variables": { "query": query_value },
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6334,17 +6455,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": CUSTOMER_COUNT_HYDRATE_QUERY,
                 "operationName": "CustomerCountHydrate",
                 "variables": {},
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -9135,10 +9253,39 @@ fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
             return true;
         }
     }
+    if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
+        if b2b_value_contains_company_id(entity, company_id) {
+            return true;
+        }
+    }
     if let Some(order) = record.get("order") {
         if order
             .get("purchasingEntity")
             .is_some_and(|entity| b2b_value_contains_company_id(entity, company_id))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when a staged order/draft-order record references the given company
+/// location through its purchasing entity.
+fn b2b_record_references_company_location(record: &Value, location_id: &str) -> bool {
+    if let Some(entity) = record.get("purchasingEntity") {
+        if b2b_value_contains_company_location_id(entity, location_id) {
+            return true;
+        }
+    }
+    if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
+        if b2b_value_contains_company_location_id(entity, location_id) {
+            return true;
+        }
+    }
+    if let Some(order) = record.get("order") {
+        if order
+            .get("purchasingEntity")
+            .is_some_and(|entity| b2b_value_contains_company_location_id(entity, location_id))
         {
             return true;
         }
@@ -9173,19 +9320,62 @@ fn b2b_value_contains_company_id(value: &Value, company_id: &str) -> bool {
     }
 }
 
+/// Recursively searches a purchasing entity for a company-location reference,
+/// covering both public input (`companyLocationId`) and staged read shapes
+/// (`location.id` / `companyLocation.id`).
+fn b2b_value_contains_company_location_id(value: &Value, location_id: &str) -> bool {
+    match value {
+        Value::Object(map) => {
+            if map.get("companyLocationId").and_then(Value::as_str) == Some(location_id) {
+                return true;
+            }
+            if map
+                .get("location")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                == Some(location_id)
+            {
+                return true;
+            }
+            if map
+                .get("companyLocation")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                == Some(location_id)
+            {
+                return true;
+            }
+            map.values()
+                .any(|value| b2b_value_contains_company_location_id(value, location_id))
+        }
+        Value::Array(items) => items
+            .iter()
+            .any(|item| b2b_value_contains_company_location_id(item, location_id)),
+        Value::String(string) => string == location_id,
+        _ => false,
+    }
+}
+
 /// True when a company location carries a positive store-credit balance on any
-/// of its accounts, which blocks deleting the owning company.
-fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
+/// embedded account nodes.
+fn b2b_location_has_embedded_store_credit_balance(location: &Value) -> bool {
     location["storeCreditAccounts"]["nodes"]
         .as_array()
-        .is_some_and(|nodes| {
-            nodes.iter().any(|account| {
-                account["balance"]["amount"]
-                    .as_str()
-                    .and_then(|amount| amount.parse::<f64>().ok())
-                    .is_some_and(|amount| amount > 0.0)
-            })
-        })
+        .is_some_and(|nodes| nodes.iter().any(store_credit_account_has_positive_balance))
+}
+
+fn store_credit_account_has_positive_balance(account: &Value) -> bool {
+    account["balance"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .is_some_and(|amount| amount > 0.0)
+}
+
+fn b2b_location_company_id(location: &Value) -> Option<&str> {
+    location
+        .get("companyId")
+        .and_then(Value::as_str)
+        .or_else(|| location["company"]["id"].as_str())
 }
 
 fn b2b_unique_strings(values: &[String]) -> bool {
@@ -9408,10 +9598,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "customerMerge".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| ("customerMerge".to_string(), Vec::new(), BTreeMap::new()));
         let one_id = resolved_string_field(&arguments, "customerOneId")
             .or_else(|| resolved_string_field(variables, "customerOneId"))
             .unwrap_or_default();
@@ -9440,9 +9629,9 @@ impl DraftProxy {
         root_field: &str,
         request_erasure: bool,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new(), BTreeMap::new()));
         let customer_id = resolved_string_field(&arguments, "customerId")
             .or_else(|| resolved_string_field(variables, "customerId"))
             .unwrap_or_default();
@@ -9573,25 +9762,30 @@ impl DraftProxy {
             );
         }
 
-        // Success: customerTwo is the resulting customer; customerOne is merged away.
-        let result_id = two_id.to_string();
-        let source_id = one_id.to_string();
-        let mut result = self
-            .store
-            .staged
-            .customers
-            .get(&result_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let source = self
-            .store
-            .staged
-            .customers
-            .get(&source_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();
+        let one = self
+            .store
+            .staged
+            .customers
+            .get(one_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let two = self
+            .store
+            .staged
+            .customers
+            .get(two_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let (result_id, source_id) =
+            customer_merge_result_source_ids(one_id, &one, two_id, &two, &override_fields);
+        let mut result = if result_id == one_id {
+            one.clone()
+        } else {
+            two.clone()
+        };
+        let source = if source_id == one_id { one } else { two };
         apply_customer_merge_overrides(&mut result, &source, &override_fields);
         merge_customer_attached_resources(&mut result, &source);
         normalize_merged_customer_defaults(&mut result);
@@ -9811,6 +10005,96 @@ fn customer_tags(customer: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|tag| tag.as_str().map(str::to_string))
         .collect()
+}
+
+fn customer_merge_result_source_ids(
+    one_id: &str,
+    one: &Value,
+    two_id: &str,
+    two: &Value,
+    override_fields: &BTreeMap<String, ResolvedValue>,
+) -> (String, String) {
+    if let Some(email_customer_id) =
+        resolved_string_field(override_fields, "customerIdOfEmailToKeep")
+    {
+        if email_customer_id == one_id {
+            return (one_id.to_string(), two_id.to_string());
+        }
+        if email_customer_id == two_id {
+            return (two_id.to_string(), one_id.to_string());
+        }
+    }
+
+    let one_has_email = customer_merge_has_email(one);
+    let two_has_email = customer_merge_has_email(two);
+    match (one_has_email, two_has_email) {
+        (true, false) => return (one_id.to_string(), two_id.to_string()),
+        (false, true) => return (two_id.to_string(), one_id.to_string()),
+        (false, false) => return (two_id.to_string(), one_id.to_string()),
+        (true, true) => {}
+    }
+
+    let one_consent = customer_merge_email_consent_priority(one);
+    let two_consent = customer_merge_email_consent_priority(two);
+    match one_consent.cmp(&two_consent) {
+        std::cmp::Ordering::Greater => return (one_id.to_string(), two_id.to_string()),
+        std::cmp::Ordering::Less => return (two_id.to_string(), one_id.to_string()),
+        std::cmp::Ordering::Equal => {}
+    }
+
+    let one_state = customer_merge_account_state_priority(one);
+    let two_state = customer_merge_account_state_priority(two);
+    match one_state.cmp(&two_state) {
+        std::cmp::Ordering::Greater => (one_id.to_string(), two_id.to_string()),
+        std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
+            (two_id.to_string(), one_id.to_string())
+        }
+    }
+}
+
+fn customer_merge_has_email(customer: &Value) -> bool {
+    customer
+        .get("email")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            customer
+                .pointer("/defaultEmailAddress/emailAddress")
+                .and_then(Value::as_str)
+        })
+        .is_some_and(|email| !email.trim().is_empty())
+}
+
+fn customer_merge_email_consent_priority(customer: &Value) -> u8 {
+    let state = customer
+        .pointer("/defaultEmailAddress/marketingState")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            customer
+                .pointer("/emailMarketingConsent/marketingState")
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default();
+    if state.eq_ignore_ascii_case("SUBSCRIBED") {
+        2
+    } else if state.eq_ignore_ascii_case("PENDING") {
+        1
+    } else {
+        0
+    }
+}
+
+fn customer_merge_account_state_priority(customer: &Value) -> u8 {
+    let state = customer
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if state.eq_ignore_ascii_case("ENABLED") {
+        2
+    } else if state.eq_ignore_ascii_case("INVITED") {
+        1
+    } else {
+        0
+    }
 }
 
 /// Apply `customerMerge` override selections onto the resulting customer record.

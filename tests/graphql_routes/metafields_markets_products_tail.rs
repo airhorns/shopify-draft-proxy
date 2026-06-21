@@ -2450,6 +2450,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     "#;
 
     let missing_catalog_id = "gid://shopify/MarketCatalog/99999999";
+    let wrong_type_catalog_id = "gid://shopify/CatalogMarket/99999999";
     let mut missing_proxy = snapshot_proxy();
     let missing_create = missing_proxy.process_request(json_graphql_request(
         create_query,
@@ -2472,6 +2473,26 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         read_after_missing_create.body["data"]["priceLists"]["nodes"],
         json!([])
     );
+
+    let mut wrong_type_proxy = snapshot_proxy();
+    let wrong_type_create = wrong_type_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Wrong Type Catalog", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": wrong_type_catalog_id}}),
+    ));
+    assert_eq!(wrong_type_create.status, 200);
+    assert_eq!(
+        wrong_type_create.body["data"]["priceListCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        wrong_type_create.body["errors"][0],
+        json!({
+            "message": "Invalid id: gid://shopify/CatalogMarket/99999999",
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["priceListCreate"]
+        })
+    );
+    assert_eq!(wrong_type_proxy.get_log_snapshot()["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     proxy.process_request(json_graphql_request(
@@ -2537,6 +2558,23 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     assert_eq!(
         missing_update.body["data"]["priceListUpdate"],
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let wrong_type_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_price_list_id, "input": {"catalogId": wrong_type_catalog_id}}),
+    ));
+    assert_eq!(
+        wrong_type_update.body["data"]["priceListUpdate"],
+        Value::Null
+    );
+    assert_eq!(
+        wrong_type_update.body["errors"][0],
+        json!({
+            "message": "Invalid id: gid://shopify/CatalogMarket/99999999",
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["priceListUpdate"]
+        })
     );
 
     let taken_update = proxy.process_request(json_graphql_request(

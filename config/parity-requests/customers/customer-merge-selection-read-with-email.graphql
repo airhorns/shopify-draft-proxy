@@ -1,0 +1,30 @@
+query CustomerMergeSelectionReadWithEmail($result: ID!, $source: ID!, $email: String!, $jobId: ID!) {
+  result: customer(id: $result) {
+    id
+    email
+    state
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  source: customer(id: $source) {
+    id
+    email
+    state
+  }
+  byEmail: customerByIdentifier(identifier: { emailAddress: $email }) {
+    id
+    email
+    state
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  mergeStatus: customerMergeJobStatus(jobId: $jobId) {
+    resultingCustomerId
+    customerMergeErrors {
+      errorFields
+      message
+    }
+  }
+}

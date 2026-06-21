@@ -18,11 +18,26 @@ fn create_customer(
     if let Some(note) = note {
         input["note"] = json!(note);
     }
+    create_customer_from_input(proxy, input)
+}
+
+fn create_customer_from_input(proxy: &mut DraftProxy, input: Value) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerCreateParityPlan($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id email firstName lastName displayName tags note defaultEmailAddress { emailAddress } }
+            customer {
+              id
+              email
+              firstName
+              lastName
+              displayName
+              tags
+              note
+              state
+              defaultEmailAddress { emailAddress marketingState }
+              emailMarketingConsent { marketingState }
+            }
             userErrors { field message }
           }
         }
@@ -38,6 +53,97 @@ fn create_customer(
         .as_str()
         .unwrap()
         .to_string()
+}
+
+fn assert_merge_survivor(
+    proxy: &mut DraftProxy,
+    one_id: &str,
+    two_id: &str,
+    override_fields: Value,
+    expected_result_id: &str,
+    expected_source_id: &str,
+) {
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MergeSelection($one: ID!, $two: ID!, $override: CustomerMergeOverrideFields) {
+          customerMerge(customerOneId: $one, customerTwoId: $two, overrideFields: $override) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "one": one_id,
+            "two": two_id,
+            "override": override_fields,
+        }),
+    ));
+    assert_eq!(merge.status, 200);
+    assert_eq!(merge.body["data"]["customerMerge"]["userErrors"], json!([]));
+    assert_eq!(
+        merge.body["data"]["customerMerge"]["resultingCustomerId"],
+        json!(expected_result_id)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MergeSelectionReadback($result: ID!, $source: ID!) {
+          result: customer(id: $result) { id email state defaultEmailAddress { emailAddress } }
+          source: customer(id: $source) { id email state }
+        }
+        "#,
+        json!({
+            "result": expected_result_id,
+            "source": expected_source_id,
+        }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["result"]["id"],
+        json!(expected_result_id)
+    );
+    assert_eq!(downstream.body["data"]["source"], Value::Null);
+
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["mergedCustomerIds"][expected_source_id],
+        json!(expected_result_id)
+    );
+    assert!(state["stagedState"]["deletedCustomerIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|id| id.as_str() == Some(expected_source_id)));
+}
+
+fn seeded_customer(id: &str, email: &str, state: &str) -> Value {
+    json!({
+        "id": id,
+        "firstName": "Merge",
+        "lastName": state,
+        "displayName": format!("Merge {state}"),
+        "email": email,
+        "state": state,
+        "note": Value::Null,
+        "tags": [],
+        "numberOfOrders": "0",
+        "defaultEmailAddress": {
+            "emailAddress": email,
+            "marketingState": "NOT_SUBSCRIBED"
+        },
+        "emailMarketingConsent": {
+            "marketingState": "NOT_SUBSCRIBED"
+        },
+        "defaultPhoneNumber": Value::Null,
+        "defaultAddress": Value::Null,
+        "addressesV2": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
+        "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
+        "orders": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
+        "lastOrder": Value::Null,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "updatedAt": "2026-01-01T00:00:00Z"
+    })
 }
 
 #[test]
@@ -188,6 +294,111 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
         .as_str()
         .unwrap()
         .contains("TotallyArbitraryMergeName"));
+}
+
+#[test]
+fn customer_merge_selects_survivor_from_email_and_state_rules() {
+    let mut proxy = snapshot_proxy();
+    let one_id = create_customer(
+        &mut proxy,
+        "merge-override-one@example.test",
+        "Override",
+        "One",
+        Vec::new(),
+        None,
+    );
+    let two_id = create_customer(
+        &mut proxy,
+        "merge-override-two@example.test",
+        "Override",
+        "Two",
+        Vec::new(),
+        None,
+    );
+    assert_merge_survivor(
+        &mut proxy,
+        &one_id,
+        &two_id,
+        json!({ "customerIdOfEmailToKeep": one_id.clone() }),
+        &one_id,
+        &two_id,
+    );
+
+    let mut proxy = snapshot_proxy();
+    let one_id = create_customer(
+        &mut proxy,
+        "merge-single-email-one@example.test",
+        "SingleEmail",
+        "One",
+        Vec::new(),
+        None,
+    );
+    let two_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "firstName": "SingleEmail",
+            "lastName": "Two"
+        }),
+    );
+    assert_merge_survivor(&mut proxy, &one_id, &two_id, Value::Null, &one_id, &two_id);
+
+    let mut proxy = snapshot_proxy();
+    let one_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "merge-subscribed-one@example.test",
+            "firstName": "Subscribed",
+            "lastName": "One",
+            "emailMarketingConsent": {
+                "marketingState": "SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": "2026-04-25T02:10:00Z"
+            }
+        }),
+    );
+    let two_id = create_customer(
+        &mut proxy,
+        "merge-subscribed-two@example.test",
+        "Subscribed",
+        "Two",
+        Vec::new(),
+        None,
+    );
+    assert_merge_survivor(&mut proxy, &one_id, &two_id, Value::Null, &one_id, &two_id);
+
+    let mut proxy = snapshot_proxy();
+    let one_id = "gid://shopify/Customer/merge-invited-one";
+    let two_id = "gid://shopify/Customer/merge-disabled-two";
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "customers": [
+                seeded_customer(one_id, "merge-invited-one@example.test", "INVITED"),
+                seeded_customer(two_id, "merge-disabled-two@example.test", "DISABLED")
+            ]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
+    assert_merge_survivor(&mut proxy, one_id, two_id, Value::Null, one_id, two_id);
+
+    let mut proxy = snapshot_proxy();
+    let one_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "firstName": "NoEmail",
+            "lastName": "One"
+        }),
+    );
+    let two_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "firstName": "NoEmail",
+            "lastName": "Two"
+        }),
+    );
+    assert_merge_survivor(&mut proxy, &one_id, &two_id, Value::Null, &two_id, &one_id);
 }
 
 #[test]

@@ -1074,18 +1074,14 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
-        let request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
                 "operationName": "ProductsHydrateNodes",
                 "variables": { "ids": ids }
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(request);
+            }),
+        );
         self.observe_nodes_response(&response);
     }
 
@@ -1204,16 +1200,12 @@ impl DraftProxy {
         }
     }
 
-    fn collection_payload_selection(
+    fn collection_payload_root_field(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<SelectedField> {
-        root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().next())
-            .map(|field| field.selection)
-            .or_else(|| root_field_selection(query))
-            .unwrap_or_default()
+    ) -> Option<RootFieldSelection> {
+        primary_root_field(query, variables).or_else(|| primary_root_field(query, &BTreeMap::new()))
     }
 
     fn collection_create(
@@ -1668,13 +1660,15 @@ impl DraftProxy {
         job: Option<&Value>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let payload_selection = self.collection_payload_selection(query, variables);
+        let (response_key, payload_selection) = self
+            .collection_payload_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
@@ -1696,11 +1690,12 @@ impl DraftProxy {
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let payload_selection = self.collection_payload_selection(query, variables);
+        let (response_key, payload_selection) = self
+            .collection_payload_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "collectionDelete".to_string());
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
@@ -4652,9 +4647,9 @@ pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
     errors: Vec<Value>,
 ) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| ("productCreate".to_string(), Vec::new()));
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let errors = errors
@@ -5326,9 +5321,9 @@ pub(in crate::proxy) fn product_delete_required_id_error(
 }
 
 pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| ("productUpdate".to_string(), Vec::new()));
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
@@ -5347,9 +5342,9 @@ pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response 
 }
 
 pub(in crate::proxy) fn product_delete_missing_product(query: &str) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| ("productDelete".to_string(), Vec::new()));
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(

@@ -7,10 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    parsed_document, root_field_arguments, root_field_response_key, root_field_selection,
-    root_fields, variable_definition_info, OperationType, RawArgumentValue, ResolvedValue,
-    RootFieldSelection, SelectedField, SourceLocation,
+    parse_operation, parsed_document, primary_root_field, root_field_arguments, root_fields,
+    variable_definition_info, OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection,
+    SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
@@ -94,6 +93,26 @@ pub struct Response {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub headers: BTreeMap<String, String>,
     pub body: Value,
+}
+
+fn primary_root_response_parts(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    default_response_key: impl FnOnce() -> String,
+) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
+    primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection, field.arguments))
+        .unwrap_or_else(|| (default_response_key(), Vec::new(), BTreeMap::new()))
+}
+
+fn primary_root_response_selection(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    default_response_key: impl FnOnce() -> String,
+) -> (String, Vec<SelectedField>) {
+    primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| (default_response_key(), Vec::new()))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

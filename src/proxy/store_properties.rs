@@ -166,16 +166,13 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHOP_POLICY_HYDRATE_QUERY,
                 "variables": {}
-            })
-            .to_string(),
-        });
+            }),
+        );
         if (200..300).contains(&response.status) {
             // Populate the structured shop-policy records (read by
             // `shop_policy_by_type`/`shop_policies`); `hydrate_shop_state_from_response_data`

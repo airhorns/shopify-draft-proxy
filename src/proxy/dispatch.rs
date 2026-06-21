@@ -1854,7 +1854,9 @@ impl DraftProxy {
                                 | "priceListFixedPricesDelete"
                         )
                     }) {
-                        self.price_list_mutation_data(&fields, request, &query, &variables)
+                        return ok_json(
+                            self.price_list_mutation_data(&fields, request, &query, &variables),
+                        );
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),
