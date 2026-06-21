@@ -385,6 +385,147 @@ fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
 }
 
 #[test]
+fn webhook_subscription_api_version_projects_and_survives_update() {
+    let mut proxy = snapshot_proxy();
+    let expected_api_version = json!({
+        "handle": "2026-07",
+        "displayName": "2026-07 (Release candidate)",
+        "supported": false
+    });
+
+    let mut create_request = json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation {
+  webhookSubscriptionCreate(
+    topic: ORDERS_CREATE
+    webhookSubscription: {
+      callbackUrl: "https://hooks.example.com/orders-api-version"
+      format: JSON
+    }
+  ) {
+    webhookSubscription {
+      id
+      topic
+      apiVersion { handle displayName supported }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-version".to_string(),
+        "2026-07".to_string(),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+
+    let create = proxy.process_request(create_request);
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id = create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "topic": "ORDERS_CREATE",
+            "apiVersion": expected_api_version
+        })
+    );
+
+    let read_after_create = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($id: ID!) {
+  detail: webhookSubscription(id: $id) {
+    id
+    apiVersion { handle displayName supported }
+  }
+  webhookSubscriptions(first: 10) {
+    nodes {
+      id
+      apiVersion { handle displayName supported }
+    }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        read_after_create.body["data"]["detail"],
+        json!({ "id": webhook_id, "apiVersion": expected_api_version })
+    );
+    assert_eq!(
+        read_after_create.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "id": webhook_id, "apiVersion": expected_api_version }])
+    );
+
+    let mut update_request = json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  webhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: {
+      callbackUrl: "https://hooks.example.com/orders-api-version-updated"
+    }
+  ) {
+    webhookSubscription {
+      id
+      callbackUrl
+      apiVersion { handle displayName supported }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-version".to_string(),
+        "2026-04".to_string(),
+    );
+
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "callbackUrl": "https://hooks.example.com/orders-api-version-updated",
+            "apiVersion": expected_api_version
+        })
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($id: ID!) {
+  webhookSubscription(id: $id) {
+    id
+    callbackUrl
+    apiVersion { handle displayName supported }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "callbackUrl": "https://hooks.example.com/orders-api-version-updated",
+            "apiVersion": expected_api_version
+        })
+    );
+}
+
+#[test]
 fn webhook_subscription_payload_fields_round_trip_through_create_update_and_reads() {
     let mut proxy = snapshot_proxy();
 
