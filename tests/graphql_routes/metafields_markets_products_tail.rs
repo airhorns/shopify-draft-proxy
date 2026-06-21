@@ -4717,6 +4717,137 @@ fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
         duplicate.body["data"]["productDuplicate"]["newProduct"]["title"],
         json!("Natural Duplicate Sync Copy")
     );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["status"],
+        json!("ACTIVE")
+    );
+}
+
+#[test]
+fn product_duplicate_respects_new_status_override_and_validates_invalid_status() {
+    let mut proxy = snapshot_proxy();
+
+    let source = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateStatusSourceProductSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Duplicate Status Override Source",
+                "status": "DRAFT"
+            }
+        }),
+    ));
+    assert_eq!(source.status, 200);
+    assert_eq!(source.body["data"]["productSet"]["userErrors"], json!([]));
+    let source_id = source.body["data"]["productSet"]["product"]["id"].clone();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateStatusOverride($productId: ID!, $newTitle: String!, $newStatus: ProductStatus) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, newStatus: $newStatus) {
+            newProduct { id title status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": source_id,
+            "newTitle": "Duplicate Status Override Copy",
+            "newStatus": "ACTIVE"
+        }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or_default(),
+        2
+    );
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidDuplicateStatusLiteral { productDuplicate(productId: \"gid://shopify/Product/1\", newTitle: \"Invalid duplicate status\", newStatus: PUBLISHED) { newProduct { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'newStatus' on Field 'productDuplicate' has an invalid value (PUBLISHED). Expected type 'ProductStatus'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidDuplicateStatusLiteral",
+            "productDuplicate",
+            "newStatus"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "newStatus"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidDuplicateStatusVariable($productId: ID!, $newStatus: ProductStatus) {
+          productDuplicate(productId: $productId, newTitle: "Invalid duplicate status", newStatus: $newStatus) {
+            newProduct { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "newStatus": "ENABLED"
+        }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!("Variable $newStatus of type ProductStatus was provided invalid value")
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": "ENABLED",
+            "problems": [{
+                "path": [],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or_default(),
+        2
+    );
 }
 
 #[test]

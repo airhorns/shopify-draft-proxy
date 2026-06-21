@@ -1,0 +1,177 @@
+{
+  "scenarioId": "product-duplicate-status-inheritance-and-new-status",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "activeSourceCreate": {
+    "variables": {
+      "product": {
+        "title": "Hermes Duplicate Active Source 1782065208001",
+        "status": "ACTIVE"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10218228384050",
+            "title": "Hermes Duplicate Active Source 1782065208001",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "activeNoStatusDuplicate": {
+    "variables": {
+      "productId": "gid://shopify/Product/10218228384050",
+      "newTitle": "Hermes Duplicate Inherited Active 1782065208001"
+    },
+    "response": {
+      "data": {
+        "productDuplicate": {
+          "newProduct": {
+            "id": "gid://shopify/Product/10218228416818",
+            "title": "Hermes Duplicate Inherited Active 1782065208001",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "activeNoStatusRead": {
+    "variables": {
+      "id": "gid://shopify/Product/10218228416818"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10218228416818",
+          "title": "Hermes Duplicate Inherited Active 1782065208001",
+          "status": "ACTIVE"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftSourceCreate": {
+    "variables": {
+      "product": {
+        "title": "Hermes Duplicate Draft Source 1782065208001",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10218228482354",
+            "title": "Hermes Duplicate Draft Source 1782065208001",
+            "status": "DRAFT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftOverrideDuplicate": {
+    "variables": {
+      "productId": "gid://shopify/Product/10218228482354",
+      "newTitle": "Hermes Duplicate Override Active 1782065208001",
+      "newStatus": "ACTIVE"
+    },
+    "response": {
+      "data": {
+        "productDuplicate": {
+          "newProduct": {
+            "id": "gid://shopify/Product/10218228515122",
+            "title": "Hermes Duplicate Override Active 1782065208001",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftOverrideRead": {
+    "variables": {
+      "id": "gid://shopify/Product/10218228515122"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10218228515122",
+          "title": "Hermes Duplicate Override Active 1782065208001",
+          "status": "ACTIVE"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
