@@ -1406,6 +1406,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-create-large-batch-timestamps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-large-batch-timestamps-conformance.ts',
+    purpose: 'fileCreate timestamp shape for a successful 60-file batch crossing the one-minute boundary.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-large-batch-timestamps.json`,
+      'config/parity-specs/media/media-file-create-large-batch-timestamps.json',
+      'config/parity-requests/media/media-file-create-large-batch-timestamps.graphql',
+    ],
+    cleanupBehavior: 'Creates 60 disposable image files and deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-create-references-authorization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-references-authorization-conformance.ts',
