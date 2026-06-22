@@ -1,6 +1,7 @@
 use super::*;
 
 const MAX_SELLING_PLAN_GROUPS_PER_RESOURCE: usize = 31;
+const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
 const INT32_MAX: i64 = i32::MAX as i64;
 
@@ -1016,6 +1017,60 @@ fn selling_plan_group_input_user_errors(
             ));
         }
     }
+    if errors.is_empty() && mode == SellingPlanInputMode::Create {
+        errors.extend(selling_plan_group_create_model_user_errors(input));
+    }
+    errors
+}
+
+fn selling_plan_group_create_model_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if resolved_string_field(input, "name")
+        .as_deref()
+        .is_none_or(|name| name.trim().is_empty())
+    {
+        errors.push(json!({
+            "field": ["input", "name"],
+            "message": "Name can't be blank",
+            "code": "BLANK"
+        }));
+    }
+
+    let plans = resolved_object_list_field(input, "sellingPlansToCreate");
+    if plans.len() > MAX_SELLING_PLANS_PER_GROUP {
+        errors.push(json!({
+            "field": ["input"],
+            "message": "Selling plan groups can't have more than 31 selling plans.",
+            "code": "SELLING_PLAN_COUNT_UPPER_BOUND"
+        }));
+    } else if plans.is_empty() {
+        errors.push(json!({
+            "field": ["input"],
+            "message": "Selling plan groups must have at least 1 selling plan.",
+            "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+        }));
+    }
+
+    for (index, plan) in plans.iter().enumerate() {
+        let index = index.to_string();
+        if resolved_object_field(plan, "billingPolicy").is_none() {
+            errors.push(json!({
+                "field": ["input", "sellingPlansToCreate", index, "billingPolicy"],
+                "message": "Selling plans to create billing policy must be present.",
+                "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
+            }));
+        }
+        if resolved_object_field(plan, "deliveryPolicy").is_none() {
+            errors.push(json!({
+                "field": ["input", "sellingPlansToCreate", index, "deliveryPolicy"],
+                "message": "Selling plans to create delivery policy must be present.",
+                "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
+            }));
+        }
+    }
+
     errors
 }
 

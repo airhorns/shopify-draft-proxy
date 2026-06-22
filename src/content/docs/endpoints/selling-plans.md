@@ -6,9 +6,9 @@ description: 'Coverage notes and fidelity boundaries for Selling Plans.'
 The selling-plans group tracks the Shopify Admin GraphQL selling-plan group
 roots used by product subscription flows.
 
-## Current Support And Limitations
+## Current support and limitations
 
-### Tracked But Unimplemented Roots
+### Implemented roots
 
 Reads:
 
@@ -31,27 +31,58 @@ Mutations:
 
 ### Local Behavior
 
-The current Rust runtime does not include a store-backed selling-plan group
-lifecycle model. These roots are present in registry metadata and captured
-conformance evidence, but they are not marked as implemented local dispatch
-roots and are not supported as local staging operations.
+The Rust runtime models staged selling-plan group lifecycle behavior for groups
+created inside the current proxy session. Successful `sellingPlanGroupCreate`,
+`sellingPlanGroupUpdate`, and `sellingPlanGroupDelete` calls stage local group
+records and nested `SellingPlan` records without runtime Shopify writes, while
+retaining the original raw mutations for commit replay.
 
-Without staged products or variants, downstream reads that select
+`sellingPlanGroupCreate` validates the captured model-backed create guardrails
+after the shared input validator passes. Blank or absent group `name`, zero or
+absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
+missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
+`sellingPlanGroup: null`, and do not stage a group. `sellingPlanGroupUpdate`
+does not apply the create-only lower-bound to an empty
+`sellingPlansToCreate: []` list.
+
+Staged `sellingPlanGroupAddProducts`,
+`sellingPlanGroupRemoveProducts`, `sellingPlanGroupAddProductVariants`,
+`sellingPlanGroupRemoveProductVariants`, `productJoinSellingPlanGroups`,
+`productLeaveSellingPlanGroups`, `productVariantJoinSellingPlanGroups`, and
+`productVariantLeaveSellingPlanGroups` update membership edges for local
+products, variants, and selling-plan groups. Downstream
 `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`,
-`ProductVariant.sellingPlanGroups`, or `ProductVariant.sellingPlanGroupsCount`
-return the same local no-data product/variant result as other absent product
-reads instead of replaying captured fixture memberships.
+`ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
+read from the staged membership graph.
+
+Snapshot reads over an empty local selling-plan store return Shopify-like no-data
+shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
+empty connection. In LiveHybrid, mutation roots that target live-store groups,
+products, or variants not present in local state are forwarded upstream instead
+of fabricating local not-found errors from empty state.
 
 ### Boundaries
 
-Selling-plan lifecycle mutations, product membership mutations, variant
-membership mutations, selling-plan group catalog reads, and generic
-`node(id:)` / `nodes(ids:)` resolution for nested `SellingPlan` IDs remain
-unsupported until they are backed by a runtime store model and executable
-read-after-write coverage.
+Support is scoped to local staged groups and locally known product/variant
+resources. The proxy does not hydrate arbitrary live-store selling-plan groups
+into local state, does not claim full upstream parity for every
+`SellingPlanGroupInput` field or selling-plan policy variant, and still relies
+on existing product/variant state to expose downstream membership overlays.
+
+Generic `node(id:)` / `nodes(ids:)` readback for selling-plan group and nested
+selling-plan IDs is covered by the admin-platform endpoint group. Broader
+Shopify selling-plan behavior outside the staged lifecycle and membership
+surface remains unsupported until backed by runtime behavior and captured
+parity evidence.
 
 ### Evidence
 
+- `tests/graphql_routes/selling_plans.rs`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
+- `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql`
+- `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
@@ -59,10 +90,8 @@ read-after-write coverage.
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`
 
-These artifacts capture Shopify behavior for future local support work; they do
-not make the current Rust runtime support claim.
-
 ### Validation
 
+- `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
 - `corepack pnpm conformance:check`
 - `corepack pnpm rust:test`

@@ -1,0 +1,1040 @@
+{
+  "capturedAt": "2026-06-21T18:01:24.197Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "Captures Admin 2026-04 sellingPlanGroupCreate model-backed validation errors after pure input validation passes.",
+    "The script creates one disposable valid group to prove sellingPlanGroupUpdate does not apply the create-only lower bound to an empty sellingPlansToCreate list, then deletes the group during cleanup."
+  ],
+  "groupId": "gid://shopify/SellingPlanGroup/3073343794",
+  "planId": "gid://shopify/SellingPlan/7229833522",
+  "scenarios": {
+    "validSeed": {
+      "label": "validSeed",
+      "variables": {
+        "input": {
+          "name": "Create validation seed 1782064882420",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly delivery"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3073343794",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7229833522"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankName": {
+      "label": "blankName",
+      "variables": {
+        "input": {
+          "name": "   ",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly delivery"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "absentName": {
+      "label": "absentName",
+      "variables": {
+        "input": {
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly delivery"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "zeroPlans": {
+      "label": "zeroPlans",
+      "variables": {
+        "input": {
+          "name": "Zero plans",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": []
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Selling plan groups must have at least 1 selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "absentPlans": {
+      "label": "absentPlans",
+      "variables": {
+        "input": {
+          "name": "Absent plans",
+          "options": ["Delivery frequency"]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Selling plan groups must have at least 1 selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooManyPlans": {
+      "label": "tooManyPlans",
+      "variables": {
+        "input": {
+          "name": "Too many plans",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly 1",
+              "options": ["Monthly 1"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 2",
+              "options": ["Monthly 2"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 3",
+              "options": ["Monthly 3"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 4",
+              "options": ["Monthly 4"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 5",
+              "options": ["Monthly 5"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 6",
+              "options": ["Monthly 6"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 7",
+              "options": ["Monthly 7"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 8",
+              "options": ["Monthly 8"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 9",
+              "options": ["Monthly 9"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 10",
+              "options": ["Monthly 10"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 11",
+              "options": ["Monthly 11"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 12",
+              "options": ["Monthly 12"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 13",
+              "options": ["Monthly 13"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 14",
+              "options": ["Monthly 14"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 15",
+              "options": ["Monthly 15"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 16",
+              "options": ["Monthly 16"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 17",
+              "options": ["Monthly 17"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 18",
+              "options": ["Monthly 18"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 19",
+              "options": ["Monthly 19"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 20",
+              "options": ["Monthly 20"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 21",
+              "options": ["Monthly 21"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 22",
+              "options": ["Monthly 22"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 23",
+              "options": ["Monthly 23"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 24",
+              "options": ["Monthly 24"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 25",
+              "options": ["Monthly 25"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 26",
+              "options": ["Monthly 26"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 27",
+              "options": ["Monthly 27"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 28",
+              "options": ["Monthly 28"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 29",
+              "options": ["Monthly 29"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 30",
+              "options": ["Monthly 30"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 31",
+              "options": ["Monthly 31"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            },
+            {
+              "name": "Monthly 32",
+              "options": ["Monthly 32"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Selling plan groups can't have more than 31 selling plans.",
+                "code": "SELLING_PLAN_COUNT_UPPER_BOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingBillingPolicy": {
+      "label": "missingBillingPolicy",
+      "variables": {
+        "input": {
+          "name": "Missing billing",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly",
+              "options": ["Monthly"],
+              "category": "SUBSCRIPTION",
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "billingPolicy"],
+                "message": "Selling plans to create billing policy must be present.",
+                "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingDeliveryPolicy": {
+      "label": "missingDeliveryPolicy",
+      "variables": {
+        "input": {
+          "name": "Missing delivery",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly",
+              "options": ["Monthly"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy"],
+                "message": "Selling plans to create delivery policy must be present.",
+                "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingBothPolicies": {
+      "label": "missingBothPolicies",
+      "variables": {
+        "input": {
+          "name": "Missing both",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly",
+              "options": ["Monthly"],
+              "category": "SUBSCRIPTION"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "billingPolicy"],
+                "message": "Selling plans to create billing policy must be present.",
+                "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
+              },
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy"],
+                "message": "Selling plans to create delivery policy must be present.",
+                "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateEmptyCreateList": {
+      "label": "updateEmptyCreateList",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3073343794",
+        "input": {
+          "sellingPlansToCreate": []
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": [],
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3073343794",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7229833522"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup sellingPlanGroupDelete",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3073343794"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3073343794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
