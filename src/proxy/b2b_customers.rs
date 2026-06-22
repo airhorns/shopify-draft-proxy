@@ -636,10 +636,7 @@ impl DraftProxy {
             }
         }
 
-        let id = format!(
-            "gid://shopify/Company/{}?shopify-draft-proxy=synthetic",
-            self.store.staged.next_b2b_company_id
-        );
+        let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
         self.store.staged.next_b2b_company_id += 5;
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
@@ -3694,7 +3691,7 @@ impl DraftProxy {
             .staged
             .publications
             .keys()
-            .filter_map(|id| id.rsplit('/').next())
+            .map(|id| resource_id_path_tail(id.as_str()))
             .filter_map(|suffix| suffix.parse::<u64>().ok())
             .max()
             .unwrap_or(0)
@@ -4192,9 +4189,7 @@ impl DraftProxy {
         // is addressed by a synthetic Job gid. Reading it back returns a
         // freshly-enqueued, not-yet-complete Job with no backing bulk query —
         // matching Shopify's shape for a pending async job.
-        if id.contains("?shopify-draft-proxy=synthetic")
-            && shopify_gid_resource_type(&id) == Some("Job")
-        {
+        if is_synthetic_gid(&id) && shopify_gid_resource_type(&id) == Some("Job") {
             let job = json!({
                 "__typename": "Job",
                 "id": id,
@@ -5003,13 +4998,13 @@ impl DraftProxy {
     fn next_store_credit_account_gid(&mut self) -> String {
         let id = self.store.staged.next_store_credit_account_id;
         self.store.staged.next_store_credit_account_id += 1;
-        format!("gid://shopify/StoreCreditAccount/{id}?shopify-draft-proxy=synthetic")
+        synthetic_shopify_gid("StoreCreditAccount", id)
     }
 
     fn next_store_credit_transaction_gid(&mut self) -> String {
         let id = self.store.staged.next_store_credit_transaction_id;
         self.store.staged.next_store_credit_transaction_id += 1;
-        format!("gid://shopify/StoreCreditAccountTransaction/{id}?shopify-draft-proxy=synthetic")
+        synthetic_shopify_gid("StoreCreditAccountTransaction", id)
     }
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
@@ -5145,10 +5140,7 @@ impl DraftProxy {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
             format!("gid://shopify/Order/{}", ordinal.max(1))
         } else {
-            format!(
-                "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
-                self.next_synthetic_id
-            )
+            synthetic_shopify_gid("Order", self.next_synthetic_id)
         };
         self.next_synthetic_id += 1;
         let order = json!({ "id": id, "customer": customer });
@@ -7394,7 +7386,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
     let metafields = if input.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
+        json!({ "nodes": [], "pageInfo": empty_page_info() })
     } else {
         json!({ "nodes": [input.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
     };
@@ -7601,10 +7593,7 @@ fn customer_mailing_address(
         .join(" ");
     let formatted_area =
         customer_formatted_area(city.as_deref(), country.as_ref(), province.as_ref());
-    let id = format!(
-        "gid://shopify/MailingAddress/{}?shopify-draft-proxy=synthetic",
-        index + 1
-    );
+    let id = synthetic_shopify_gid("MailingAddress", index + 1);
     (
         json!({
             "id": id,
@@ -8584,7 +8573,7 @@ fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
         .filter(|title| !title.trim().is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| {
-            let suffix = id.rsplit('/').next().unwrap_or(id);
+            let suffix = resource_id_path_tail(id);
             format!("Publication {suffix}")
         })
 }
@@ -10306,10 +10295,6 @@ fn merge_customer_attached_resources(result: &mut Value, source: &Value) {
     }
 }
 
-fn connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
 fn connection_has_nodes(connection: &Value) -> bool {
     connection
         .get("nodes")
@@ -10418,12 +10403,7 @@ fn empty_orders_connection() -> Value {
     json!({
         "nodes": [],
         "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
+        "pageInfo": empty_page_info()
     })
 }
 

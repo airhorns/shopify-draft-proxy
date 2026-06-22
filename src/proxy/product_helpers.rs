@@ -53,7 +53,7 @@ pub(in crate::proxy) fn merge_observed_product(
                     .variants
                     .iter()
                     .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    .map(|existing| merge_json_objects(existing.clone(), variant))
+                    .map(|existing| shallow_merged_object(existing.clone(), variant))
             })
             .collect();
     }
@@ -73,18 +73,6 @@ pub(in crate::proxy) fn merge_observed_product(
         left_title.cmp(right_title)
     });
     existing
-}
-
-pub(in crate::proxy) fn merge_json_objects(left: Value, right: Value) -> Value {
-    match (left, right) {
-        (Value::Object(mut left), Value::Object(right)) => {
-            for (key, value) in right {
-                left.insert(key, value);
-            }
-            Value::Object(left)
-        }
-        (_, right) => right,
-    }
 }
 
 pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
@@ -586,7 +574,7 @@ pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
 /// serves. A publication's backing `Channel` shares the publication's numeric
 /// id suffix and name, so both are derived rather than recorded per scenario.
 pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
-    let suffix = id.rsplit('/').next().unwrap_or(id);
+    let suffix = resource_id_path_tail(id);
     let channel_id = format!("gid://shopify/Channel/{suffix}");
     json!({
         "id": id,
@@ -834,7 +822,7 @@ impl DraftProxy {
             channel
                 .get("id")
                 .and_then(Value::as_str)
-                .and_then(|id| id.rsplit('/').next())
+                .map(resource_id_path_tail)
                 .and_then(|suffix| suffix.parse::<u64>().ok())
                 .unwrap_or(u64::MAX)
         });
@@ -1214,6 +1202,19 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let input = collection_input(query, variables).unwrap_or_default();
+        if input.contains_key("id") {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["id"],
+                    "id cannot be specified on collection creation",
+                )],
+            ));
+        }
         if let Some(response) = self.collection_input_validation_response(
             query,
             variables,
@@ -1293,6 +1294,34 @@ impl DraftProxy {
         ) {
             return MutationOutcome::response(response);
         }
+        if input.contains_key("ruleSet") {
+            if collection_rule_set_rules_empty(&input) {
+                return MutationOutcome::response(self.collection_payload_response(
+                    query,
+                    variables,
+                    "collectionUpdate",
+                    None,
+                    None,
+                    vec![collection_user_error(
+                        ["ruleSet", "rules"],
+                        "Rules cannot be an empty set",
+                    )],
+                ));
+            }
+            if !collection_is_smart(&existing) {
+                return MutationOutcome::response(self.collection_payload_response(
+                    query,
+                    variables,
+                    "collectionUpdate",
+                    None,
+                    None,
+                    vec![collection_user_error(
+                        ["id"],
+                        "Cannot update rule set of a custom collection",
+                    )],
+                ));
+            }
+        }
 
         let mut updated = existing;
         if let Some(object) = updated.as_object_mut() {
@@ -1332,6 +1361,20 @@ impl DraftProxy {
         }
         self.store.stage_collection(updated.clone());
         self.refresh_collection_summary_on_products(&id);
+        let job = input.contains_key("ruleSet").then(|| {
+            let staged_job = self.stage_collection_job();
+            let job_id = staged_job
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let payload_job = collection_inline_job(&staged_job);
+            (payload_job, job_id)
+        });
+        let resource_ids = job
+            .as_ref()
+            .map(|(_, job_id)| vec![id.clone(), job_id.clone()])
+            .unwrap_or_else(|| vec![id.clone()]);
 
         MutationOutcome::staged(
             self.collection_payload_response(
@@ -1339,10 +1382,10 @@ impl DraftProxy {
                 variables,
                 "collectionUpdate",
                 Some(&updated),
-                None,
+                job.as_ref().map(|(payload_job, _)| payload_job),
                 Vec::new(),
             ),
-            LogDraft::staged("collectionUpdate", "products", vec![id]),
+            LogDraft::staged("collectionUpdate", "products", resource_ids),
         )
     }
 
@@ -2305,8 +2348,7 @@ fn collection_products_by_recency(connection: &Value) -> Value {
     fn recency(node: &Value) -> i64 {
         node.get("id")
             .and_then(Value::as_str)
-            .and_then(|id| id.rsplit('/').next())
-            .and_then(|tail| tail.split('?').next())
+            .map(resource_id_tail)
             .and_then(|tail| tail.parse::<i64>().ok())
             .unwrap_or(0)
     }
@@ -2376,6 +2418,12 @@ fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
             }))
             .collect::<Vec<_>>()
     })
+}
+
+fn collection_rule_set_rules_empty(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_field(input, "ruleSet")
+        .map(|rule_set| resolved_object_list_field(&rule_set, "rules").is_empty())
+        .unwrap_or(false)
 }
 
 fn collection_is_smart(collection: &Value) -> bool {
@@ -2636,6 +2684,14 @@ pub(in crate::proxy) fn product_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
+    product_json_with_currency(product, selections, "USD")
+}
+
+pub(in crate::proxy) fn product_json_with_currency(
+    product: &ProductRecord,
+    selections: &[SelectedField],
+    currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -2651,6 +2707,20 @@ pub(in crate::proxy) fn product_json(
         "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
         "totalInventory" => Some(json!(product.total_inventory)),
         "tracksInventory" => Some(json!(product.tracks_inventory)),
+        "priceRangeV2" => Some(product_price_range_json(
+            product,
+            &[],
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        )),
+        "priceRange" => Some(product_price_range_json(
+            product,
+            &[],
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Legacy,
+        )),
         "templateSuffix" => Some(
             product
                 .extra_fields
@@ -2749,6 +2819,128 @@ pub(in crate::proxy) fn product_json(
     })
 }
 
+#[derive(Clone, Copy)]
+enum ProductPriceRangeKind {
+    Current,
+    Legacy,
+}
+
+fn product_price_range_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selection: &SelectedField,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+) -> Value {
+    if !variants.is_empty() {
+        if let Some((min_price, max_price)) = product_variant_price_bounds(variants) {
+            return computed_product_price_range_json(
+                min_price,
+                max_price,
+                currency_code,
+                kind,
+                &selection.selection,
+            );
+        }
+    }
+
+    if let Some(observed) = product.extra_fields.get(&selection.name) {
+        return nullable_selected_json(observed, &selection.selection);
+    }
+
+    if let Some((min_price, max_price)) = product_raw_variant_price_bounds(&product.variants) {
+        return computed_product_price_range_json(
+            min_price,
+            max_price,
+            currency_code,
+            kind,
+            &selection.selection,
+        );
+    }
+
+    computed_product_price_range_json(0.0, 0.0, currency_code, kind, &selection.selection)
+}
+
+fn product_variant_price_bounds(variants: &[ProductVariantRecord]) -> Option<(f64, f64)> {
+    price_bounds(
+        variants
+            .iter()
+            .filter_map(|variant| parse_product_price(&variant.price)),
+    )
+}
+
+fn product_raw_variant_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
+    price_bounds(variants.iter().filter_map(|variant| {
+        variant
+            .get("price")
+            .and_then(Value::as_str)
+            .and_then(parse_product_price)
+    }))
+}
+
+fn price_bounds<I>(prices: I) -> Option<(f64, f64)>
+where
+    I: IntoIterator<Item = f64>,
+{
+    let mut iter = prices.into_iter();
+    let first = iter.next()?;
+    let mut min_price = first;
+    let mut max_price = first;
+    for price in iter {
+        if price < min_price {
+            min_price = price;
+        }
+        if price > max_price {
+            max_price = price;
+        }
+    }
+    Some((min_price, max_price))
+}
+
+fn parse_product_price(price: impl AsRef<str>) -> Option<f64> {
+    price.as_ref().trim().parse::<f64>().ok()
+}
+
+fn computed_product_price_range_json(
+    min_price: f64,
+    max_price: f64,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!(match kind {
+            ProductPriceRangeKind::Current => "ProductPriceRangeV2",
+            ProductPriceRangeKind::Legacy => "ProductPriceRange",
+        })),
+        "minVariantPrice" => Some(selected_json(
+            &product_price_range_money(min_price, currency_code, kind),
+            &selection.selection,
+        )),
+        "maxVariantPrice" => Some(selected_json(
+            &product_price_range_money(max_price, currency_code, kind),
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn product_price_range_money(
+    price: f64,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+) -> Value {
+    let amount = match kind {
+        ProductPriceRangeKind::Current => price,
+        ProductPriceRangeKind::Legacy => price * 100.0,
+    };
+    json!({
+        "__typename": "MoneyV2",
+        "amount": normalize_money_amount(&format!("{amount:.2}")),
+        "currencyCode": currency_code
+    })
+}
+
 fn product_collections_connection_json(
     product: &ProductRecord,
     selection: &SelectedField,
@@ -2811,6 +3003,15 @@ pub(in crate::proxy) fn product_json_with_variants(
     variants: &[ProductVariantRecord],
     selections: &[SelectedField],
 ) -> Value {
+    product_json_with_variants_and_currency(product, variants, selections, "USD")
+}
+
+pub(in crate::proxy) fn product_json_with_variants_and_currency(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selections: &[SelectedField],
+    currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -2867,6 +3068,20 @@ pub(in crate::proxy) fn product_json_with_variants(
         } else {
             json!(variants.len())
         }),
+        "priceRangeV2" => Some(product_price_range_json(
+            product,
+            variants,
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        )),
+        "priceRange" => Some(product_price_range_json(
+            product,
+            variants,
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Legacy,
+        )),
         "templateSuffix" => Some(
             product
                 .extra_fields
@@ -4250,12 +4465,19 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
 
 pub(in crate::proxy) fn product_mutation_payload_json(
     product: &ProductRecord,
+    variants: &[ProductVariantRecord],
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
+    currency_code: &str,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json(product, product_selections)),
+            "product" => Some(product_json_with_variants_and_currency(
+                product,
+                variants,
+                product_selections,
+                currency_code,
+            )),
             "userErrors" => Some(json!([])),
             _ => None,
         }

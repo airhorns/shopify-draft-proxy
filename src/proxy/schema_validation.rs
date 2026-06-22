@@ -358,6 +358,34 @@ fn validate_argument_value(
             context,
             inline_argument_value_location(context.query, field, argument_name),
         ),
+        RawArgumentValue::List(items) if type_ref_is_list(type_ref) => {
+            let mut errors = Vec::new();
+            for (index, item) in items.iter().enumerate() {
+                let path = vec![argument_name.to_string(), index.to_string()];
+                match item {
+                    RawArgumentValue::Object(fields) => {
+                        errors.extend(validate_raw_input_object(
+                            &type_ref.named_type,
+                            input_object,
+                            fields,
+                            &path,
+                            schema,
+                            context,
+                            inline_argument_value_location(context.query, field, argument_name),
+                        ));
+                    }
+                    RawArgumentValue::Null if type_ref_has_non_null_list_items(type_ref) => errors
+                        .push(non_null_argument_literal_error(
+                            field,
+                            argument_name,
+                            type_ref,
+                            context,
+                        )),
+                    _ => {}
+                }
+            }
+            errors
+        }
         RawArgumentValue::Variable { name, value } => {
             let variable_type = document
                 .variable_definitions
@@ -375,6 +403,46 @@ fn validate_argument_value(
             // than a missing-argument error.
             if type_ref.non_null && matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
                 return vec![non_null_variable_null_error(name, variable_type, location)];
+            }
+            if type_ref_is_list(type_ref) {
+                let Some(ResolvedValue::List(items)) = value.as_ref() else {
+                    return Vec::new();
+                };
+                let mut problems = Vec::new();
+                for (index, item) in items.iter().enumerate() {
+                    let item_path = vec![index.to_string()];
+                    match item {
+                        ResolvedValue::Object(fields) => {
+                            problems.extend(validate_resolved_input_object(
+                                &type_ref.named_type,
+                                input_object,
+                                fields,
+                                &item_path,
+                                schema,
+                                context.raw_body,
+                            ));
+                        }
+                        ResolvedValue::Null if type_ref_has_non_null_list_items(type_ref) => {
+                            problems.push(variable_problem(
+                                &item_path,
+                                "Expected value to not be null",
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+                if problems.is_empty() {
+                    return Vec::new();
+                }
+                return vec![invalid_variable_error(
+                    VariableValidationContext {
+                        variable_name: name,
+                        variable_type,
+                        location,
+                    },
+                    &ResolvedValue::List(items.clone()),
+                    problems,
+                )];
             }
             let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
                 return Vec::new();
@@ -1761,6 +1829,30 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
         ]),
     );
+    schema.input_objects.insert(
+        "ReverseFulfillmentOrderDisposeInput".to_string(),
+        BTreeMap::from([
+            (
+                "reverseFulfillmentOrderLineItemId".to_string(),
+                input_field(non_null("ID")),
+            ),
+            ("quantity".to_string(), input_field(non_null("Int"))),
+            ("locationId".to_string(), input_field(named("ID"))),
+            (
+                "dispositionType".to_string(),
+                input_field(non_null("ReverseFulfillmentOrderDispositionType")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "reverseFulfillmentOrderDispose".to_string(),
+        BTreeMap::from([(
+            "dispositionInputs".to_string(),
+            mutation_arg(non_null_list_of_non_null(
+                "ReverseFulfillmentOrderDisposeInput",
+            )),
+        )]),
+    );
 
     // Order-edit calculated-session mutations. Each is registered with its full
     // accepted argument set (so valid edits are not flagged "argument not
@@ -2253,10 +2345,26 @@ fn non_null(name: &str) -> SchemaTypeRef {
     }
 }
 
+fn non_null_list_of_non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("[{name}!]!"),
+        named_type: name.to_string(),
+        non_null: true,
+    }
+}
+
 fn list_of_non_null(name: &str) -> SchemaTypeRef {
     SchemaTypeRef {
         display: format!("[{name}!]"),
         named_type: name.to_string(),
         non_null: false,
     }
+}
+
+fn type_ref_is_list(type_ref: &SchemaTypeRef) -> bool {
+    type_ref.display.starts_with('[')
+}
+
+fn type_ref_has_non_null_list_items(type_ref: &SchemaTypeRef) -> bool {
+    type_ref.display.contains("!]")
 }

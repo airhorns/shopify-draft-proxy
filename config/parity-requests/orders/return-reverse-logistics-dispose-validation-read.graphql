@@ -1,0 +1,66 @@
+query ReturnReverseFulfillmentDisposeValidationRead(
+  $firstReturnId: ID!
+  $secondReturnId: ID!
+  $orderId: ID!
+  $firstReverseFulfillmentOrderId: ID!
+  $secondReverseFulfillmentOrderId: ID!
+) {
+  firstReturn: return(id: $firstReturnId) {
+    id
+    name
+    status
+    totalQuantity
+  }
+  secondReturn: return(id: $secondReturnId) {
+    id
+    name
+    status
+    totalQuantity
+  }
+  order(id: $orderId) {
+    id
+    name
+    returns(first: 5) {
+      nodes {
+        id
+        name
+        status
+        totalQuantity
+      }
+    }
+  }
+  firstReverseFulfillmentOrder: reverseFulfillmentOrder(id: $firstReverseFulfillmentOrderId) {
+    id
+    status
+    lineItems(first: 5) {
+      nodes {
+        id
+        totalQuantity
+        dispositions {
+          type
+          quantity
+          location {
+            id
+          }
+        }
+      }
+    }
+  }
+  secondReverseFulfillmentOrder: reverseFulfillmentOrder(id: $secondReverseFulfillmentOrderId) {
+    id
+    status
+    lineItems(first: 5) {
+      nodes {
+        id
+        totalQuantity
+        dispositions {
+          type
+          quantity
+          location {
+            id
+          }
+        }
+      }
+    }
+  }
+}

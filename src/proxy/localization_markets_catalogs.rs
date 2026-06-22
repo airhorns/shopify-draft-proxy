@@ -1,3 +1,4 @@
+use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
 use sha2::{Digest, Sha256};
 
@@ -86,6 +87,15 @@ impl DraftProxy {
                 "validationDelete" => self.function_validation_delete_payload(field),
                 "cartTransformCreate" => self.function_cart_transform_create_payload(field),
                 "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
+                "fulfillmentConstraintRuleCreate" => {
+                    self.function_fulfillment_constraint_rule_create_payload(field)
+                }
+                "fulfillmentConstraintRuleUpdate" => {
+                    self.function_fulfillment_constraint_rule_update_payload(field)
+                }
+                "fulfillmentConstraintRuleDelete" => {
+                    self.function_fulfillment_constraint_rule_delete_payload(field)
+                }
                 "taxAppConfigure" => self.function_tax_app_configure_payload(field),
                 _ => Value::Null,
             };
@@ -134,12 +144,34 @@ impl DraftProxy {
                         })
                         .collect(),
                 ),
+                "fulfillmentConstraintRules" => Value::Array(
+                    self.store
+                        .staged
+                        .function_fulfillment_constraint_rule_order
+                        .iter()
+                        .filter_map(|id| {
+                            self.store
+                                .staged
+                                .function_fulfillment_constraint_rules
+                                .get(id)
+                                .map(|record| {
+                                    fulfillment_constraint_rule_record_for_selection(
+                                        record,
+                                        &field.selection,
+                                    )
+                                })
+                        })
+                        .map(|record| selected_json(&record, &field.selection))
+                        .collect(),
+                ),
                 "shopifyFunctions" => {
                     let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
-                    let api_type = if api_type == "CART_TRANSFORM" {
-                        "CART_TRANSFORM"
-                    } else {
-                        "VALIDATION"
+                    let api_type = match api_type.as_str() {
+                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
+                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
+                            "FULFILLMENT_CONSTRAINT_RULE"
+                        }
+                        _ => "VALIDATION",
                     };
                     json!({ "nodes": self.function_catalog_read_nodes(api_type) })
                 }
@@ -153,6 +185,8 @@ impl DraftProxy {
             };
             if value.is_null() {
                 data.insert(field.response_key.clone(), Value::Null);
+            } else if field.name == "fulfillmentConstraintRules" {
+                data.insert(field.response_key.clone(), value);
             } else {
                 data.insert(
                     field.response_key.clone(),
@@ -178,6 +212,18 @@ impl DraftProxy {
                     .function_cart_transform_order
                     .iter()
                     .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
+            )
+            .chain(
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rule_order
+                    .iter()
+                    .filter_map(|id| {
+                        self.store
+                            .staged
+                            .function_fulfillment_constraint_rules
+                            .get(id)
+                    }),
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
@@ -208,6 +254,16 @@ impl DraftProxy {
             || !self.store.staged.function_validation_order.is_empty()
             || !self.store.staged.function_cart_transforms.is_empty()
             || !self.store.staged.function_cart_transform_order.is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .is_empty()
+            || !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .is_empty()
     }
 
     pub(in crate::proxy) fn localization_query_data(
@@ -559,13 +615,10 @@ impl DraftProxy {
                         .values()
                         .cloned()
                         .collect::<Vec<_>>();
-                    selected_json(
-                        &json!({"nodes": nodes, "edges": [], "pageInfo": empty_page_info()}),
-                        &field.selection,
-                    )
+                    selected_json(&connection_json_with_empty_edges(nodes), &field.selection)
                 }
                 "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &json!({"edges": [], "nodes": [], "pageInfo": empty_page_info()}),
+                    &connection_json_with_empty_edges(Vec::new()),
                     &field.selection,
                 ),
                 // The `markets` plural connection projects the staged markets store.
@@ -686,7 +739,7 @@ impl DraftProxy {
         if let Some((index, country_code)) = region_codes
             .iter()
             .enumerate()
-            .find(|(_, country_code)| country_code.as_str() == "CU")
+            .find(|(_, country_code)| is_unsupported_country_region(country_code))
         {
             return selected_json(
                 &json!({
@@ -2119,7 +2172,7 @@ impl DraftProxy {
                 upsert_fixed_price_nodes(&mut updated, &self.store, &price_inputs);
                 delete_fixed_price_nodes(&mut updated, &delete_variant_ids);
                 let mut changed = mutation_variant_ids(&price_inputs);
-                append_unique_strings(&mut changed, &deleted);
+                extend_unique_strings(&mut changed, &deleted);
                 let prices_added = fixed_price_nodes_for_variant_ids(&updated, &changed);
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated.clone());
@@ -2265,11 +2318,7 @@ impl DraftProxy {
                     .values()
                     .cloned()
                     .collect::<Vec<_>>();
-                let connection = json!({
-                    "nodes": nodes,
-                    "edges": [],
-                    "pageInfo": empty_page_info()
-                });
+                let connection = connection_json_with_empty_edges(nodes);
                 data.insert(
                     field.response_key,
                     selected_json(&connection, &field.selection),
@@ -2614,11 +2663,7 @@ impl DraftProxy {
                 // resource was observed; a backend with no staged localizable owners
                 // returns an empty connection (not a fabricated node) for both variants.
                 "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &json!({
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}
-                    }),
+                    &connection_json_with_empty_edges(Vec::new()),
                     &field.selection,
                 ),
                 "markets" => self.localization_markets_connection(field, request),
@@ -3381,7 +3426,7 @@ impl DraftProxy {
         // Shop record (primaryDomain etc.) for web-presence reads.
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
             if shop.get("id").and_then(Value::as_str).is_some() {
-                merge_into_shop(&mut self.store.base.shop, shop);
+                shallow_merge_object(&mut self.store.base.shop, shop.clone());
             }
         }
         let market_records = markets_collect_records(data, "markets", "market");
@@ -3813,10 +3858,7 @@ fn markets_variables_have_local_id(
     records: &BTreeMap<String, Value>,
 ) -> bool {
     variables.values().any(|value| match value {
-        ResolvedValue::String(id) => {
-            (id.starts_with("gid://shopify/") && id.contains("shopify-draft-proxy=synthetic"))
-                || records.contains_key(id)
-        }
+        ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
         _ => false,
     })
 }
@@ -3878,7 +3920,7 @@ fn record_gid(record: &Value, prefix: &str) -> Option<String> {
 fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 {
     web_presences
         .keys()
-        .filter_map(|key| key.rsplit('/').next())
+        .map(|key| resource_id_path_tail(key.as_str()))
         .filter_map(|numeric| numeric.parse::<u64>().ok())
         .max()
         .unwrap_or(0)
@@ -4040,16 +4082,6 @@ fn region_code_from_node(node: &Value) -> Option<String> {
         .and_then(Value::as_str)
         .or_else(|| node.get("countryCode").and_then(Value::as_str))
         .map(str::to_string)
-}
-
-fn merge_into_shop(shop: &mut Value, observed: &Value) {
-    let (Some(shop_object), Some(observed_object)) = (shop.as_object_mut(), observed.as_object())
-    else {
-        return;
-    };
-    for (key, value) in observed_object {
-        shop_object.insert(key.clone(), value.clone());
-    }
 }
 
 pub(in crate::proxy) fn localization_translatable_content(resource_id: &str) -> Vec<Value> {

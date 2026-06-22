@@ -12,8 +12,8 @@ use crate::graphql::{
     SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -409,6 +409,7 @@ struct StagedState {
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
+    metafield_reference_ids: BTreeSet<String>,
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
@@ -462,6 +463,8 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -740,6 +743,7 @@ impl Default for StagedState {
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
+            metafield_reference_ids: BTreeSet::new(),
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
@@ -786,6 +790,8 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            function_fulfillment_constraint_rules: BTreeMap::new(),
+            function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
@@ -1049,6 +1055,16 @@ impl Store {
                 .collect(),
         );
         shop
+    }
+
+    fn shop_currency_code(&self) -> String {
+        self.base
+            .shop
+            .get("currencyCode")
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .unwrap_or("USD")
+            .to_string()
     }
 
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
@@ -1687,7 +1703,9 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod json_helpers;
 mod localization_markets_catalogs;
+mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;
@@ -1723,6 +1741,8 @@ pub(in crate::proxy) use self::core::*;
 pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::json_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]

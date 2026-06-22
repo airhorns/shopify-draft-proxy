@@ -1,6 +1,18 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    let staged_markets = &state["stagedState"]["markets"];
+    assert!(
+        staged_markets.is_null()
+            || staged_markets
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty),
+        "expected no staged markets, got {staged_markets:?}"
+    );
+}
+
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -248,6 +260,218 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
         json!("Cotton")
     );
+}
+
+#[test]
+fn metafields_set_rejects_extended_invalid_value_types_atomically() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/987654450";
+    let too_many_list_values = Value::Array(
+        (0..129)
+            .map(|index| Value::String(format!("item-{index}")))
+            .collect(),
+    )
+    .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtendedMetafieldsSetInvalidValues($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal", "type": "number_decimal", "value": "10000000000000.1"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money", "type": "money", "value": "{\"amount\":\"12.00\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url", "type": "url", "value": "example.com"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "dimension", "type": "dimension", "value": "{\"value\":-1,\"unit\":\"cm\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "weight", "type": "weight", "value": "{\"value\":1,\"unit\":\"bogus\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "volume", "type": "volume", "value": "{\"value\":\"not-a-number\",\"unit\":\"ml\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating", "type": "rating", "value": "{\"value\":\"6.0\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date", "type": "date", "value": "2026/06/21"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "link", "type": "link", "value": "{\"label\":\"Docs\",\"url\":\"ftp://example.com\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "blank_single", "type": "single_line_text_field", "value": ""},
+            {"ownerId": owner_id, "namespace": "custom", "key": "newline_single", "type": "single_line_text_field", "value": "Line\nBreak"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "blank_multi", "type": "multi_line_text_field", "value": "   "},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_integer", "type": "list.number_integer", "value": "[1,\"x\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_text", "type": "list.single_line_text_field", "value": too_many_list_values},
+            {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": "gid://shopify/Product/999999998"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"}
+        ]}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    let errors = response.body["data"]["metafieldsSet"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert_eq!(errors.len(), 16);
+    for (index, error) in errors.iter().enumerate() {
+        assert_eq!(
+            error["field"],
+            json!(["metafields", index.to_string(), "value"]),
+            "field path for invalid input {index}",
+        );
+        assert_eq!(error["code"], json!("INVALID_VALUE"));
+    }
+    assert_eq!(errors[12]["elementIndex"], json!(1));
+    assert_eq!(errors[15]["elementIndex"], Value::Null);
+}
+
+#[test]
+fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
+    let mut proxy = snapshot_proxy();
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceTarget($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Metafield reference target"}}),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtendedMetafieldsSetValidValues($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value jsonValue owner { id } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal", "type": "number_decimal", "value": "9999999999999.123456789"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_value", "type": "money", "value": "{\"amount\":\"12.00\",\"currency_code\":\"CAD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url", "type": "url", "value": "https://example.com/path"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "dimension", "type": "dimension", "value": "{\"value\":1,\"unit\":\"cm\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "weight", "type": "weight", "value": "{\"value\":2,\"unit\":\"kg\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "volume", "type": "volume", "value": "{\"value\":3,\"unit\":\"ml\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating_value", "type": "rating", "value": "{\"value\":\"4.5\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date", "type": "date", "value": "2026-06-21"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "link_value", "type": "link", "value": "{\"label\":\"Docs\",\"url\":\"https://example.com\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "single", "type": "single_line_text_field", "value": "Plain text"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "multi", "type": "multi_line_text_field", "value": "Line\nBreak"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_decimal", "type": "list.number_decimal", "value": "[\"1.1\",\"2.2\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": owner_id},
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"]
+            .as_array()
+            .unwrap()
+            .len(),
+        14
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ExtendedMetafieldsRead($id: ID!) {
+          product(id: $id) {
+            metafields(first: 20, namespace: "custom") {
+              nodes { key type value jsonValue owner { id } }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let nodes = read.body["data"]["product"]["metafields"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(nodes
+        .iter()
+        .any(|node| { node["key"] == json!("product_ref") && node["value"] == json!(owner_id) }));
+    assert!(nodes
+        .iter()
+        .any(|node| { node["key"] == json!("date") && node["jsonValue"] == json!("2026-06-21") }));
+    assert!(nodes.iter().any(|node| {
+        node["key"] == json!("money_value")
+            && node["jsonValue"] == json!({"amount": "12.00", "currency_code": "CAD"})
+    }));
+}
+
+#[test]
+fn metafields_set_live_hybrid_hydrates_list_reference_values_before_validation() {
+    let reference_id = "gid://shopify/Product/1234509876";
+    let seen_ids = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let transport_seen_ids = Arc::clone(&seen_ids);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let response = if query.contains("ProductsHydrateNodes") {
+                transport_seen_ids
+                    .lock()
+                    .unwrap()
+                    .push(body["variables"]["ids"].clone());
+                json!({
+                    "nodes": [{
+                        "__typename": "Product",
+                        "id": reference_id,
+                        "title": "Hydrated list reference target",
+                        "handle": "hydrated-list-reference-target",
+                        "status": "ACTIVE"
+                    }]
+                })
+            } else if query.contains("OwnerMetafieldsHydrateNodes") {
+                json!({ "nodes": [Value::Null] })
+            } else {
+                panic!("unexpected upstream query: {query}");
+            };
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": response }),
+            }
+        });
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ListReferenceHydration($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": "gid://shopify/Product/987654450",
+            "namespace": "custom",
+            "key": "hydrated_related",
+            "type": "list.product_reference",
+            "value": json!([reference_id]).to_string()
+        }]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+        json!(json!([reference_id]).to_string())
+    );
+    assert_eq!(*seen_ids.lock().unwrap(), vec![json!([reference_id])]);
 }
 
 #[test]
@@ -1527,6 +1751,105 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
+}
+
+#[test]
+fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
+    let create_query = r#"
+        mutation RustMarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name handle status enabled }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketCreateUnsupportedCountryRegionRead {
+          markets(first: 10) { nodes { id name handle status enabled } }
+        }
+    "#;
+
+    let mut kp_proxy = snapshot_proxy();
+    let kp = kp_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "KP Unsupported", "regions": [{"countryCode": "KP"}]}}),
+    ));
+    assert_eq!(
+        kp.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(kp_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&kp_proxy);
+    let kp_read = kp_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(kp_read.body["data"]["markets"]["nodes"], json!([]));
+
+    let mut mixed_proxy = snapshot_proxy();
+    let mixed = mixed_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Mixed Unsupported", "regions": [{"countryCode": "US"}, {"countryCode": "KP"}]}}),
+    ));
+    assert_eq!(
+        mixed.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(mixed_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&mixed_proxy);
+
+    let mut conditions_proxy = snapshot_proxy();
+    let conditions = conditions_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Conditions Unsupported", "conditions": {"regionsCondition": {"regions": [{"countryCode": "KP"}]}}}}),
+    ));
+    assert_eq!(
+        conditions.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(conditions_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&conditions_proxy);
+
+    let mut supported_proxy = snapshot_proxy();
+    for (name, country_code, expected_id) in [
+        ("United States Supported", "US", "gid://shopify/Market/1"),
+        ("Brazil Supported", "BR", "gid://shopify/Market/2"),
+    ] {
+        let response = supported_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": name, "regions": [{"countryCode": country_code}]}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["id"],
+            json!(expected_id)
+        );
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+    }
+    let supported_read =
+        supported_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        supported_read.body["data"]["markets"]["nodes"]
+            .as_array()
+            .expect("supported markets nodes")
+            .len(),
+        2
+    );
+    assert_eq!(
+        supported_proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .expect("supported mutation log entries")
+            .len(),
+        2
+    );
 }
 
 #[test]
@@ -3284,6 +3607,32 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "products": [{
+                "id": "gid://shopify/Product/10173071262002",
+                "title": "Metafield reference matrix product",
+                "handle": "metafield-reference-matrix-product",
+                "status": "ACTIVE"
+            }],
+            "productVariants": [{
+                "id": "gid://shopify/ProductVariant/51109306335538",
+                "productId": "gid://shopify/Product/10173071262002",
+                "title": "Default Title",
+                "sku": "REFERENCE-MATRIX",
+                "price": "0.00"
+            }],
+            "collections": [{
+                "id": "gid://shopify/Collection/512228163890",
+                "title": "Metafield reference matrix collection",
+                "handle": "metafield-reference-matrix-collection"
+            }]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
     let set_query = include_str!(
         "../../config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql"
     );
@@ -4871,6 +5220,137 @@ fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
         duplicate.body["data"]["productDuplicate"]["newProduct"]["title"],
         json!("Natural Duplicate Sync Copy")
     );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["status"],
+        json!("ACTIVE")
+    );
+}
+
+#[test]
+fn product_duplicate_respects_new_status_override_and_validates_invalid_status() {
+    let mut proxy = snapshot_proxy();
+
+    let source = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateStatusSourceProductSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Duplicate Status Override Source",
+                "status": "DRAFT"
+            }
+        }),
+    ));
+    assert_eq!(source.status, 200);
+    assert_eq!(source.body["data"]["productSet"]["userErrors"], json!([]));
+    let source_id = source.body["data"]["productSet"]["product"]["id"].clone();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateStatusOverride($productId: ID!, $newTitle: String!, $newStatus: ProductStatus) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, newStatus: $newStatus) {
+            newProduct { id title status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": source_id,
+            "newTitle": "Duplicate Status Override Copy",
+            "newStatus": "ACTIVE"
+        }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or_default(),
+        2
+    );
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidDuplicateStatusLiteral { productDuplicate(productId: \"gid://shopify/Product/1\", newTitle: \"Invalid duplicate status\", newStatus: PUBLISHED) { newProduct { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'newStatus' on Field 'productDuplicate' has an invalid value (PUBLISHED). Expected type 'ProductStatus'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidDuplicateStatusLiteral",
+            "productDuplicate",
+            "newStatus"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "newStatus"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidDuplicateStatusVariable($productId: ID!, $newStatus: ProductStatus) {
+          productDuplicate(productId: $productId, newTitle: "Invalid duplicate status", newStatus: $newStatus) {
+            newProduct { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "newStatus": "ENABLED"
+        }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!("Variable $newStatus of type ProductStatus was provided invalid value")
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": "ENABLED",
+            "problems": [{
+                "path": [],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or_default(),
+        2
+    );
 }
 
 #[test]
@@ -5239,12 +5719,35 @@ fn product_contextual_pricing_price_list_read_returns_no_data_without_staged_pro
 }
 
 #[test]
-fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
-    let mut proxy = snapshot_proxy();
+fn product_create_then_bulk_create_recomputes_price_ranges_from_effective_variants() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
     ))
     .unwrap();
+
+    let shop = proxy.process_request(json_graphql_request(
+        "query ProductPriceRangeShopCurrency { shop { currencyCode } }",
+        json!({}),
+    ));
+    assert_eq!(shop.status, 200);
+    assert_eq!(shop.body["data"]["shop"]["currencyCode"], json!("CAD"));
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5254,6 +5757,51 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
     let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
     assert!(product_id.is_string());
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRangeV2"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRange"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRange"]
+    );
+    let initial_variant_id =
+        create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"].clone();
+    assert!(initial_variant_id.is_string());
+
+    let mut price_update_variables = fixture["priceUpdate"]["variables"].clone();
+    price_update_variables["productId"] = product_id.clone();
+    price_update_variables["variants"][0]["id"] = initial_variant_id;
+    let price_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql"
+        ),
+        price_update_variables,
+    ));
+    assert_eq!(
+        price_update.body["data"]["productVariantsBulkUpdate"]["product"]["priceRangeV2"],
+        fixture["priceUpdate"]["response"]["data"]["productVariantsBulkUpdate"]["product"]
+            ["priceRangeV2"]
+    );
+
+    let mut bulk_create_variables = fixture["bulkCreate"]["variables"].clone();
+    bulk_create_variables["productId"] = product_id.clone();
+    let bulk_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql"
+        ),
+        bulk_create_variables,
+    ));
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRangeV2"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRangeV2"]
+    );
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRange"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRange"]
+    );
 
     let downstream = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5263,9 +5811,18 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
 
     assert_eq!(
+        downstream.body["data"]["product"]["priceRangeV2"],
+        fixture["downstreamRead"]["data"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["priceRange"],
+        fixture["downstreamRead"]["data"]["product"]["priceRange"]
+    );
+    assert_eq!(
         downstream.body["data"]["product"]["totalInventory"],
         json!(0)
     );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]

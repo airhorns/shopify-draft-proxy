@@ -115,6 +115,7 @@ function metafield(
 }
 
 function buildCases(productId: string): Record<string, MetafieldsSetVariables> {
+  const tooManyListValues = JSON.stringify(Array.from({ length: 129 }, (_value, index) => `item-${index}`));
   return {
     shortNamespace: metafield(productId, 'ab', 'valid_key', 'single_line_text_field', 'v'),
     shortKey: metafield(productId, 'valid', 'x', 'single_line_text_field', 'v'),
@@ -136,12 +137,82 @@ function buildCases(productId: string): Record<string, MetafieldsSetVariables> {
     invalidValueColor: metafield(productId, 'loyalty', 'color', 'color', 'blue'),
     invalidValueDateTime: metafield(productId, 'loyalty', 'published_at', 'date_time', 'tomorrow'),
     invalidValueJson: metafield(productId, 'loyalty', 'payload', 'json', '{nope'),
+    invalidValueNumberDecimal: metafield(productId, 'loyalty', 'decimal', 'number_decimal', '10000000000000.1'),
+    invalidValueMoney: metafield(productId, 'loyalty', 'money', 'money', '{"amount":"12.00"}'),
+    invalidValueUrl: metafield(productId, 'loyalty', 'url', 'url', 'example.com'),
+    invalidValueDimensionNegative: metafield(
+      productId,
+      'loyalty',
+      'dimension',
+      'dimension',
+      '{"value":-1,"unit":"cm"}',
+    ),
+    invalidValueWeightUnit: metafield(productId, 'loyalty', 'weight', 'weight', '{"value":1,"unit":"bogus"}'),
+    invalidValueVolumeNumeric: metafield(
+      productId,
+      'loyalty',
+      'volume',
+      'volume',
+      '{"value":"not-a-number","unit":"ml"}',
+    ),
+    invalidValueRatingBounds: metafield(
+      productId,
+      'loyalty',
+      'rating',
+      'rating',
+      '{"value":"6.0","scale_min":"1.0","scale_max":"5.0"}',
+    ),
+    invalidValueDate: metafield(productId, 'loyalty', 'date', 'date', '2026/06/21'),
+    invalidValueLinkScheme: metafield(
+      productId,
+      'loyalty',
+      'link',
+      'link',
+      '{"label":"Docs","url":"ftp://example.com"}',
+    ),
+    invalidValueSingleLineBlank: metafield(productId, 'loyalty', 'blank_single', 'single_line_text_field', ''),
+    invalidValueSingleLineNewline: metafield(
+      productId,
+      'loyalty',
+      'newline_single',
+      'single_line_text_field',
+      'Line\nBreak',
+    ),
+    invalidValueMultiLineBlank: metafield(productId, 'loyalty', 'blank_multi', 'multi_line_text_field', '   '),
+    invalidValueListNumberIntegerElement: metafield(
+      productId,
+      'loyalty',
+      'list_integer',
+      'list.number_integer',
+      '[1,"x"]',
+    ),
+    invalidValueListTextLength: metafield(
+      productId,
+      'loyalty',
+      'list_text',
+      'list.single_line_text_field',
+      tooManyListValues,
+    ),
     invalidReference: metafield(
       productId,
       'loyalty',
       'related',
       'product_reference',
       'gid://shopify/Product/not-a-product',
+    ),
+    invalidReferenceMissingProduct: metafield(
+      productId,
+      'loyalty',
+      'missing_related',
+      'product_reference',
+      'gid://shopify/Product/999999998',
+    ),
+    invalidValueListProductReference: metafield(
+      productId,
+      'loyalty',
+      'list_related',
+      'list.product_reference',
+      '["gid://shopify/Product/999999997"]',
     ),
   };
 }
@@ -164,7 +235,7 @@ const cases: Record<string, ValidationCase> = {};
 try {
   const setup = await runGraphql<ProductCreateData>(createProductMutation, {
     product: {
-      title: `HAR-695 metafieldsSet validation ${runId}`,
+      title: `metafieldsSet input validation ${runId}`,
       status: 'DRAFT',
     },
   });

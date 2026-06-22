@@ -7,9 +7,27 @@ mutation GiftCardTransactionValidation(
   $futureCreditInput: GiftCardCreditInput!
   $preEpochCreditInput: GiftCardCreditInput!
   $validDebitInput: GiftCardDebitInput!
+  $futureDebitInput: GiftCardDebitInput!
+  $preEpochDebitInput: GiftCardDebitInput!
 ) {
   expiredCredit: giftCardCredit(id: $expiredId, creditInput: $validCreditInput) {
     giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  expiredDebit: giftCardDebit(id: $expiredId, debitInput: $validDebitInput) {
+    giftCardDebitTransaction {
       id
       __typename
       processedAt
@@ -74,6 +92,38 @@ mutation GiftCardTransactionValidation(
   }
   preEpochCredit: giftCardCredit(id: $activeId, creditInput: $preEpochCreditInput) {
     giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  futureDebit: giftCardDebit(id: $activeId, debitInput: $futureDebitInput) {
+    giftCardDebitTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  preEpochDebit: giftCardDebit(id: $activeId, debitInput: $preEpochDebitInput) {
+    giftCardDebitTransaction {
       id
       __typename
       processedAt
