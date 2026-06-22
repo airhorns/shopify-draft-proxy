@@ -782,6 +782,85 @@ function collectSetupEntitySeeds(capture: unknown): {
   return { draftOrders: [...draftOrders.values()], orders: [...orders.values()] };
 }
 
+function mergeRecordSeeds(records: unknown[]): Record<string, unknown>[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const raw of records) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const record = raw as Record<string, unknown>;
+    const id = record['id'];
+    if (typeof id !== 'string') continue;
+    const previous = byId.get(id);
+    byId.set(id, previous ? { ...previous, ...record } : record);
+  }
+  return [...byId.values()];
+}
+
+function collectSetupProductDomainSeeds(capture: unknown): {
+  products: Record<string, unknown>[];
+  productVariants: Record<string, unknown>[];
+  collections: Record<string, unknown>[];
+} {
+  const products = new Map<string, Record<string, unknown>>();
+  const productVariants = new Map<string, Record<string, unknown>>();
+  const collections = new Map<string, Record<string, unknown>>();
+  const merge = (map: Map<string, Record<string, unknown>>, id: string, record: Record<string, unknown>): void => {
+    const previous = map.get(id);
+    map.set(id, previous ? { ...previous, ...record } : record);
+  };
+  const visitResource = (node: unknown, containingProductId: string | null = null): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visitResource(entry, containingProductId);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const record = node as Record<string, unknown>;
+    const id = record['id'];
+    const nextProductId = typeof id === 'string' && id.startsWith('gid://shopify/Product/') ? id : containingProductId;
+    if (typeof id === 'string') {
+      if (id.startsWith('gid://shopify/Product/')) {
+        merge(products, id, record);
+      } else if (id.startsWith('gid://shopify/ProductVariant/')) {
+        const variant = { ...record };
+        if (typeof variant['productId'] !== 'string' && containingProductId) variant['productId'] = containingProductId;
+        merge(productVariants, id, variant);
+      } else if (id.startsWith('gid://shopify/Collection/')) {
+        merge(collections, id, record);
+      }
+    }
+    for (const value of Object.values(record)) visitResource(value, nextProductId);
+  };
+  const visitSetupResponses = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visitSetupResponses(entry);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const record = node as Record<string, unknown>;
+    if ('response' in record) visitResource(record['response']);
+    const mutation = record['mutation'];
+    if (mutation && typeof mutation === 'object' && !Array.isArray(mutation)) {
+      visitResource((mutation as Record<string, unknown>)['response']);
+    }
+    for (const value of Object.values(record)) visitSetupResponses(value);
+  };
+  const findSetups = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) findSetups(entry);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const record = node as Record<string, unknown>;
+    if ('setup' in record) visitSetupResponses(record['setup']);
+    for (const value of Object.values(record)) findSetups(value);
+  };
+  findSetups(capture);
+  return {
+    products: [...products.values()],
+    productVariants: [...productVariants.values()],
+    collections: [...collections.values()],
+  };
+}
+
 // `seedOrderCatalogFromCapture: true` declares that the scenario's local order
 // catalog should be re-established from the capture's own recorded order nodes
 // (the `orders` connection reads under `response` / `nextPage`). Collect every
@@ -846,9 +925,21 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
   const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
-  const products = Array.isArray(record['seedProducts']) ? record['seedProducts'] : [];
-  const productVariants = Array.isArray(record['seedProductVariants']) ? record['seedProductVariants'] : [];
-  const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
+  const setupProductSeeds = Array.isArray(record['metafieldBatches'])
+    ? collectSetupProductDomainSeeds(record)
+    : { products: [], productVariants: [], collections: [] };
+  const products = mergeRecordSeeds([
+    ...(Array.isArray(record['seedProducts']) ? record['seedProducts'] : []),
+    ...setupProductSeeds.products,
+  ]);
+  const productVariants = mergeRecordSeeds([
+    ...(Array.isArray(record['seedProductVariants']) ? record['seedProductVariants'] : []),
+    ...setupProductSeeds.productVariants,
+  ]);
+  const collections = mergeRecordSeeds([
+    ...(Array.isArray(record['seedCollections']) ? record['seedCollections'] : []),
+    ...setupProductSeeds.collections,
+  ]);
   // `seedPublications` declares the store's base/default publications (id + name);
   // the proxy derives each backing channel and drives the local publication/channel
   // roots from them. Per-resource membership rides on the `publicationIds` of the

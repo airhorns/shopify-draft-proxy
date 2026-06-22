@@ -2,6 +2,60 @@ use crate::proxy::*;
 
 const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+const GIFT_CARD_HYDRATE_QUERY: &str = r#"#graphql
+    query GiftCardHydrate($id: ID!) {
+      giftCard(id: $id) {
+        id
+        lastCharacters
+        maskedCode
+        enabled
+        deactivatedAt
+        expiresOn
+        note
+        templateSuffix
+        createdAt
+        updatedAt
+        initialValue { amount currencyCode }
+        balance { amount currencyCode }
+        customer {
+          id
+          email
+          defaultEmailAddress { emailAddress }
+          defaultPhoneNumber { phoneNumber }
+        }
+        recipientAttributes {
+          message
+          preferredName
+          sendNotificationAt
+          recipient {
+            id
+            email
+            defaultEmailAddress { emailAddress }
+            defaultPhoneNumber { phoneNumber }
+          }
+        }
+        transactions(first: 250) {
+          nodes {
+            __typename
+            id
+            note
+            processedAt
+            amount { amount currencyCode }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      giftCardConfiguration {
+        issueLimit { amount currencyCode }
+        purchaseLimit { amount currencyCode }
+      }
+    }
+  "#;
 
 impl DraftProxy {
     pub(in crate::proxy) fn gift_card_read_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -70,7 +124,7 @@ impl DraftProxy {
                 "giftCardDebit" => self.gift_card_debit_field(field, &mut staged_ids),
                 "giftCardDeactivate" => self.gift_card_deactivate_field(field, &mut staged_ids),
                 "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
-                    self.gift_card_notification_field(field, &mut staged_ids)
+                    self.gift_card_notification_field(field, request, &mut staged_ids)
                 }
                 _ => continue,
             };
@@ -499,13 +553,13 @@ impl DraftProxy {
     fn gift_card_notification_field(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id")
             .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let card = self.gift_card_effective_record(&id);
 
         // Trial-shop notifications are blocked after the entitlement (plan) check
         // but before any card-state/not-found checks, mirroring Shopify's order:
@@ -519,6 +573,11 @@ impl DraftProxy {
                 "Notifications are not available on trial shops.",
             ));
         }
+        let card = if user_errors.is_empty() {
+            self.gift_card_effective_record_for_notification(request, &id)
+        } else {
+            None
+        };
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -584,6 +643,40 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .or_else(|| gift_card_seed_record(id))
+    }
+
+    fn gift_card_effective_record_for_notification(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if let Some(card) = self.gift_card_effective_record(id) {
+            return Some(card);
+        }
+        if id.is_empty() || self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": GIFT_CARD_HYDRATE_QUERY,
+                "operationName": "GiftCardHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if response.status >= 400 {
+            return None;
+        }
+        let card = response
+            .body
+            .pointer("/data/giftCard")
+            .filter(|value| !value.is_null())
+            .cloned()?;
+        self.store
+            .staged
+            .gift_cards
+            .insert(id.to_string(), card.clone());
+        Some(card)
     }
 
     /// A gift-card notification is unavailable when the shop is on a trial plan.
@@ -1229,9 +1322,39 @@ fn gift_card_search_date_value(value: &str) -> &str {
 }
 
 fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
-    card["recipientAttributes"]["recipient"]["id"]
+    let recipient = &card["recipientAttributes"]["recipient"];
+    if recipient["id"]
         .as_str()
         .is_some_and(|recipient_id| recipient_id.contains("no-contact"))
+    {
+        return true;
+    }
+    let has_contact_projection = recipient.get("email").is_some()
+        || recipient.get("phone").is_some()
+        || recipient.get("defaultEmailAddress").is_some()
+        || recipient.get("defaultPhoneNumber").is_some();
+    if !has_contact_projection {
+        return false;
+    }
+    let email = recipient
+        .get("email")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            recipient
+                .pointer("/defaultEmailAddress/emailAddress")
+                .and_then(Value::as_str)
+        })
+        .is_some_and(|value| !value.trim().is_empty());
+    let phone = recipient
+        .get("phone")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            recipient
+                .pointer("/defaultPhoneNumber/phoneNumber")
+                .and_then(Value::as_str)
+        })
+        .is_some_and(|value| !value.trim().is_empty());
+    !email && !phone
 }
 
 fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {

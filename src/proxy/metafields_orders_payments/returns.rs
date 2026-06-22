@@ -1059,10 +1059,10 @@ impl DraftProxy {
 
             let disposition_type =
                 resolved_string_field(input, "dispositionType").unwrap_or_default();
-            let has_product_variant = line_item
+            let explicitly_custom_line_item = line_item
                 .pointer("/fulfillmentLineItem/lineItem/variant")
-                .is_some_and(|variant| !variant.is_null());
-            if disposition_type == "RESTOCKED" && !has_product_variant {
+                .is_some_and(Value::is_null);
+            if disposition_type == "RESTOCKED" && explicitly_custom_line_item {
                 user_errors.push(return_user_error_owned(
                     vec![
                         "dispositionInputs".to_string(),
