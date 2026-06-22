@@ -71,16 +71,18 @@ pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool
 pub(in crate::proxy) fn fulfillment_service_name_whitespace_errors(name: &str) -> Vec<Value> {
     let mut errors = Vec::new();
     if name.starts_with(char::is_whitespace) {
-        errors.push(json!({
-            "field": ["name"],
-            "message": "Name cannot begin with a whitespace character"
-        }));
+        errors.push(user_error_omit_code(
+            ["name"],
+            "Name cannot begin with a whitespace character",
+            None,
+        ));
     }
     if name.ends_with(char::is_whitespace) {
-        errors.push(json!({
-            "field": ["name"],
-            "message": "Name cannot end with a whitespace character"
-        }));
+        errors.push(user_error_omit_code(
+            ["name"],
+            "Name cannot end with a whitespace character",
+            None,
+        ));
     }
     errors
 }
@@ -151,11 +153,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": null,
-        "message": message,
-        "code": code
-    })
+    user_error(Value::Null, message, Some(code))
 }
 
 pub(in crate::proxy) fn synthetic_shop_json() -> Value {
@@ -691,10 +689,7 @@ fn delivery_profile_unknown_location_user_error() -> Value {
 }
 
 fn delivery_profile_user_error(field: Value, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message
-    })
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn delivery_profile_selected_json(
@@ -1619,7 +1614,11 @@ pub(in crate::proxy) fn fulfillment_service_not_found_payload(
         Value::Null,
         payload_selection,
         &[],
-        vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })],
+        vec![user_error_omit_code(
+            ["id"],
+            "Fulfillment service could not be found.",
+            None,
+        )],
     )
 }
 
@@ -1807,11 +1806,7 @@ pub(in crate::proxy) fn carrier_service_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn carrier_service_callback_url_error(
@@ -2606,15 +2601,6 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str
     "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
-pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
-    json!({
-        "__typename": "Job",
-        "id": "gid://shopify/Job/2",
-        "done": false,
-        "query": { "__typename": "QueryRoot" }
-    })
-}
-
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     field: &RootFieldSelection,
     missing_product_ids: &BTreeSet<String>,
@@ -2739,11 +2725,7 @@ fn feedback_field_path(
 }
 
 fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 // Shopify reports referenced-but-unavailable products at the feedback entry
@@ -2753,11 +2735,11 @@ fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Val
     let field = feedback_index
         .map(|index| json!(["feedbackInput", index.to_string()]))
         .unwrap_or(Value::Null);
-    json!({
-        "field": field,
-        "message": "The product wasn't found or isn't available to the channel.",
-        "code": "PRODUCT_NOT_FOUND"
-    })
+    user_error(
+        field,
+        "The product wasn't found or isn't available to the channel.",
+        Some("PRODUCT_NOT_FOUND"),
+    )
 }
 
 fn feedback_generated_at_is_future(generated_at: &str) -> bool {

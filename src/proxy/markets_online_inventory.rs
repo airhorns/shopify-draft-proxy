@@ -3,12 +3,7 @@ use super::*;
 use base64::Engine as _;
 
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "__typename": "CatalogUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("CatalogUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn catalog_payload_error(
@@ -180,12 +175,7 @@ pub(in crate::proxy) fn price_list_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": "PriceListUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("PriceListUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn price_list_payload_error(
@@ -1174,12 +1164,7 @@ pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
 }
 
 pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
-    json!({
-        "__typename": "MarketUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed_with_code_value("MarketUserError", field, message, code)
 }
 
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
@@ -1339,11 +1324,7 @@ pub(in crate::proxy) fn shop_locale_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
@@ -1435,12 +1416,7 @@ pub(in crate::proxy) fn market_localization_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "__typename": "TranslationUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("TranslationUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
@@ -1534,12 +1510,7 @@ pub(in crate::proxy) fn theme_user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let field: Vec<&str> = field.into_iter().collect();
-    let mut error = json!({"field": field, "message": message});
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 pub(in crate::proxy) fn theme_file_nodes(theme: &Value) -> Vec<Value> {
@@ -1578,6 +1549,16 @@ pub(in crate::proxy) fn theme_file_record_from_input(
         return Err(());
     };
     Ok(Some(theme_file_record_from_body(&filename, body)?))
+}
+
+pub(in crate::proxy) fn theme_file_input_uses_url_body(value: &ResolvedValue) -> bool {
+    let ResolvedValue::Object(input) = value else {
+        return false;
+    };
+    let Some(ResolvedValue::Object(body)) = input.get("body") else {
+        return false;
+    };
+    resolved_string_field(body, "type").is_some_and(|body_type| body_type == "URL")
 }
 
 pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Value {
@@ -1650,8 +1631,7 @@ pub(in crate::proxy) fn mobile_app_error<const N: usize>(
     field: [&str; N],
     message: &str,
 ) -> Value {
-    let field: Vec<&str> = field.into_iter().collect();
-    json!({"code": code, "field": field, "message": message})
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn mobile_app_payload(
@@ -1687,15 +1667,17 @@ pub(in crate::proxy) fn validate_script_src(
         json!(["src"])
     };
     if src.trim().is_empty() {
-        return Some(json!({"code": "BLANK", "field": field, "message": "Source can't be blank"}));
+        return Some(user_error(field, "Source can't be blank", Some("BLANK")));
     }
     if src.len() > 255 {
-        return Some(
-            json!({"code": "TOO_LONG", "field": field, "message": "Source is too long (maximum is 255 characters)"}),
-        );
+        return Some(user_error(
+            field,
+            "Source is too long (maximum is 255 characters)",
+            Some("TOO_LONG"),
+        ));
     }
     if !(src.starts_with("https://") && src.contains('.')) {
-        return Some(json!({"code": "INVALID", "field": field, "message": "Source is invalid"}));
+        return Some(user_error(field, "Source is invalid", Some("INVALID")));
     }
     None
 }
@@ -2782,7 +2764,7 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "objectCount": if completed { count } else { "0" },
         "rootObjectCount": if completed { count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
+        "url": if completed { json!(format!("https://localhost/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
         "partialDataUrl": null,
         "query": query
     })
