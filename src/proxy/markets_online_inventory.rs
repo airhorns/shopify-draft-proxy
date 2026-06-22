@@ -2754,7 +2754,7 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "objectCount": if completed { count } else { "0" },
         "rootObjectCount": if completed { count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
+        "url": if completed { json!(format!("https://localhost/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
         "partialDataUrl": null,
         "query": query
     })

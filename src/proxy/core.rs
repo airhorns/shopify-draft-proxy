@@ -69,6 +69,9 @@ impl DraftProxy {
             Route::MetaDump => self.dump_state(&request),
             Route::MetaRestore => self.restore_state(&request),
             Route::MetaCommit => self.commit_staged_mutations(&request),
+            Route::BulkOperationResult { artifact_id } => {
+                self.bulk_operation_result_jsonl(&artifact_id)
+            }
             Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
@@ -231,6 +234,18 @@ impl DraftProxy {
         if !self.store.staged.product_operations.is_empty() {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
+        }
+        if !self.store.staged.bulk_operations.is_empty() {
+            snapshot["stagedState"]["bulkOperations"] =
+                json!(self.store.staged.bulk_operations.clone());
+        }
+        if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
+            snapshot["stagedState"]["bulkOperationStagedUploads"] =
+                json!(self.store.staged.bulk_operation_staged_uploads.clone());
+        }
+        if !self.store.staged.bulk_operation_results.is_empty() {
+            snapshot["stagedState"]["bulkOperationResults"] =
+                json!(self.store.staged.bulk_operation_results.clone());
         }
         if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
             snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
@@ -990,6 +1005,40 @@ impl DraftProxy {
             .map(|jobs| {
                 jobs.iter()
                     .map(|(id, job)| (id.clone(), job.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operations = state["stagedState"]
+            .get("bulkOperations")
+            .and_then(Value::as_object)
+            .map(|operations| {
+                operations
+                    .iter()
+                    .map(|(id, operation)| (id.clone(), operation.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operation_staged_uploads = state["stagedState"]
+            .get("bulkOperationStagedUploads")
+            .and_then(Value::as_object)
+            .map(|uploads| {
+                uploads
+                    .iter()
+                    .map(|(path, size)| (path.clone(), size.as_u64()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operation_results = state["stagedState"]
+            .get("bulkOperationResults")
+            .and_then(Value::as_object)
+            .map(|results| {
+                results
+                    .iter()
+                    .filter_map(|(id, result)| {
+                        result
+                            .as_str()
+                            .map(|result| (id.clone(), result.to_string()))
+                    })
                     .collect()
             })
             .unwrap_or_default();
