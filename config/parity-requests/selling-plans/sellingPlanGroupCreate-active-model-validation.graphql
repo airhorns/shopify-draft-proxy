@@ -1,0 +1,17 @@
+mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {
+  sellingPlanGroupCreate(input: $input) {
+    sellingPlanGroup {
+      id
+      sellingPlans(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
