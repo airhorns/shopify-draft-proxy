@@ -31,7 +31,7 @@ Several generic serializers live under `src/proxy/` and should be reused before 
 
 - `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
 - `src/proxy/product_helpers.rs` owns typed resource serializers and connection helpers such as `selected_typed_connection(...)` and product/saved-search JSON builders.
-- `src/proxy/markets_online_inventory.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_empty_connection_json(...)`, and `connection_page_info(...)`.
+- `src/proxy/markets_catalog_helpers.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_empty_connection_json(...)`, and `connection_page_info(...)`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
 

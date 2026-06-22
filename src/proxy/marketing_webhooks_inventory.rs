@@ -2,6 +2,14 @@ use super::*;
 use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod inventory_helpers;
+mod marketing_helpers;
+mod webhook_helpers;
+
+pub(in crate::proxy) use self::inventory_helpers::*;
+pub(in crate::proxy) use self::marketing_helpers::*;
+pub(in crate::proxy) use self::webhook_helpers::*;
+
 const INVENTORY_VALID_REASONS: &[&str] = &[
     "correction",
     "cycle_count_available",

@@ -1,7 +1,11 @@
 use super::*;
 
+mod draft_order_helpers;
+mod online_store_helpers;
 mod order_edit;
 
+pub(in crate::proxy) use self::draft_order_helpers::*;
+pub(in crate::proxy) use self::online_store_helpers::*;
 use self::order_edit::*;
 
 struct OrdersLocalLogEntry<'a> {

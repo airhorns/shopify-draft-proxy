@@ -1,6 +1,10 @@
 use super::*;
 use base64::Engine as _;
 
+mod bulk_operations;
+
+pub(in crate::proxy) use self::bulk_operations::*;
+
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
