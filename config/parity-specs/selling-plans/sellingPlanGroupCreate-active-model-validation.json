@@ -1,0 +1,116 @@
+{
+  "scenarioId": "sellingPlanGroupCreate-active-model-validation",
+  "operationNames": ["sellingPlanGroupCreate", "sellingPlanGroupUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+    "variablesCapturePath": "$.scenarios.validSeed.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-seed-user-errors",
+        "capturePath": "$.scenarios.validSeed.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors"
+      },
+      {
+        "name": "blank-name",
+        "capturePath": "$.scenarios.blankName.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.blankName.variables"
+        }
+      },
+      {
+        "name": "absent-name",
+        "capturePath": "$.scenarios.absentName.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.absentName.variables"
+        }
+      },
+      {
+        "name": "zero-plans",
+        "capturePath": "$.scenarios.zeroPlans.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.zeroPlans.variables"
+        }
+      },
+      {
+        "name": "absent-plans",
+        "capturePath": "$.scenarios.absentPlans.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.absentPlans.variables"
+        }
+      },
+      {
+        "name": "too-many-plans",
+        "capturePath": "$.scenarios.tooManyPlans.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.tooManyPlans.variables"
+        }
+      },
+      {
+        "name": "missing-billing-policy",
+        "capturePath": "$.scenarios.missingBillingPolicy.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.missingBillingPolicy.variables"
+        }
+      },
+      {
+        "name": "missing-delivery-policy",
+        "capturePath": "$.scenarios.missingDeliveryPolicy.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.missingDeliveryPolicy.variables"
+        }
+      },
+      {
+        "name": "missing-both-policies",
+        "capturePath": "$.scenarios.missingBothPolicies.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.missingBothPolicies.variables"
+        }
+      },
+      {
+        "name": "update-empty-create-list",
+        "capturePath": "$.scenarios.updateEmptyCreateList.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToCreate": []
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Admin 2026-04 sellingPlanGroupCreate model-backed validation after pure input validation passes: blank or absent group name, create-only lower/upper selling-plan count bounds, missing billing/delivery policies, and the create-only lower-bound carve-out where sellingPlanGroupUpdate accepts an empty sellingPlansToCreate list."
+}
