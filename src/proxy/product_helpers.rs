@@ -1,6 +1,8 @@
 use super::*;
 use crate::graphql::RawArgumentValue;
 
+mod product_tail;
+
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 
 struct ProductStatusInputContext<'a> {
