@@ -326,6 +326,7 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    bulk_operation_results: BTreeMap<String, String>,
     discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
@@ -747,6 +748,7 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            bulk_operation_results: BTreeMap::new(),
             discounts: StagedRecords::default(),
             discount_code_index: BTreeMap::new(),
             discount_redeem_code_bulk_creations: BTreeMap::new(),
@@ -1252,6 +1254,10 @@ impl Store {
             &self.staged.product_variants,
             id,
         )
+    }
+
+    fn product_variants(&self) -> Vec<ProductVariantRecord> {
+        effective_records(&self.base.product_variants, &self.staged.product_variants)
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the

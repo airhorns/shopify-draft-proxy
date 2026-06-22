@@ -77,21 +77,25 @@ fn metaobject_create_duplicate_field_errors(input: &BTreeMap<String, ResolvedVal
 
             let field_index = index.to_string();
             let is_required_title = key == "title";
-            errors.push(json!({
-                "field": ["metaobject", "fields", field_index.clone()],
-                "message": format!("Field \"{key}\" duplicates other inputs"),
-                "code": "DUPLICATE_FIELD_INPUT",
-                "elementKey": key.clone(),
-                "elementIndex": null
-            }));
+            errors.push(metaobject_indexed_user_error(
+                vec![
+                    "metaobject".to_string(),
+                    "fields".to_string(),
+                    field_index.clone(),
+                ],
+                &format!("Field \"{key}\" duplicates other inputs"),
+                Some("DUPLICATE_FIELD_INPUT"),
+                json!(key.clone()),
+                Value::Null,
+            ));
             if is_required_title {
-                errors.push(json!({
-                    "field": ["metaobject", "fields", field_index],
-                    "message": "Title can't be blank",
-                    "code": "OBJECT_FIELD_REQUIRED",
-                    "elementKey": key,
-                    "elementIndex": null
-                }));
+                errors.push(metaobject_indexed_user_error(
+                    vec!["metaobject".to_string(), "fields".to_string(), field_index],
+                    "Title can't be blank",
+                    Some("OBJECT_FIELD_REQUIRED"),
+                    json!(key),
+                    Value::Null,
+                ));
             }
         }
     }
@@ -1889,13 +1893,13 @@ fn metaobject_create_validation_errors(
                 .and_then(Value::as_str)
                 .map(str::to_string)
                 .unwrap_or_else(|| metaobject_field_name(key));
-            errors.push(json!({
-                "field": field_path,
-                "message": format!("{field_name} can't be blank"),
-                "code": "OBJECT_FIELD_REQUIRED",
-                "elementKey": key,
-                "elementIndex": Value::Null
-            }));
+            errors.push(metaobject_indexed_user_error(
+                field_path,
+                &format!("{field_name} can't be blank"),
+                Some("OBJECT_FIELD_REQUIRED"),
+                json!(key),
+                Value::Null,
+            ));
         }
     }
 
@@ -1933,13 +1937,7 @@ fn metaobject_user_error(
     element_key: Value,
     element_index: Value,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code,
-        "elementKey": element_key,
-        "elementIndex": element_index
-    })
+    metaobject_indexed_user_error(field, message, Some(code), element_key, element_index)
 }
 
 fn metaobject_display_name(definition: &Value, input_values: &BTreeMap<String, String>) -> String {
@@ -3188,13 +3186,13 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Record not found",
-                        "code": "RECORD_NOT_FOUND",
-                        "elementKey": null,
-                        "elementIndex": null
-                    }]
+                    "userErrors": [metaobject_indexed_user_error(
+                        ["id"],
+                        "Record not found",
+                        Some("RECORD_NOT_FOUND"),
+                        Value::Null,
+                        Value::Null
+                    )]
                 }),
                 &field.selection,
             );

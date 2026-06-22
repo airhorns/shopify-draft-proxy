@@ -856,7 +856,7 @@ impl DraftProxy {
                         Value::Null,
                         &payload_selection,
                         &usage_record_selection,
-                        vec![json!({ "field": ["price"], "message": "Price is required", "code": null })],
+                        vec![user_error(["price"], "Price is required", None)],
                     ) }
                 }));
             }
@@ -4305,21 +4305,21 @@ impl DraftProxy {
             !tail.is_empty() && tail.chars().all(|character| character == '9')
         };
         let move_error = if matches!(current_status, "CLOSED" | "CANCELLED") {
-            Some(json!({ "field": null, "message": "Cannot change location.", "code": null }))
+            Some(user_error(Value::Null, "Cannot change location.", None))
         } else if current_status == "IN_PROGRESS" {
-            Some(json!({
-                "field": ["id"],
-                "message": "Cannot move a fulfillment order that has had progress reported. To move a fulfillment order that has had progress reported, the fulfillment order must first be marked as open resolving the ongoing progress state.",
-                "code": "CANNOT_MOVE_FULFILLMENT_ORDER_WITH_REPORTED_PROGRESS"
-            }))
+            Some(user_error(
+                ["id"],
+                "Cannot move a fulfillment order that has had progress reported. To move a fulfillment order that has had progress reported, the fulfillment order must first be marked as open resolving the ongoing progress state.",
+                Some("CANNOT_MOVE_FULFILLMENT_ORDER_WITH_REPORTED_PROGRESS"),
+            ))
         } else if matches!(current_request_status, "SUBMITTED" | "ACCEPTED") {
-            Some(json!({
-                "field": null,
-                "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                "code": null
-            }))
+            Some(user_error(
+                Value::Null,
+                "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                None,
+            ))
         } else if unknown_destination_location {
-            Some(json!({ "field": ["id"], "message": "Location not found.", "code": null }))
+            Some(user_error(["id"], "Location not found.", None))
         } else {
             None
         };
@@ -4756,7 +4756,7 @@ impl DraftProxy {
                 response_key: fulfillment_order_simple_payload_json(
                     Value::Null,
                     &payload_selection,
-                    vec![json!({ "field": null, "message": message, "code": null })]
+                    vec![user_error(Value::Null, message, None)]
                 )
             }
         }))
@@ -5924,21 +5924,29 @@ impl DraftProxy {
         let parsed = match url::Url::parse(callback_url) {
             Ok(parsed) => parsed,
             Err(_) => {
-                return Some(
-                    json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
-                )
+                return Some(user_error_omit_code(
+                    ["callbackUrl"],
+                    "Callback url is not allowed",
+                    None,
+                ));
             }
         };
         if !matches!(parsed.scheme(), "http" | "https") {
-            return Some(json!({
-                "field": ["callbackUrl"],
-                "message": format!("Callback url protocol {}:// is not supported", parsed.scheme())
-            }));
+            return Some(user_error_omit_code(
+                ["callbackUrl"],
+                &format!(
+                    "Callback url protocol {}:// is not supported",
+                    parsed.scheme()
+                ),
+                None,
+            ));
         }
         let Some(host) = parsed.host_str().map(str::to_ascii_lowercase) else {
-            return Some(
-                json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
-            );
+            return Some(user_error_omit_code(
+                ["callbackUrl"],
+                "Callback url is not allowed",
+                None,
+            ));
         };
         if fulfillment_service_callback_url_host_is_allowed(
             &host,
@@ -5946,7 +5954,11 @@ impl DraftProxy {
         ) {
             None
         } else {
-            Some(json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }))
+            Some(user_error_omit_code(
+                ["callbackUrl"],
+                "Callback url is not allowed",
+                None,
+            ))
         }
     }
 
@@ -6000,7 +6012,7 @@ impl DraftProxy {
             .and_then(resolved_as_string);
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
-            user_errors.push(json!({ "field": ["name"], "message": "Name can't be blank" }));
+            user_errors.push(user_error_omit_code(["name"], "Name can't be blank", None));
         } else {
             user_errors.extend(fulfillment_service_name_whitespace_errors(&name));
         }
@@ -6008,10 +6020,13 @@ impl DraftProxy {
             user_errors.push(error);
         }
         if fulfillment_service_name_is_reserved(&name) {
-            user_errors.push(json!({ "field": ["name"], "message": "Name is reserved" }));
+            user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
         } else if self.fulfillment_service_name_or_handle_exists(&name, None) {
-            user_errors
-                .push(json!({ "field": ["name"], "message": "Name has already been taken" }));
+            user_errors.push(user_error_omit_code(
+                ["name"],
+                "Name has already been taken",
+                None,
+            ));
         }
         if !user_errors.is_empty() {
             return (
@@ -6098,7 +6113,7 @@ impl DraftProxy {
         };
         let name_user_errors = if field.arguments.contains_key("name") {
             if name.trim().is_empty() {
-                vec![json!({ "field": ["name"], "message": "Name can't be blank" })]
+                vec![user_error_omit_code(["name"], "Name can't be blank", None)]
             } else {
                 fulfillment_service_name_whitespace_errors(&name)
             }
@@ -6122,7 +6137,7 @@ impl DraftProxy {
                     Value::Null,
                     &field.selection,
                     &service_selection,
-                    vec![json!({ "field": ["name"], "message": "Name is reserved" })],
+                    vec![user_error_omit_code(["name"], "Name is reserved", None)],
                 ),
                 vec![],
             );
@@ -6144,7 +6159,11 @@ impl DraftProxy {
                     Value::Null,
                     &field.selection,
                     &service_selection,
-                    vec![json!({ "field": ["name"], "message": "Name has already been taken" })],
+                    vec![user_error_omit_code(
+                        ["name"],
+                        "Name has already been taken",
+                        None,
+                    )],
                 ),
                 vec![],
             );
@@ -6208,9 +6227,11 @@ impl DraftProxy {
                 fulfillment_service_delete_payload(
                     Value::Null,
                     &field.selection,
-                    vec![
-                        json!({ "field": ["id"], "message": "Fulfillment service could not be found." }),
-                    ],
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "Fulfillment service could not be found.",
+                        None,
+                    )],
                 ),
                 vec![],
             );
@@ -7380,11 +7401,7 @@ fn location_country_name(country_code: &str) -> Option<&'static str> {
 }
 
 fn location_delete_user_error(code: &str, message: &str) -> Value {
-    json!({
-        "field": ["locationId"],
-        "message": message,
-        "code": code
-    })
+    user_error(["locationId"], message, Some(code))
 }
 
 fn location_requires_idempotency(request: &Request, query: &str) -> bool {
@@ -8338,11 +8355,7 @@ fn stable_hash_hex(input: &str) -> String {
 }
 
 fn segment_user_error(field: Value, message: &str) -> Value {
-    json!({
-        "__typename": "UserError",
-        "field": field,
-        "message": message
-    })
+    user_error_typed_omit_code("UserError", field, message, None)
 }
 
 fn segment_name_user_errors(name: &str) -> Vec<Value> {
@@ -8376,12 +8389,12 @@ fn segment_query_user_errors(query: &str) -> Vec<Value> {
 /// which always carries a `code` and `__typename` unlike the default segment
 /// mutation `UserError`.
 fn member_query_user_error(field: Value, message: &str) -> Value {
-    json!({
-        "__typename": "CustomerSegmentMembersQueryUserError",
-        "field": field,
-        "code": "INVALID",
-        "message": message
-    })
+    user_error_typed(
+        "CustomerSegmentMembersQueryUserError",
+        field,
+        message,
+        Some("INVALID"),
+    )
 }
 
 /// Validate a `customerSegmentMembersQueryCreate(input: { query })` direct query

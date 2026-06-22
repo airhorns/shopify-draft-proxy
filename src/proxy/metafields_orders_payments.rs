@@ -1009,21 +1009,25 @@ fn metafields_set_value_user_error_with_element_index(
     code: &str,
     element_index: Option<usize>,
 ) -> Value {
-    json!({
-        "field": ["metafields", index.to_string(), "value"],
-        "message": message,
-        "code": code,
-        "elementIndex": element_index.map(Value::from).unwrap_or(Value::Null)
-    })
+    user_error_with_element_index(
+        vec![
+            "metafields".to_string(),
+            index.to_string(),
+            "value".to_string(),
+        ],
+        message,
+        Some(code),
+        element_index.map(Value::from).unwrap_or(Value::Null),
+    )
 }
 
 fn metafields_set_path_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": if code.is_empty() { Value::Null } else { json!(code) },
-        "elementIndex": Value::Null
-    })
+    user_error_with_element_index(
+        field,
+        message,
+        (!code.is_empty()).then_some(code),
+        Value::Null,
+    )
 }
 
 fn is_shopify_hex_color(value: &str) -> bool {
@@ -1564,12 +1568,12 @@ pub(in crate::proxy) fn quantity_pricing_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "__typename": "QuantityPricingByVariantUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "QuantityPricingByVariantUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn quantity_pricing_variant_ids_from_input(
@@ -1673,7 +1677,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
 }
 
 pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({"__typename": "QuantityRuleUserError", "field": field, "message": message, "code": code})
+    user_error_typed("QuantityRuleUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn quantity_rules_add_validation_errors(
@@ -2373,11 +2377,7 @@ pub(in crate::proxy) fn payment_customization_user_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "code": code,
-        "message": message
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_customization_required_input_field_error(field: &str) -> Value {
@@ -2446,11 +2446,16 @@ pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
     field: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": ["paymentCustomization", "metafields", index.to_string(), field],
-        "code": "INVALID_METAFIELDS",
-        "message": message
-    })
+    user_error(
+        vec![
+            "paymentCustomization".to_string(),
+            "metafields".to_string(),
+            index.to_string(),
+            field.to_string(),
+        ],
+        message,
+        Some("INVALID_METAFIELDS"),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
@@ -2529,11 +2534,7 @@ pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query Paym
 pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
 
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_terms_payload_value(
@@ -3219,11 +3220,11 @@ pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Opti
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     json!({
         "success": null,
-        "userErrors": [{
-            "field": null,
-            "message": message,
-            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-        }]
+        "userErrors": [user_error(
+            Value::Null,
+            message,
+            Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL")
+        )]
     })
 }
 
@@ -3285,11 +3286,11 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
         }
         .unwrap_or_default();
         value.trim().is_empty().then(|| {
-            json!({
-                "field": ["billing_address", output_field],
-                "code": "BLANK",
-                "message": "can't be blank"
-            })
+            user_error(
+                ["billing_address", output_field],
+                "can't be blank",
+                Some("BLANK"),
+            )
         })
     })
     .collect()
@@ -3319,19 +3320,11 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
 }
 
 fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_status_invalid_error() -> Value {
@@ -3747,25 +3740,25 @@ impl DraftProxy {
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
-                            "message": "invalid",
-                            "code": "NOT_FOUND"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "marketingActivityId"],
+                            "invalid",
+                            Some("NOT_FOUND"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else if delivered_at.starts_with("2099-") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveredAt"],
-                            "message": "invalid",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveredAt"],
+                            "invalid",
+                            Some("INVALID"),
+                        ));
                         ("SENDING".to_string(), Value::Null)
                     } else if status == "SENDING" {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
-                            "message": "invalid_transition",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveryStatus"],
+                            "invalid_transition",
+                            Some("INVALID"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else {
                         (status, Value::String(delivered_at.clone()))
@@ -4469,11 +4462,11 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     Some(false),
-                    vec![json!({
-                        "field": ["sessionId"],
-                        "message": "Session id can't be blank",
-                        "code": "BLANK"
-                    })],
+                    vec![user_error(
+                        ["sessionId"],
+                        "Session id can't be blank",
+                        Some("BLANK"),
+                    )],
                 ),
                 None,
             );
@@ -4562,11 +4555,11 @@ impl DraftProxy {
             &field.selection,
             Value::Null,
             Some(false),
-            vec![json!({
-                "field": ["id"],
-                "message": "Customer payment method does not exist",
-                "code": "NOT_FOUND"
-            })],
+            vec![user_error(
+                ["id"],
+                "Customer payment method does not exist",
+                Some("NOT_FOUND"),
+            )],
         )
     }
 
@@ -4586,11 +4579,11 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     None,
-                    vec![json!({
-                        "field": ["remote_reference"],
-                        "message": "Remote reference must contain exactly one payment method.",
-                        "code": "INVALID"
-                    })],
+                    vec![user_error(
+                        ["remote_reference"],
+                        "Remote reference must contain exactly one payment method.",
+                        Some("INVALID"),
+                    )],
                 ),
                 None,
             );
@@ -4609,11 +4602,15 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
-                            "message": "billing_agreement_id can't be blank",
-                            "code": "BILLING_AGREEMENT_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            [
+                                "remote_reference",
+                                "paypal_payment_method",
+                                "billing_agreement_id",
+                            ],
+                            "billing_agreement_id can't be blank",
+                            Some("BILLING_AGREEMENT_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -4633,11 +4630,11 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "stripe_payment_method", "customer_id"],
-                            "message": "customer_id can't be blank",
-                            "code": "STRIPE_CUSTOMER_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            ["remote_reference", "stripe_payment_method", "customer_id"],
+                            "customer_id can't be blank",
+                            Some("STRIPE_CUSTOMER_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -4710,19 +4707,19 @@ impl DraftProxy {
         let target_customer_id =
             resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
-            vec![json!({
-                "field": ["targetShopId"],
-                "message": "Target shop is not eligible for payment method duplication",
-                "code": "SAME_SHOP"
-            })]
+            vec![user_error(
+                ["targetShopId"],
+                "Target shop is not eligible for payment method duplication",
+                Some("SAME_SHOP"),
+            )]
         } else {
             Vec::new()
         };
@@ -4822,11 +4819,11 @@ impl DraftProxy {
         let id =
             resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else {
             Vec::new()
         };
@@ -4854,11 +4851,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Customer payment method does not exist.",
-                            "code": "NOT_FOUND"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Customer payment method does not exist.",
+                            Some("NOT_FOUND")
+                        )]
                     }),
                     &field.selection,
                 ),
@@ -4873,11 +4870,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Cannot revoke a payment method with active subscription contracts.",
-                            "code": "ACTIVE_CONTRACT"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Cannot revoke a payment method with active subscription contracts.",
+                            Some("ACTIVE_CONTRACT")
+                        )]
                     }),
                     &field.selection,
                 ),
