@@ -78,6 +78,14 @@ function responseHeaders(headers: Headers): Record<string, string> | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function bulkOperationResultPath(operationIdOrUrl: string): string {
+  if (operationIdOrUrl.startsWith('http://') || operationIdOrUrl.startsWith('https://')) {
+    return new URL(operationIdOrUrl).pathname;
+  }
+  const tail = operationIdOrUrl.split('/').pop()?.split('?')[0] ?? operationIdOrUrl;
+  return `/__meta/bulk-operations/${encodeURIComponent(tail)}/result.jsonl`;
+}
+
 async function fetchJson(origin: string, request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
   const headers = normalizeHeaders(request.headers);
   const body = bodyToString(request.body);
@@ -235,7 +243,16 @@ export class DraftProxy {
   }
 
   getBulkOperationResultJsonl(_operationId: string): string | null {
-    return null;
+    const response = fetchJsonSync(this.#origin, {
+      method: 'GET',
+      path: bulkOperationResultPath(_operationId),
+    });
+    if (response.status === 404) return null;
+    if (response.status !== 200) {
+      throw new Error(`DraftProxy.getBulkOperationResultJsonl failed with status ${response.status}`);
+    }
+    if (typeof response.body === 'string') return response.body;
+    return JSON.stringify(response.body);
   }
 
   async processGraphQLRequest(

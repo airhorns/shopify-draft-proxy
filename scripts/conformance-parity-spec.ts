@@ -47,6 +47,7 @@ function isKnownMatcher(matcher: string): matcher is Matcher {
   return (
     matcher === 'any-string' ||
     matcher === 'non-empty-string' ||
+    matcher === 'jsonl-string' ||
     matcher === 'any-number' ||
     matcher === 'iso-timestamp' ||
     matcher === 'storefront-access-token' ||
@@ -131,12 +132,13 @@ export function validateComparisonContract(comparison: unknown): string[] {
           errors.push(`${label} must declare a non-empty capturePath.`);
         }
         const isProxyUploadSetup = isPlainObject(target['proxyUpload']);
+        const isProxyHttpRequest = isPlainObject(target['proxyHttpRequest']);
         const outputPaths = ['proxyPath', 'proxyStatePath', 'proxyLogPath'].filter(
           (pathKey) => typeof target[pathKey] === 'string' && (target[pathKey] as string).length > 0,
         );
-        if (isProxyUploadSetup) {
+        if (isProxyUploadSetup || isProxyHttpRequest) {
           if (outputPaths.length > 1) {
-            errors.push(`${label} proxyUpload setup must declare at most one output path.`);
+            errors.push(`${label} proxyUpload/proxyHttpRequest setup must declare at most one output path.`);
           }
         } else if (outputPaths.length !== 1) {
           errors.push(`${label} must declare exactly one non-empty proxyPath, proxyStatePath, or proxyLogPath.`);

@@ -97,9 +97,18 @@ export const parityProxyUploadSpecSchema = z.strictObject({
 });
 export type ProxyUploadSpec = z.infer<typeof parityProxyUploadSpecSchema>;
 
+export const parityProxyHttpRequestSpecSchema = z.strictObject({
+  method: z.string().min(1).optional(),
+  path: jsonValueSchema,
+  body: jsonValueSchema.optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+export type ProxyHttpRequestSpec = z.infer<typeof parityProxyHttpRequestSpecSchema>;
+
 export const matcherSchema = z.union([
   z.literal('any-string'),
   z.literal('non-empty-string'),
+  z.literal('jsonl-string'),
   z.literal('any-number'),
   z.literal('iso-timestamp'),
   z.literal('storefront-access-token'),
@@ -128,6 +137,7 @@ export const comparisonTargetSchema = z.strictObject({
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   proxyUpload: parityProxyUploadSpecSchema.optional(),
+  proxyHttpRequest: parityProxyHttpRequestSpecSchema.optional(),
   isolatedProxy: z.boolean().optional(),
   selectedPaths: z.array(z.string()).optional(),
   excludedPaths: z.array(z.string()).optional(),
