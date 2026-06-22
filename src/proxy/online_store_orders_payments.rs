@@ -19,6 +19,13 @@ const ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY: &str =
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const THEME_FILES_MAX_FILE_INPUT: usize = 50;
+const THEME_FILES_MAX_FILE_LIMIT: usize = 100;
+const THEME_UNDELETABLE_FILES: &[&str] = &[
+    "config/settings_data.json",
+    "config/settings_schema.json",
+    "layout/theme.liquid",
+];
 const FULFILLMENT_EVENT_CREATED_AT: &str = "2024-01-01T00:00:03.000Z";
 const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "LABEL_PURCHASED",
@@ -33,6 +40,91 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "FAILURE",
     "CARRIER_PICKED_UP",
 ];
+
+fn theme_file_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn theme_file_limit_error() -> Value {
+    theme_file_user_error(
+        vec!["files".to_string()],
+        "Exceeded maximum number of files",
+        "INVALID",
+    )
+}
+
+fn theme_file_duplicate_error(index: usize, field_name: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        "duplicate-file-input",
+        "INVALID",
+    )
+}
+
+fn theme_file_field_error(index: usize, field_name: &str, message: &str, code: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        message,
+        code,
+    )
+}
+
+fn theme_file_delete_error(index: usize, message: &str, code: &str) -> Value {
+    theme_file_user_error(vec!["files".to_string(), index.to_string()], message, code)
+}
+
+fn theme_file_filename_allowed(filename: &str) -> bool {
+    let Some((root, rest)) = filename.split_once('/') else {
+        return false;
+    };
+    matches!(
+        root,
+        "assets" | "config" | "layout" | "locales" | "sections" | "snippets" | "templates"
+    ) && !rest.is_empty()
+        && !rest.ends_with('/')
+        && !rest.contains("//")
+        && !filename.split('/').any(|segment| segment == "..")
+}
+
+fn theme_file_filename_error(index: usize, filename: &str) -> Option<Value> {
+    if filename.trim().is_empty() {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename can't be blank",
+            "INVALID",
+        ));
+    }
+    if filename == "_drafts" || filename.starts_with("_drafts/") || filename.contains("/_drafts/") {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Access denied",
+            "ACCESS_DENIED",
+        ));
+    }
+    if !theme_file_filename_allowed(filename) {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename is invalid",
+            "INVALID",
+        ));
+    }
+    None
+}
 const DRAFT_ORDER_HYDRATE_QUERY: &str = r#"
     query OrdersDraftOrderHydrate($id: ID!) {
       draftOrder(id: $id) {
@@ -4655,16 +4747,58 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        if files.iter().any(|file| {
-            theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
-        }) {
-            let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            let payload =
+                json!({"upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
             return selected_json(&payload, &field.selection);
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let filename = theme_file_arg_string(file, "filename").unwrap_or_default();
+            if let Some(error) = theme_file_filename_error(index, &filename) {
+                errors.push(error);
+            } else if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_duplicate_error(index, "filename"));
+            }
+            if theme_file_record_from_input(file).is_err() {
+                errors.push(theme_file_field_error(
+                    index,
+                    "body",
+                    "invalid-body-input",
+                    "INVALID",
+                ));
+            }
+            if let Some(expected_checksum) = theme_file_arg_string(file, "checksumMd5") {
+                if self
+                    .find_theme_file(&theme_id, &filename)
+                    .and_then(|record| {
+                        record
+                            .get("checksumMd5")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .is_some_and(|current_checksum| current_checksum != expected_checksum)
+                {
+                    errors.push(theme_file_field_error(
+                        index,
+                        "checksumMd5",
+                        "Checksum does not match",
+                        "CONFLICT",
+                    ));
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"upsertedThemeFiles": [], "userErrors": errors}),
+                &field.selection,
+            );
         }
         let mut upserted = Vec::new();
         let mut staged = false;
         for file in files {
-            if let Some(record) = theme_file_record_from_input(&file) {
+            if let Ok(Some(record)) = theme_file_record_from_input(&file) {
                 let persisted = self.upsert_theme_file(&theme_id, record.clone());
                 staged |= persisted.is_some();
                 let record = persisted.unwrap_or(record);
@@ -4687,6 +4821,26 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut preflight_errors = Vec::new();
+        let mut seen_dst_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            if !dst.is_empty() && !seen_dst_filenames.insert(dst) {
+                preflight_errors.push(theme_file_duplicate_error(index, "dstFilename"));
+            }
+        }
+        if !preflight_errors.is_empty() {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": preflight_errors}),
+                &field.selection,
+            );
+        }
         let mut copied = Vec::new();
         let mut errors = Vec::new();
         for (index, file) in files.iter().enumerate() {
@@ -4721,15 +4875,30 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
-        let required = ["config/settings_data.json", "config/settings_schema.json"];
-        let errors = files
-            .iter()
-            .enumerate()
-            .filter(|(_, filename)| required.contains(&filename.as_str()))
-            .map(|(index, _)| {
-                json!({"field": ["files", index.to_string()], "message": "File is required and can't be deleted", "code": "INVALID"})
-            })
-            .collect::<Vec<_>>();
+        if files.len() > THEME_FILES_MAX_FILE_LIMIT {
+            return selected_json(
+                &json!({"deletedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, filename) in files.iter().enumerate() {
+            if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "duplicate-file-input",
+                    "INVALID",
+                ));
+            }
+            if THEME_UNDELETABLE_FILES.contains(&filename.as_str()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "File is required and can't be deleted",
+                    "INVALID",
+                ));
+            }
+        }
         if !errors.is_empty() {
             return selected_json(
                 &json!({"deletedThemeFiles": [], "userErrors": errors}),

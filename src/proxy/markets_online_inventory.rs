@@ -1,5 +1,7 @@
 use super::*;
 
+use base64::Engine as _;
+
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -1563,18 +1565,19 @@ pub(in crate::proxy) fn theme_file_arg_string(
     }
 }
 
-pub(in crate::proxy) fn theme_file_record_from_input(value: &ResolvedValue) -> Option<Value> {
+pub(in crate::proxy) fn theme_file_record_from_input(
+    value: &ResolvedValue,
+) -> Result<Option<Value>, ()> {
     let ResolvedValue::Object(input) = value else {
-        return None;
+        return Ok(None);
     };
-    let filename = resolved_string_field(input, "filename")?;
-    let content = match input.get("body") {
-        Some(ResolvedValue::Object(body)) => {
-            resolved_string_field(body, "value").unwrap_or_default()
-        }
-        _ => String::new(),
+    let Some(filename) = resolved_string_field(input, "filename") else {
+        return Ok(None);
     };
-    Some(theme_file_record(&filename, &content))
+    let Some(body) = input.get("body") else {
+        return Err(());
+    };
+    Ok(Some(theme_file_record_from_body(&filename, body)?))
 }
 
 pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Value {
@@ -1583,6 +1586,38 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
         "checksumMd5": theme_file_checksum_md5(content),
         "size": content.len(),
         "body": {"content": content}
+    })
+}
+
+pub(in crate::proxy) fn theme_file_record_from_body(
+    filename: &str,
+    body: &ResolvedValue,
+) -> Result<Value, ()> {
+    let ResolvedValue::Object(body) = body else {
+        return Err(());
+    };
+    let body_type = resolved_string_field(body, "type").unwrap_or_else(|| "TEXT".to_string());
+    let value = resolved_string_field(body, "value").unwrap_or_default();
+    match body_type.as_str() {
+        "TEXT" => Ok(theme_file_record(filename, &value)),
+        "BASE64" => {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(value.as_bytes())
+                .map_err(|_| ())?;
+            let content = String::from_utf8(bytes).map_err(|_| ())?;
+            Ok(theme_file_record(filename, &content))
+        }
+        "URL" => Ok(theme_file_url_record(filename)),
+        _ => Err(()),
+    }
+}
+
+pub(in crate::proxy) fn theme_file_url_record(filename: &str) -> Value {
+    json!({
+        "filename": filename,
+        "checksumMd5": theme_file_checksum_md5(""),
+        "size": 0,
+        "body": {"type": "URL", "value": Value::Null}
     })
 }
 
@@ -1606,13 +1641,8 @@ pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
     })
 }
 
-pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> &str {
-    match content {
-        "hello" => "5d41402abc4b2a76b9719d911017c592",
-        "hello world" => "5eb63bbbe01eeed093cb22bb8f5acdc3",
-        "console.log(1)" => "6114f5adc373accd7b2051bd87078f62",
-        _ => "d41d8cd98f00b204e9800998ecf8427e",
-    }
+pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> String {
+    format!("{:x}", md5::compute(content.as_bytes()))
 }
 
 pub(in crate::proxy) fn mobile_app_error<const N: usize>(
