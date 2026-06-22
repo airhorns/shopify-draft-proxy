@@ -35,12 +35,12 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 }
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
-    match shopify_gid_resource_type(id) {
-        Some("ProductVariant") => "PRODUCTVARIANT",
-        Some("Collection") => "COLLECTION",
-        Some("Customer") => "CUSTOMER",
-        Some("Order") => "ORDER",
-        Some("Company") => "COMPANY",
+    match metafield_owner_gid_resource_type(id) {
+        "ProductVariant" => "PRODUCTVARIANT",
+        "Collection" => "COLLECTION",
+        "Customer" => "CUSTOMER",
+        "Order" => "ORDER",
+        "Company" => "COMPANY",
         _ => "PRODUCT",
     }
 }
@@ -3711,9 +3711,9 @@ fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -
 /// assigns positive numeric ids, so a zero or non-numeric trailing id is a
 /// sentinel for a non-existent record.
 fn abandonment_gid_is_real(id: &str) -> bool {
-    id.rsplit('/')
-        .next()
-        .and_then(|tail| tail.parse::<u64>().ok())
+    resource_id_path_tail(id)
+        .parse::<u64>()
+        .ok()
         .is_some_and(|number| number > 0)
 }
 

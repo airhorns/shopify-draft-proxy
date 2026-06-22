@@ -6498,14 +6498,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
 }
 
 fn owner_typename_from_gid(owner_id: &str) -> &'static str {
-    match shopify_gid_resource_type(owner_id) {
-        Some("ProductVariant") => "ProductVariant",
-        Some("Collection") => "Collection",
-        Some("Customer") => "Customer",
-        Some("Order") => "Order",
-        Some("Company") => "Company",
-        _ => "Product",
-    }
+    metafield_owner_gid_resource_type(owner_id)
 }
 
 fn media_object_list_arg(
@@ -7043,8 +7036,7 @@ fn media_file_record(
 fn media_file_numeric_id(file: &Value) -> u64 {
     file.get("id")
         .and_then(Value::as_str)
-        .and_then(|id| id.split('?').next())
-        .and_then(|id| id.rsplit('/').next())
+        .map(resource_id_tail)
         .and_then(|tail| tail.parse::<u64>().ok())
         .unwrap_or(0)
 }

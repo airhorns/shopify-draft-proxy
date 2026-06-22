@@ -1087,9 +1087,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
         let has_synthetic = variables.values().any(|value| match value {
-            ResolvedValue::String(text) => {
-                text.starts_with("gid://shopify/") && text.contains("shopify-draft-proxy=synthetic")
-            }
+            ResolvedValue::String(text) => is_synthetic_gid(text),
             _ => false,
         });
         has_synthetic || !self.store.staged.metafield_definitions.is_empty()

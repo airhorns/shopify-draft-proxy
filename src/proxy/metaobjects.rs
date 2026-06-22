@@ -2559,10 +2559,9 @@ impl DraftProxy {
         fn metaobject_id_sort_key(record: &Value) -> (u64, String) {
             let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
             let numeric = id
-                .rsplit('/')
-                .next()
-                .and_then(|tail| tail.split('?').next())
-                .and_then(|tail| tail.parse::<u64>().ok())
+                .parse::<u64>()
+                .ok()
+                .or_else(|| resource_id_tail(id).parse::<u64>().ok())
                 .unwrap_or(u64::MAX);
             (numeric, id.to_string())
         }

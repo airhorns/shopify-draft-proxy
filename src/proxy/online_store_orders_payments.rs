@@ -681,8 +681,7 @@ fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
     let numeric_id = order
         .get("id")
         .and_then(Value::as_str)
-        .and_then(|id| id.rsplit('/').next())
-        .and_then(|tail| tail.split('?').next())
+        .map(resource_id_tail)
         .and_then(|tail| tail.parse::<i64>().ok())
         .unwrap_or(0);
     (date, numeric_id)
@@ -1918,7 +1917,7 @@ fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
     let highest = order_transactions(order)
         .iter()
         .filter_map(|transaction| transaction["id"].as_str())
-        .filter_map(|id| id.rsplit('/').next())
+        .map(resource_id_path_tail)
         .filter_map(|tail| tail.parse::<u64>().ok())
         .max()
         .unwrap_or(0);
@@ -2737,9 +2736,9 @@ fn payment_transaction_record_from_amount_set(
     parent_transaction: Value,
 ) -> Value {
     let transaction_number = id
-        .rsplit('/')
-        .next()
-        .and_then(|value| value.parse::<u64>().ok());
+        .parse::<u64>()
+        .ok()
+        .or_else(|| resource_id_path_tail(id).parse::<u64>().ok());
     let payment_id = match (kind, transaction_number) {
         ("AUTHORIZATION", _) => Value::Null,
         (_, Some(number)) => json!(format!("gid://shopify/Payment/{}", number + 1)),
@@ -4043,7 +4042,7 @@ impl DraftProxy {
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                 "webPixelUpdate" => {
                     let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
-                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
+                        .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
                     self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
                 }
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
@@ -4072,12 +4071,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
-        let id = format!(
-            "gid://shopify/{}/{}?shopify-draft-proxy=synthetic",
-            typename, self.next_synthetic_id
-        );
-        self.next_synthetic_id += 1;
-        id
+        self.next_proxy_synthetic_gid(typename)
     }
 
     fn mobile_platform_application_exists(&self, typename: &str) -> bool {
@@ -8374,7 +8368,7 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .map(|mut line| {
-                if let Some(tail) = line["id"].as_str().and_then(|id| id.rsplit('/').next()) {
+                if let Some(tail) = line["id"].as_str().map(resource_id_path_tail) {
                     line["id"] = json!(format!("gid://shopify/LineItem/{tail}"));
                 }
                 if line["sku"].as_str() == Some("") {
@@ -10670,10 +10664,7 @@ impl DraftProxy {
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
         }
-        let id = format!(
-            "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
-            self.store.staged.next_order_customer_order_id
-        );
+        let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
         self.store.staged.next_order_customer_order_id += 1;
         if email == "order-customer-b2b@example.com" {
             self.store
@@ -10733,10 +10724,7 @@ impl DraftProxy {
         // the cancel, and leave it unstaged so the downstream `order` read forwards
         // to the backend for the real refunded/restocked state instead of serving
         // a stale locally-projected copy.
-        if !order_id.contains("shopify-draft-proxy=synthetic")
-            && !order_locally_known
-            && !refund_method_cancel
-        {
+        if !order_id.contains(SYNTHETIC_MARKER) && !order_locally_known && !refund_method_cancel {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
         let error_payload = |field_name: &str, message: &str, code: &str| {
@@ -10785,10 +10773,7 @@ impl DraftProxy {
                     &field.selection,
                 ));
             }
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,
@@ -10829,10 +10814,7 @@ impl DraftProxy {
             let reason =
                 resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
                 .store
                 .staged
@@ -10955,7 +10937,7 @@ impl DraftProxy {
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged
@@ -10965,7 +10947,7 @@ impl DraftProxy {
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
-        if !customer_id.is_empty() && !customer_id.contains("shopify-draft-proxy=synthetic") {
+        if !customer_id.is_empty() && !customer_id.contains(SYNTHETIC_MARKER) {
             self.ensure_order_customer_hydrated(request, &customer_id);
         }
         let customer = self.store.staged.customers.get(&customer_id).cloned();
@@ -11063,7 +11045,7 @@ impl DraftProxy {
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged
