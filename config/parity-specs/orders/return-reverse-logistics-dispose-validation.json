@@ -1,0 +1,225 @@
+{
+  "scenarioId": "return-reverse-logistics-dispose-validation",
+  "operationNames": [
+    "return",
+    "order",
+    "returnRequest",
+    "returnApproveRequest",
+    "reverseFulfillmentOrder",
+    "reverseFulfillmentOrderDispose"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-error-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-dispose-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+    "variablesCapturePath": "$.firstReturnRequest.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 reverseFulfillmentOrderDispose validation coverage for empty dispositionInputs, custom-line RESTOCKED, multiple reverse fulfillment orders, valid NOT_RESTOCKED disposal, and downstream disposition readback. The fixture records the current public response for an unknown line item, but strict parity intentionally excludes that target because the dev store returned the multiple-RFO error rather than the product-required NOT_FOUND branch. The local runtime test covers unknown line and quantity over disposable; this live shop accepted over-disposal attempts in the exercised custom-line setup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-return-approve-request",
+        "capturePath": "$.firstReturnApproveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "selectedPaths": ["$.return.status", "$.return.totalQuantity", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "dispose-empty-inputs-user-error",
+        "capturePath": "$.disposeValidation.empty.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql",
+          "variables": {
+            "dispositionInputs": []
+          }
+        }
+      },
+      {
+        "name": "dispose-custom-restocked-user-error",
+        "capturePath": "$.disposeValidation.customRestocked.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql",
+          "variables": {
+            "dispositionInputs": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "first-return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "dispositionType": "RESTOCKED",
+                "locationId": {
+                  "fromCapturePath": "$.disposeValidation.customRestocked.variables.dispositionInputs[0].locationId"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "second-return-request",
+        "capturePath": "$.secondReturnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "selectedPaths": ["$.return.status", "$.return.totalQuantity", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+          "variablesCapturePath": "$.secondReturnRequest.variables"
+        }
+      },
+      {
+        "name": "second-return-approve-request",
+        "capturePath": "$.secondReturnApproveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "selectedPaths": ["$.return.status", "$.return.totalQuantity", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "second-return-request",
+                "path": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "dispose-multiple-rfo-user-error",
+        "capturePath": "$.disposeValidation.multipleReverseFulfillmentOrders.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql",
+          "variables": {
+            "dispositionInputs": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "first-return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": {
+                  "fromCapturePath": "$.disposeValidation.multipleReverseFulfillmentOrders.variables.dispositionInputs[0].locationId"
+                }
+              },
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "second-return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": {
+                  "fromCapturePath": "$.disposeValidation.multipleReverseFulfillmentOrders.variables.dispositionInputs[1].locationId"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "dispose-valid-not-restocked",
+        "capturePath": "$.disposeValidation.validNotRestocked.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "expectedDifferences": [
+          {
+            "path": "$.reverseFulfillmentOrderLineItems[*].id",
+            "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+            "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql",
+          "variables": {
+            "dispositionInputs": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "first-return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": {
+                  "fromCapturePath": "$.disposeValidation.validNotRestocked.variables.dispositionInputs[0].locationId"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "downstream-first-rfo-dispositions",
+        "capturePath": "$.downstreamRead.response.payload.data.firstReverseFulfillmentOrder.lineItems.nodes[0].dispositions",
+        "proxyPath": "$.data.firstReverseFulfillmentOrder.lineItems.nodes[0].dispositions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-reverse-logistics-dispose-validation-read.graphql",
+          "variables": {
+            "firstReturnId": {
+              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+            },
+            "secondReturnId": {
+              "fromProxyResponse": "second-return-request",
+              "path": "$.data.returnRequest.return.id"
+            },
+            "orderId": {
+              "fromCapturePath": "$.firstReturnRequest.variables.input.orderId"
+            },
+            "firstReverseFulfillmentOrderId": {
+              "fromProxyResponse": "first-return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "secondReverseFulfillmentOrderId": {
+              "fromProxyResponse": "second-return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream-second-rfo-remains-undisposed",
+        "capturePath": "$.downstreamRead.response.payload.data.secondReverseFulfillmentOrder.lineItems.nodes[0].dispositions",
+        "proxyPath": "$.data.secondReverseFulfillmentOrder.lineItems.nodes[0].dispositions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-reverse-logistics-dispose-validation-read.graphql",
+          "variables": {
+            "firstReturnId": {
+              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+            },
+            "secondReturnId": {
+              "fromProxyResponse": "second-return-request",
+              "path": "$.data.returnRequest.return.id"
+            },
+            "orderId": {
+              "fromCapturePath": "$.firstReturnRequest.variables.input.orderId"
+            },
+            "firstReverseFulfillmentOrderId": {
+              "fromProxyResponse": "first-return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "secondReverseFulfillmentOrderId": {
+              "fromProxyResponse": "second-return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,5 +1,7 @@
 use super::*;
 
+use base64::Engine as _;
+
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -143,45 +145,21 @@ pub(in crate::proxy) fn set_catalog_price_list_relation(
     catalog: &mut Value,
     price_list_id: Option<&str>,
 ) {
-    if let Some(object) = catalog.as_object_mut() {
-        if let Some(price_list_id) = price_list_id {
-            object.insert("priceListId".to_string(), json!(price_list_id));
-            object.insert("priceList".to_string(), json!({"id": price_list_id}));
-        } else {
-            object.insert("priceListId".to_string(), Value::Null);
-            object.insert("priceList".to_string(), Value::Null);
-        }
-    }
+    set_relation(catalog, "priceListId", "priceList", price_list_id);
 }
 
 pub(in crate::proxy) fn set_catalog_publication_relation(
     catalog: &mut Value,
     publication_id: Option<&str>,
 ) {
-    if let Some(object) = catalog.as_object_mut() {
-        if let Some(publication_id) = publication_id {
-            object.insert("publicationId".to_string(), json!(publication_id));
-            object.insert("publication".to_string(), json!({"id": publication_id}));
-        } else {
-            object.insert("publicationId".to_string(), Value::Null);
-            object.insert("publication".to_string(), Value::Null);
-        }
-    }
+    set_relation(catalog, "publicationId", "publication", publication_id);
 }
 
 pub(in crate::proxy) fn set_price_list_catalog_relation(
     price_list: &mut Value,
     catalog_id: Option<&str>,
 ) {
-    if let Some(object) = price_list.as_object_mut() {
-        if let Some(catalog_id) = catalog_id {
-            object.insert("catalogId".to_string(), json!(catalog_id));
-            object.insert("catalog".to_string(), json!({"id": catalog_id}));
-        } else {
-            object.insert("catalogId".to_string(), Value::Null);
-            object.insert("catalog".to_string(), Value::Null);
-        }
-    }
+    set_relation(price_list, "catalogId", "catalog", catalog_id);
 }
 
 pub(in crate::proxy) fn missing_customization_message(ids: &[String]) -> String {
@@ -254,7 +232,7 @@ pub(in crate::proxy) fn price_list_record(
         "catalog": catalog,
         "fixedPricesCount": 0,
         "fixedPriceRows": [],
-        "prices": {"nodes": [], "edges": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}
+        "prices": connection_json_with_empty_edges(Vec::new())
     })
 }
 
@@ -342,14 +320,6 @@ pub(in crate::proxy) fn mutation_variant_ids(inputs: &[ResolvedValue]) -> Vec<St
         .iter()
         .filter_map(|input| resolved_nonempty_string(input, "variantId"))
         .collect()
-}
-
-pub(in crate::proxy) fn append_unique_strings(base: &mut Vec<String>, extra: &[String]) {
-    for item in extra {
-        if !base.contains(item) {
-            base.push(item.clone());
-        }
-    }
 }
 
 /// `read_arg_string_nonempty` — an object field that is a non-empty string.
@@ -858,7 +828,7 @@ fn resulting_fixed_price_variant_ids(
         .flat_map(|product_id| store.fixed_price_variants_for_product(&product_id))
         .filter_map(|variant| variant["id"].as_str().map(str::to_string))
         .collect();
-    append_unique_strings(&mut retained, &add_variant_ids);
+    extend_unique_strings(&mut retained, &add_variant_ids);
     retained
 }
 
@@ -1595,18 +1565,19 @@ pub(in crate::proxy) fn theme_file_arg_string(
     }
 }
 
-pub(in crate::proxy) fn theme_file_record_from_input(value: &ResolvedValue) -> Option<Value> {
+pub(in crate::proxy) fn theme_file_record_from_input(
+    value: &ResolvedValue,
+) -> Result<Option<Value>, ()> {
     let ResolvedValue::Object(input) = value else {
-        return None;
+        return Ok(None);
     };
-    let filename = resolved_string_field(input, "filename")?;
-    let content = match input.get("body") {
-        Some(ResolvedValue::Object(body)) => {
-            resolved_string_field(body, "value").unwrap_or_default()
-        }
-        _ => String::new(),
+    let Some(filename) = resolved_string_field(input, "filename") else {
+        return Ok(None);
     };
-    Some(theme_file_record(&filename, &content))
+    let Some(body) = input.get("body") else {
+        return Err(());
+    };
+    Ok(Some(theme_file_record_from_body(&filename, body)?))
 }
 
 pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Value {
@@ -1615,6 +1586,38 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
         "checksumMd5": theme_file_checksum_md5(content),
         "size": content.len(),
         "body": {"content": content}
+    })
+}
+
+pub(in crate::proxy) fn theme_file_record_from_body(
+    filename: &str,
+    body: &ResolvedValue,
+) -> Result<Value, ()> {
+    let ResolvedValue::Object(body) = body else {
+        return Err(());
+    };
+    let body_type = resolved_string_field(body, "type").unwrap_or_else(|| "TEXT".to_string());
+    let value = resolved_string_field(body, "value").unwrap_or_default();
+    match body_type.as_str() {
+        "TEXT" => Ok(theme_file_record(filename, &value)),
+        "BASE64" => {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(value.as_bytes())
+                .map_err(|_| ())?;
+            let content = String::from_utf8(bytes).map_err(|_| ())?;
+            Ok(theme_file_record(filename, &content))
+        }
+        "URL" => Ok(theme_file_url_record(filename)),
+        _ => Err(()),
+    }
+}
+
+pub(in crate::proxy) fn theme_file_url_record(filename: &str) -> Value {
+    json!({
+        "filename": filename,
+        "checksumMd5": theme_file_checksum_md5(""),
+        "size": 0,
+        "body": {"type": "URL", "value": Value::Null}
     })
 }
 
@@ -1638,13 +1641,8 @@ pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
     })
 }
 
-pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> &str {
-    match content {
-        "hello" => "5d41402abc4b2a76b9719d911017c592",
-        "hello world" => "5eb63bbbe01eeed093cb22bb8f5acdc3",
-        "console.log(1)" => "6114f5adc373accd7b2051bd87078f62",
-        _ => "d41d8cd98f00b204e9800998ecf8427e",
-    }
+pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> String {
+    format!("{:x}", md5::compute(content.as_bytes()))
 }
 
 pub(in crate::proxy) fn mobile_app_error<const N: usize>(
@@ -1970,12 +1968,7 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
     selected_json(
         &json!({
             "nodes": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         selection,
     )
@@ -2029,15 +2022,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                     })
                     .collect(),
             )),
-            "pageInfo" => Some(selected_json(
-                &json!({
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }),
-                &selection.selection,
-            )),
+            "pageInfo" => Some(selected_json(&empty_page_info(), &selection.selection)),
             _ => None,
         };
         if let Some(value) = value {
@@ -2156,15 +2141,6 @@ pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(Strin
         format!("gid://shopify/InventoryItem/{item_tail}")
     };
     Some((item_id, format!("gid://shopify/Location/{location_tail}")))
-}
-
-fn resource_id_tail(id: &str) -> &str {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or(id)
 }
 
 pub(in crate::proxy) fn inventory_properties_json() -> Value {
@@ -2749,19 +2725,6 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
     Value::Object(metadata)
 }
 
-pub(in crate::proxy) fn draft_order_invoice_money_set(amount: &str, currency_code: &str) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        }
-    })
-}
-
 pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     json!({
         "id": "gid://shopify/DraftOrderLineItem/2",
@@ -2775,10 +2738,10 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
         "taxable": true,
         "customAttributes": [],
         "appliedDiscount": Value::Null,
-        "originalUnitPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "originalTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "discountedTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
+        "originalUnitPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "originalTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "discountedTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "totalDiscountSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
         "variant": Value::Null
     })
 }

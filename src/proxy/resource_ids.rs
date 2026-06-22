@@ -1,3 +1,7 @@
+use super::DraftProxy;
+
+pub(in crate::proxy) const SYNTHETIC_MARKER: &str = "shopify-draft-proxy=synthetic";
+
 pub(in crate::proxy) fn shopify_gid(resource_type: &str, id: impl std::fmt::Display) -> String {
     format!("gid://shopify/{resource_type}/{id}")
 }
@@ -6,10 +10,11 @@ pub(in crate::proxy) fn synthetic_shopify_gid(
     resource_type: &str,
     id: impl std::fmt::Display,
 ) -> String {
-    format!(
-        "{}?shopify-draft-proxy=synthetic",
-        shopify_gid(resource_type, id)
-    )
+    format!("{}?{SYNTHETIC_MARKER}", shopify_gid(resource_type, id))
+}
+
+pub(in crate::proxy) fn is_synthetic_gid(id: &str) -> bool {
+    id.starts_with("gid://shopify/") && id.contains(SYNTHETIC_MARKER)
 }
 
 pub(in crate::proxy) fn resource_id_path_tail(id: &str) -> &str {
@@ -27,6 +32,44 @@ pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
     let rest = id.strip_prefix("gid://shopify/")?;
     let (resource_type, resource_id) = rest.split_once('/')?;
     (!resource_type.is_empty() && !resource_id.is_empty()).then_some(resource_type)
+}
+
+pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> &'static str {
+    match shopify_gid_resource_type(id) {
+        Some("ProductVariant") => "ProductVariant",
+        Some("Collection") => "Collection",
+        Some("Customer") => "Customer",
+        Some("Order") => "Order",
+        Some("Company") => "Company",
+        _ => "Product",
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
+        let id = self.next_synthetic_id;
+        self.next_synthetic_id += 1;
+        synthetic_shopify_gid(resource_type, id)
+    }
+
+    /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
+    /// marker, mirroring Gleam `synthetic_identity.make_synthetic_gid`. Used for
+    /// entities (e.g. media files) the proxy fabricates with stable identifiers
+    /// rather than commit-rewritten placeholders.
+    pub(in crate::proxy) fn next_synthetic_gid(&mut self, resource_type: &str) -> String {
+        let id = self.next_synthetic_id;
+        self.next_synthetic_id += 1;
+        shopify_gid(resource_type, id)
+    }
+
+    /// Reserve a synthetic id for a mutation-log entry, mirroring the
+    /// `make_synthetic_gid(_, "MutationLogEntry")` reservation Gleam performs at
+    /// the start of every successful mutation. This keeps entity ids in lockstep
+    /// with the reference implementation (each mutation advances the counter once
+    /// for its log entry before allocating the resources it creates).
+    pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
+        self.next_synthetic_id += 1;
+    }
 }
 
 #[cfg(test)]
@@ -62,7 +105,37 @@ mod tests {
             shopify_gid_resource_type("gid://shopify/Customer/123"),
             Some("Customer")
         );
+        assert_eq!(
+            shopify_gid_resource_type("gid://shopify/Customer/123?shopify-draft-proxy=synthetic"),
+            Some("Customer")
+        );
         assert_eq!(shopify_gid_resource_type("gid://shopify/Customer/"), None);
         assert_eq!(shopify_gid_resource_type("not-a-gid"), None);
+    }
+
+    #[test]
+    fn detects_synthetic_shopify_gids() {
+        assert!(is_synthetic_gid(
+            "gid://shopify/Product/42?shopify-draft-proxy=synthetic"
+        ));
+        assert!(!is_synthetic_gid("gid://shopify/Product/42"));
+        assert!(!is_synthetic_gid("not-a-gid?shopify-draft-proxy=synthetic"));
+    }
+
+    #[test]
+    fn maps_known_metafield_owner_gid_types_with_product_default() {
+        assert_eq!(
+            metafield_owner_gid_resource_type("gid://shopify/ProductVariant/1"),
+            "ProductVariant"
+        );
+        assert_eq!(
+            metafield_owner_gid_resource_type("gid://shopify/Company/1"),
+            "Company"
+        );
+        assert_eq!(
+            metafield_owner_gid_resource_type("gid://shopify/Unknown/1"),
+            "Product"
+        );
+        assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "Product");
     }
 }

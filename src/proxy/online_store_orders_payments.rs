@@ -19,6 +19,13 @@ const ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY: &str =
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const THEME_FILES_MAX_FILE_INPUT: usize = 50;
+const THEME_FILES_MAX_FILE_LIMIT: usize = 100;
+const THEME_UNDELETABLE_FILES: &[&str] = &[
+    "config/settings_data.json",
+    "config/settings_schema.json",
+    "layout/theme.liquid",
+];
 const FULFILLMENT_EVENT_CREATED_AT: &str = "2024-01-01T00:00:03.000Z";
 const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "LABEL_PURCHASED",
@@ -33,6 +40,91 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "FAILURE",
     "CARRIER_PICKED_UP",
 ];
+
+fn theme_file_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn theme_file_limit_error() -> Value {
+    theme_file_user_error(
+        vec!["files".to_string()],
+        "Exceeded maximum number of files",
+        "INVALID",
+    )
+}
+
+fn theme_file_duplicate_error(index: usize, field_name: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        "duplicate-file-input",
+        "INVALID",
+    )
+}
+
+fn theme_file_field_error(index: usize, field_name: &str, message: &str, code: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        message,
+        code,
+    )
+}
+
+fn theme_file_delete_error(index: usize, message: &str, code: &str) -> Value {
+    theme_file_user_error(vec!["files".to_string(), index.to_string()], message, code)
+}
+
+fn theme_file_filename_allowed(filename: &str) -> bool {
+    let Some((root, rest)) = filename.split_once('/') else {
+        return false;
+    };
+    matches!(
+        root,
+        "assets" | "config" | "layout" | "locales" | "sections" | "snippets" | "templates"
+    ) && !rest.is_empty()
+        && !rest.ends_with('/')
+        && !rest.contains("//")
+        && !filename.split('/').any(|segment| segment == "..")
+}
+
+fn theme_file_filename_error(index: usize, filename: &str) -> Option<Value> {
+    if filename.trim().is_empty() {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename can't be blank",
+            "INVALID",
+        ));
+    }
+    if filename == "_drafts" || filename.starts_with("_drafts/") || filename.contains("/_drafts/") {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Access denied",
+            "ACCESS_DENIED",
+        ));
+    }
+    if !theme_file_filename_allowed(filename) {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename is invalid",
+            "INVALID",
+        ));
+    }
+    None
+}
 const DRAFT_ORDER_HYDRATE_QUERY: &str = r#"
     query OrdersDraftOrderHydrate($id: ID!) {
       draftOrder(id: $id) {
@@ -488,7 +580,7 @@ fn order_money_set_with_presentment_fallback(money_set: &Value, order: &Value) -
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &shop_amount,
         &shop_currency,
         &presentment_amount,
@@ -524,7 +616,7 @@ fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &format_order_amount(left_shop + right_shop),
         &shop_currency,
         &format_order_amount(left_presentment + right_presentment),
@@ -543,7 +635,7 @@ fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
+    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
 }
 
 fn order_customer_id(order: &Value) -> Option<String> {
@@ -681,8 +773,7 @@ fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
     let numeric_id = order
         .get("id")
         .and_then(Value::as_str)
-        .and_then(|id| id.rsplit('/').next())
-        .and_then(|tail| tail.split('?').next())
+        .map(resource_id_tail)
         .and_then(|tail| tail.parse::<i64>().ok())
         .unwrap_or(0);
     (date, numeric_id)
@@ -943,7 +1034,7 @@ fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
 }
 
 fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    order_money_set(&format_order_amount(amount), currency_code)
+    money_set(&format_order_amount(amount), currency_code)
 }
 
 fn order_create_money_bag(
@@ -952,16 +1043,7 @@ fn order_create_money_bag(
     presentment_currency_code: &str,
 ) -> Value {
     let amount = format_order_amount(amount);
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": presentment_currency_code
-        }
-    })
+    money_set_pair(&amount, currency_code, &amount, presentment_currency_code)
 }
 
 fn format_order_amount(amount: f64) -> String {
@@ -1424,7 +1506,7 @@ fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": order_money_set(&format_order_amount(amount), &currency)
+        "amountSet": money_set(&format_order_amount(amount), &currency)
     })
 }
 
@@ -1918,7 +2000,7 @@ fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
     let highest = order_transactions(order)
         .iter()
         .filter_map(|transaction| transaction["id"].as_str())
-        .filter_map(|id| id.rsplit('/').next())
+        .map(resource_id_path_tail)
         .filter_map(|tail| tail.parse::<u64>().ok())
         .max()
         .unwrap_or(0);
@@ -2569,33 +2651,6 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
     )
 }
 
-fn order_money_set(amount: &str, currency_code: &str) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        }
-    })
-}
-
-fn order_money_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": shop_amount,
-            "currencyCode": shop_currency
-        },
-        "presentmentMoney": {
-            "amount": presentment_amount,
-            "currencyCode": presentment_currency
-        }
-    })
-}
-
 fn payment_money_amount(money_set: &Value, money_key: &str) -> Option<String> {
     money_set
         .get(money_key)
@@ -2626,14 +2681,14 @@ fn payment_money_set_from_input(input: &BTreeMap<String, ResolvedValue>) -> Opti
             .unwrap_or_else(|| {
                 resolved_string_field(input, "currency").unwrap_or_else(|| shop_currency.clone())
             });
-        Some(order_money_set_pair(
+        Some(money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         ))
     } else {
-        Some(order_money_set(&shop_amount, &shop_currency))
+        Some(money_set(&shop_amount, &shop_currency))
     }
 }
 
@@ -2647,14 +2702,14 @@ fn payment_money_set_value(amount_set: Value) -> Value {
             .unwrap_or_else(|| shop_amount.clone());
         let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         )
     } else {
-        order_money_set(&shop_amount, &shop_currency)
+        money_set(&shop_amount, &shop_currency)
     }
 }
 
@@ -2681,14 +2736,14 @@ fn payment_money_set_for_capture(
     };
     let shop_amount = format_order_amount(shop_amount);
     if parent_amount_set.get("presentmentMoney").is_some() || requested_currency != shop_currency {
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
     } else {
-        order_money_set(
+        money_set(
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
@@ -2706,14 +2761,14 @@ fn payment_money_set_for_order_totals(
         let presentment_currency = payment_money_currency(parent_amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
         (
-            order_money_set_pair(
+            money_set_pair(
                 &format_order_amount(remaining_amount),
                 &shop_currency,
                 &format_order_amount(remaining_amount),
                 &presentment_currency,
             ),
-            order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
-            order_money_set_pair(
+            money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            money_set_pair(
                 &format_order_amount(received_amount),
                 &shop_currency,
                 &format_order_amount(received_amount),
@@ -2722,9 +2777,9 @@ fn payment_money_set_for_order_totals(
         )
     } else {
         (
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(received_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(received_amount), &shop_currency),
         )
     }
 }
@@ -2737,9 +2792,9 @@ fn payment_transaction_record_from_amount_set(
     parent_transaction: Value,
 ) -> Value {
     let transaction_number = id
-        .rsplit('/')
-        .next()
-        .and_then(|value| value.parse::<u64>().ok());
+        .parse::<u64>()
+        .ok()
+        .or_else(|| resource_id_path_tail(id).parse::<u64>().ok());
     let payment_id = match (kind, transaction_number) {
         ("AUTHORIZATION", _) => Value::Null,
         (_, Some(number)) => json!(format!("gid://shopify/Payment/{}", number + 1)),
@@ -3645,10 +3700,6 @@ fn draft_order_line_item_variant_ids(input: &BTreeMap<String, ResolvedValue>) ->
     ids
 }
 
-fn draft_order_connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
 fn draft_order_invoice_url(id: &str) -> String {
     format!(
         "https://shopify-draft-proxy.local/draft_orders/{}/invoice",
@@ -3843,10 +3894,10 @@ fn payment_order_record(
         "displayFinancialStatus": display_financial_status,
         "capturable": capturable_amount != "0.00",
         "totalCapturable": capturable_amount,
-        "totalCapturableSet": order_money_set(capturable_amount, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(capturable_amount, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["manual"],
         "transactions": transactions
     })
@@ -3887,17 +3938,17 @@ fn mandate_payment_order_record(
         "status": "SUCCESS",
         "gateway": "mandate",
         "paymentReferenceId": payment_reference_id,
-        "amountSet": order_money_set(amount, currency_code)
+        "amountSet": money_set(amount, currency_code)
     });
     json!({
         "id": order_id,
         "displayFinancialStatus": display_financial_status,
         "capturable": !auto_capture,
         "totalCapturable": total_capturable,
-        "totalCapturableSet": order_money_set(total_capturable, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(total_capturable, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["mandate"],
         "transactions": [transaction]
     })
@@ -4043,7 +4094,7 @@ impl DraftProxy {
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                 "webPixelUpdate" => {
                     let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
-                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
+                        .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
                     self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
                 }
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
@@ -4072,12 +4123,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
-        let id = format!(
-            "gid://shopify/{}/{}?shopify-draft-proxy=synthetic",
-            typename, self.next_synthetic_id
-        );
-        self.next_synthetic_id += 1;
-        id
+        self.next_proxy_synthetic_gid(typename)
     }
 
     fn mobile_platform_application_exists(&self, typename: &str) -> bool {
@@ -4665,16 +4711,58 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        if files.iter().any(|file| {
-            theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
-        }) {
-            let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            let payload =
+                json!({"upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
             return selected_json(&payload, &field.selection);
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let filename = theme_file_arg_string(file, "filename").unwrap_or_default();
+            if let Some(error) = theme_file_filename_error(index, &filename) {
+                errors.push(error);
+            } else if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_duplicate_error(index, "filename"));
+            }
+            if theme_file_record_from_input(file).is_err() {
+                errors.push(theme_file_field_error(
+                    index,
+                    "body",
+                    "invalid-body-input",
+                    "INVALID",
+                ));
+            }
+            if let Some(expected_checksum) = theme_file_arg_string(file, "checksumMd5") {
+                if self
+                    .find_theme_file(&theme_id, &filename)
+                    .and_then(|record| {
+                        record
+                            .get("checksumMd5")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .is_some_and(|current_checksum| current_checksum != expected_checksum)
+                {
+                    errors.push(theme_file_field_error(
+                        index,
+                        "checksumMd5",
+                        "Checksum does not match",
+                        "CONFLICT",
+                    ));
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"upsertedThemeFiles": [], "userErrors": errors}),
+                &field.selection,
+            );
         }
         let mut upserted = Vec::new();
         let mut staged = false;
         for file in files {
-            if let Some(record) = theme_file_record_from_input(&file) {
+            if let Ok(Some(record)) = theme_file_record_from_input(&file) {
                 let persisted = self.upsert_theme_file(&theme_id, record.clone());
                 staged |= persisted.is_some();
                 let record = persisted.unwrap_or(record);
@@ -4697,6 +4785,26 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut preflight_errors = Vec::new();
+        let mut seen_dst_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            if !dst.is_empty() && !seen_dst_filenames.insert(dst) {
+                preflight_errors.push(theme_file_duplicate_error(index, "dstFilename"));
+            }
+        }
+        if !preflight_errors.is_empty() {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": preflight_errors}),
+                &field.selection,
+            );
+        }
         let mut copied = Vec::new();
         let mut errors = Vec::new();
         for (index, file) in files.iter().enumerate() {
@@ -4731,15 +4839,30 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
-        let required = ["config/settings_data.json", "config/settings_schema.json"];
-        let errors = files
-            .iter()
-            .enumerate()
-            .filter(|(_, filename)| required.contains(&filename.as_str()))
-            .map(|(index, _)| {
-                json!({"field": ["files", index.to_string()], "message": "File is required and can't be deleted", "code": "INVALID"})
-            })
-            .collect::<Vec<_>>();
+        if files.len() > THEME_FILES_MAX_FILE_LIMIT {
+            return selected_json(
+                &json!({"deletedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, filename) in files.iter().enumerate() {
+            if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "duplicate-file-input",
+                    "INVALID",
+                ));
+            }
+            if THEME_UNDELETABLE_FILES.contains(&filename.as_str()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "File is required and can't be deleted",
+                    "INVALID",
+                ));
+            }
+        }
         if !errors.is_empty() {
             return selected_json(
                 &json!({"deletedThemeFiles": [], "userErrors": errors}),
@@ -6868,8 +6991,13 @@ impl DraftProxy {
             .iter()
             .flat_map(|group| fulfillment_group_line_items(&order_before, group))
             .collect::<Vec<_>>();
+        let fulfillment_sequence = order_before["fulfillments"]
+            .as_array()
+            .map_or(1, |fulfillments| fulfillments.len() + 1);
+        let order_name = order_before["name"].as_str().unwrap_or_default();
         let fulfillment = json!({
             "id": fulfillment_id,
+            "name": format!("{order_name}-F{fulfillment_sequence}"),
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "createdAt": "2024-01-01T00:00:00.000Z",
@@ -8096,7 +8224,7 @@ impl DraftProxy {
 
     fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
         let currency = draft_order_currency(draft_order);
-        let line_items = draft_order_connection_nodes(&draft_order["lineItems"]);
+        let line_items = connection_nodes(&draft_order["lineItems"]);
         let original_subtotal = line_items
             .iter()
             .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
@@ -8240,7 +8368,7 @@ impl DraftProxy {
             "status": "OPEN",
             "__draftProxyFinancialStatus": financial_status,
             "__draftProxyLineItems": [line_item],
-            "totalPriceSet": order_money_set(&amount, currency_code)
+            "totalPriceSet": money_set(&amount, currency_code)
         });
         self.store
             .staged
@@ -8291,7 +8419,7 @@ impl DraftProxy {
             "__draftProxyFinancialStatus": "PENDING",
             "__draftProxyLineItems": [line_item],
             "__draftProxyPurchasingEntity": purchasing_entity,
-            "totalPriceSet": order_money_set(&amount, "CAD")
+            "totalPriceSet": money_set(&amount, "CAD")
         });
         self.store
             .staged
@@ -8374,7 +8502,7 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .map(|mut line| {
-                if let Some(tail) = line["id"].as_str().and_then(|id| id.rsplit('/').next()) {
+                if let Some(tail) = line["id"].as_str().map(resource_id_path_tail) {
                     line["id"] = json!(format!("gid://shopify/LineItem/{tail}"));
                 }
                 if line["sku"].as_str() == Some("") {
@@ -8404,7 +8532,7 @@ impl DraftProxy {
                 "kind": "SALE",
                 "status": "SUCCESS",
                 "gateway": "manual",
-                "amountSet": order_money_set(&amount, &currency_code)
+                "amountSet": money_set(&amount, &currency_code)
             })]
         };
         let mut order = json!({
@@ -8417,7 +8545,7 @@ impl DraftProxy {
             "transactions": order_transactions,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
-            "currentTotalPriceSet": order_money_set(&amount, &currency_code),
+            "currentTotalPriceSet": money_set(&amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items
             }
@@ -8532,10 +8660,10 @@ impl DraftProxy {
             "shippingLine": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "subtotalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
-            "totalDiscountsSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalShippingPriceSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "subtotalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+            "totalDiscountsSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalShippingPriceSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
             "totalQuantityOfLineItems": 1,
             "lineItems": { "nodes": [draft_order_invoice_line_item()] }
         });
@@ -10098,7 +10226,7 @@ impl DraftProxy {
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
         let amount_set = payment_money_set_from_input(&first_transaction)
-            .unwrap_or_else(|| order_money_set("25.0", &currency));
+            .unwrap_or_else(|| money_set("25.0", &currency));
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());
@@ -10525,17 +10653,17 @@ impl DraftProxy {
                 let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
                     .unwrap_or_else(|| shop_currency.clone());
                 order["totalCapturableSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["totalOutstandingSet"] = amount_set.clone();
                 order["totalReceivedSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["netPaymentSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
             } else {
-                order["totalCapturableSet"] = order_money_set("0.0", &shop_currency);
+                order["totalCapturableSet"] = money_set("0.0", &shop_currency);
                 order["totalOutstandingSet"] = amount_set;
-                order["totalReceivedSet"] = order_money_set("0.0", &shop_currency);
-                order["netPaymentSet"] = order_money_set("0.0", &shop_currency);
+                order["totalReceivedSet"] = money_set("0.0", &shop_currency);
+                order["netPaymentSet"] = money_set("0.0", &shop_currency);
             }
             if let Some(transactions) = order["transactions"].as_array_mut() {
                 transactions.push(transaction.clone());
@@ -10670,10 +10798,7 @@ impl DraftProxy {
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
         }
-        let id = format!(
-            "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
-            self.store.staged.next_order_customer_order_id
-        );
+        let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
         self.store.staged.next_order_customer_order_id += 1;
         if email == "order-customer-b2b@example.com" {
             self.store
@@ -10733,10 +10858,7 @@ impl DraftProxy {
         // the cancel, and leave it unstaged so the downstream `order` read forwards
         // to the backend for the real refunded/restocked state instead of serving
         // a stale locally-projected copy.
-        if !order_id.contains("shopify-draft-proxy=synthetic")
-            && !order_locally_known
-            && !refund_method_cancel
-        {
+        if !order_id.contains(SYNTHETIC_MARKER) && !order_locally_known && !refund_method_cancel {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
         let error_payload = |field_name: &str, message: &str, code: &str| {
@@ -10785,10 +10907,7 @@ impl DraftProxy {
                     &field.selection,
                 ));
             }
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,
@@ -10829,10 +10948,7 @@ impl DraftProxy {
             let reason =
                 resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
                 .store
                 .staged
@@ -10955,7 +11071,7 @@ impl DraftProxy {
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged
@@ -10965,7 +11081,7 @@ impl DraftProxy {
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
-        if !customer_id.is_empty() && !customer_id.contains("shopify-draft-proxy=synthetic") {
+        if !customer_id.is_empty() && !customer_id.contains(SYNTHETIC_MARKER) {
             self.ensure_order_customer_hydrated(request, &customer_id);
         }
         let customer = self.store.staged.customers.get(&customer_id).cloned();
@@ -11063,7 +11179,7 @@ impl DraftProxy {
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged

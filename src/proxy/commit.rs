@@ -159,7 +159,7 @@ fn record_authoritative_id_mappings(
         if id_map.contains_key(&synthetic_id) {
             continue;
         }
-        let Some(resource_type) = gid_resource_type(&synthetic_id) else {
+        let Some(resource_type) = shopify_gid_resource_type(&synthetic_id) else {
             continue;
         };
         let mut authoritative_ids = Vec::new();
@@ -201,7 +201,7 @@ fn collect_synthetic_ids(value: &Value, ids: &mut Vec<String>) {
 fn collect_authoritative_ids(value: &Value, resource_type: &str, ids: &mut Vec<String>) {
     match value {
         Value::String(id)
-            if gid_resource_type(id) == Some(resource_type) && !is_synthetic_gid(id) =>
+            if shopify_gid_resource_type(id) == Some(resource_type) && !is_synthetic_gid(id) =>
         {
             ids.push(id.clone());
         }
@@ -219,17 +219,6 @@ fn collect_authoritative_ids(value: &Value, resource_type: &str, ids: &mut Vec<S
     }
 }
 
-fn is_synthetic_gid(id: &str) -> bool {
-    id.starts_with("gid://shopify/") && id.contains("shopify-draft-proxy=synthetic")
-}
-
-fn gid_resource_type(id: &str) -> Option<&str> {
-    let rest = id.strip_prefix("gid://shopify/")?;
-    rest.split(['/', '?'])
-        .next()
-        .filter(|part| !part.is_empty())
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -242,18 +231,6 @@ mod tests {
     const SYNTHETIC_TWO: &str = "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic";
     const AUTHORITATIVE_ONE: &str = "gid://shopify/SavedSearch/12345";
     const AUTHORITATIVE_TWO: &str = "gid://shopify/SavedSearch/67890";
-
-    #[test]
-    fn commit_gid_resource_type_extracts_resource_type_and_rejects_invalid_gids() {
-        assert_eq!(
-            gid_resource_type("gid://shopify/SavedSearch/12"),
-            Some("SavedSearch")
-        );
-        assert_eq!(gid_resource_type(SYNTHETIC_ONE), Some("SavedSearch"));
-        assert_eq!(gid_resource_type("not-a-gid"), None);
-        assert_eq!(gid_resource_type(""), None);
-        assert_eq!(gid_resource_type("gid://shopify/"), None);
-    }
 
     #[test]
     fn commit_replay_body_prefers_raw_body_and_rewrites_all_mapped_synthetic_ids() {

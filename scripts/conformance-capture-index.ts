@@ -863,6 +863,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-create-rejects-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-create-rejects-id-conformance.ts',
+    purpose:
+      'collectionCreate validation for caller-supplied CollectionInput.id returning a payload userError without creating a collection.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-create-rejects-id.json`,
+      'config/parity-specs/products/collectionCreate-rejects-id.json',
+      'config/parity-requests/products/collectionCreate-rejects-id.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; rejected input.id must not create a Shopify collection.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:
@@ -1402,6 +1418,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/media/media-file-create-batch-size-limit.graphql',
     ],
     cleanupBehavior: 'Validation-only request is rejected before creating Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-file-create-large-batch-timestamps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-large-batch-timestamps-conformance.ts',
+    purpose: 'fileCreate timestamp shape for a successful 60-file batch crossing the one-minute boundary.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-large-batch-timestamps.json`,
+      'config/parity-specs/media/media-file-create-large-batch-timestamps.json',
+      'config/parity-requests/media/media-file-create-large-batch-timestamps.graphql',
+    ],
+    cleanupBehavior: 'Creates 60 disposable image files and deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2802,7 +2833,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-operation-errors-conformance.ts',
     purpose:
-      'metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and multi-conflict ordering.',
+      'metaobjectDefinitionUpdate field-operation conflict plus create-key validation userError codes, field paths, messages, and multi-conflict ordering.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-field-operation-errors.json`,
@@ -3832,6 +3863,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable markets and one disposable market catalog, links the catalog to the target market, captures readback and validation branches, then removes the link and deletes the catalog and markets.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'market-update-scalars',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-update-scalars-conformance.mts',
+    purpose:
+      'marketUpdate scalar name/status lifecycle, enabled coupling, and downstream market(id:) read-after-write for a disposable market.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-update-scalars.json`,
+      'config/parity-specs/markets/market-update-scalars.json',
+      'config/parity-requests/markets/market-update-scalars-create.graphql',
+      'config/parity-requests/markets/market-update-scalars-update.graphql',
+      'config/parity-requests/markets/market-update-scalars-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active market, updates name/status to DRAFT, records payload plus readback, then deletes the market.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5974,6 +6024,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-create-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-create-name-conformance.ts',
+    purpose:
+      'fulfillmentCreate Fulfillment.name reference-number payloads for two fulfillments on the same disposable order.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-name.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-create-name.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-create-name.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable paid test order with quantity two, records two fulfillmentCreate payloads against the same fulfillment order, then cancels/deletes the order where Shopify permits cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
@@ -7832,6 +7899,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-reverse-logistics-dispose-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-reverse-logistics-dispose-validation-conformance.mts',
+    purpose:
+      'reverseFulfillmentOrderDispose validation userErrors for empty inputs, custom-line RESTOCKED, multiple reverse fulfillment orders, current public unknown-line behavior, plus valid NOT_RESTOCKED downstream readback.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-reverse-logistics-dispose-validation.json`,
+      'config/parity-specs/orders/return-reverse-logistics-dispose-validation.json',
+      'config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql',
+      'config/parity-requests/orders/return-reverse-logistics-dispose-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable custom-line order, records invalid dispose attempts before one valid disposal, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-shipping-fee',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-shipping-fee-conformance.mts',
@@ -9191,6 +9276,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}gift-card-notification-validation.json`,
       'config/parity-specs/gift-cards/gift-card-notification-validation.json',
       'config/parity-specs/gift-cards/gift-card-notification-error-messages.json',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-customer-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-deactivate.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
@@ -9226,6 +9314,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-transaction-validation.json`,
       'config/parity-specs/gift-cards/gift-card-transaction-validation.json',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-deactivate.graphql',
       'config/parity-requests/gift-cards/gift-card-transaction-validation.graphql',
     ],
     cleanupBehavior:

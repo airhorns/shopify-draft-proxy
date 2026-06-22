@@ -118,8 +118,10 @@ Local staged mutations:
   GraphQL 2026-04 does not expose `referencesToAdd` on `FileCreateInput`, and
   the proxy no longer treats it as a per-input validation surface. Successful
   creates derive a filename from the source when no filename is supplied, create
-  stable synthetic Shopify GIDs by content type, and return uploaded file
-  status. IMAGE files sourced from a usable URL keep that URL available through
+  stable synthetic Shopify GIDs by content type, return uploaded file status,
+  and stamp `createdAt` / `updatedAt` from a deterministic per-input UTC
+  timestamp sequence that carries seconds into minutes for large batches. IMAGE
+  files sourced from a usable URL keep that URL available through
   `MediaImage.image` and `preview.image` immediately; the proxy does not
   suppress the image payload
   solely because the staged file is still `UPLOADED`. The proxy does not apply
@@ -203,6 +205,11 @@ Local staged mutations:
 
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
+- `config/parity-specs/media/media-file-create-large-batch-timestamps.json`
+  and
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-large-batch-timestamps.json`
+  cover a 60-file `fileCreate` payload whose timestamp fields cross the
+  one-minute boundary.
 - Existing live captures confirm Shopify serializes `FileStatus` enum values as
   `UPLOADED`, `PROCESSING`, `READY`, and `FAILED` in the covered Files API
   flows. Fresh public-URL `MediaImage` creates in the checked-in 2025-01 and
