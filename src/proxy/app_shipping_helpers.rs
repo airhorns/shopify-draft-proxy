@@ -2824,6 +2824,27 @@ pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> 
     Some(days * 86_400 + i64::from(hour * 3600 + minute * 60 + second) - i64::from(offset_seconds))
 }
 
+pub(in crate::proxy) fn parse_iso_date_epoch_days(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10 {
+        return None;
+    }
+
+    let year = parse_fixed_digits(bytes, 0, 4)?;
+    expect_byte(bytes, 4, b'-')?;
+    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
+    expect_byte(bytes, 7, b'-')?;
+    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
+    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(days_from_civil(year, month, day))
+}
+
+pub(in crate::proxy) fn epoch_seconds_to_utc_epoch_days(seconds: i64) -> i64 {
+    seconds.div_euclid(86_400)
+}
+
 fn parse_fixed_digits(bytes: &[u8], start: usize, len: usize) -> Option<i32> {
     let end = start.checked_add(len)?;
     let digits = bytes.get(start..end)?;

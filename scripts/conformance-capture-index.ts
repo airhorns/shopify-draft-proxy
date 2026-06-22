@@ -9257,6 +9257,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}gift-card-notification-validation.json`,
       'config/parity-specs/gift-cards/gift-card-notification-validation.json',
       'config/parity-specs/gift-cards/gift-card-notification-error-messages.json',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-customer-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-deactivate.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
@@ -9292,6 +9295,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-transaction-validation.json`,
       'config/parity-specs/gift-cards/gift-card-transaction-validation.json',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-deactivate.graphql',
       'config/parity-requests/gift-cards/gift-card-transaction-validation.graphql',
     ],
     cleanupBehavior:
