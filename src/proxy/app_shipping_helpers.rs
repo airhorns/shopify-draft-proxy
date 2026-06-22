@@ -2602,15 +2602,6 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str
     "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
-pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
-    json!({
-        "__typename": "Job",
-        "id": "gid://shopify/Job/2",
-        "done": false,
-        "query": { "__typename": "QueryRoot" }
-    })
-}
-
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     field: &RootFieldSelection,
     missing_product_ids: &BTreeSet<String>,
