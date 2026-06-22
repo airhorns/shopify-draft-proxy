@@ -590,7 +590,7 @@ impl DraftProxy {
                 let mut variant = variant.clone();
                 if variant.get("inventoryItem").is_none() {
                     if let Some(id) = variant.get("id").and_then(Value::as_str) {
-                        let numeric = id.rsplit('/').next().unwrap_or(id);
+                        let numeric = resource_id_path_tail(id);
                         variant["inventoryItem"] = json!({
                             "id": format!("gid://shopify/InventoryItem/{numeric}")
                         });

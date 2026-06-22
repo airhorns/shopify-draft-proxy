@@ -1,9 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn empty_page_info() -> Value {
-    connection_page_info(false, false, None, None)
-}
-
 pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
     namespace: &str,
     key: &str,
@@ -35,12 +31,12 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 }
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
-    match shopify_gid_resource_type(id) {
-        Some("ProductVariant") => "PRODUCTVARIANT",
-        Some("Collection") => "COLLECTION",
-        Some("Customer") => "CUSTOMER",
-        Some("Order") => "ORDER",
-        Some("Company") => "COMPANY",
+    match metafield_owner_gid_resource_type(id) {
+        "ProductVariant" => "PRODUCTVARIANT",
+        "Collection" => "COLLECTION",
+        "Customer" => "CUSTOMER",
+        "Order" => "ORDER",
+        "Company" => "COMPANY",
         _ => "PRODUCT",
     }
 }
@@ -2728,31 +2724,6 @@ pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
     }
 }
 
-// Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
-// so we can compute a NET term's `dueAt` as `issuedAt` + the template's due-day
-// count without pulling in a date library.
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
-}
-
-fn civil_from_days(z: i64) -> (i64, i64, i64) {
-    let z = z + 719468;
-    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if m <= 2 { y + 1 } else { y }, m, d)
-}
-
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
 /// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
 /// "2026-05-27T12:00:00Z").
@@ -2766,9 +2737,9 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
         return iso.to_string();
     }
     let (Ok(year), Ok(month), Ok(day)) = (
-        parts[0].parse::<i64>(),
-        parts[1].parse::<i64>(),
-        parts[2].parse::<i64>(),
+        parts[0].parse::<i32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>(),
     ) else {
         return iso.to_string();
     };
@@ -3344,13 +3315,18 @@ fn return_connection(nodes: Vec<Value>) -> Value {
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
     let amount = money_bag_normalized_amount(amount);
-    json!({
-        "shopMoney": { "amount": amount, "currencyCode": currency_code },
-        "presentmentMoney": { "amount": amount, "currencyCode": currency_code }
-    })
+    money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
 fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
     json!({
         "field": field,
         "message": message,
@@ -3430,6 +3406,14 @@ fn build_return_line_item(
     let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
     let reason = resolved_string_field(item, "returnReason").unwrap_or_else(|| "OTHER".to_string());
     let reason_note = resolved_string_field(item, "returnReasonNote").unwrap_or_default();
+    let line_item = if fulfillment_line_item["lineItem"].is_object() {
+        fulfillment_line_item["lineItem"].clone()
+    } else {
+        json!({
+            "id": fulfillment_line_item["lineItem"]["id"].clone(),
+            "title": fulfillment_line_item["lineItem"]["title"].clone()
+        })
+    };
     json!({
         "id": return_line_item_id,
         "quantity": quantity,
@@ -3440,10 +3424,7 @@ fn build_return_line_item(
         "customerNote": Value::Null,
         "fulfillmentLineItem": {
             "id": fulfillment_line_item["id"].clone(),
-            "lineItem": {
-                "id": fulfillment_line_item["lineItem"]["id"].clone(),
-                "title": fulfillment_line_item["lineItem"]["title"].clone()
-            }
+            "lineItem": line_item
         }
     })
 }
@@ -3531,23 +3512,6 @@ fn return_status_transition_error(
         }
         _ => None,
     }
-}
-
-fn money_bag_set(amount: &str, currency_code: impl Into<String>) -> Value {
-    let currency_code = currency_code.into();
-    money_bag_set_pair(amount, &currency_code, amount, &currency_code)
-}
-
-fn money_bag_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": { "amount": shop_amount, "currencyCode": shop_currency },
-        "presentmentMoney": { "amount": presentment_amount, "currencyCode": presentment_currency }
-    })
 }
 
 fn money_bag_currency(money_set: &Value) -> String {
@@ -3711,9 +3675,9 @@ fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -
 /// assigns positive numeric ids, so a zero or non-numeric trailing id is a
 /// sentinel for a non-existent record.
 fn abandonment_gid_is_real(id: &str) -> bool {
-    id.rsplit('/')
-        .next()
-        .and_then(|tail| tail.parse::<u64>().ok())
+    resource_id_path_tail(id)
+        .parse::<u64>()
+        .ok()
         .is_some_and(|number| number > 0)
 }
 
@@ -4011,7 +3975,7 @@ impl DraftProxy {
                         .get(&order_id)
                         .map(|order| money_bag_currency(&order["totalPriceSet"]))
                         .unwrap_or_else(|| "USD".to_string());
-                    let total = money_bag_set(&amount, currency);
+                    let total = money_set_pair(&amount, &currency, &amount, &currency);
                     if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
                         order["totalRefundedSet"] = total.clone();
                     }
@@ -4062,7 +4026,7 @@ impl DraftProxy {
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
                         "originalOrder": { "id": order_id },
-                        "totalPriceSet": money_bag_set("12.0", "CAD")
+                        "totalPriceSet": money_set_pair("12.0", "CAD", "12.0", "CAD")
                     });
                     self.store.staged.order_edit_existing_calculated_order =
                         Some(calculated.clone());
@@ -4138,13 +4102,13 @@ impl DraftProxy {
         let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
         let presentment_total =
             money_bag_add_decimal_strings(&presentment_amount, &presentment_tax_amount);
-        let line_price = money_bag_set_pair(
+        let line_price = money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         );
-        let total_set = money_bag_set_pair(
+        let total_set = money_set_pair(
             &total,
             &shop_currency,
             &presentment_total,
@@ -4154,8 +4118,8 @@ impl DraftProxy {
             "id": id,
             "currentTotalPriceSet": total_set.clone(),
             "totalPriceSet": total_set.clone(),
-            "totalTaxSet": money_bag_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
-            "totalReceivedSet": money_bag_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            "totalTaxSet": money_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
+            "totalReceivedSet": money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
             "totalOutstandingSet": total_set,
             "lineItems": { "nodes": [{ "originalUnitPriceSet": line_price }] },
             "transactions": []
@@ -6181,26 +6145,154 @@ impl DraftProxy {
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
         let inputs = list_object_arg(&field.arguments, "dispositionInputs");
-        let mut line_items = Vec::new();
-        for input in inputs {
-            let line_id = resolved_string_field(&input, "reverseFulfillmentOrderLineItemId")
+        if inputs.is_empty() {
+            return selected_json(
+                &json!({
+                    "reverseFulfillmentOrderLineItems": Value::Null,
+                    "userErrors": [return_user_error(
+                        &["dispositionInputs"],
+                        "The array cannot be empty.",
+                        "BLANK",
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+
+        struct DispositionPlan {
+            order_id: String,
+            line_id: String,
+            quantity: i64,
+            disposition_type: String,
+            location_id: String,
+        }
+
+        let mut plans = Vec::new();
+        let mut user_errors = Vec::new();
+        let mut reverse_fulfillment_order_ids = BTreeSet::new();
+
+        for (index, input) in inputs.iter().enumerate() {
+            let index = index.to_string();
+            let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
                 .unwrap_or_default();
-            for order in self.store.staged.reverse_fulfillment_orders.values_mut() {
-                if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
-                    if let Some(node) = nodes.iter_mut().find(|node| node["id"] == line_id) {
-                        node["remainingQuantity"] = json!(0);
-                        node["dispositionType"] =
-                            json!(resolved_string_field(&input, "dispositionType")
-                                .unwrap_or_else(|| "RESTOCKED".to_string()));
-                        node["dispositions"] = json!([{
-                            "type": node["dispositionType"].clone(),
-                            "quantity": resolved_i64_field(&input, "quantity").unwrap_or(1),
-                            "location": {
-                                "id": resolved_string_field(&input, "locationId").unwrap_or_default()
-                            }
-                        }]);
-                        line_items.push(node.clone());
-                    }
+            let Some((order_id, line_item)) = self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .iter()
+                .find_map(|(order_id, order)| {
+                    order["lineItems"]["nodes"]
+                        .as_array()
+                        .and_then(|nodes| {
+                            nodes
+                                .iter()
+                                .find(|node| node["id"].as_str() == Some(line_id.as_str()))
+                        })
+                        .map(|line_item| (order_id.clone(), line_item.clone()))
+                })
+            else {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "reverseFulfillmentOrderLineItemId".to_string(),
+                    ],
+                    "Reverse fulfillment order line item was not found.",
+                    "NOT_FOUND",
+                ));
+                continue;
+            };
+
+            reverse_fulfillment_order_ids.insert(order_id.clone());
+            let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+            let disposable_quantity = line_item["remainingQuantity"]
+                .as_i64()
+                .or_else(|| line_item["totalQuantity"].as_i64())
+                .unwrap_or(0);
+            if quantity <= 0 || quantity > disposable_quantity {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "quantity".to_string(),
+                    ],
+                    "Quantity is invalid.",
+                    "INVALID",
+                ));
+                continue;
+            }
+
+            let disposition_type =
+                resolved_string_field(input, "dispositionType").unwrap_or_default();
+            let has_product_variant = line_item
+                .pointer("/fulfillmentLineItem/lineItem/variant")
+                .is_some_and(|variant| !variant.is_null());
+            if disposition_type == "RESTOCKED" && !has_product_variant {
+                user_errors.push(return_user_error_owned(
+                    vec![
+                        "dispositionInputs".to_string(),
+                        index,
+                        "dispositionType".to_string(),
+                    ],
+                    "RESTOCKED is an invalid disposition type for a custom line item.",
+                    "INVALID",
+                ));
+                continue;
+            }
+
+            plans.push(DispositionPlan {
+                order_id,
+                line_id,
+                quantity,
+                disposition_type,
+                location_id: resolved_string_field(input, "locationId").unwrap_or_default(),
+            });
+        }
+
+        if user_errors.is_empty() && reverse_fulfillment_order_ids.len() > 1 {
+            user_errors.push(return_user_error(
+                &["dispositionInputs"],
+                "Cannot dispose items from more than one reverse fulfillment order.",
+                "INVALID",
+            ));
+        }
+
+        if !user_errors.is_empty() {
+            return selected_json(
+                &json!({
+                    "reverseFulfillmentOrderLineItems": Value::Null,
+                    "userErrors": user_errors
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut line_items = Vec::new();
+        for plan in plans {
+            let Some(order) = self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .get_mut(&plan.order_id)
+            else {
+                continue;
+            };
+            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+                if let Some(node) = nodes
+                    .iter_mut()
+                    .find(|node| node["id"].as_str() == Some(plan.line_id.as_str()))
+                {
+                    let remaining = node["remainingQuantity"].as_i64().unwrap_or(0);
+                    node["remainingQuantity"] = json!((remaining - plan.quantity).max(0));
+                    node["dispositionType"] = json!(plan.disposition_type);
+                    node["dispositions"] = json!([{
+                        "type": node["dispositionType"].clone(),
+                        "quantity": plan.quantity,
+                        "location": {
+                            "id": plan.location_id
+                        }
+                    }]);
+                    line_items.push(node.clone());
                 }
             }
         }

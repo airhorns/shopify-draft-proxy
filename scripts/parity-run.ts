@@ -559,13 +559,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isIsoTimestamp(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.\d+)?Z$/u.exec(value);
+  if (!match) return false;
+
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return false;
+
+  const parsed = new Date(timestamp);
+  return (
+    parsed.getUTCFullYear() === Number(match[1]) &&
+    parsed.getUTCMonth() + 1 === Number(match[2]) &&
+    parsed.getUTCDate() === Number(match[3]) &&
+    parsed.getUTCHours() === Number(match[4]) &&
+    parsed.getUTCMinutes() === Number(match[5]) &&
+    parsed.getUTCSeconds() === Number(match[6])
+  );
+}
+
 function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (rule.ignore) return true;
   const matcher = rule.matcher ?? '';
   if (matcher === 'any-string') return typeof value === 'string';
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
   if (matcher === 'any-number') return typeof value === 'number';
-  if (matcher === 'iso-timestamp') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/u.test(value);
+  if (matcher === 'iso-timestamp') return isIsoTimestamp(value);
   if (matcher === 'storefront-access-token') return typeof value === 'string' && value.length > 0;
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);
   if (gidMatch) return typeof value === 'string' && value.startsWith(`gid://shopify/${gidMatch[1]}/`);

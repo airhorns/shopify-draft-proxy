@@ -12,8 +12,8 @@ use crate::graphql::{
     SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -1057,6 +1057,16 @@ impl Store {
         shop
     }
 
+    fn shop_currency_code(&self) -> String {
+        self.base
+            .shop
+            .get("currencyCode")
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .unwrap_or("USD")
+            .to_string()
+    }
+
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
         effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
     }
@@ -1693,6 +1703,7 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
@@ -1701,6 +1712,7 @@ mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
+mod money;
 mod online_store_orders_payments;
 mod privacy;
 mod product_helpers;
@@ -1731,6 +1743,8 @@ pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::json_helpers::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
@@ -1744,6 +1758,8 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metaobjects::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::money::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]

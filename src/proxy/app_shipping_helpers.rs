@@ -1125,7 +1125,7 @@ pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
 }
 
 fn delivery_profile_location_name(id: &str) -> String {
-    match id.rsplit('/').next().filter(|tail| !tail.is_empty()) {
+    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
         Some(tail) => format!("Location {tail}"),
         None => "Delivery profile location".to_string(),
     }
@@ -1162,9 +1162,7 @@ pub(in crate::proxy) fn delivery_profile_item_for_variant(
 }
 
 fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
-    let tail = variant_id
-        .rsplit('/')
-        .next()
+    let tail = Some(resource_id_path_tail(variant_id))
         .filter(|tail| !tail.is_empty())
         .unwrap_or("local");
     format!("gid://shopify/Product/delivery-profile-{tail}")
@@ -2826,6 +2824,27 @@ pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> 
     Some(days * 86_400 + i64::from(hour * 3600 + minute * 60 + second) - i64::from(offset_seconds))
 }
 
+pub(in crate::proxy) fn parse_iso_date_epoch_days(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10 {
+        return None;
+    }
+
+    let year = parse_fixed_digits(bytes, 0, 4)?;
+    expect_byte(bytes, 4, b'-')?;
+    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
+    expect_byte(bytes, 7, b'-')?;
+    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
+    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(days_from_civil(year, month, day))
+}
+
+pub(in crate::proxy) fn epoch_seconds_to_utc_epoch_days(seconds: i64) -> i64 {
+    seconds.div_euclid(86_400)
+}
+
 fn parse_fixed_digits(bytes: &[u8], start: usize, len: usize) -> Option<i32> {
     let end = start.checked_add(len)?;
     let digits = bytes.get(start..end)?;
@@ -2870,16 +2889,6 @@ fn days_in_month(year: i32, month: u32) -> u32 {
 
 fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-}
-
-fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
-    let year = year - i32::from(month <= 2);
-    let era = (if year >= 0 { year } else { year - 399 }) / 400;
-    let year_of_era = year - era * 400;
-    let month = month as i32;
-    let day_of_year = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day as i32 - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    i64::from(era) * 146_097 + i64::from(day_of_era) - 719_468
 }
 
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {

@@ -1600,6 +1600,160 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
 }
 
 #[test]
+fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
+    let mut proxy = snapshot_proxy();
+    let market_fields = r#"
+      id name handle status enabled type
+      conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
+      currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled }
+      priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy }
+    "#;
+    let create_query = format!(
+        r#"
+        mutation MarketUpdateApplyScalarsCreate($input: MarketCreateInput!) {{
+          marketCreate(input: $input) {{
+            market {{ {market_fields} }}
+            userErrors {{ field message code }}
+          }}
+        }}
+        "#
+    );
+    let update_query = format!(
+        r#"
+        mutation MarketUpdateApplyScalars($id: ID!, $input: MarketUpdateInput!) {{
+          marketUpdate(id: $id, input: $input) {{
+            market {{ {market_fields} }}
+            userErrors {{ field message code }}
+          }}
+        }}
+        "#
+    );
+    let read_query = format!(
+        r#"
+        query MarketUpdateApplyScalarsRead($id: ID!) {{
+          market(id: $id) {{ {market_fields} }}
+          markets(first: 5) {{ nodes {{ {market_fields} }} }}
+        }}
+        "#
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        &create_query,
+        json!({"input": {
+            "name": "Europe",
+            "handle": "europe",
+            "status": "ACTIVE",
+            "enabled": true,
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
+            "currencySettings": {"baseCurrency": "USD", "localCurrencies": false, "roundingEnabled": true},
+            "priceInclusions": {"taxPricingStrategy": "ADD_TAXES_AT_CHECKOUT", "dutiesPricingStrategy": "NOT_INCLUDED"}
+        }}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        &update_query,
+        json!({"id": market_id, "input": {
+            "name": "Europe v2",
+            "handle": "europe-v2",
+            "status": "DRAFT",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "FR"}, {"countryCode": "DE"}]}},
+            "currencySettings": {"baseCurrency": "EUR", "localCurrencies": true},
+            "priceInclusions": {"taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE", "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"}
+        }}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["marketUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["name"],
+        json!("Europe v2")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["handle"],
+        json!("europe-v2")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["enabled"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        json!([{"code": "FR"}, {"code": "DE"}])
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"},
+            "localCurrencies": true,
+            "roundingEnabled": true
+        })
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["priceInclusions"],
+        json!({
+            "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+            "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(&read_query, json!({"id": market_id})));
+    assert_eq!(
+        read.body["data"]["market"],
+        update.body["data"]["marketUpdate"]["market"]
+    );
+    assert_eq!(
+        read.body["data"]["markets"]["nodes"][0],
+        update.body["data"]["marketUpdate"]["market"]
+    );
+
+    let toggle_create = proxy.process_request(json_graphql_request(
+        &create_query,
+        json!({"input": {"name": "Toggle Market", "status": "ACTIVE", "enabled": true}}),
+    ));
+    let toggle_market_id = toggle_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let enabled_only = proxy.process_request(json_graphql_request(
+        &update_query,
+        json!({"id": toggle_market_id, "input": {"enabled": false}}),
+    ));
+    assert_eq!(
+        enabled_only.body["data"]["marketUpdate"]["market"]["name"],
+        json!("Toggle Market")
+    );
+    assert_eq!(
+        enabled_only.body["data"]["marketUpdate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        enabled_only.body["data"]["marketUpdate"]["market"]["enabled"],
+        json!(false)
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 4);
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("MarketUpdateApplyScalars"));
+    assert!(log["entries"][3]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("MarketUpdateApplyScalars"));
+}
+
+#[test]
 fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
     let create_query = r#"
         mutation RustMarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {
@@ -5565,12 +5719,35 @@ fn product_contextual_pricing_price_list_read_returns_no_data_without_staged_pro
 }
 
 #[test]
-fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
-    let mut proxy = snapshot_proxy();
+fn product_create_then_bulk_create_recomputes_price_ranges_from_effective_variants() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
     ))
     .unwrap();
+
+    let shop = proxy.process_request(json_graphql_request(
+        "query ProductPriceRangeShopCurrency { shop { currencyCode } }",
+        json!({}),
+    ));
+    assert_eq!(shop.status, 200);
+    assert_eq!(shop.body["data"]["shop"]["currencyCode"], json!("CAD"));
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5580,6 +5757,51 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
     let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
     assert!(product_id.is_string());
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRangeV2"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRange"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRange"]
+    );
+    let initial_variant_id =
+        create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"].clone();
+    assert!(initial_variant_id.is_string());
+
+    let mut price_update_variables = fixture["priceUpdate"]["variables"].clone();
+    price_update_variables["productId"] = product_id.clone();
+    price_update_variables["variants"][0]["id"] = initial_variant_id;
+    let price_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql"
+        ),
+        price_update_variables,
+    ));
+    assert_eq!(
+        price_update.body["data"]["productVariantsBulkUpdate"]["product"]["priceRangeV2"],
+        fixture["priceUpdate"]["response"]["data"]["productVariantsBulkUpdate"]["product"]
+            ["priceRangeV2"]
+    );
+
+    let mut bulk_create_variables = fixture["bulkCreate"]["variables"].clone();
+    bulk_create_variables["productId"] = product_id.clone();
+    let bulk_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql"
+        ),
+        bulk_create_variables,
+    ));
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRangeV2"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRangeV2"]
+    );
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRange"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRange"]
+    );
 
     let downstream = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5589,9 +5811,18 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
 
     assert_eq!(
+        downstream.body["data"]["product"]["priceRangeV2"],
+        fixture["downstreamRead"]["data"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["priceRange"],
+        fixture["downstreamRead"]["data"]["product"]["priceRange"]
+    );
+    assert_eq!(
         downstream.body["data"]["product"]["totalInventory"],
         json!(0)
     );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]

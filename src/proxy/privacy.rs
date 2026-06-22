@@ -106,11 +106,7 @@ impl DraftProxy {
     }
 
     fn data_sale_opt_out_stage_new_customer(&mut self, email: &str) -> String {
-        let id = format!(
-            "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
-            self.next_synthetic_id
-        );
-        self.next_synthetic_id += 1;
+        let id = self.next_proxy_synthetic_gid("Customer");
         self.store
             .staged
             .customers

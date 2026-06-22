@@ -415,6 +415,28 @@ fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("app--")
 }
 
+fn metaobject_definition_field_limit(meta_type: &str) -> usize {
+    if meta_type.starts_with("shopify--form-") {
+        100
+    } else {
+        40
+    }
+}
+
+fn metaobject_definition_max_fields_error(max_fields: usize) -> Value {
+    metaobject_user_error(
+        vec!["definition", "fieldDefinitions"],
+        &format!("Maximum {max_fields} fields per metaobject definition"),
+        "INVALID",
+        Value::Null,
+        Value::Null,
+    )
+}
+
+fn metaobject_definition_field_key_is_reserved(key: &str) -> bool {
+    matches!(key, "id" | "handle" | "system" | "metafields")
+}
+
 fn metaobject_definition_create_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     meta_type: &str,
@@ -512,14 +534,9 @@ fn metaobject_definition_create_validation_errors(
     }
 
     let field_definitions = resolved_object_list_field(input, "fieldDefinitions");
-    if field_definitions.len() > 40 {
-        errors.push(metaobject_user_error(
-            vec!["definition", "fieldDefinitions"],
-            "Maximum 40 fields per metaobject definition",
-            "INVALID",
-            Value::Null,
-            Value::Null,
-        ));
+    let max_fields = metaobject_definition_field_limit(meta_type);
+    if field_definitions.len() > max_fields {
+        errors.push(metaobject_definition_max_fields_error(max_fields));
     }
 
     let admin_filterable_count = field_definitions
@@ -545,7 +562,7 @@ fn metaobject_definition_create_validation_errors(
     for (index, field_definition) in field_definitions.iter().enumerate() {
         let key = resolved_string_field(field_definition, "key").unwrap_or_default();
         let index_string = index.to_string();
-        if matches!(key.as_str(), "id" | "handle" | "system" | "metafields") {
+        if metaobject_definition_field_key_is_reserved(&key) {
             errors.push(metaobject_user_error(
                 vec!["definition", "fieldDefinitions", &index_string],
                 &format!("The name \"{key}\" is reserved for system use"),
@@ -768,32 +785,63 @@ fn metaobject_definition_update_validation_errors(
         input,
         field_definitions,
     ));
-    errors.extend(metaobject_field_operation_errors(input, field_definitions));
+    let MetaobjectFieldOperationValidation {
+        errors: field_operation_errors,
+        resulting_keys,
+    } = metaobject_field_operation_validation(input, meta_type, field_definitions);
+    errors.extend(field_operation_errors);
+    if let Some(display_name_key) = resolved_string_field(input, "displayNameKey") {
+        if !resulting_keys.contains(&display_name_key) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "displayNameKey"],
+                &format!("Field definition \"{display_name_key}\" does not exist"),
+                "UNDEFINED_OBJECT_FIELD",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+    }
     errors
+}
+
+struct MetaobjectFieldOperationValidation {
+    errors: Vec<Value>,
+    resulting_keys: BTreeSet<String>,
 }
 
 /// Validates the `fieldDefinitions` operation list on a definition update. Each
 /// entry is a one-of `{create|update|delete}` operation; Shopify reports errors
-/// per operation index anchored at ["definition","fieldDefinitions",<idx>,<op>,…].
-fn metaobject_field_operation_errors(
+/// per operation index. Most operation-specific errors are nested under
+/// `{create|update|delete}`, while reserved/duplicate create keys are anchored at
+/// the operation index itself.
+fn metaobject_field_operation_validation(
     input: &BTreeMap<String, ResolvedValue>,
+    meta_type: &str,
     field_definitions: &[Value],
-) -> Vec<Value> {
+) -> MetaobjectFieldOperationValidation {
     let mut errors = Vec::new();
     let operations = resolved_object_list_field(input, "fieldDefinitions");
-    if operations.is_empty() {
-        return errors;
-    }
     let mut known_keys: BTreeSet<String> = field_definitions
         .iter()
         .filter_map(|definition| definition["key"].as_str().map(str::to_string))
         .collect();
+    let mut seen_create_keys = BTreeSet::new();
     for (index, operation) in operations.iter().enumerate() {
         let index_string = index.to_string();
         if let Some(create) = resolved_object_field(operation, "create") {
             let key = resolved_string_field(&create, "key").unwrap_or_default();
             // Presence/length/format validators anchor at the `create` object;
             // the already-taken validator anchors one level deeper at `create.key`.
+            if metaobject_definition_field_key_is_reserved(&key) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string],
+                    &format!("The name \"{key}\" is reserved for system use"),
+                    "RESERVED_NAME",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
             if key.trim().is_empty() {
                 // Shopify runs presence, length, and format validators independently,
                 // so a blank create key surfaces all three errors in that order.
@@ -835,6 +883,16 @@ fn metaobject_field_operation_errors(
                     vec!["definition", "fieldDefinitions", &index_string, "create"],
                     "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
                     "INVALID",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
+            if !seen_create_keys.insert(key.clone()) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string],
+                    &format!("Field \"{key}\" duplicates other inputs"),
+                    "DUPLICATE_FIELD_INPUT",
                     json!(key),
                     Value::Null,
                 ));
@@ -890,10 +948,19 @@ fn metaobject_field_operation_errors(
                     json!(key),
                     Value::Null,
                 ));
+            } else {
+                known_keys.remove(&key);
             }
         }
     }
-    errors
+    let max_fields = metaobject_definition_field_limit(meta_type);
+    if known_keys.len() > max_fields {
+        errors.push(metaobject_definition_max_fields_error(max_fields));
+    }
+    MetaobjectFieldOperationValidation {
+        errors,
+        resulting_keys: known_keys,
+    }
 }
 
 fn update_metaobject_definition_record(
@@ -2559,10 +2626,9 @@ impl DraftProxy {
         fn metaobject_id_sort_key(record: &Value) -> (u64, String) {
             let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
             let numeric = id
-                .rsplit('/')
-                .next()
-                .and_then(|tail| tail.split('?').next())
-                .and_then(|tail| tail.parse::<u64>().ok())
+                .parse::<u64>()
+                .ok()
+                .or_else(|| resource_id_tail(id).parse::<u64>().ok())
                 .unwrap_or(u64::MAX);
             (numeric, id.to_string())
         }

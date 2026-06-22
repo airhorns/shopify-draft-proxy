@@ -381,7 +381,7 @@ impl DraftProxy {
             );
         }
 
-        append_unique(members, ids.clone());
+        extend_unique_strings(members, ids.clone());
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
         staged_ids.extend(ids);
@@ -476,7 +476,7 @@ impl DraftProxy {
             };
             let members = resource_members_mut(&mut group, resource_kind);
             if is_join {
-                append_unique(members, vec![resource_id.clone()]);
+                push_unique_string(members, &resource_id);
             } else if let Some(position) = members.iter().position(|member| member == &resource_id)
             {
                 members.remove(position);
@@ -833,7 +833,12 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_json_with_variants(product, variants, selections);
+        let base = product_json_with_variants_and_currency(
+            product,
+            variants,
+            selections,
+            &self.store.shop_currency_code(),
+        );
         self.apply_product_selling_plan_overlay(product, selections, base)
     }
 
@@ -1568,16 +1573,8 @@ fn resource_members_mut(
     }
 }
 
-fn append_unique(target: &mut Vec<String>, incoming: Vec<String>) {
-    for value in incoming {
-        if !target.contains(&value) {
-            target.push(value);
-        }
-    }
-}
-
 fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
     let mut unique = Vec::new();
-    append_unique(&mut unique, values);
+    extend_unique_strings(&mut unique, values);
     unique
 }
