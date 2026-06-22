@@ -593,14 +593,6 @@ impl DraftProxy {
         let mut seeded_variants = 0_usize;
         let mut seeded_collections = 0_usize;
         let mut seeded_discounts = 0_usize;
-        let (
-            seeded_online_store_blogs,
-            seeded_online_store_pages,
-            seeded_online_store_articles,
-            seeded_online_store_comments,
-            seeded_online_store_blogs_count_base,
-            seeded_online_store_pages_count_base,
-        ) = self.seed_online_store_content(&body);
         if let Some(customers) = body.get("customers").and_then(Value::as_array) {
             for customer in customers {
                 if let Some(id) = customer.get("id").and_then(Value::as_str) {
@@ -867,13 +859,7 @@ impl DraftProxy {
             "seededDiscounts": seeded_discounts,
             "seededOrders": seeded_orders,
             "seededDraftOrders": seeded_draft_orders,
-            "seededOrderEditVariants": seeded_order_edit_variants,
-            "seededOnlineStoreBlogs": seeded_online_store_blogs,
-            "seededOnlineStorePages": seeded_online_store_pages,
-            "seededOnlineStoreArticles": seeded_online_store_articles,
-            "seededOnlineStoreComments": seeded_online_store_comments,
-            "seededOnlineStoreBlogsCountBase": seeded_online_store_blogs_count_base,
-            "seededOnlineStorePagesCountBase": seeded_online_store_pages_count_base
+            "seededOrderEditVariants": seeded_order_edit_variants
         }))
     }
 

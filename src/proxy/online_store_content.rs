@@ -182,66 +182,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn seed_online_store_content(
-        &mut self,
-        body: &Value,
-    ) -> (usize, usize, usize, usize, usize, usize) {
-        let mut blogs = 0;
-        let mut pages = 0;
-        let mut articles = 0;
-        let mut comments = 0;
-        let mut blog_count_bases = 0;
-        let mut page_count_bases = 0;
-        if let Some(records) = body.get("blogs").and_then(Value::as_array) {
-            for record in records {
-                if let Some(id) = record.get("id").and_then(Value::as_str) {
-                    self.stage_online_store_blog(id.to_string(), normalize_seed_blog(record));
-                    blogs += 1;
-                }
-            }
-        }
-        if let Some(records) = body.get("pages").and_then(Value::as_array) {
-            for record in records {
-                if let Some(id) = record.get("id").and_then(Value::as_str) {
-                    self.stage_online_store_page(id.to_string(), normalize_seed_page(record));
-                    pages += 1;
-                }
-            }
-        }
-        if let Some(records) = body.get("articles").and_then(Value::as_array) {
-            for record in records {
-                if let Some(id) = record.get("id").and_then(Value::as_str) {
-                    self.stage_online_store_article(id.to_string(), normalize_seed_article(record));
-                    articles += 1;
-                }
-            }
-        }
-        if let Some(records) = body.get("comments").and_then(Value::as_array) {
-            for record in records {
-                if let Some(id) = record.get("id").and_then(Value::as_str) {
-                    self.stage_online_store_comment(id.to_string(), normalize_seed_comment(record));
-                    comments += 1;
-                }
-            }
-        }
-        if let Some(count) = body.get("blogsCount").and_then(Value::as_u64) {
-            self.store.staged.online_store_blogs_count_base = Some(count as usize);
-            blog_count_bases = 1;
-        }
-        if let Some(count) = body.get("pagesCount").and_then(Value::as_u64) {
-            self.store.staged.online_store_pages_count_base = Some(count as usize);
-            page_count_bases = 1;
-        }
-        (
-            blogs,
-            pages,
-            articles,
-            comments,
-            blog_count_bases,
-            page_count_bases,
-        )
-    }
-
     pub(in crate::proxy) fn online_store_content_query_needs_upstream(
         &self,
         fields: &[RootFieldSelection],
@@ -2185,51 +2125,6 @@ fn normalize_observed_comment(record: &Value, parent_article_id: Option<&str>) -
     }
     if record.get("updatedAt").is_none() {
         record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
-    record
-}
-
-fn normalize_seed_blog(record: &Value) -> Value {
-    let mut record = record.clone();
-    record["__typename"] = json!("Blog");
-    if record.get("tags").is_none() {
-        record["tags"] = json!([]);
-    }
-    if record.get("articlesCount").is_none() {
-        record["articlesCount"] = count_precision(0);
-    }
-    if record.get("articles").is_none() {
-        record["articles"] = connection_json(Vec::new());
-    }
-    record
-}
-
-fn normalize_seed_page(record: &Value) -> Value {
-    let mut record = record.clone();
-    record["__typename"] = json!("Page");
-    if record.get("bodySummary").is_none() {
-        record["bodySummary"] = json!(body_summary(record["body"].as_str().unwrap_or_default()));
-    }
-    record
-}
-
-fn normalize_seed_article(record: &Value) -> Value {
-    let mut record = record.clone();
-    record["__typename"] = json!("Article");
-    if record.get("commentsCount").is_none() {
-        record["commentsCount"] = count_precision(0);
-    }
-    if record.get("comments").is_none() {
-        record["comments"] = connection_json(Vec::new());
-    }
-    record
-}
-
-fn normalize_seed_comment(record: &Value) -> Value {
-    let mut record = record.clone();
-    record["__typename"] = json!("Comment");
-    if record.get("isPublished").is_none() {
-        record["isPublished"] = json!(record["status"].as_str() == Some("PUBLISHED"));
     }
     record
 }

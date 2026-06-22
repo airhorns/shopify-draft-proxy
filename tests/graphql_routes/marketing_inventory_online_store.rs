@@ -6234,45 +6234,80 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
 
 #[test]
 fn online_store_comment_moderation_state_machine_and_delete_are_local() {
-    let mut proxy = snapshot_proxy();
     let blog_id = "gid://shopify/Blog/9001";
     let article_id = "gid://shopify/Article/9002";
     let unapproved_id = "gid://shopify/Comment/9003";
     let spam_id = "gid://shopify/Comment/9004";
     let published_id = "gid://shopify/Comment/9005";
     let still_unapproved_id = "gid://shopify/Comment/9006";
-    let seed = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/seed",
-        &json!({
-            "blogs": [{
-                "id": blog_id,
-                "title": "Moderated Blog",
-                "handle": "moderated-blog",
-                "commentPolicy": "MODERATED",
-                "createdAt": "2026-01-01T00:00:00Z",
-                "updatedAt": "2026-01-01T00:00:00Z"
-            }],
-            "articles": [{
-                "id": article_id,
-                "blogId": blog_id,
-                "title": "Moderated Article",
-                "handle": "moderated-article",
-                "isPublished": true,
-                "createdAt": "2026-01-01T00:00:00Z",
-                "updatedAt": "2026-01-01T00:00:00Z"
-            }],
-            "comments": [
-                {"id": unapproved_id, "articleId": article_id, "status": "UNAPPROVED", "isPublished": false, "publishedAt": null, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
-                {"id": spam_id, "articleId": article_id, "status": "SPAM", "isPublished": false, "publishedAt": null, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
-                {"id": published_id, "articleId": article_id, "status": "PUBLISHED", "isPublished": true, "publishedAt": "2026-01-01T00:00:00Z", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
-                {"id": still_unapproved_id, "articleId": article_id, "status": "UNAPPROVED", "isPublished": false, "publishedAt": null, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"}
-            ]
-        })
-        .to_string(),
-    ));
-    assert_eq!(seed.status, 200);
-    assert_eq!(seed.body["seededOnlineStoreComments"], json!(4));
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let transport_hydrate_calls = Arc::clone(&hydrate_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            transport_hydrate_calls
+                .lock()
+                .unwrap()
+                .push(format!("{id}:{query}"));
+            let comment_node = |id: &str, status: &str, is_published: bool, published_at: Value| {
+                json!({
+                    "__typename": "Comment",
+                    "id": id,
+                    "status": status,
+                    "body": "Moderation body",
+                    "bodyHtml": "<p>Moderation body</p>",
+                    "isPublished": is_published,
+                    "publishedAt": published_at,
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "updatedAt": "2026-01-01T00:00:00Z",
+                    "article": { "id": article_id }
+                })
+            };
+            let response = if query.contains("OnlineStoreCommentHydrate") {
+                let comment = match id {
+                    id if id == unapproved_id => {
+                        comment_node(id, "UNAPPROVED", false, Value::Null)
+                    }
+                    id if id == spam_id => comment_node(id, "SPAM", false, Value::Null),
+                    id if id == published_id => {
+                        comment_node(id, "PUBLISHED", true, json!("2026-01-01T00:00:00Z"))
+                    }
+                    id if id == still_unapproved_id => {
+                        comment_node(id, "UNAPPROVED", false, Value::Null)
+                    }
+                    _ => Value::Null,
+                };
+                json!({ "comment": comment })
+            } else if query.contains("OnlineStoreArticleDeleteCascadeHydrate") {
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": article_id,
+                        "title": "Moderated Article",
+                        "handle": "moderated-article",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                        "blog": { "id": blog_id },
+                        "comments": { "nodes": [
+                            comment_node(unapproved_id, "UNAPPROVED", false, Value::Null),
+                            comment_node(spam_id, "SPAM", false, Value::Null),
+                            comment_node(published_id, "PUBLISHED", true, json!("2026-01-01T00:00:00Z")),
+                            comment_node(still_unapproved_id, "UNAPPROVED", false, Value::Null)
+                        ] }
+                    }
+                })
+            } else {
+                panic!("unexpected online-store hydrate query: {query}");
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": response }),
+            }
+        });
 
     let unknown = proxy.process_request(json_graphql_request(
         r#"
@@ -6361,6 +6396,13 @@ fn online_store_comment_moderation_state_machine_and_delete_are_local() {
         read_after_delete.body["data"]["article"]["commentsCount"],
         json!({"count": 3, "precision": "EXACT"})
     );
+    let hydrate_calls = hydrate_calls.lock().unwrap();
+    assert!(hydrate_calls
+        .iter()
+        .any(|call| call.contains("OnlineStoreCommentHydrate")));
+    assert!(hydrate_calls
+        .iter()
+        .any(|call| call.contains("OnlineStoreArticleDeleteCascadeHydrate")));
 }
 
 #[test]
