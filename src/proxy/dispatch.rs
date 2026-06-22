@@ -1,19 +1,5 @@
 use super::*;
 
-/// Merge the top-level keys of `source` (when it is a JSON object) into `target`
-/// (when it too is a JSON object). Used to combine two independently-resolved
-/// `data` field maps — e.g. a `location(id:)` overlay read and a
-/// `locationsAvailableForDeliveryProfilesConnection` read served in one
-/// operation — into a single response `data` object. No-op if either side is
-/// not an object.
-fn merge_json_object_fields(target: &mut Value, source: Value) {
-    if let (Value::Object(target), Value::Object(source)) = (target, source) {
-        for (key, value) in source {
-            target.insert(key, value);
-        }
-    }
-}
-
 /// Catalog-aggregate search predicates that the local product overlay cannot
 /// faithfully evaluate from its partial staged state, because they depend on
 /// store-wide aggregates computed across every location (e.g. `inventory_total:`
@@ -2006,7 +1992,7 @@ impl DraftProxy {
                         if fields.iter().any(|field| {
                             field.name == "locationsAvailableForDeliveryProfilesConnection"
                         }) {
-                            merge_json_object_fields(
+                            shallow_merge_object(
                                 &mut response.body["data"],
                                 self.delivery_profile_locations_read_data(&fields),
                             );

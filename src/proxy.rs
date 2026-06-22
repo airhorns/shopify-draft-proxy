@@ -1693,6 +1693,7 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
@@ -1730,6 +1731,8 @@ pub(in crate::proxy) use self::core::*;
 pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::json_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]

@@ -7394,7 +7394,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
     let metafields = if input.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
+        json!({ "nodes": [], "pageInfo": empty_page_info() })
     } else {
         json!({ "nodes": [input.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
     };
@@ -10306,10 +10306,6 @@ fn merge_customer_attached_resources(result: &mut Value, source: &Value) {
     }
 }
 
-fn connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
 fn connection_has_nodes(connection: &Value) -> bool {
     connection
         .get("nodes")
@@ -10418,12 +10414,7 @@ fn empty_orders_connection() -> Value {
     json!({
         "nodes": [],
         "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
+        "pageInfo": empty_page_info()
     })
 }
 

@@ -3645,10 +3645,6 @@ fn draft_order_line_item_variant_ids(input: &BTreeMap<String, ResolvedValue>) ->
     ids
 }
 
-fn draft_order_connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
 fn draft_order_invoice_url(id: &str) -> String {
     format!(
         "https://shopify-draft-proxy.local/draft_orders/{}/invoice",
@@ -8096,7 +8092,7 @@ impl DraftProxy {
 
     fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
         let currency = draft_order_currency(draft_order);
-        let line_items = draft_order_connection_nodes(&draft_order["lineItems"]);
+        let line_items = connection_nodes(&draft_order["lineItems"]);
         let original_subtotal = line_items
             .iter()
             .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())

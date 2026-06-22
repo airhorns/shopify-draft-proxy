@@ -143,45 +143,21 @@ pub(in crate::proxy) fn set_catalog_price_list_relation(
     catalog: &mut Value,
     price_list_id: Option<&str>,
 ) {
-    if let Some(object) = catalog.as_object_mut() {
-        if let Some(price_list_id) = price_list_id {
-            object.insert("priceListId".to_string(), json!(price_list_id));
-            object.insert("priceList".to_string(), json!({"id": price_list_id}));
-        } else {
-            object.insert("priceListId".to_string(), Value::Null);
-            object.insert("priceList".to_string(), Value::Null);
-        }
-    }
+    set_relation(catalog, "priceListId", "priceList", price_list_id);
 }
 
 pub(in crate::proxy) fn set_catalog_publication_relation(
     catalog: &mut Value,
     publication_id: Option<&str>,
 ) {
-    if let Some(object) = catalog.as_object_mut() {
-        if let Some(publication_id) = publication_id {
-            object.insert("publicationId".to_string(), json!(publication_id));
-            object.insert("publication".to_string(), json!({"id": publication_id}));
-        } else {
-            object.insert("publicationId".to_string(), Value::Null);
-            object.insert("publication".to_string(), Value::Null);
-        }
-    }
+    set_relation(catalog, "publicationId", "publication", publication_id);
 }
 
 pub(in crate::proxy) fn set_price_list_catalog_relation(
     price_list: &mut Value,
     catalog_id: Option<&str>,
 ) {
-    if let Some(object) = price_list.as_object_mut() {
-        if let Some(catalog_id) = catalog_id {
-            object.insert("catalogId".to_string(), json!(catalog_id));
-            object.insert("catalog".to_string(), json!({"id": catalog_id}));
-        } else {
-            object.insert("catalogId".to_string(), Value::Null);
-            object.insert("catalog".to_string(), Value::Null);
-        }
-    }
+    set_relation(price_list, "catalogId", "catalog", catalog_id);
 }
 
 pub(in crate::proxy) fn missing_customization_message(ids: &[String]) -> String {
@@ -254,7 +230,7 @@ pub(in crate::proxy) fn price_list_record(
         "catalog": catalog,
         "fixedPricesCount": 0,
         "fixedPriceRows": [],
-        "prices": {"nodes": [], "edges": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}
+        "prices": connection_json_with_empty_edges(Vec::new())
     })
 }
 
@@ -342,14 +318,6 @@ pub(in crate::proxy) fn mutation_variant_ids(inputs: &[ResolvedValue]) -> Vec<St
         .iter()
         .filter_map(|input| resolved_nonempty_string(input, "variantId"))
         .collect()
-}
-
-pub(in crate::proxy) fn append_unique_strings(base: &mut Vec<String>, extra: &[String]) {
-    for item in extra {
-        if !base.contains(item) {
-            base.push(item.clone());
-        }
-    }
 }
 
 /// `read_arg_string_nonempty` — an object field that is a non-empty string.
@@ -858,7 +826,7 @@ fn resulting_fixed_price_variant_ids(
         .flat_map(|product_id| store.fixed_price_variants_for_product(&product_id))
         .filter_map(|variant| variant["id"].as_str().map(str::to_string))
         .collect();
-    append_unique_strings(&mut retained, &add_variant_ids);
+    extend_unique_strings(&mut retained, &add_variant_ids);
     retained
 }
 
@@ -1970,12 +1938,7 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
     selected_json(
         &json!({
             "nodes": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         selection,
     )
@@ -2029,15 +1992,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                     })
                     .collect(),
             )),
-            "pageInfo" => Some(selected_json(
-                &json!({
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }),
-                &selection.selection,
-            )),
+            "pageInfo" => Some(selected_json(&empty_page_info(), &selection.selection)),
             _ => None,
         };
         if let Some(value) = value {
