@@ -6,13 +6,13 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-recipient-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-customer-create.graphql",
     "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, text length caps, HTML-tag rejection, and sendNotificationAt range bounds. The public giftCardUpdate userErrors type in Admin API 2025-01 is generic UserError, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
+  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The public giftCardUpdate userErrors type in Admin API 2025-01 is generic UserError, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -127,9 +127,30 @@
             },
             "pastSendAt": {
               "fromCapturePath": "$.proxyVariables.recipientValidation.pastSendAt"
+            },
+            "validSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.validSendAt"
             }
           }
-        }
+        },
+        "selectedPaths": [
+          "$.createLongPreferredName",
+          "$.createLongMessage",
+          "$.createHtmlPreferredName",
+          "$.createHtmlMessage",
+          "$.createFutureSendAt",
+          "$.createPastSendAt",
+          "$.createValidSendAt.giftCard.recipientAttributes.sendNotificationAt",
+          "$.createValidSendAt.userErrors",
+          "$.updateLongPreferredName",
+          "$.updateLongMessage",
+          "$.updateHtmlPreferredName",
+          "$.updateHtmlMessage",
+          "$.updatePastSendAt",
+          "$.updateFutureSendAt",
+          "$.updateValidSendAt.giftCard.recipientAttributes.sendNotificationAt",
+          "$.updateValidSendAt.userErrors"
+        ]
       }
     ]
   }

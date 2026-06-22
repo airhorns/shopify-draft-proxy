@@ -1,0 +1,14 @@
+query WebhookSubscriptionMetafieldsDetailRead($id: ID!) {
+  webhookSubscription(id: $id) {
+    id
+    topic
+    uri
+    format
+    metafields {
+      namespace
+      key
+    }
+    createdAt
+    updatedAt
+  }
+}

@@ -1,4 +1,4 @@
-mutation PublicationUpdateLocalRuntime($id: ID!, $input: PublicationInput!) {
+mutation PublicationUpdateLocalRuntime($id: ID!, $input: PublicationUpdateInput!) {
   publicationUpdate(id: $id, input: $input) {
     publication {
       id
@@ -12,6 +12,7 @@ mutation PublicationUpdateLocalRuntime($id: ID!, $input: PublicationInput!) {
     userErrors {
       field
       message
+      code
     }
   }
 }

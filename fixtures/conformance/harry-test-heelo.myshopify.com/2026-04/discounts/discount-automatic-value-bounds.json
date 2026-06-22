@@ -1,0 +1,563 @@
+{
+  "scenarioId": "discount-automatic-value-bounds",
+  "capturedAt": "2026-06-21T15:00:47.807Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "request": {
+      "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-setup.graphql",
+      "query": "mutation DiscountAutomaticValueBoundsSetup($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Automatic value bounds SETUP 1782054046809",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticBasicCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1655655563570"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-create.graphql",
+        "query": "mutation DiscountAutomaticValueBoundsCreate(\n  $percentageHigh: DiscountAutomaticBasicInput!\n  $percentageNegative: DiscountAutomaticBasicInput!\n  $percentageZero: DiscountAutomaticBasicInput!\n  $amountNegative: DiscountAutomaticBasicInput!\n  $amountZero: DiscountAutomaticBasicInput!\n) {\n  percentageHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  percentageNegative: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageNegative) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  percentageZero: discountAutomaticBasicCreate(automaticBasicDiscount: $percentageZero) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountNegative: discountAutomaticBasicCreate(automaticBasicDiscount: $amountNegative) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountZero: discountAutomaticBasicCreate(automaticBasicDiscount: $amountZero) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+        "variables": {
+          "percentageHigh": {
+            "title": "Automatic value bounds CREATEPERCENTAGEHIGH 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": 1.5
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "percentageNegative": {
+            "title": "Automatic value bounds CREATEPERCENTAGENEGATIVE 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": -0.1
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "percentageZero": {
+            "title": "Automatic value bounds CREATEPERCENTAGEZERO 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": 0
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "amountNegative": {
+            "title": "Automatic value bounds CREATEAMOUNTNEGATIVE 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "discountAmount": {
+                  "amount": "-1",
+                  "appliesOnEachItem": false
+                }
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "amountZero": {
+            "title": "Automatic value bounds CREATEAMOUNTZERO 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "discountAmount": {
+                  "amount": "0",
+                  "appliesOnEachItem": false
+                }
+              },
+              "items": {
+                "all": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "percentageHigh": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "percentageNegative": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "percentageZero": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "amountNegative": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+                  "message": "Value must be less than 0",
+                  "code": "GREATER_THAN",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "amountZero": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+                  "message": "Value must be less than 0",
+                  "code": "GREATER_THAN",
+                  "extraInfo": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 50,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1950,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/discount-automatic-value-bounds-update.graphql",
+        "query": "mutation DiscountAutomaticValueBoundsUpdate(\n  $id: ID!\n  $percentageHigh: DiscountAutomaticBasicInput!\n  $percentageNegative: DiscountAutomaticBasicInput!\n  $percentageZero: DiscountAutomaticBasicInput!\n  $amountNegative: DiscountAutomaticBasicInput!\n  $amountZero: DiscountAutomaticBasicInput!\n) {\n  percentageHigh: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  percentageNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageNegative) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  percentageZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $percentageZero) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountNegative: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountNegative) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountZero: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountZero) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/DiscountAutomaticNode/1655655563570",
+          "percentageHigh": {
+            "title": "Automatic value bounds UPDATEPERCENTAGEHIGH 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": 1.5
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "percentageNegative": {
+            "title": "Automatic value bounds UPDATEPERCENTAGENEGATIVE 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": -0.1
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "percentageZero": {
+            "title": "Automatic value bounds UPDATEPERCENTAGEZERO 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "percentage": 0
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "amountNegative": {
+            "title": "Automatic value bounds UPDATEAMOUNTNEGATIVE 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "discountAmount": {
+                  "amount": "-1",
+                  "appliesOnEachItem": false
+                }
+              },
+              "items": {
+                "all": true
+              }
+            }
+          },
+          "amountZero": {
+            "title": "Automatic value bounds UPDATEAMOUNTZERO 1782054046809",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "discountAmount": {
+                  "amount": "0",
+                  "appliesOnEachItem": false
+                }
+              },
+              "items": {
+                "all": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "percentageHigh": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "percentageNegative": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "percentageZero": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "percentage"],
+                  "message": "Value must be between 0.0 and 1.0",
+                  "code": "VALUE_OUTSIDE_RANGE",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "amountNegative": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+                  "message": "Value must be less than 0",
+                  "code": "GREATER_THAN",
+                  "extraInfo": null
+                }
+              ]
+            },
+            "amountZero": {
+              "automaticDiscountNode": null,
+              "userErrors": [
+                {
+                  "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+                  "message": "Value must be less than 0",
+                  "code": "GREATER_THAN",
+                  "extraInfo": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 50,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1923,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "discountAutomaticDelete:setup",
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1655655563570",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1950,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -64,6 +64,28 @@ That early subset is not the current product coverage contract. Use `src/content
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: reverseFulfillmentOrderDispose public validation differs by setup
+
+A 2026-04 `reverseFulfillmentOrderDispose` capture against
+`harry-test-heelo.myshopify.com` confirmed public payload shapes for empty
+`dispositionInputs`, custom-line `RESTOCKED`, multiple-RFO inputs, successful
+`NOT_RESTOCKED` disposal, and downstream disposition reads. Failed dispose
+payloads returned `reverseFulfillmentOrderLineItems: null`, not an empty list.
+
+Two branches from internal-source notes did not reproduce on that public dev
+store setup:
+
+- disposing an unknown `ReverseFulfillmentOrderLineItem` GID (`/0` and a large
+  numeric ID were both tried) returned the multiple-RFO userError rather than
+  `NOT_FOUND`;
+- over-disposing a custom-line RFO with `NOT_RESTOCKED` was accepted and appended
+  another disposition, even after a prior disposal.
+
+Practical rule: keep focused runtime tests for the stricter local validation
+contract when product requirements call for it, and use
+`return-reverse-logistics-dispose-validation` as the public parity anchor only
+for the branches the live store actually rejected.
+
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
 Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`
@@ -456,6 +478,9 @@ Current and historical live findings on this host:
     - Shopify reports the completed order `paymentGatewayNames` as `["manual"]` for the default paid completion path
     - Shopify normalizes the completed order `sourceName` to the app/channel identifier rather than echoing the requested `sourceName` string
     - empty variant SKUs on draft order lines come back as `null` on the completed order line item
+  - calling `draftOrderComplete` again on that paid/completed draft returns the completed `draftOrder` object with the original nested `order` plus `userErrors[{ field: null, message: "This order has been paid" }]`
+    - the public `UserError` type for `DraftOrderCompletePayload.userErrors` exposes only `field` and `message` on both 2025-01 and 2026-04; there is no selectable `code` field for this payload
+    - order-search proof was unreliable for this branch on the conformance store: searching the completed order by inherited draft tag or by completed order name returned zero results, so the durable fixture records direct `order(id:)` reads before and after the rejected second completion instead
 - additional schema trap for that same root on this host: `DraftOrderCompletePayload` does **not** expose a top-level `order` field
   - probing `draftOrderComplete { order { ... } }` fails schema validation with `Field 'order' doesn't exist on type 'DraftOrderCompletePayload'`
   - current 2026-04 docs instead expose the created order through `draftOrder { order { ... } }`; keep the parity scaffold on that nested link and do not reintroduce the stale top-level payload `order` selection
@@ -2356,6 +2381,7 @@ Live evidence refreshed on this host:
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
+- Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
@@ -2756,6 +2782,7 @@ Captured safe happy path for two synthetic customers:
 - when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
 - the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
 - the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
+- HAR-1534 captured deterministic resulting-customer selection branches: a valid `overrideFields.customerIdOfEmailToKeep` selecting `customerOneId` makes customer one survive; exactly one customer having an email makes that customer survive; a disposable `customerSendAccountInviteEmail` setup made customer one `INVITED`, and `INVITED` customer one beat `DISABLED` customer two when both had email and equal consent; when neither customer had an email, Shopify defaulted to `customerTwoId`.
 
 Practical rule:
 
@@ -2834,10 +2861,17 @@ Captured mutation-scoped `DiscountUserError` branches:
 - invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
 - basic discount `customerGets.value.percentage` values below `0.0` or above `1.0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'percentage']`, `code: 'VALUE_OUTSIDE_RANGE'`, and message `Value must be between 0.0 and 1.0`
 - basic discount fixed `discountAmount.amount` values below `0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'discountAmount', 'amount']`, `code: 'LESS_THAN_OR_EQUAL_TO'`, and message `Value must be less than or equal to 0`
-- the same 2026-04 value-bounds capture accepted `percentage: 0` and
-  `discountAmount.amount: "0"` by creating native code discounts, so do
-  not reject zero values locally without a newer capture proving Shopify
-  changed that behavior
+- the same 2026-04 code-basic value-bounds capture accepted `percentage: 0`
+  and `discountAmount.amount: "0"` by creating native code discounts, so code
+  discounts should not reject zero values without a newer code-specific capture
+  proving Shopify changed that behavior
+- a separate 2026-04 automatic-basic value-bounds capture rejected
+  `percentage: 0` with the same `VALUE_OUTSIDE_RANGE` payload/message used for
+  negative and above-one percentages: `Value must be between 0.0 and 1.0`
+- the automatic-basic capture rejected fixed `discountAmount.amount` values of
+  `"-1"` and `"0"` with field path segments `automaticBasicDiscount` /
+  `customerGets` / `value` / `discountAmount` / `amount`, code
+  `GREATER_THAN`, and message `Value must be less than 0`
 - simultaneous `minimumRequirement.subtotal` and `minimumRequirement.quantity`
   branches return two `CONFLICT` entries on the concrete subtotal and quantity
   value paths, not one input-level error

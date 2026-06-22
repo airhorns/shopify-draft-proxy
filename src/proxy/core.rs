@@ -40,6 +40,15 @@ impl DraftProxy {
         self
     }
 
+    pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
+        (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: body.to_string(),
+        })
+    }
+
     pub fn process_request(&mut self, request: Request) -> Response {
         match route(&request) {
             Route::Health => ok_json(json!({
@@ -422,6 +431,23 @@ impl DraftProxy {
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
+        if !self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .is_empty()
+        {
+            snapshot["stagedState"]["functionFulfillmentConstraintRules"] = json!(self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .clone());
+            snapshot["stagedState"]["functionFulfillmentConstraintRuleOrder"] = json!(self
+                .store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .clone());
+        }
         if let Some(order) = &self.store.staged.order_edit_existing_order {
             snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
         }
@@ -560,7 +586,7 @@ impl DraftProxy {
                 let mut variant = variant.clone();
                 if variant.get("inventoryItem").is_none() {
                     if let Some(id) = variant.get("id").and_then(Value::as_str) {
-                        let numeric = id.rsplit('/').next().unwrap_or(id);
+                        let numeric = resource_id_path_tail(id);
                         variant["inventoryItem"] = json!({
                             "id": format!("gid://shopify/InventoryItem/{numeric}")
                         });
@@ -697,12 +723,7 @@ impl DraftProxy {
                 self.sync_draft_order_tags(&id);
                 // Advance the synthetic draft sequence past any seeded numeric id so a
                 // later create in the same scenario cannot collide with a precondition.
-                if let Some(numeric) = id
-                    .rsplit('/')
-                    .next()
-                    .and_then(|tail| tail.split('?').next())
-                    .and_then(|tail| tail.parse::<u64>().ok())
-                {
+                if let Ok(numeric) = resource_id_tail(&id).parse::<u64>() {
                     if numeric >= self.store.staged.next_draft_order_id {
                         self.store.staged.next_draft_order_id = numeric + 1;
                     }
@@ -1851,6 +1872,27 @@ impl DraftProxy {
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
+        self.store.staged.function_fulfillment_constraint_rules = state["stagedState"]
+            ["functionFulfillmentConstraintRules"]
+            .as_object()
+            .map(|rules| {
+                rules
+                    .iter()
+                    .map(|(id, rule)| (id.clone(), rule.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.function_fulfillment_constraint_rule_order = state["stagedState"]
+            .get("functionFulfillmentConstraintRuleOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rules
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

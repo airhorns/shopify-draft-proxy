@@ -1,19 +1,5 @@
 use super::*;
 
-/// Merge the top-level keys of `source` (when it is a JSON object) into `target`
-/// (when it too is a JSON object). Used to combine two independently-resolved
-/// `data` field maps — e.g. a `location(id:)` overlay read and a
-/// `locationsAvailableForDeliveryProfilesConnection` read served in one
-/// operation — into a single response `data` object. No-op if either side is
-/// not an object.
-fn merge_json_object_fields(target: &mut Value, source: Value) {
-    if let (Value::Object(target), Value::Object(source)) = (target, source) {
-        for (key, value) in source {
-            target.insert(key, value);
-        }
-    }
-}
-
 /// Catalog-aggregate search predicates that the local product overlay cannot
 /// faithfully evaluate from its partial staged state, because they depend on
 /// store-wide aggregates computed across every location (e.g. `inventory_total:`
@@ -433,6 +419,14 @@ impl DraftProxy {
         {
             return Some(selected_json(cart_transform, selection));
         }
+        if let Some(rule) = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(id)
+        {
+            return Some(selected_json(rule, selection));
+        }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
@@ -559,13 +553,7 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
-        let has_local_dispatch = local_dispatch_root(
-            operation.operation_type,
-            capability.domain,
-            capability.execution,
-            root_field,
-        )
-        .is_some();
+        let has_local_dispatch = capability.domain != CapabilityDomain::Unknown;
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the
@@ -1854,7 +1842,9 @@ impl DraftProxy {
                                 | "priceListFixedPricesDelete"
                         )
                     }) {
-                        self.price_list_mutation_data(&fields, request, &query, &variables)
+                        return ok_json(
+                            self.price_list_mutation_data(&fields, request, &query, &variables),
+                        );
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),
@@ -2000,7 +1990,7 @@ impl DraftProxy {
                         if fields.iter().any(|field| {
                             field.name == "locationsAvailableForDeliveryProfilesConnection"
                         }) {
-                            merge_json_object_fields(
+                            shallow_merge_object(
                                 &mut response.body["data"],
                                 self.delivery_profile_locations_read_data(&fields),
                             );

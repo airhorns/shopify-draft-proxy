@@ -74,14 +74,8 @@ impl DraftProxy {
             "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) { customerByIdentifier(identifier: $identifier) { id email defaultEmailAddress { emailAddress } } }",
             "operationName": "DataSaleOptOutCustomerLookup",
             "variables": { "identifier": { "emailAddress": email } }
-        })
-        .to_string();
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
         });
+        let response = self.upstream_post(request, body);
         if response.status != 200 {
             return None;
         }
@@ -112,11 +106,7 @@ impl DraftProxy {
     }
 
     fn data_sale_opt_out_stage_new_customer(&mut self, email: &str) -> String {
-        let id = format!(
-            "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
-            self.next_synthetic_id
-        );
-        self.next_synthetic_id += 1;
+        let id = self.next_proxy_synthetic_gid("Customer");
         self.store
             .staged
             .customers

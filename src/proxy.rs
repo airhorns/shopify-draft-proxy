@@ -7,14 +7,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    parsed_document, root_field_arguments, root_field_response_key, root_field_selection,
-    root_fields, variable_definition_info, OperationType, RawArgumentValue, ResolvedValue,
-    RootFieldSelection, SelectedField, SourceLocation,
+    parse_operation, parsed_document, primary_root_field, root_field_arguments, root_fields,
+    variable_definition_info, OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection,
+    SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -94,6 +93,26 @@ pub struct Response {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub headers: BTreeMap<String, String>,
     pub body: Value,
+}
+
+fn primary_root_response_parts(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    default_response_key: impl FnOnce() -> String,
+) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
+    primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection, field.arguments))
+        .unwrap_or_else(|| (default_response_key(), Vec::new(), BTreeMap::new()))
+}
+
+fn primary_root_response_selection(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    default_response_key: impl FnOnce() -> String,
+) -> (String, Vec<SelectedField>) {
+    primary_root_field(query, variables)
+        .map(|field| (field.response_key, field.selection))
+        .unwrap_or_else(|| (default_response_key(), Vec::new()))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -390,6 +409,7 @@ struct StagedState {
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
+    metafield_reference_ids: BTreeSet<String>,
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
@@ -443,6 +463,8 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -721,6 +743,7 @@ impl Default for StagedState {
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
+            metafield_reference_ids: BTreeSet::new(),
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
@@ -767,6 +790,8 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            function_fulfillment_constraint_rules: BTreeMap::new(),
+            function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
@@ -1678,7 +1703,9 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod json_helpers;
 mod localization_markets_catalogs;
+mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;
@@ -1714,6 +1741,8 @@ pub(in crate::proxy) use self::core::*;
 pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::json_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]

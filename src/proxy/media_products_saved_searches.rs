@@ -187,10 +187,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "bulkOperationRunQuery".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "bulkOperationRunQuery".to_string());
         let query_text = resolved_string_arg(&arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
@@ -290,17 +288,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY,
                 "operationName": "BulkOperationRunQueryProxyFallback",
                 "variables": { "query": query_text }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }
@@ -318,10 +313,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "bulkOperationRunMutation".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || {
+                "bulkOperationRunMutation".to_string()
+            });
         let mutation_text = resolved_string_arg(&arguments, "mutation").unwrap_or_default();
         let staged_upload_path =
             resolved_string_arg(&arguments, "stagedUploadPath").unwrap_or_default();
@@ -473,9 +468,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let id = resolved_string_arg(variables, "id").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "bulkOperationCancel".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "bulkOperationCancel".to_string());
 
         if self.bulk_operation_by_id(&id).is_none() {
             self.hydrate_bulk_operation_for_cancel(request, &id);
@@ -531,18 +525,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "operationName": "BulkOperationHydrate",
                 "query": BULK_OPERATION_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status != 200 {
             return;
         }
@@ -618,9 +608,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileCreate".to_string());
         let inputs = media_object_list_arg(query, variables, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
@@ -708,7 +697,7 @@ impl DraftProxy {
                 let resource_type = media_file_gid_type(&content_type);
                 let id = self.next_synthetic_gid(resource_type);
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
-                let created_at = format!("2024-01-01T00:00:{:02}.000Z", index + 1);
+                let created_at = file_create_timestamp_for_index(index);
                 let file = media_file_record(
                     &id,
                     &content_type,
@@ -739,9 +728,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileUpdate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileUpdate".to_string());
         let inputs = media_object_list_arg(query, variables, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
@@ -961,9 +949,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fileDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "fileDelete".to_string());
         let ids = media_string_list_arg(query, variables, "fileIds")
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
@@ -1007,9 +994,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fileAcknowledgeUpdateFailed".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || {
+                "fileAcknowledgeUpdateFailed".to_string()
+            });
         let file_ids = media_string_list_arg(query, variables, "fileIds");
         let missing_ids = dedupe_media_strings(
             file_ids
@@ -1069,9 +1057,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "stagedUploadsCreate".to_string());
         let user_error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         if user_error_selection
@@ -1232,18 +1219,14 @@ impl DraftProxy {
         if missing_ids.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": MEDIA_FILE_UPDATE_HYDRATE_QUERY,
                 "operationName": "MediaFileUpdateHydrate",
                 "variables": { "fileIds": missing_ids },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -1283,18 +1266,14 @@ impl DraftProxy {
             if product_id.is_empty() || self.store.product_by_id(&product_id).is_some() {
                 continue;
             }
-            let hydrate_request = Request {
-                method: "POST".to_string(),
-                path: request.path.clone(),
-                headers: request.headers.clone(),
-                body: serde_json::to_string(&json!({
+            let response = self.upstream_post(
+                request,
+                json!({
                     "query": MEDIA_PRODUCT_HYDRATE_QUERY,
                     "operationName": "MediaProductHydrate",
                     "variables": { "id": product_id },
-                }))
-                .unwrap_or_default(),
-            };
-            let response = (self.upstream_transport)(hydrate_request);
+                }),
+            );
             if response.status >= 400 {
                 continue;
             }
@@ -1325,18 +1304,14 @@ impl DraftProxy {
         if missing.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": MEDIA_FILE_REFERENCES_HYDRATE_QUERY,
                 "operationName": "MediaFileReferencesHydrate",
                 "variables": { "fileIds": missing },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -1552,11 +1527,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
-        let mut user_errors = metafields_set_input_errors(&inputs);
+        if inputs.len() <= 25 {
+            self.hydrate_metafield_reference_ids(request, metafields_set_reference_values(&inputs));
+        }
+        let mut user_errors =
+            metafields_set_input_errors(&inputs, |id| self.metafield_reference_exists(id));
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
@@ -1697,9 +1675,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "metafieldsDelete".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
@@ -1859,18 +1836,14 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: serde_json::to_string(&json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": OWNER_METAFIELD_HYDRATE_QUERY,
                 "operationName": "OwnerMetafieldsHydrateNodes",
                 "variables": { "ids": ids },
-            }))
-            .unwrap_or_default(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status >= 400 {
             return;
         }
@@ -1878,6 +1851,144 @@ impl DraftProxy {
             for node in nodes {
                 self.stage_observed_owner_metafield_node(node);
             }
+        }
+    }
+
+    fn hydrate_metafield_reference_ids(&mut self, request: &Request, ids: Vec<String>) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut ids = ids
+            .into_iter()
+            .filter(|id| !id.is_empty() && !self.metafield_reference_exists(id))
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids.dedup();
+        if ids.is_empty() {
+            return;
+        }
+
+        let mut product_domain_ids = Vec::new();
+        let mut generic_ids = Vec::new();
+        for id in ids {
+            match shopify_gid_resource_type(&id) {
+                Some("Product" | "ProductVariant" | "Collection") => product_domain_ids.push(id),
+                _ => generic_ids.push(id),
+            }
+        }
+        if !product_domain_ids.is_empty() {
+            self.hydrate_product_nodes_for_observation_with_request(request, product_domain_ids);
+        }
+        if generic_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": "query MetafieldReferenceHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { id __typename } }",
+                "operationName": "MetafieldReferenceHydrateNodes",
+                "variables": { "ids": generic_ids },
+            }),
+        );
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+            for node in nodes {
+                self.stage_metafield_reference_node(node);
+            }
+        }
+    }
+
+    fn stage_metafield_reference_node(&mut self, node: &Value) {
+        let Some(id) = node
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.store.staged.metafield_reference_ids.insert(id.clone());
+        match shopify_gid_resource_type(&id) {
+            Some("Product") => self.store.stage_observed_product_json(node),
+            Some("ProductVariant") => {
+                if let Some(variant) = product_variant_state_from_observed_json(node) {
+                    self.store.stage_product_variant(variant);
+                }
+            }
+            Some("Collection") => {
+                self.store
+                    .staged
+                    .collections
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Customer") => {
+                self.store
+                    .staged
+                    .customers
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Order") => {
+                self.store
+                    .staged
+                    .orders
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Company") => {
+                self.store
+                    .staged
+                    .b2b_companies
+                    .entry(id)
+                    .or_insert_with(|| node.clone());
+            }
+            Some("Metaobject") => {
+                if !self.store.staged.deleted_metaobject_ids.contains(&id) {
+                    self.store
+                        .staged
+                        .metaobjects
+                        .entry(id)
+                        .or_insert_with(|| node.clone());
+                }
+            }
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
+                if let Some(record) = media_file_record_from_node(node) {
+                    self.store.staged.media_files.entry(id).or_insert(record);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn metafield_reference_exists(&self, id: &str) -> bool {
+        if self.store.staged.metafield_reference_ids.contains(id) {
+            return true;
+        }
+        match shopify_gid_resource_type(id) {
+            Some("Product") => self.store.product_by_id(id).is_some(),
+            Some("ProductVariant") => self.store.product_variant_by_id(id).is_some(),
+            Some("Collection") => self.store.collection_by_id(id).is_some(),
+            Some("Customer") => {
+                self.store.staged.customers.contains_key(id)
+                    && !self.store.staged.deleted_customer_ids.contains(id)
+            }
+            Some("Order") => {
+                self.store.staged.orders.contains_key(id)
+                    && !self.store.staged.deleted_order_ids.contains(id)
+            }
+            Some("Company") => self.store.staged.b2b_companies.contains_key(id),
+            Some("Metaobject") => {
+                self.store.staged.metaobjects.contains_key(id)
+                    && !self.store.staged.deleted_metaobject_ids.contains(id)
+            }
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
+                self.store.staged.media_files.contains_key(id)
+                    && !self.store.staged.deleted_media_file_ids.contains(id)
+            }
+            _ => false,
         }
     }
 
@@ -2895,8 +3006,9 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let Some(input) = product_create_input(query, variables) else {
-            let response_key =
-                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+            let response_key = primary_root_field(query, variables)
+                .map(|field| field.response_key)
+                .unwrap_or_else(|| "productCreate".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: {
@@ -2940,9 +3052,8 @@ impl DraftProxy {
         let Some(title) =
             resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
         else {
-            let response_key =
-                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let (response_key, payload_selection) =
+                primary_root_response_selection(query, variables, || "productCreate".to_string());
             let error_selection =
                 selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
             let user_error = selected_json(
@@ -3102,10 +3213,10 @@ impl DraftProxy {
             self.add_product_to_collection_membership(collection_id, &product);
         }
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productCreate".to_string());
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
         MutationOutcome::staged(
             ok_json(json!({
@@ -3384,17 +3495,18 @@ impl DraftProxy {
 
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.iter().any(|tag| tag.chars().count() > 255) {
+                let (response_key, payload_selection) =
+                    primary_root_response_selection(query, variables, || {
+                        "productUpdate".to_string()
+                    });
                 let product_selection =
-                    nested_root_field_selection(query, "product").unwrap_or_default();
-                let payload_selection = root_field_selection(query).unwrap_or_default();
+                    selected_child_selection(&payload_selection, "product").unwrap_or_default();
                 let error_selection =
                     selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
                 let user_error = selected_json(
                     &json!({"field": ["tags"], "message": "Product tags is invalid"}),
                     &error_selection,
                 );
-                let response_key =
-                    root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
                 return MutationOutcome::response(ok_json(json!({
                     "data": {
                         response_key: selected_json(
@@ -3445,10 +3557,10 @@ impl DraftProxy {
         };
         self.store.stage_product(product.clone());
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productUpdate".to_string());
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
         MutationOutcome::staged(
             ok_json(json!({
@@ -3476,16 +3588,18 @@ impl DraftProxy {
         field: &str,
         message: &str,
     ) -> MutationOutcome {
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productUpdate".to_string()
+            });
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let user_error = selected_json(
             &json!({"field": [field], "message": message}),
             &error_selection,
         );
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
         MutationOutcome::response(ok_json(json!({
             "data": {
                 response_key: selected_json(
@@ -3542,8 +3656,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || root_field.to_string());
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_media = resolved_object_list_field(variables, "variantMedia");
         self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
@@ -4597,10 +4711,12 @@ impl DraftProxy {
         variant: Option<&ProductVariantRecord>,
         user_errors: Vec<Value>,
     ) -> Response {
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
         ok_json(json!({
             "data": {
-                root_field_response_key(query).unwrap_or_else(|| root_field.to_string()): self.product_variant_payload_json(
-                    query,
+                response_key: self.product_variant_payload_json(
+                    &payload_selection,
                     product,
                     variant,
                     user_errors
@@ -4642,19 +4758,18 @@ impl DraftProxy {
 
     fn product_variant_payload_json(
         &self,
-        query: &str,
+        payload_selection: &[SelectedField],
         product: Option<&ProductRecord>,
         variant: Option<&ProductVariantRecord>,
         user_errors: Vec<Value>,
     ) -> Value {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
         let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
+            selected_child_selection(payload_selection, "product").unwrap_or_default();
         let variant_selection =
-            selected_child_selection(&payload_selection, "productVariant").unwrap_or_default();
+            selected_child_selection(payload_selection, "productVariant").unwrap_or_default();
         let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        selected_payload_json(&payload_selection, |selection| {
+            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
+        selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" => Some(match product {
                     Some(product) => {
@@ -4883,11 +4998,12 @@ impl DraftProxy {
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productVariantDelete".to_string()
+            });
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productVariantDelete".to_string());
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
@@ -4926,6 +5042,8 @@ impl DraftProxy {
             return MutationOutcome::response(product_delete_missing_product(query));
         }
 
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productDelete".to_string());
         if resolved_bool_field(variables, "synchronous") == Some(false) {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
             if self
@@ -4937,7 +5055,7 @@ impl DraftProxy {
             {
                 return MutationOutcome::response(ok_json(json!({
                     "data": {
-                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_duplicate_payload()
+                        response_key.clone(): product_delete_async_duplicate_payload()
                     }
                 })));
             }
@@ -4948,7 +5066,7 @@ impl DraftProxy {
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {
-                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_operation_payload(&operation_id)
+                        response_key: product_delete_async_operation_payload(&operation_id)
                     }
                 })),
                 LogDraft::staged("productDelete", "products", vec![id.clone()]),
@@ -4957,9 +5075,6 @@ impl DraftProxy {
 
         self.store.delete_product(&id);
 
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
@@ -5028,16 +5143,16 @@ impl DraftProxy {
             .product_staged_or_base(id)
             .or_else(|| known_product_change_status_seed(id))
         else {
-            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let payload_selection = &field.selection;
             let error_selection =
-                selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+                selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
             let error = selected_json(
                 &json!({"field": ["productId"], "message": "Product does not exist"}),
                 &error_selection,
             );
             return MutationOutcome::response(ok_json(json!({
                 "data": {
-                    field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
+                    field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), payload_selection)
                 }
             })));
         };
@@ -5045,8 +5160,9 @@ impl DraftProxy {
         product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let product_selection =
+            selected_child_selection(&field.selection, "product").unwrap_or_default();
+        let payload_selection = &field.selection;
         let variants = self.store.product_variants_for_product(&product.id);
         MutationOutcome::staged(
             ok_json(json!({
@@ -5054,7 +5170,7 @@ impl DraftProxy {
                     field.response_key.clone(): product_mutation_payload_json(
                         &product,
                         &variants,
-                        &payload_selection,
+                        payload_selection,
                         &product_selection,
                         &self.store.shop_currency_code(),
                     )
@@ -5149,8 +5265,8 @@ impl DraftProxy {
         product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
-        let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
+        let payload_selection = &field.selection;
         let payload = json!({
             "node": product_json_with_currency(
                 &product,
@@ -5162,7 +5278,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    field.response_key.clone(): selected_json(&payload, &payload_selection)
+                    field.response_key.clone(): selected_json(&payload, payload_selection)
                 }
             })),
             LogDraft::staged(root_field, "products", vec![id.clone()]),
@@ -5177,16 +5293,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
                 "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5289,16 +5402,13 @@ impl DraftProxy {
             "DraftOrder" => (TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY, "draftOrder"),
             _ => return None,
         };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5785,16 +5895,13 @@ impl DraftProxy {
         if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
                 "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6270,7 +6377,7 @@ fn analyze_bulk_query_field(
 ) {
     if !field_is_selected(selection, "edges") {
         if field_is_selected(selection, "nodes") {
-            push_unique(&mut analysis.nodes_connection_fields, field_name);
+            push_unique_string(&mut analysis.nodes_connection_fields, field_name);
         }
         if let Some(nested_connection_name) = first_selected_connection_name(selection) {
             let next_list_depth = list_depth + usize::from(bulk_query_list_field(field_name));
@@ -6295,7 +6402,7 @@ fn analyze_bulk_query_field(
     }
     if let Some(parent_connection_name) = parent_connection_name {
         if !parent_node_has_unaliased_id {
-            push_unique(
+            push_unique_string(
                 &mut analysis.nested_without_parent_id_fields,
                 parent_connection_name,
             );
@@ -6350,12 +6457,6 @@ fn field_is_selected(selection: &[SelectedField], name: &str) -> bool {
 
 fn bulk_query_list_field(name: &str) -> bool {
     matches!(name, "fulfillments")
-}
-
-fn push_unique(values: &mut Vec<String>, value: &str) {
-    if !values.iter().any(|existing| existing == value) {
-        values.push(value.to_string());
-    }
 }
 
 fn owner_reference_from_gid(owner_id: &str) -> Value {
@@ -6453,14 +6554,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
 }
 
 fn owner_typename_from_gid(owner_id: &str) -> &'static str {
-    match shopify_gid_resource_type(owner_id) {
-        Some("ProductVariant") => "ProductVariant",
-        Some("Collection") => "Collection",
-        Some("Customer") => "Customer",
-        Some("Order") => "Order",
-        Some("Company") => "Company",
-        _ => "Product",
-    }
+    metafield_owner_gid_resource_type(owner_id)
 }
 
 fn media_object_list_arg(
@@ -6995,11 +7089,18 @@ fn media_file_record(
     file
 }
 
+fn file_create_timestamp_for_index(index: usize) -> String {
+    let offset_seconds = index + 1;
+    let hours = offset_seconds / 3600;
+    let minutes = (offset_seconds / 60) % 60;
+    let seconds = offset_seconds % 60;
+    format!("2024-01-01T{hours:02}:{minutes:02}:{seconds:02}.000Z")
+}
+
 fn media_file_numeric_id(file: &Value) -> u64 {
     file.get("id")
         .and_then(Value::as_str)
-        .and_then(|id| id.split('?').next())
-        .and_then(|id| id.rsplit('/').next())
+        .map(resource_id_tail)
         .and_then(|tail| tail.parse::<u64>().ok())
         .unwrap_or(0)
 }

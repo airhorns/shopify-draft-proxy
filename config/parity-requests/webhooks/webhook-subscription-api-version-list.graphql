@@ -1,0 +1,12 @@
+query WebhookSubscriptionApiVersionList($first: Int!, $uri: String!) {
+  webhookSubscriptions(first: $first, uri: $uri, sortKey: ID) {
+    nodes {
+      id
+      apiVersion {
+        handle
+        displayName
+        supported
+      }
+    }
+  }
+}

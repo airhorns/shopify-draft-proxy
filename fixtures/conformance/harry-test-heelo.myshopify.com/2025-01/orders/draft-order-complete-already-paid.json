@@ -1,0 +1,247 @@
+{
+  "setup": {
+    "draftOrderCreate": {
+      "query": "mutation DraftOrderCompleteAlreadyPaidCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n      status\n      ready\n      tags\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "email": "draft-complete-already-paid-1782065079457@example.com",
+          "note": "draft order complete already paid conformance",
+          "tags": ["dcap-mqo3jbmp", "dcap"],
+          "lineItems": [
+            {
+              "title": "Already paid completion guard",
+              "quantity": 1,
+              "originalUnitPrice": "1.00",
+              "sku": "paid-guard-1782065079457"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1269177942322",
+              "name": "#D200",
+              "status": "OPEN",
+              "ready": true,
+              "tags": ["dcap", "dcap-mqo3jbmp"],
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstComplete": {
+      "query": "mutation DraftOrderCompleteAlreadyPaidComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, sourceName: \"shopify-draft-proxy\", paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269177942322",
+        "paymentPending": false
+      },
+      "response": {
+        "data": {
+          "draftOrderComplete": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1269177942322",
+              "status": "COMPLETED",
+              "order": {
+                "id": "gid://shopify/Order/8835931701554",
+                "name": "#1467"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterFirstOrderRead": {
+      "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8835931701554"
+      },
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8835931701554",
+            "name": "#1467",
+            "displayFinancialStatus": "PAID"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "query": "mutation DraftOrderCompleteAlreadyPaidComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, sourceName: \"shopify-draft-proxy\", paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1269177942322",
+      "paymentPending": false
+    },
+    "response": {
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1269177942322",
+            "status": "COMPLETED",
+            "order": {
+              "id": "gid://shopify/Order/8835931701554",
+              "name": "#1467"
+            }
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "This order has been paid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "orderRead": {
+    "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8835931701554"
+    }
+  },
+  "afterSecondOrderRead": {
+    "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8835931701554"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8835931701554",
+          "name": "#1467",
+          "displayFinancialStatus": "PAID"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query DraftOrderCompleteAlreadyPaidDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      status\n      ready\n      completedAt\n      order {\n        id\n        name\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1269177942322"
+    },
+    "response": {
+      "data": {
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1269177942322",
+          "name": "#D200",
+          "status": "COMPLETED",
+          "ready": true,
+          "completedAt": "2026-06-21T18:04:40Z",
+          "order": {
+            "id": "gid://shopify/Order/8835931701554",
+            "name": "#1467"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "cancelOrder": {
+      "query": "mutation DraftOrderCompleteAlreadyPaidCleanup($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $restock: Boolean!) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8835931701554",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/10819a9b-19ed-4c3a-9913-24eadb3b37eb",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

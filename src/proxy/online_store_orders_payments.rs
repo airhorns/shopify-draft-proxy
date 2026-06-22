@@ -19,6 +19,13 @@ const ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY: &str =
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const THEME_FILES_MAX_FILE_INPUT: usize = 50;
+const THEME_FILES_MAX_FILE_LIMIT: usize = 100;
+const THEME_UNDELETABLE_FILES: &[&str] = &[
+    "config/settings_data.json",
+    "config/settings_schema.json",
+    "layout/theme.liquid",
+];
 const FULFILLMENT_EVENT_CREATED_AT: &str = "2024-01-01T00:00:03.000Z";
 const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "LABEL_PURCHASED",
@@ -33,6 +40,91 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "FAILURE",
     "CARRIER_PICKED_UP",
 ];
+
+fn theme_file_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn theme_file_limit_error() -> Value {
+    theme_file_user_error(
+        vec!["files".to_string()],
+        "Exceeded maximum number of files",
+        "INVALID",
+    )
+}
+
+fn theme_file_duplicate_error(index: usize, field_name: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        "duplicate-file-input",
+        "INVALID",
+    )
+}
+
+fn theme_file_field_error(index: usize, field_name: &str, message: &str, code: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        message,
+        code,
+    )
+}
+
+fn theme_file_delete_error(index: usize, message: &str, code: &str) -> Value {
+    theme_file_user_error(vec!["files".to_string(), index.to_string()], message, code)
+}
+
+fn theme_file_filename_allowed(filename: &str) -> bool {
+    let Some((root, rest)) = filename.split_once('/') else {
+        return false;
+    };
+    matches!(
+        root,
+        "assets" | "config" | "layout" | "locales" | "sections" | "snippets" | "templates"
+    ) && !rest.is_empty()
+        && !rest.ends_with('/')
+        && !rest.contains("//")
+        && !filename.split('/').any(|segment| segment == "..")
+}
+
+fn theme_file_filename_error(index: usize, filename: &str) -> Option<Value> {
+    if filename.trim().is_empty() {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename can't be blank",
+            "INVALID",
+        ));
+    }
+    if filename == "_drafts" || filename.starts_with("_drafts/") || filename.contains("/_drafts/") {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Access denied",
+            "ACCESS_DENIED",
+        ));
+    }
+    if !theme_file_filename_allowed(filename) {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename is invalid",
+            "INVALID",
+        ));
+    }
+    None
+}
 const DRAFT_ORDER_HYDRATE_QUERY: &str = r#"
     query OrdersDraftOrderHydrate($id: ID!) {
       draftOrder(id: $id) {
@@ -681,8 +773,7 @@ fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
     let numeric_id = order
         .get("id")
         .and_then(Value::as_str)
-        .and_then(|id| id.rsplit('/').next())
-        .and_then(|tail| tail.split('?').next())
+        .map(resource_id_tail)
         .and_then(|tail| tail.parse::<i64>().ok())
         .unwrap_or(0);
     (date, numeric_id)
@@ -1918,7 +2009,7 @@ fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
     let highest = order_transactions(order)
         .iter()
         .filter_map(|transaction| transaction["id"].as_str())
-        .filter_map(|id| id.rsplit('/').next())
+        .map(resource_id_path_tail)
         .filter_map(|tail| tail.parse::<u64>().ok())
         .max()
         .unwrap_or(0);
@@ -2737,9 +2828,9 @@ fn payment_transaction_record_from_amount_set(
     parent_transaction: Value,
 ) -> Value {
     let transaction_number = id
-        .rsplit('/')
-        .next()
-        .and_then(|value| value.parse::<u64>().ok());
+        .parse::<u64>()
+        .ok()
+        .or_else(|| resource_id_path_tail(id).parse::<u64>().ok());
     let payment_id = match (kind, transaction_number) {
         ("AUTHORIZATION", _) => Value::Null,
         (_, Some(number)) => json!(format!("gid://shopify/Payment/{}", number + 1)),
@@ -3645,10 +3736,6 @@ fn draft_order_line_item_variant_ids(input: &BTreeMap<String, ResolvedValue>) ->
     ids
 }
 
-fn draft_order_connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
 fn draft_order_invoice_url(id: &str) -> String {
     format!(
         "https://shopify-draft-proxy.local/draft_orders/{}/invoice",
@@ -4043,7 +4130,7 @@ impl DraftProxy {
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                 "webPixelUpdate" => {
                     let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
-                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
+                        .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
                     self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
                 }
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
@@ -4072,12 +4159,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
-        let id = format!(
-            "gid://shopify/{}/{}?shopify-draft-proxy=synthetic",
-            typename, self.next_synthetic_id
-        );
-        self.next_synthetic_id += 1;
-        id
+        self.next_proxy_synthetic_gid(typename)
     }
 
     fn mobile_platform_application_exists(&self, typename: &str) -> bool {
@@ -4665,16 +4747,58 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        if files.iter().any(|file| {
-            theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
-        }) {
-            let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            let payload =
+                json!({"upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
             return selected_json(&payload, &field.selection);
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let filename = theme_file_arg_string(file, "filename").unwrap_or_default();
+            if let Some(error) = theme_file_filename_error(index, &filename) {
+                errors.push(error);
+            } else if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_duplicate_error(index, "filename"));
+            }
+            if theme_file_record_from_input(file).is_err() {
+                errors.push(theme_file_field_error(
+                    index,
+                    "body",
+                    "invalid-body-input",
+                    "INVALID",
+                ));
+            }
+            if let Some(expected_checksum) = theme_file_arg_string(file, "checksumMd5") {
+                if self
+                    .find_theme_file(&theme_id, &filename)
+                    .and_then(|record| {
+                        record
+                            .get("checksumMd5")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .is_some_and(|current_checksum| current_checksum != expected_checksum)
+                {
+                    errors.push(theme_file_field_error(
+                        index,
+                        "checksumMd5",
+                        "Checksum does not match",
+                        "CONFLICT",
+                    ));
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"upsertedThemeFiles": [], "userErrors": errors}),
+                &field.selection,
+            );
         }
         let mut upserted = Vec::new();
         let mut staged = false;
         for file in files {
-            if let Some(record) = theme_file_record_from_input(&file) {
+            if let Ok(Some(record)) = theme_file_record_from_input(&file) {
                 let persisted = self.upsert_theme_file(&theme_id, record.clone());
                 staged |= persisted.is_some();
                 let record = persisted.unwrap_or(record);
@@ -4697,6 +4821,26 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
+        if files.len() > THEME_FILES_MAX_FILE_INPUT {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut preflight_errors = Vec::new();
+        let mut seen_dst_filenames = BTreeSet::new();
+        for (index, file) in files.iter().enumerate() {
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            if !dst.is_empty() && !seen_dst_filenames.insert(dst) {
+                preflight_errors.push(theme_file_duplicate_error(index, "dstFilename"));
+            }
+        }
+        if !preflight_errors.is_empty() {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": preflight_errors}),
+                &field.selection,
+            );
+        }
         let mut copied = Vec::new();
         let mut errors = Vec::new();
         for (index, file) in files.iter().enumerate() {
@@ -4731,15 +4875,30 @@ impl DraftProxy {
     ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
-        let required = ["config/settings_data.json", "config/settings_schema.json"];
-        let errors = files
-            .iter()
-            .enumerate()
-            .filter(|(_, filename)| required.contains(&filename.as_str()))
-            .map(|(index, _)| {
-                json!({"field": ["files", index.to_string()], "message": "File is required and can't be deleted", "code": "INVALID"})
-            })
-            .collect::<Vec<_>>();
+        if files.len() > THEME_FILES_MAX_FILE_LIMIT {
+            return selected_json(
+                &json!({"deletedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
+                &field.selection,
+            );
+        }
+        let mut errors = Vec::new();
+        let mut seen_filenames = BTreeSet::new();
+        for (index, filename) in files.iter().enumerate() {
+            if !seen_filenames.insert(filename.clone()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "duplicate-file-input",
+                    "INVALID",
+                ));
+            }
+            if THEME_UNDELETABLE_FILES.contains(&filename.as_str()) {
+                errors.push(theme_file_delete_error(
+                    index,
+                    "File is required and can't be deleted",
+                    "INVALID",
+                ));
+            }
+        }
         if !errors.is_empty() {
             return selected_json(
                 &json!({"deletedThemeFiles": [], "userErrors": errors}),
@@ -5555,16 +5714,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_LIFECYCLE_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5615,16 +5771,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -6477,16 +6630,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": hydrate_query,
                 "variables": { "id": fulfillment_order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6509,16 +6659,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_MARK_AS_PAID_HYDRATE_QUERY,
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6537,16 +6684,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDERS_FULFILLMENT_HYDRATE_QUERY,
                 "variables": { "id": fulfillment_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6584,16 +6728,13 @@ impl DraftProxy {
         }
         // Stage one: resolve the fulfillment's owning order and the sibling
         // fulfillment states needed for the cancel/tracking preconditions.
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDERS_FULFILLMENT_LIFECYCLE_HYDRATE_QUERY,
                 "variables": { "id": fulfillment_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6605,16 +6746,13 @@ impl DraftProxy {
         let order_id = order.get("id").and_then(Value::as_str)?.to_string();
         // Stage two (best-effort): enrich with the full fulfillment line-item view so a
         // downstream order read observes line items. A cassette miss here is non-fatal.
-        let enriched = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let enriched = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_FULFILLMENT_LIFECYCLE_READ_QUERY,
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if (200..300).contains(&enriched.status) {
             let enriched_order = enriched.body["data"]["order"].clone();
             if enriched_order.is_object() {
@@ -6797,17 +6935,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": REFUND_ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersOrderHydrate",
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         let order = response.body["data"]["order"].clone();
         if order.is_object() {
             self.store
@@ -6892,8 +7027,13 @@ impl DraftProxy {
             .iter()
             .flat_map(|group| fulfillment_group_line_items(&order_before, group))
             .collect::<Vec<_>>();
+        let fulfillment_sequence = order_before["fulfillments"]
+            .as_array()
+            .map_or(1, |fulfillments| fulfillments.len() + 1);
+        let order_name = order_before["name"].as_str().unwrap_or_default();
         let fulfillment = json!({
             "id": fulfillment_id,
+            "name": format!("{order_name}-F{fulfillment_sequence}"),
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "createdAt": "2024-01-01T00:00:00.000Z",
@@ -7941,17 +8081,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DRAFT_ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersDraftOrderHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -7977,17 +8114,14 @@ impl DraftProxy {
         // tax/shipping), so the recorded hydrate is authoritative when present.
         // On a cassette miss / non-2xx response we keep whatever record is
         // already staged rather than dropping it.
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersOrderHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -8008,17 +8142,14 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY,
                 "operationName": "OrdersDraftOrderCustomerHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -8043,17 +8174,14 @@ impl DraftProxy {
         }
         ids.into_iter()
             .filter_map(|id| {
-                let response = (self.upstream_transport)(Request {
-                    method: "POST".to_string(),
-                    path: request.path.clone(),
-                    headers: request.headers.clone(),
-                    body: json!({
+                let response = self.upstream_post(
+                    request,
+                    json!({
                         "query": DRAFT_ORDER_VARIANT_HYDRATE_QUERY,
                         "operationName": "OrdersDraftOrderVariantHydrate",
                         "variables": { "id": id }
-                    })
-                    .to_string(),
-                });
+                    }),
+                );
                 if !(200..300).contains(&response.status) {
                     return None;
                 }
@@ -8132,7 +8260,7 @@ impl DraftProxy {
 
     fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
         let currency = draft_order_currency(draft_order);
-        let line_items = draft_order_connection_nodes(&draft_order["lineItems"]);
+        let line_items = connection_nodes(&draft_order["lineItems"]);
         let original_subtotal = line_items
             .iter()
             .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
@@ -8362,6 +8490,18 @@ impl DraftProxy {
         if draft_order.get("__draftProxyLineItems").is_none() {
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
+        if draft_order["status"].as_str() == Some("COMPLETED") {
+            return selected_json(
+                &json!({
+                    "draftOrder": draft_order,
+                    "userErrors": [{
+                        "field": Value::Null,
+                        "message": "This order has been paid"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
         let payment_gateway_id = resolved_string_arg(&field.arguments, "paymentGatewayId");
         if payment_gateway_id.is_some() {
             return selected_json(
@@ -8398,7 +8538,7 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .map(|mut line| {
-                if let Some(tail) = line["id"].as_str().and_then(|id| id.rsplit('/').next()) {
+                if let Some(tail) = line["id"].as_str().map(resource_id_path_tail) {
                     line["id"] = json!(format!("gid://shopify/LineItem/{tail}"));
                 }
                 if line["sku"].as_str() == Some("") {
@@ -10694,10 +10834,7 @@ impl DraftProxy {
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
         }
-        let id = format!(
-            "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
-            self.store.staged.next_order_customer_order_id
-        );
+        let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
         self.store.staged.next_order_customer_order_id += 1;
         if email == "order-customer-b2b@example.com" {
             self.store
@@ -10757,10 +10894,7 @@ impl DraftProxy {
         // the cancel, and leave it unstaged so the downstream `order` read forwards
         // to the backend for the real refunded/restocked state instead of serving
         // a stale locally-projected copy.
-        if !order_id.contains("shopify-draft-proxy=synthetic")
-            && !order_locally_known
-            && !refund_method_cancel
-        {
+        if !order_id.contains(SYNTHETIC_MARKER) && !order_locally_known && !refund_method_cancel {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
         let error_payload = |field_name: &str, message: &str, code: &str| {
@@ -10809,10 +10943,7 @@ impl DraftProxy {
                     &field.selection,
                 ));
             }
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,
@@ -10853,10 +10984,7 @@ impl DraftProxy {
             let reason =
                 resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
-            let job_id = format!(
-                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
-                self.log_entries.len() + 1
-            );
+            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
                 .store
                 .staged
@@ -10979,7 +11107,7 @@ impl DraftProxy {
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged
@@ -10989,7 +11117,7 @@ impl DraftProxy {
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
-        if !customer_id.is_empty() && !customer_id.contains("shopify-draft-proxy=synthetic") {
+        if !customer_id.is_empty() && !customer_id.contains(SYNTHETIC_MARKER) {
             self.ensure_order_customer_hydrated(request, &customer_id);
         }
         let customer = self.store.staged.customers.get(&customer_id).cloned();
@@ -11087,7 +11215,7 @@ impl DraftProxy {
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
-            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !order_id.contains(SYNTHETIC_MARKER)
             && !self
                 .store
                 .staged

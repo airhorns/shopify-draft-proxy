@@ -87,7 +87,7 @@ const transactionSelection = `#graphql
 `;
 
 async function createGiftCard(label: string, expiresOn: string): Promise<CapturedRequest> {
-  const code = `H690${label[0]?.toUpperCase() ?? 'X'}${Date.now().toString(36)}`;
+  const code = `GCTV${label[0]?.toUpperCase() ?? 'X'}${Date.now().toString(36)}`;
   return capture(
     label,
     `#graphql
@@ -114,7 +114,7 @@ async function createGiftCard(label: string, expiresOn: string): Promise<Capture
       input: {
         initialValue: '10.00',
         code,
-        note: `HAR-690 ${label} validation gift card`,
+        note: `Gift card transaction ${label} validation fixture`,
         expiresOn,
       },
     },
@@ -206,9 +206,9 @@ async function hydrateGiftCard(id: string): Promise<RecordedCall> {
   };
 }
 
-const setupActive = await createGiftCard('active', '2099-01-01');
-const setupExpired = await createGiftCard('expired', '2020-01-01');
-const setupDeactivated = await createGiftCard('deactivated', '2099-01-01');
+const setupActive = await createGiftCard('active', '2026-10-01');
+const setupExpired = await createGiftCard('expired', '2026-04-28');
+const setupDeactivated = await createGiftCard('deactivated', '2026-10-01');
 
 const activeId = readGiftCardId(setupActive);
 const expiredId = readGiftCardId(setupExpired);
@@ -237,20 +237,34 @@ const mismatchCreditInput = {
   },
 };
 const futureCreditInput = {
-  processedAt: '2099-01-01T00:00:00Z',
+  processedAt: '2030-01-01T00:00:00Z',
   creditAmount: {
     amount: '5.00',
     currencyCode: cardCurrency,
   },
 };
 const preEpochCreditInput = {
-  processedAt: '1969-12-31T23:59:59Z',
+  processedAt: '1960-01-01T00:00:00Z',
   creditAmount: {
     amount: '5.00',
     currencyCode: cardCurrency,
   },
 };
 const validDebitInput = {
+  debitAmount: {
+    amount: '5.00',
+    currencyCode: cardCurrency,
+  },
+};
+const futureDebitInput = {
+  processedAt: '2030-01-01T00:00:00Z',
+  debitAmount: {
+    amount: '5.00',
+    currencyCode: cardCurrency,
+  },
+};
+const preEpochDebitInput = {
+  processedAt: '1960-01-01T00:00:00Z',
   debitAmount: {
     amount: '5.00',
     currencyCode: cardCurrency,
@@ -277,6 +291,24 @@ if (activeId !== null && expiredId !== null && deactivatedId !== null) {
       }
     `,
     { id: expiredId, input: validCreditInput },
+  );
+  operations['expiredDebit'] = await capture(
+    'expiredDebit',
+    `#graphql
+      mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {
+        giftCardDebit(id: $id, debitInput: $input) {
+          giftCardDebitTransaction {
+            ${transactionSelection}
+          }
+          userErrors {
+            field
+            code
+            message
+          }
+        }
+      }
+    `,
+    { id: expiredId, input: validDebitInput },
   );
   operations['deactivatedCredit'] = await capture(
     'deactivatedCredit',
@@ -350,6 +382,42 @@ if (activeId !== null && expiredId !== null && deactivatedId !== null) {
     `,
     { id: activeId, input: preEpochCreditInput },
   );
+  operations['futureDebit'] = await capture(
+    'futureDebit',
+    `#graphql
+      mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {
+        giftCardDebit(id: $id, debitInput: $input) {
+          giftCardDebitTransaction {
+            ${transactionSelection}
+          }
+          userErrors {
+            field
+            code
+            message
+          }
+        }
+      }
+    `,
+    { id: activeId, input: futureDebitInput },
+  );
+  operations['preEpochDebit'] = await capture(
+    'preEpochDebit',
+    `#graphql
+      mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {
+        giftCardDebit(id: $id, debitInput: $input) {
+          giftCardDebitTransaction {
+            ${transactionSelection}
+          }
+          userErrors {
+            field
+            code
+            message
+          }
+        }
+      }
+    `,
+    { id: activeId, input: preEpochDebitInput },
+  );
   operations['deactivatedDebit'] = await capture(
     'deactivatedDebit',
     `#graphql
@@ -398,6 +466,11 @@ for (const [label, id] of [
   }
 }
 
+function operationPayload(label: string, root: string): unknown {
+  const data = operations[label]?.response.payload.data;
+  return isObject(data) ? (data[root] ?? null) : null;
+}
+
 await mkdir(outputDir, { recursive: true });
 await writeFile(
   outputPath,
@@ -407,8 +480,8 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-690 captures giftCardCredit/giftCardDebit validation branches for expired, deactivated, mismatched currency, future processedAt, pre-epoch processedAt, and typed success payload behavior.',
-        'Setup creates three disposable gift cards: active, expired, and deactivated. Cleanup deactivates any setup cards that are not already deactivated.',
+        'Captures giftCardCredit/giftCardDebit validation branches for ordinary recent-past expired cards, deactivated cards, mismatched currency, ordinary future processedAt, ordinary pre-epoch processedAt, and typed success payload behavior.',
+        'Setup creates three disposable gift cards: active future-expiring, recent-past expired, and deactivated future-expiring. Cleanup deactivates any setup cards that are not already deactivated.',
       ],
       proxyVariables: {
         transactionValidation: {
@@ -420,6 +493,8 @@ await writeFile(
           futureCreditInput,
           preEpochCreditInput,
           validDebitInput,
+          futureDebitInput,
+          preEpochDebitInput,
         },
       },
       setup: {
@@ -429,6 +504,20 @@ await writeFile(
         deactivate: setupDeactivate,
       },
       operations,
+      expected: {
+        data: {
+          expiredCredit: operationPayload('expiredCredit', 'giftCardCredit'),
+          expiredDebit: operationPayload('expiredDebit', 'giftCardDebit'),
+          deactivatedCredit: operationPayload('deactivatedCredit', 'giftCardCredit'),
+          mismatchCredit: operationPayload('mismatchCredit', 'giftCardCredit'),
+          futureCredit: operationPayload('futureCredit', 'giftCardCredit'),
+          preEpochCredit: operationPayload('preEpochCredit', 'giftCardCredit'),
+          futureDebit: operationPayload('futureDebit', 'giftCardDebit'),
+          preEpochDebit: operationPayload('preEpochDebit', 'giftCardDebit'),
+          deactivatedDebit: operationPayload('deactivatedDebit', 'giftCardDebit'),
+          successCredit: operationPayload('successCredit', 'giftCardCredit'),
+        },
+      },
       cleanup,
       upstreamCalls,
       blocked:

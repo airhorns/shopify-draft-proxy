@@ -1,0 +1,64 @@
+{
+  "scenarioId": "draft-order-complete-already-paid",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete", "order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "state-machine-guardrail", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-complete-already-paid.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-already-paid-create.graphql",
+    "variablesCapturePath": "$.setup.draftOrderCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-completion-user-errors",
+        "capturePath": "$.setup.firstComplete.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-already-paid-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": false
+          }
+        }
+      },
+      {
+        "name": "second-completion-paid-user-error",
+        "capturePath": "$.mutation.response.data.draftOrderComplete",
+        "proxyPath": "$.data.draftOrderComplete",
+        "selectedPaths": ["$.userErrors", "$.draftOrder.status"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-already-paid-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": false
+          }
+        }
+      },
+      {
+        "name": "completed-order-read-after-second-completion",
+        "capturePath": "$.afterSecondOrderRead.response.data.order.displayFinancialStatus",
+        "proxyPath": "$.data.order.displayFinancialStatus",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-already-paid-order-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "first-completion-user-errors",
+              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for completing the same paid draft order twice. The replay earns local state through draftOrderCreate and a first draftOrderComplete, then asserts the second completion returns the paid userError and that the original completed order remains readable after the rejected second completion."
+}

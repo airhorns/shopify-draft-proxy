@@ -28,13 +28,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| "productSet".into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| ("productSet".into(), Vec::new(), BTreeMap::new()));
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let operation_selection =
             selected_child_selection(&payload_selection, "productSetOperation").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let input = match product_input(query, variables) {
             Some(input) => input,
             None => return MutationOutcome::response(json_error(400, "productSet requires input")),
@@ -347,17 +347,31 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productDuplicate".into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let field = primary_root_field(query, variables);
+        if let Some(field) = field.as_ref() {
+            if let Some(response) = product_status_argument_validation_error(
+                request,
+                query,
+                field,
+                "newStatus",
+                "Field",
+                "productDuplicate",
+                "ProductStatus",
+            ) {
+                return MutationOutcome::response(response);
+            }
+        }
+        let (response_key, payload_selection, arguments) = field
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| ("productDuplicate".into(), Vec::new(), BTreeMap::new()));
         let new_product_selection =
             selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
         let operation_selection =
             selected_child_selection(&payload_selection, "productDuplicateOperation")
                 .unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();
         let new_title = resolved_string_field(&arguments, "newTitle").unwrap_or_default();
+        let new_status = resolved_string_field(&arguments, "newStatus");
         let synchronous = resolved_bool_field(&arguments, "synchronous").unwrap_or(true);
         // The source product usually lives upstream during parity replay; hydrate it via
         // the shared `nodes(ids:)` observation path so the duplicate is built from real
@@ -416,7 +430,7 @@ impl DraftProxy {
             ));
         };
 
-        let duplicate = self.duplicate_product_record(&source, &new_title);
+        let duplicate = self.duplicate_product_record(&source, &new_title, new_status.as_deref());
         let duplicate_id = duplicate.id.clone();
         self.stage_duplicate_variants(&source.id, &duplicate_id);
         self.store.stage_product(duplicate.clone());
@@ -461,12 +475,12 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.into());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| (root_field.into(), Vec::new(), BTreeMap::new()));
         let operation_selection =
             selected_child_selection(&payload_selection, "productBundleOperation")
                 .unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let input = match arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input.clone(),
             _ => BTreeMap::new(),
@@ -758,12 +772,15 @@ impl DraftProxy {
         &mut self,
         source: &ProductRecord,
         new_title: &str,
+        new_status: Option<&str>,
     ) -> ProductRecord {
         let mut duplicate = source.clone();
         duplicate.id = self.next_proxy_synthetic_gid("Product");
         duplicate.title = new_title.to_string();
         duplicate.handle = slugify_handle(new_title);
-        duplicate.status = "DRAFT".to_string();
+        if let Some(status) = new_status {
+            duplicate.status = status.to_string();
+        }
         let timestamp = self.next_product_timestamp();
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;

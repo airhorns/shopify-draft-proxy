@@ -1,0 +1,11 @@
+query FulfillmentConstraintRulesEmptyRead {
+  fulfillmentConstraintRules {
+    id
+    deliveryMethodTypes
+    function {
+      id
+      handle
+      apiType
+    }
+  }
+}
