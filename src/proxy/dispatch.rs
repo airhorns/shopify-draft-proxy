@@ -553,13 +553,7 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
-        let has_local_dispatch = local_dispatch_root(
-            operation.operation_type,
-            capability.domain,
-            capability.execution,
-            root_field,
-        )
-        .is_some();
+        let has_local_dispatch = capability.domain != CapabilityDomain::Unknown;
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the

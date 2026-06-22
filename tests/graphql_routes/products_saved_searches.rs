@@ -5679,11 +5679,11 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 }
 
 #[test]
-fn admin_graphql_capability_classification_requires_local_dispatch_root() {
-    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS, not on the registry's
-    // `implemented` flag. None of these synthetic roots is a dispatch root, so all three fall
-    // through to passthrough regardless of `implemented` — and crucially never 501. (In snapshot
-    // mode there is no upstream, so passthrough surfaces as a 400 "no dispatcher" error.)
+fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
+    // Implemented synthetic roots are now classified from the registry, but they still fail
+    // closed when no domain dispatcher match arm handles the concrete root. Unimplemented roots
+    // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
+    // because there is no upstream transport.
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
             "knownProducts",
@@ -5709,20 +5709,20 @@ fn admin_graphql_capability_classification_requires_local_dispatch_root() {
         "POST",
         r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
     ));
-    assert_eq!(known_query.status, 400);
+    assert_eq!(known_query.status, 501);
     assert_eq!(
         known_query.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownProducts" }] })
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
     );
 
     let known_mutation = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
     ));
-    assert_eq!(known_mutation.status, 400);
+    assert_eq!(known_mutation.status, 501);
     assert_eq!(
         known_mutation.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: knownProductCreate" }] })
+        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
     );
 
     let unimplemented = proxy.process_request(graphql_request(
@@ -5737,7 +5737,7 @@ fn admin_graphql_capability_classification_requires_local_dispatch_root() {
 }
 
 #[test]
-fn local_dispatch_root_without_registry_classification_fails_closed() {
+fn registry_classification_without_matching_root_field_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
         "productCreate",
         OperationType::Mutation,
@@ -5759,7 +5759,7 @@ fn local_dispatch_root_without_registry_classification_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_local_dispatch_is_not_locally_routable() {
+fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
@@ -5776,11 +5776,8 @@ fn implemented_registry_entry_without_local_dispatch_is_not_locally_routable() {
         r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_eq!(response.status, 400);
-    assert_eq!(
-        response.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: unknownSavedSearches" }] })
-    );
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, json!({ "data": {} }));
 }
 
 #[test]
