@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-05-06T21:07:23.259Z",
+  "capturedAt": "2026-06-21T20:48:29.958Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and ordering.",
+  "summary": "metaobjectDefinitionUpdate field-operation conflict and create-key validation userError codes, field paths, messages, and ordering.",
   "seed": {
-    "type": "field_operation_errors_1778101642271",
-    "definitionId": "gid://shopify/MetaobjectDefinition/17908203826"
+    "type": "field_operation_errors_1782074907713",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19204768050"
   },
   "setup": [
     {
@@ -14,8 +14,8 @@
         "query": "fragment MetaobjectDefinitionFieldOperationErrorFields on MetaobjectDefinition {\n  id\n  type\n  displayNameKey\n  fieldDefinitions {\n    key\n    name\n  }\n}\n\nmutation MetaobjectDefinitionFieldOperationErrorsCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectDefinitionFieldOperationErrorFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "type": "field_operation_errors_1778101642271",
-            "name": "Field operation errors 1778101642271",
+            "type": "field_operation_errors_1782074907713",
+            "name": "Field operation errors 1782074907713",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -39,8 +39,8 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17908203826",
-              "type": "field_operation_errors_1778101642271",
+              "id": "gid://shopify/MetaobjectDefinition/19204768050",
+              "type": "field_operation_errors_1782074907713",
               "displayNameKey": "title",
               "fieldDefinitions": [
                 {
@@ -76,7 +76,7 @@
       "request": {
         "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
           "definition": {
             "fieldDefinitions": [
               {
@@ -124,7 +124,7 @@
       "request": {
         "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
           "definition": {
             "fieldDefinitions": [
               {
@@ -171,7 +171,7 @@
       "request": {
         "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
           "definition": {
             "fieldDefinitions": [
               {
@@ -217,7 +217,7 @@
       "request": {
         "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
           "definition": {
             "fieldDefinitions": [
               {
@@ -284,6 +284,463 @@
           }
         }
       }
+    },
+    "createReserved": {
+      "name": "create-reserved-field-key",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "create": {
+                  "key": "id",
+                  "name": "ID",
+                  "type": "single_line_text_field"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "0"],
+                "message": "The name \"id\" is reserved for system use",
+                "code": "RESERVED_NAME",
+                "elementKey": "id",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createDuplicate": {
+      "name": "create-duplicate-field-key",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "create": {
+                  "key": "new_field",
+                  "name": "New field",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "new_field",
+                  "name": "New field again",
+                  "type": "single_line_text_field"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "1"],
+                "message": "Field \"new_field\" duplicates other inputs",
+                "code": "DUPLICATE_FIELD_INPUT",
+                "elementKey": "new_field",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooManyFields": {
+      "name": "too-many-post-update-fields",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "create": {
+                  "key": "extra_00",
+                  "name": "Extra 0",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_01",
+                  "name": "Extra 1",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_02",
+                  "name": "Extra 2",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_03",
+                  "name": "Extra 3",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_04",
+                  "name": "Extra 4",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_05",
+                  "name": "Extra 5",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_06",
+                  "name": "Extra 6",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_07",
+                  "name": "Extra 7",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_08",
+                  "name": "Extra 8",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_09",
+                  "name": "Extra 9",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_10",
+                  "name": "Extra 10",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_11",
+                  "name": "Extra 11",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_12",
+                  "name": "Extra 12",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_13",
+                  "name": "Extra 13",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_14",
+                  "name": "Extra 14",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_15",
+                  "name": "Extra 15",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_16",
+                  "name": "Extra 16",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_17",
+                  "name": "Extra 17",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_18",
+                  "name": "Extra 18",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_19",
+                  "name": "Extra 19",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_20",
+                  "name": "Extra 20",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_21",
+                  "name": "Extra 21",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_22",
+                  "name": "Extra 22",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_23",
+                  "name": "Extra 23",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_24",
+                  "name": "Extra 24",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_25",
+                  "name": "Extra 25",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_26",
+                  "name": "Extra 26",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_27",
+                  "name": "Extra 27",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_28",
+                  "name": "Extra 28",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_29",
+                  "name": "Extra 29",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_30",
+                  "name": "Extra 30",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_31",
+                  "name": "Extra 31",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_32",
+                  "name": "Extra 32",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_33",
+                  "name": "Extra 33",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_34",
+                  "name": "Extra 34",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_35",
+                  "name": "Extra 35",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_36",
+                  "name": "Extra 36",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_37",
+                  "name": "Extra 37",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "create": {
+                  "key": "extra_38",
+                  "name": "Extra 38",
+                  "type": "single_line_text_field"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions"],
+                "message": "Maximum 40 fields per metaobject definition",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "displayNameKeyMissing": {
+      "name": "missing-display-name-key",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19204768050",
+          "definition": {
+            "displayNameKey": "missing_display"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "displayNameKey"],
+                "message": "Field definition \"missing_display\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "cleanup": [
@@ -292,14 +749,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectDefinitionFieldOperationErrorsDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17908203826"
+          "id": "gid://shopify/MetaobjectDefinition/19204768050"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17908203826",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19204768050",
             "userErrors": []
           }
         },

@@ -6,14 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-field-operation-errors.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-create.graphql",
     "variablesCapturePath": "$.setup[0].request.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2026-04 evidence for metaobjectDefinitionUpdate field-operation conflicts: create against an existing key uses OBJECT_FIELD_TAKEN at the create.key path, update/delete against missing keys use UNDEFINED_OBJECT_FIELD at the operation.key path, and multi-conflict operations are emitted in input order.",
+  "notes": "Live 2026-04 evidence for metaobjectDefinitionUpdate field-operation conflicts and create-key validation. Create against an existing key uses OBJECT_FIELD_TAKEN at the create.key path, update/delete against missing keys use UNDEFINED_OBJECT_FIELD at the operation.key path, and multi-conflict operations are emitted in input order. Field-operation creates also reject reserved keys with RESERVED_NAME, duplicate create keys with DUPLICATE_FIELD_INPUT, post-update field sets over the cap with INVALID at fieldDefinitions, and displayNameKey values that do not resolve against the resulting field set with UNDEFINED_OBJECT_FIELD.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -98,6 +98,78 @@
             },
             "definition": {
               "fromCapturePath": "$.cases.multiConflict.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-reserved-field-key",
+        "capturePath": "$.cases.createReserved.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.createReserved.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-duplicate-field-key",
+        "capturePath": "$.cases.createDuplicate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.createDuplicate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "too-many-post-update-fields",
+        "capturePath": "$.cases.tooManyFields.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.tooManyFields.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-display-name-key",
+        "capturePath": "$.cases.displayNameKeyMissing.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.displayNameKeyMissing.request.variables.definition"
             }
           },
           "apiVersion": "2026-04"

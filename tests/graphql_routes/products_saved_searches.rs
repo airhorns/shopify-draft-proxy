@@ -6107,6 +6107,79 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
 }
 
 #[test]
+fn collection_create_rejects_client_supplied_id_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateRejectId($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Collection/123",
+                "title": "Rejected Collection"
+            }
+        }),
+    ));
+
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body,
+        json!({
+            "data": {
+                "collectionCreate": {
+                    "collection": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "id cannot be specified on collection creation"
+                    }]
+                }
+            }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["collections"],
+        json!({})
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateWithoutId($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Accepted Collection" } }),
+    ));
+
+    assert_eq!(created.status, 200);
+    assert_eq!(
+        created.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["collectionCreate"]["collection"]["title"],
+        json!("Accepted Collection")
+    );
+    let collection_id = created.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("accepted collection has id")
+        .to_string();
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["stagedResourceIds"],
+        json!([collection_id])
+    );
+}
+
+#[test]
 fn collection_validations_and_reorder_are_store_backed() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {

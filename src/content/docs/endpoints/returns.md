@@ -87,11 +87,11 @@ Local staged mutations:
   downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and a missing fulfillment-line-item validation
   branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
   evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
-- Executable local-runtime parity covers `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`,
-  `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads.
-  The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
-  return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
-  refund-transfer, exchange, notification, or inventory movement fidelity.
+- Executable parity covers `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`, `returnProcess`, reverse
+  delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads. Public 2026-04 evidence
+  covers empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
+  order rejection, valid `NOT_RESTOCKED` disposal, and downstream disposition readback. Unknown-line and over-disposal
+  guardrails remain covered by focused runtime tests because the public custom-line capture did not reject those probes.
 - `return-request-decline-local-staging` also covers invalid `returnDeclineRequest` decline reasons and invalid
   `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture. Public Admin
   GraphQL evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer`
@@ -148,6 +148,10 @@ Local staged mutations:
   document-marker dispatch. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
+- Reverse fulfillment disposal validation parity:
+  `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-dispose-validation.json`
+  and captured with `scripts/capture-return-reverse-logistics-dispose-validation-conformance.mts`.
 - Return status precondition parity:
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json`.

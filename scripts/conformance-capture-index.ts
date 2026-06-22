@@ -863,6 +863,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-create-rejects-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-create-rejects-id-conformance.ts',
+    purpose:
+      'collectionCreate validation for caller-supplied CollectionInput.id returning a payload userError without creating a collection.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-create-rejects-id.json`,
+      'config/parity-specs/products/collectionCreate-rejects-id.json',
+      'config/parity-requests/products/collectionCreate-rejects-id.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; rejected input.id must not create a Shopify collection.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:
@@ -1402,6 +1418,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/media/media-file-create-batch-size-limit.graphql',
     ],
     cleanupBehavior: 'Validation-only request is rejected before creating Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-file-create-large-batch-timestamps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-large-batch-timestamps-conformance.ts',
+    purpose: 'fileCreate timestamp shape for a successful 60-file batch crossing the one-minute boundary.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-large-batch-timestamps.json`,
+      'config/parity-specs/media/media-file-create-large-batch-timestamps.json',
+      'config/parity-requests/media/media-file-create-large-batch-timestamps.graphql',
+    ],
+    cleanupBehavior: 'Creates 60 disposable image files and deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2802,7 +2833,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-operation-errors-conformance.ts',
     purpose:
-      'metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and multi-conflict ordering.',
+      'metaobjectDefinitionUpdate field-operation conflict plus create-key validation userError codes, field paths, messages, and multi-conflict ordering.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-field-operation-errors.json`,
@@ -5974,6 +6005,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-create-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-create-name-conformance.ts',
+    purpose:
+      'fulfillmentCreate Fulfillment.name reference-number payloads for two fulfillments on the same disposable order.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-name.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-create-name.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-create-name.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable paid test order with quantity two, records two fulfillmentCreate payloads against the same fulfillment order, then cancels/deletes the order where Shopify permits cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
@@ -7828,6 +7876,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates and fulfills a disposable order, records return/reverse-logistics lifecycle evidence, then cancels the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-reverse-logistics-dispose-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-reverse-logistics-dispose-validation-conformance.mts',
+    purpose:
+      'reverseFulfillmentOrderDispose validation userErrors for empty inputs, custom-line RESTOCKED, multiple reverse fulfillment orders, current public unknown-line behavior, plus valid NOT_RESTOCKED downstream readback.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-reverse-logistics-dispose-validation.json`,
+      'config/parity-specs/orders/return-reverse-logistics-dispose-validation.json',
+      'config/parity-requests/orders/reverse-fulfillment-order-dispose-validation.graphql',
+      'config/parity-requests/orders/return-reverse-logistics-dispose-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable custom-line order, records invalid dispose attempts before one valid disposal, then attempts orderCancel cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -4642,6 +4642,210 @@ fn metaobject_create_rejects_duplicate_field_keys() {
 }
 
 #[test]
+fn metaobject_definition_update_validates_field_create_keys_and_display_name_key() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_definition = r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } displayNameKey }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let create_field = |key: String| {
+        json!({
+            "key": key,
+            "name": "Field",
+            "type": "single_line_text_field",
+            "required": false
+        })
+    };
+    let create_local_definition =
+        |proxy: &mut DraftProxy, meta_type: &str, field_definitions: Vec<Value>| -> String {
+            let response = proxy.process_request(json_graphql_request(
+                create_definition,
+                json!({"definition": {
+                    "type": meta_type,
+                    "name": meta_type,
+                    "displayNameKey": field_definitions[0]["key"],
+                    "fieldDefinitions": field_definitions
+                }}),
+            ));
+            assert_eq!(
+                response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+                json!([])
+            );
+            response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+    let reserved_id = create_local_definition(
+        &mut proxy,
+        "update_reserved_field_key",
+        vec![create_field("title".to_string())],
+    );
+    for reserved_key in ["id", "handle", "system", "metafields"] {
+        let reserved = proxy.process_request(json_graphql_request(
+            update_definition,
+            json!({"id": reserved_id, "definition": {
+                "fieldDefinitions": [{"create": create_field(reserved_key.to_string())}]
+            }}),
+        ));
+        assert_eq!(
+            reserved.body["data"]["metaobjectDefinitionUpdate"],
+            json!({
+                "metaobjectDefinition": null,
+                "userErrors": [{
+                    "field": ["definition", "fieldDefinitions", "0"],
+                    "message": format!("The name \"{reserved_key}\" is reserved for system use"),
+                    "code": "RESERVED_NAME",
+                    "elementKey": reserved_key,
+                    "elementIndex": null
+                }]
+            })
+        );
+    }
+
+    let duplicate_id = create_local_definition(
+        &mut proxy,
+        "update_duplicate_field_key",
+        vec![create_field("title".to_string())],
+    );
+    let duplicate = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": duplicate_id, "definition": {
+            "fieldDefinitions": [
+                {"create": create_field("new_field".to_string())},
+                {"create": create_field("new_field".to_string())}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "1"],
+                "message": "Field \"new_field\" duplicates other inputs",
+                "code": "DUPLICATE_FIELD_INPUT",
+                "elementKey": "new_field",
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let max_fields = (0..40)
+        .map(|index| create_field(format!("field_{index:02}")))
+        .collect::<Vec<_>>();
+    let max_id = create_local_definition(&mut proxy, "update_too_many_fields", max_fields);
+    let too_many = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": max_id, "definition": {
+            "fieldDefinitions": [{"create": create_field("field_40".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        too_many.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions"],
+                "message": "Maximum 40 fields per metaobject definition",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_missing",
+        vec![create_field("title".to_string())],
+    );
+    let missing_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": display_id, "definition": {"displayNameKey": "ghost"}}),
+    ));
+    assert_eq!(
+        missing_display_key.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "displayNameKey"],
+                "message": "Field definition \"ghost\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let new_display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_created",
+        vec![create_field("title".to_string())],
+    );
+    let created_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": new_display_id, "definition": {
+            "displayNameKey": "subtitle",
+            "fieldDefinitions": [{"create": create_field("subtitle".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        created_display_key.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_display_key.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["displayNameKey"],
+        json!("subtitle")
+    );
+
+    let deleted_display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_deleted",
+        vec![
+            create_field("title".to_string()),
+            create_field("summary".to_string()),
+        ],
+    );
+    let deleted_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": deleted_display_id, "definition": {
+            "displayNameKey": "title",
+            "fieldDefinitions": [{"delete": {"key": "title"}}]
+        }}),
+    ));
+    assert_eq!(
+        deleted_display_key.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "displayNameKey"],
+                "message": "Field definition \"title\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
     let mut proxy = snapshot_proxy();
 
@@ -5264,6 +5468,79 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
             {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
         ])
     );
+}
+
+fn assert_file_create_batch_timestamps(batch_size: usize, expected_last_created_at: &str) {
+    let mut proxy = snapshot_proxy();
+    let files = (0..batch_size)
+        .map(|index| {
+            json!({
+                "alt": format!("Batch file {index}"),
+                "contentType": "IMAGE",
+                "filename": format!("batch-file-{index}.jpg"),
+                "originalSource": format!("https://cdn.example.com/batch-file-{index}.jpg")
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateBatchTimestamps($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id createdAt updatedAt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "files": files }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let created_files = create.body["data"]["fileCreate"]["files"]
+        .as_array()
+        .expect("fileCreate should return files");
+    assert_eq!(created_files.len(), batch_size);
+
+    for (index, file) in created_files.iter().enumerate() {
+        let expected_offset_seconds = u32::try_from(index + 1).unwrap();
+        assert_valid_synthetic_media_timestamp(&file["createdAt"], expected_offset_seconds);
+        assert_valid_synthetic_media_timestamp(&file["updatedAt"], expected_offset_seconds);
+        assert_eq!(file["createdAt"], file["updatedAt"]);
+    }
+    assert_eq!(
+        created_files.last().unwrap()["createdAt"],
+        json!(expected_last_created_at)
+    );
+}
+
+fn assert_valid_synthetic_media_timestamp(value: &Value, expected_offset_seconds: u32) {
+    let timestamp = value
+        .as_str()
+        .expect("fileCreate timestamp should be a string");
+    assert_eq!(timestamp.len(), "2024-01-01T00:00:00.000Z".len());
+    assert_eq!(&timestamp[0..11], "2024-01-01T");
+    assert_eq!(&timestamp[13..14], ":");
+    assert_eq!(&timestamp[16..17], ":");
+    assert_eq!(&timestamp[19..], ".000Z");
+
+    let hour = timestamp[11..13].parse::<u32>().unwrap();
+    let minute = timestamp[14..16].parse::<u32>().unwrap();
+    let second = timestamp[17..19].parse::<u32>().unwrap();
+    assert!(hour < 24, "hour should be valid in {timestamp}");
+    assert!(minute < 60, "minute should be valid in {timestamp}");
+    assert!(second < 60, "second should be valid in {timestamp}");
+    assert_eq!(
+        hour * 3600 + minute * 60 + second,
+        expected_offset_seconds,
+        "timestamp should advance deterministically by input index"
+    );
+}
+
+#[test]
+fn media_file_create_batch_timestamps_are_valid_for_large_batches() {
+    assert_file_create_batch_timestamps(60, "2024-01-01T00:01:00.000Z");
+    assert_file_create_batch_timestamps(250, "2024-01-01T00:04:10.000Z");
 }
 
 #[test]
