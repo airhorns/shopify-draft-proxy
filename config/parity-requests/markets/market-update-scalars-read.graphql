@@ -1,0 +1,10 @@
+query MarketUpdateScalarsRead($id: ID!) {
+  market(id: $id) {
+    id
+    name
+    handle
+    status
+    enabled
+    type
+  }
+}

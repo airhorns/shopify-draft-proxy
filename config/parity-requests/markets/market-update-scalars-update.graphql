@@ -1,0 +1,17 @@
+mutation MarketUpdateScalarsUpdate($id: ID!, $input: MarketUpdateInput!) {
+  marketUpdate(id: $id, input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      enabled
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
