@@ -1712,6 +1712,7 @@ mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
+mod money;
 mod online_store_orders_payments;
 mod privacy;
 mod product_helpers;
@@ -1757,6 +1758,8 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metaobjects::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::money::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]

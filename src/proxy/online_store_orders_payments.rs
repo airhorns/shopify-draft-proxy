@@ -580,7 +580,7 @@ fn order_money_set_with_presentment_fallback(money_set: &Value, order: &Value) -
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &shop_amount,
         &shop_currency,
         &presentment_amount,
@@ -616,7 +616,7 @@ fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &format_order_amount(left_shop + right_shop),
         &shop_currency,
         &format_order_amount(left_presentment + right_presentment),
@@ -635,7 +635,7 @@ fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
+    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
 }
 
 fn order_customer_id(order: &Value) -> Option<String> {
@@ -1034,7 +1034,7 @@ fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
 }
 
 fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    order_money_set(&format_order_amount(amount), currency_code)
+    money_set(&format_order_amount(amount), currency_code)
 }
 
 fn order_create_money_bag(
@@ -1043,16 +1043,7 @@ fn order_create_money_bag(
     presentment_currency_code: &str,
 ) -> Value {
     let amount = format_order_amount(amount);
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": presentment_currency_code
-        }
-    })
+    money_set_pair(&amount, currency_code, &amount, presentment_currency_code)
 }
 
 fn format_order_amount(amount: f64) -> String {
@@ -1515,7 +1506,7 @@ fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": order_money_set(&format_order_amount(amount), &currency)
+        "amountSet": money_set(&format_order_amount(amount), &currency)
     })
 }
 
@@ -2660,33 +2651,6 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
     )
 }
 
-fn order_money_set(amount: &str, currency_code: &str) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        }
-    })
-}
-
-fn order_money_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": shop_amount,
-            "currencyCode": shop_currency
-        },
-        "presentmentMoney": {
-            "amount": presentment_amount,
-            "currencyCode": presentment_currency
-        }
-    })
-}
-
 fn payment_money_amount(money_set: &Value, money_key: &str) -> Option<String> {
     money_set
         .get(money_key)
@@ -2717,14 +2681,14 @@ fn payment_money_set_from_input(input: &BTreeMap<String, ResolvedValue>) -> Opti
             .unwrap_or_else(|| {
                 resolved_string_field(input, "currency").unwrap_or_else(|| shop_currency.clone())
             });
-        Some(order_money_set_pair(
+        Some(money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         ))
     } else {
-        Some(order_money_set(&shop_amount, &shop_currency))
+        Some(money_set(&shop_amount, &shop_currency))
     }
 }
 
@@ -2738,14 +2702,14 @@ fn payment_money_set_value(amount_set: Value) -> Value {
             .unwrap_or_else(|| shop_amount.clone());
         let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         )
     } else {
-        order_money_set(&shop_amount, &shop_currency)
+        money_set(&shop_amount, &shop_currency)
     }
 }
 
@@ -2772,14 +2736,14 @@ fn payment_money_set_for_capture(
     };
     let shop_amount = format_order_amount(shop_amount);
     if parent_amount_set.get("presentmentMoney").is_some() || requested_currency != shop_currency {
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
     } else {
-        order_money_set(
+        money_set(
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
@@ -2797,14 +2761,14 @@ fn payment_money_set_for_order_totals(
         let presentment_currency = payment_money_currency(parent_amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
         (
-            order_money_set_pair(
+            money_set_pair(
                 &format_order_amount(remaining_amount),
                 &shop_currency,
                 &format_order_amount(remaining_amount),
                 &presentment_currency,
             ),
-            order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
-            order_money_set_pair(
+            money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            money_set_pair(
                 &format_order_amount(received_amount),
                 &shop_currency,
                 &format_order_amount(received_amount),
@@ -2813,9 +2777,9 @@ fn payment_money_set_for_order_totals(
         )
     } else {
         (
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(received_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(received_amount), &shop_currency),
         )
     }
 }
@@ -3930,10 +3894,10 @@ fn payment_order_record(
         "displayFinancialStatus": display_financial_status,
         "capturable": capturable_amount != "0.00",
         "totalCapturable": capturable_amount,
-        "totalCapturableSet": order_money_set(capturable_amount, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(capturable_amount, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["manual"],
         "transactions": transactions
     })
@@ -3974,17 +3938,17 @@ fn mandate_payment_order_record(
         "status": "SUCCESS",
         "gateway": "mandate",
         "paymentReferenceId": payment_reference_id,
-        "amountSet": order_money_set(amount, currency_code)
+        "amountSet": money_set(amount, currency_code)
     });
     json!({
         "id": order_id,
         "displayFinancialStatus": display_financial_status,
         "capturable": !auto_capture,
         "totalCapturable": total_capturable,
-        "totalCapturableSet": order_money_set(total_capturable, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(total_capturable, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["mandate"],
         "transactions": [transaction]
     })
@@ -8404,7 +8368,7 @@ impl DraftProxy {
             "status": "OPEN",
             "__draftProxyFinancialStatus": financial_status,
             "__draftProxyLineItems": [line_item],
-            "totalPriceSet": order_money_set(&amount, currency_code)
+            "totalPriceSet": money_set(&amount, currency_code)
         });
         self.store
             .staged
@@ -8455,7 +8419,7 @@ impl DraftProxy {
             "__draftProxyFinancialStatus": "PENDING",
             "__draftProxyLineItems": [line_item],
             "__draftProxyPurchasingEntity": purchasing_entity,
-            "totalPriceSet": order_money_set(&amount, "CAD")
+            "totalPriceSet": money_set(&amount, "CAD")
         });
         self.store
             .staged
@@ -8568,7 +8532,7 @@ impl DraftProxy {
                 "kind": "SALE",
                 "status": "SUCCESS",
                 "gateway": "manual",
-                "amountSet": order_money_set(&amount, &currency_code)
+                "amountSet": money_set(&amount, &currency_code)
             })]
         };
         let mut order = json!({
@@ -8581,7 +8545,7 @@ impl DraftProxy {
             "transactions": order_transactions,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
-            "currentTotalPriceSet": order_money_set(&amount, &currency_code),
+            "currentTotalPriceSet": money_set(&amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items
             }
@@ -8696,10 +8660,10 @@ impl DraftProxy {
             "shippingLine": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "subtotalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
-            "totalDiscountsSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalShippingPriceSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "subtotalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+            "totalDiscountsSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalShippingPriceSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
             "totalQuantityOfLineItems": 1,
             "lineItems": { "nodes": [draft_order_invoice_line_item()] }
         });
@@ -10262,7 +10226,7 @@ impl DraftProxy {
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
         let amount_set = payment_money_set_from_input(&first_transaction)
-            .unwrap_or_else(|| order_money_set("25.0", &currency));
+            .unwrap_or_else(|| money_set("25.0", &currency));
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());
@@ -10689,17 +10653,17 @@ impl DraftProxy {
                 let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
                     .unwrap_or_else(|| shop_currency.clone());
                 order["totalCapturableSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["totalOutstandingSet"] = amount_set.clone();
                 order["totalReceivedSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["netPaymentSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
             } else {
-                order["totalCapturableSet"] = order_money_set("0.0", &shop_currency);
+                order["totalCapturableSet"] = money_set("0.0", &shop_currency);
                 order["totalOutstandingSet"] = amount_set;
-                order["totalReceivedSet"] = order_money_set("0.0", &shop_currency);
-                order["netPaymentSet"] = order_money_set("0.0", &shop_currency);
+                order["totalReceivedSet"] = money_set("0.0", &shop_currency);
+                order["netPaymentSet"] = money_set("0.0", &shop_currency);
             }
             if let Some(transactions) = order["transactions"].as_array_mut() {
                 transactions.push(transaction.clone());
