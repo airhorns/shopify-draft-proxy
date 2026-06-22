@@ -30,56 +30,6 @@ pub(in crate::proxy) fn resolved_variables_json(
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn serializes_nested_resolved_values_to_json() {
-        let value = ResolvedValue::Object(BTreeMap::from([
-            (
-                "items".to_string(),
-                ResolvedValue::List(vec![
-                    ResolvedValue::String("gid://shopify/Product/1".to_string()),
-                    ResolvedValue::Null,
-                ]),
-            ),
-            ("enabled".to_string(), ResolvedValue::Bool(true)),
-            ("count".to_string(), ResolvedValue::Int(2)),
-            ("ratio".to_string(), ResolvedValue::Float(2.5)),
-        ]));
-
-        assert_eq!(
-            resolved_value_json(&value),
-            json!({
-                "items": ["gid://shopify/Product/1", null],
-                "enabled": true,
-                "count": 2,
-                "ratio": 2.5
-            })
-        );
-    }
-
-    #[test]
-    fn serializes_resolved_variable_maps() {
-        let variables = BTreeMap::from([
-            (
-                "id".to_string(),
-                ResolvedValue::String("gid://shopify/App/1".to_string()),
-            ),
-            ("dryRun".to_string(), ResolvedValue::Bool(false)),
-        ]);
-
-        assert_eq!(
-            resolved_variables_json(&variables),
-            json!({
-                "dryRun": false,
-                "id": "gid://shopify/App/1"
-            })
-        );
-    }
-}
-
 pub(in crate::proxy) fn resolved_list_arg(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,
@@ -208,5 +158,55 @@ pub(in crate::proxy) fn resolved_number_field(
         Some(ResolvedValue::Int(value)) => Some(*value as f64),
         Some(ResolvedValue::Float(value)) => Some(*value),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_nested_resolved_values_to_json() {
+        let value = ResolvedValue::Object(BTreeMap::from([
+            (
+                "items".to_string(),
+                ResolvedValue::List(vec![
+                    ResolvedValue::String("gid://shopify/Product/1".to_string()),
+                    ResolvedValue::Null,
+                ]),
+            ),
+            ("enabled".to_string(), ResolvedValue::Bool(true)),
+            ("count".to_string(), ResolvedValue::Int(2)),
+            ("ratio".to_string(), ResolvedValue::Float(2.5)),
+        ]));
+
+        assert_eq!(
+            resolved_value_json(&value),
+            json!({
+                "items": ["gid://shopify/Product/1", null],
+                "enabled": true,
+                "count": 2,
+                "ratio": 2.5
+            })
+        );
+    }
+
+    #[test]
+    fn serializes_resolved_variable_maps() {
+        let variables = BTreeMap::from([
+            (
+                "id".to_string(),
+                ResolvedValue::String("gid://shopify/App/1".to_string()),
+            ),
+            ("dryRun".to_string(), ResolvedValue::Bool(false)),
+        ]);
+
+        assert_eq!(
+            resolved_variables_json(&variables),
+            json!({
+                "dryRun": false,
+                "id": "gid://shopify/App/1"
+            })
+        );
     }
 }
