@@ -2438,8 +2438,8 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 impl DraftProxy {
     // Collect the `feedbackInput[].productId`s that reference a product the
     // proxy can prove is unavailable to resource feedback, so
-    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry
-    // PRODUCT_NOT_FOUND userError. A locally tombstoned id is reported missing
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's captured per-entry
+    // missing-product userError. A locally tombstoned id is reported missing
     // immediately. Known non-ACTIVE products are also unavailable. An id merely
     // absent from the local catalog is NOT assumed missing — the proxy never
     // seeds every real product, so absence alone is no proof. Instead we confirm
@@ -2601,6 +2601,15 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str
     "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
+pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
+    json!({
+        "__typename": "Job",
+        "id": "gid://shopify/Job/2",
+        "done": false,
+        "query": { "__typename": "QueryRoot" }
+    })
+}
+
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     field: &RootFieldSelection,
     missing_product_ids: &BTreeSet<String>,
@@ -2610,9 +2619,9 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": Value::Null,
-                "message": "The operation was attempted on too many feedback objects. The maximum number of feedback objects that you can operate on is 50.",
-                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
             }]
         })
     } else {
@@ -2714,7 +2723,7 @@ fn feedback_field_path(
     nested_index: Option<usize>,
 ) -> Vec<String> {
     let mut path = match feedback_index {
-        Some(index) => vec!["feedbackInput".to_string(), index.to_string()],
+        Some(index) => vec!["feedback".to_string(), index.to_string()],
         None => vec!["feedback".to_string()],
     };
     path.push(field.to_string());
@@ -2728,18 +2737,14 @@ fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -
     user_error(field, message, Some(code))
 }
 
-// Shopify reports referenced-but-unavailable products at the feedback entry
-// root with PRODUCT_NOT_FOUND, distinct from the BLANK / INVALID / TOO_LONG
-// resolver guards anchored at concrete input fields.
+// Shopify reports referenced-but-unavailable products at the feedback entry's
+// productId field, distinct from the BLANK / INVALID / TOO_LONG resolver guards
+// anchored at concrete input fields.
 fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
     let field = feedback_index
-        .map(|index| json!(["feedbackInput", index.to_string()]))
+        .map(|index| json!(["feedback", index.to_string(), "productId"]))
         .unwrap_or(Value::Null);
-    user_error(
-        field,
-        "The product wasn't found or isn't available to the channel.",
-        Some("PRODUCT_NOT_FOUND"),
-    )
+    user_error(field, "Product does not exist", None)
 }
 
 fn feedback_generated_at_is_future(generated_at: &str) -> bool {

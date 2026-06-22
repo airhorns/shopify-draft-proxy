@@ -33,14 +33,6 @@ impl DraftProxy {
             return None;
         }
 
-        for field in &fields {
-            if field.name == "productFullSync" {
-                if let Some(error) = product_full_sync_payload_selection_error(field) {
-                    return Some(ok_json(json!({ "errors": [error] })));
-                }
-            }
-        }
-
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -552,10 +544,11 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": null,
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": Value::Null
+                        "code": "NOT_FOUND"
                     }]
                 }),
                 Vec::new(),
@@ -569,6 +562,7 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": null,
                     "userErrors": [{
                         "field": ["updatedAtSince"],
                         "message": "updatedAtSince must be before beforeUpdatedAt",
@@ -579,14 +573,14 @@ impl DraftProxy {
                 "failed",
             )
         } else {
-            let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
-                    "id": operation_id,
+                    "id": id,
+                    "job": product_tail_full_sync_job(),
                     "userErrors": []
                 }),
-                vec![id, operation_id],
+                vec![id, "gid://shopify/Job/2".to_string()],
                 "staged",
             )
         };
@@ -605,6 +599,11 @@ impl DraftProxy {
         let Some(id) = resolved_string_arg(&field.arguments, "id") else {
             return Value::Null;
         };
+        if id == "gid://shopify/Job/2"
+            && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
+        {
+            return selected_json(&product_tail_full_sync_job(), &field.selection);
+        }
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
             return selected_json(job, &field.selection);
         }
@@ -841,25 +840,6 @@ fn publication_default_state_invalid_response(
         }),
     );
     ok_json(json!({ "errors": [Value::Object(error)] }))
-}
-
-fn product_full_sync_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {
-    let selected = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "job")?;
-    Some(json!({
-        "message": "Field 'job' doesn't exist on type 'ProductFullSyncPayload'",
-        "path": [
-            field.response_key.clone(),
-            selected.response_key.clone()
-        ],
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": "ProductFullSyncPayload",
-            "fieldName": "job"
-        }
-    }))
 }
 
 fn product_full_sync_updated_at_range_invalid(
