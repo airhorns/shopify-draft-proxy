@@ -1,0 +1,150 @@
+{
+  "capturedAt": "2026-06-21T21:02:23.118Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "marketUpdate scalar name/status read-after-write",
+  "cases": [
+    {
+      "name": "marketCreate scalar update setup",
+      "query": "mutation MarketUpdateScalarsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Scalar 20260621210221",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98611462450",
+                "name": "Draft Proxy Scalar 20260621210221",
+                "handle": "draft-proxy-scalar-20260621210221",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketUpdate name and status",
+      "query": "mutation MarketUpdateScalarsUpdate($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98611462450",
+        "input": {
+          "name": "Draft Proxy Scalar 20260621210221 Updated",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": {
+                "id": "gid://shopify/Market/98611462450",
+                "name": "Draft Proxy Scalar 20260621210221 Updated",
+                "handle": "draft-proxy-scalar-20260621210221",
+                "status": "DRAFT",
+                "enabled": false,
+                "type": "NONE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "market read after scalar update",
+      "query": "query MarketUpdateScalarsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    handle\n    status\n    enabled\n    type\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98611462450"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/98611462450",
+              "name": "Draft Proxy Scalar 20260621210221 Updated",
+              "handle": "draft-proxy-scalar-20260621210221",
+              "status": "DRAFT",
+              "enabled": false,
+              "type": "NONE"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "name": "marketDelete scalar update cleanup",
+    "query": "#graphql\nmutation MarketUpdateScalarsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Market/98611462450"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketDelete": {
+            "deletedId": "gid://shopify/Market/98611462450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

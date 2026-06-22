@@ -1,0 +1,17 @@
+mutation MarketUpdateScalarsCreate($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      enabled
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

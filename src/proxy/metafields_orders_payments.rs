@@ -2285,31 +2285,6 @@ pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
     }
 }
 
-// Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
-// so we can compute a NET term's `dueAt` as `issuedAt` + the template's due-day
-// count without pulling in a date library.
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
-}
-
-fn civil_from_days(z: i64) -> (i64, i64, i64) {
-    let z = z + 719468;
-    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if m <= 2 { y + 1 } else { y }, m, d)
-}
-
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
 /// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
 /// "2026-05-27T12:00:00Z").
@@ -2323,9 +2298,9 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
         return iso.to_string();
     }
     let (Ok(year), Ok(month), Ok(day)) = (
-        parts[0].parse::<i64>(),
-        parts[1].parse::<i64>(),
-        parts[2].parse::<i64>(),
+        parts[0].parse::<i32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>(),
     ) else {
         return iso.to_string();
     };
@@ -2813,23 +2788,6 @@ pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     })
 }
 
-fn money_bag_set(amount: &str, currency_code: impl Into<String>) -> Value {
-    let currency_code = currency_code.into();
-    money_bag_set_pair(amount, &currency_code, amount, &currency_code)
-}
-
-fn money_bag_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": { "amount": shop_amount, "currencyCode": shop_currency },
-        "presentmentMoney": { "amount": presentment_amount, "currencyCode": presentment_currency }
-    })
-}
-
 fn money_bag_currency(money_set: &Value) -> String {
     money_set["shopMoney"]["currencyCode"]
         .as_str()
@@ -3291,7 +3249,7 @@ impl DraftProxy {
                         .get(&order_id)
                         .map(|order| money_bag_currency(&order["totalPriceSet"]))
                         .unwrap_or_else(|| "USD".to_string());
-                    let total = money_bag_set(&amount, currency);
+                    let total = money_set_pair(&amount, &currency, &amount, &currency);
                     if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
                         order["totalRefundedSet"] = total.clone();
                     }
@@ -3342,7 +3300,7 @@ impl DraftProxy {
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
                         "originalOrder": { "id": order_id },
-                        "totalPriceSet": money_bag_set("12.0", "CAD")
+                        "totalPriceSet": money_set_pair("12.0", "CAD", "12.0", "CAD")
                     });
                     self.store.staged.order_edit_existing_calculated_order =
                         Some(calculated.clone());
@@ -3418,13 +3376,13 @@ impl DraftProxy {
         let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
         let presentment_total =
             money_bag_add_decimal_strings(&presentment_amount, &presentment_tax_amount);
-        let line_price = money_bag_set_pair(
+        let line_price = money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         );
-        let total_set = money_bag_set_pair(
+        let total_set = money_set_pair(
             &total,
             &shop_currency,
             &presentment_total,
@@ -3434,8 +3392,8 @@ impl DraftProxy {
             "id": id,
             "currentTotalPriceSet": total_set.clone(),
             "totalPriceSet": total_set.clone(),
-            "totalTaxSet": money_bag_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
-            "totalReceivedSet": money_bag_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            "totalTaxSet": money_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
+            "totalReceivedSet": money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
             "totalOutstandingSet": total_set,
             "lineItems": { "nodes": [{ "originalUnitPriceSet": line_price }] },
             "transactions": []

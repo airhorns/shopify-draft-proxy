@@ -62,19 +62,6 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
     Value::Object(metadata)
 }
 
-pub(in crate::proxy) fn draft_order_invoice_money_set(amount: &str, currency_code: &str) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        }
-    })
-}
-
 pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     json!({
         "id": "gid://shopify/DraftOrderLineItem/2",
@@ -88,10 +75,10 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
         "taxable": true,
         "customAttributes": [],
         "appliedDiscount": Value::Null,
-        "originalUnitPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "originalTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "discountedTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
-        "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
+        "originalUnitPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "originalTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "discountedTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+        "totalDiscountSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
         "variant": Value::Null
     })
 }

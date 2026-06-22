@@ -20,10 +20,7 @@ pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
     let amount = money_bag_normalized_amount(amount);
-    json!({
-        "shopMoney": { "amount": amount, "currencyCode": currency_code },
-        "presentmentMoney": { "amount": amount, "currencyCode": currency_code }
-    })
+    money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
 fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {

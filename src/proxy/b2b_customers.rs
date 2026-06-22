@@ -4100,12 +4100,12 @@ impl DraftProxy {
         let balance_display = shopify_decimal_text(balance_after);
         let transaction_id = self.next_store_credit_transaction_gid();
         let mut account = existing;
-        account["balance"] = store_credit_money(&balance_display, &currency);
+        account["balance"] = money_value(&balance_display, &currency);
         let transaction = json!({
             "id": transaction_id,
             "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
-            "amount": store_credit_money(&amount_display, &currency),
-            "balanceAfterTransaction": store_credit_money(&balance_display, &currency),
+            "amount": money_value(&amount_display, &currency),
+            "balanceAfterTransaction": money_value(&balance_display, &currency),
             "createdAt": self.next_product_timestamp(),
             "event": "ADJUSTMENT",
             "origin": Value::Null,
@@ -4183,7 +4183,7 @@ impl DraftProxy {
         let owner = self.store_credit_owner_json(owner_id);
         let account = json!({
             "id": account_id,
-            "balance": store_credit_money("0.0", currency),
+            "balance": money_value("0.0", currency),
             "owner": owner,
             "transactions": connection_json(Vec::new())
         });
@@ -9548,13 +9548,6 @@ fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
         "field": field,
         "message": message,
         "code": code
-    })
-}
-
-fn store_credit_money(amount: &str, currency: &str) -> Value {
-    json!({
-        "amount": amount,
-        "currencyCode": currency
     })
 }
 
