@@ -458,6 +458,114 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
 }
 
 #[test]
+fn fulfillment_create_names_are_order_scoped_sequence_numbers() {
+    let mut proxy = snapshot_proxy();
+
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentNameOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              name
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-name@example.test",
+                "lineItems": [{
+                    "title": "Fulfillment name sequence line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_name = order["name"].as_str().unwrap();
+    let fulfillment_order_id = order["fulfillmentOrders"]["nodes"][0]["id"].clone();
+    let fulfillment_order_line_item_id =
+        order["fulfillmentOrders"]["nodes"][0]["lineItems"]["nodes"][0]["id"].clone();
+
+    let create_fulfillment_query = r#"
+        mutation CreateNamedFulfillment($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              name
+              status
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let first_fulfillment = proxy.process_request(json_graphql_request(
+        create_fulfillment_query,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id,
+                    "fulfillmentOrderLineItems": [{
+                        "id": fulfillment_order_line_item_id,
+                        "quantity": 1
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(first_fulfillment.status, 200);
+    assert_eq!(
+        first_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        first_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["name"],
+        json!(format!("{order_name}-F1"))
+    );
+
+    let second_fulfillment = proxy.process_request(json_graphql_request(
+        create_fulfillment_query,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id,
+                    "fulfillmentOrderLineItems": [{
+                        "id": fulfillment_order_line_item_id,
+                        "quantity": 1
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(second_fulfillment.status, 200);
+    assert_eq!(
+        second_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["name"],
+        json!(format!("{order_name}-F2"))
+    );
+}
+
+#[test]
 fn fulfillment_event_create_stages_event_and_top_level_read_after_write() {
     let mut proxy = snapshot_proxy();
     let (order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
