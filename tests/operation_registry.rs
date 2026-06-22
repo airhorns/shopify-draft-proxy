@@ -1,10 +1,8 @@
-use std::collections::BTreeSet;
-
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
-    default_registry, find_entry, implemented_entries, local_dispatch_roots, operation_capability,
-    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+    default_registry, find_entry, implemented_entries, operation_capability, CapabilityDomain,
+    CapabilityExecution, OperationRegistryEntry,
 };
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
@@ -82,8 +80,18 @@ fn implemented_entries_filter_unimplemented_registry_rows() {
 }
 
 #[test]
-fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
-    let registry = sample_registry();
+fn operation_capability_returns_implemented_canonical_registry_matches_only() {
+    let mut registry = sample_registry();
+    registry.push(OperationRegistryEntry {
+        name: "syntheticLocalRoot".to_string(),
+        operation_type: OperationType::Query,
+        domain: CapabilityDomain::Apps,
+        execution: CapabilityExecution::OverlayRead,
+        implemented: true,
+        match_names: vec!["syntheticLocalRoot".to_string()],
+        runtime_tests: vec![],
+        support_notes: None,
+    });
 
     let product = operation_capability(&registry, OperationType::Query, Some("product"));
     assert_eq!(product.domain, CapabilityDomain::Products);
@@ -99,6 +107,15 @@ fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
         Some("productCreate")
     );
 
+    let synthetic =
+        operation_capability(&registry, OperationType::Query, Some("syntheticLocalRoot"));
+    assert_eq!(synthetic.domain, CapabilityDomain::Apps);
+    assert_eq!(synthetic.execution, CapabilityExecution::OverlayRead);
+    assert_eq!(
+        synthetic.operation_name.as_deref(),
+        Some("syntheticLocalRoot")
+    );
+
     let customer_create =
         operation_capability(&registry, OperationType::Mutation, Some("customerCreate"));
     assert_eq!(customer_create.domain, CapabilityDomain::Customers);
@@ -108,22 +125,16 @@ fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
         Some("customerCreate")
     );
 
-    let implemented_without_dispatch_root = operation_capability(
-        &registry,
-        OperationType::Query,
-        Some("definitelyNotALocalDispatchRoot"),
-    );
+    let noncanonical_match_name =
+        operation_capability(&registry, OperationType::Query, Some("Product"));
+    assert_eq!(noncanonical_match_name.domain, CapabilityDomain::Unknown);
     assert_eq!(
-        implemented_without_dispatch_root.domain,
-        CapabilityDomain::Unknown
-    );
-    assert_eq!(
-        implemented_without_dispatch_root.execution,
+        noncanonical_match_name.execution,
         CapabilityExecution::Passthrough
     );
     assert_eq!(
-        implemented_without_dispatch_root.operation_name.as_deref(),
-        Some("definitelyNotALocalDispatchRoot")
+        noncanonical_match_name.operation_name.as_deref(),
+        Some("Product")
     );
 
     let unimplemented = operation_capability(&registry, OperationType::Query, Some("app"));
@@ -207,94 +218,28 @@ fn default_registry_runtime_tests_reference_current_rust_coverage_files() {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct DispatchKey {
-    operation_type: String,
-    name: String,
-    domain: String,
-    execution: String,
-}
-
 #[test]
-fn local_dispatch_roots_are_a_subset_of_implemented_entries() {
-    let implemented: BTreeSet<DispatchKey> = implemented_entries(&default_registry())
-        .into_iter()
-        .map(dispatch_key_from_registry_entry)
-        .collect();
-    let dispatch_roots: BTreeSet<DispatchKey> = local_dispatch_roots()
-        .iter()
-        .map(dispatch_key_from_local_root)
-        .collect();
-
-    // The dispatch root table is now the full local-routing inventory. There are no
-    // document-gated local handlers outside this table.
-    let missing: Vec<&DispatchKey> = dispatch_roots.difference(&implemented).collect();
-    assert!(
-        missing.is_empty(),
-        "every local dispatch root must be an implemented registry entry; missing: {missing:?}"
-    );
-    let missing_dispatch_roots: Vec<&DispatchKey> =
-        implemented.difference(&dispatch_roots).collect();
-    assert!(
-        missing_dispatch_roots.is_empty(),
-        "every implemented registry entry must have a local dispatch root; missing: {missing_dispatch_roots:?}"
-    );
-}
-
-#[test]
-fn implemented_entries_route_through_local_dispatch_roots() {
+fn implemented_entries_classify_through_canonical_registry_names() {
     let registry = default_registry();
-    let dispatch_roots: BTreeSet<DispatchKey> = local_dispatch_roots()
-        .iter()
-        .map(dispatch_key_from_local_root)
-        .collect();
 
     for entry in implemented_entries(&registry) {
         let capability =
             operation_capability(&registry, entry.operation_type, Some(entry.name.as_str()));
-        assert!(
-            dispatch_roots.contains(&dispatch_key_from_registry_entry(entry)),
-            "{} is implemented and must be present in LOCAL_DISPATCH_ROOTS",
+        assert_eq!(
+            capability.domain, entry.domain,
+            "{} is implemented and must keep its capability domain",
             entry.name
         );
         assert_eq!(
-            capability.domain, entry.domain,
-            "{} is a dispatch root and must keep its capability domain",
+            capability.execution, entry.execution,
+            "{} is implemented and must keep its capability execution",
             entry.name
         );
         assert_ne!(
             capability.execution,
             CapabilityExecution::Passthrough,
-            "{} is a dispatch root and must dispatch locally",
+            "{} is implemented and must dispatch locally",
             entry.name
         );
-    }
-}
-
-fn dispatch_key_from_registry_entry(entry: &OperationRegistryEntry) -> DispatchKey {
-    DispatchKey {
-        operation_type: operation_type_name(entry.operation_type).to_string(),
-        name: entry.name.clone(),
-        domain: entry.domain.registry_name().to_string(),
-        execution: entry.execution.registry_name().to_string(),
-    }
-}
-
-fn dispatch_key_from_local_root(
-    root: &shopify_draft_proxy::operation_registry::LocalDispatchRoot,
-) -> DispatchKey {
-    DispatchKey {
-        operation_type: operation_type_name(root.operation_type).to_string(),
-        name: root.name.to_string(),
-        domain: root.domain.registry_name().to_string(),
-        execution: root.execution.registry_name().to_string(),
-    }
-}
-
-fn operation_type_name(operation_type: OperationType) -> &'static str {
-    match operation_type {
-        OperationType::Query => "query",
-        OperationType::Mutation => "mutation",
-        OperationType::Subscription => "subscription",
     }
 }

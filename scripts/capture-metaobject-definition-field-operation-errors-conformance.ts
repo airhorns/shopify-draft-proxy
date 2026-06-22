@@ -310,6 +310,87 @@ try {
     ['UNDEFINED_OBJECT_FIELD', 'OBJECT_FIELD_TAKEN', 'UNDEFINED_OBJECT_FIELD'],
   );
 
+  cases['createReserved'] = await captureGraphql('create-reserved-field-key', queries.update, {
+    id: seed.definitionId,
+    definition: {
+      fieldDefinitions: [
+        {
+          create: {
+            key: 'id',
+            name: 'ID',
+            type: 'single_line_text_field',
+          },
+        },
+      ],
+    },
+  });
+  assertUserErrors(
+    cases['createReserved'].response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'create-reserved-field-key',
+    ['RESERVED_NAME'],
+  );
+
+  cases['createDuplicate'] = await captureGraphql('create-duplicate-field-key', queries.update, {
+    id: seed.definitionId,
+    definition: {
+      fieldDefinitions: [
+        {
+          create: {
+            key: 'new_field',
+            name: 'New field',
+            type: 'single_line_text_field',
+          },
+        },
+        {
+          create: {
+            key: 'new_field',
+            name: 'New field again',
+            type: 'single_line_text_field',
+          },
+        },
+      ],
+    },
+  });
+  assertUserErrors(
+    cases['createDuplicate'].response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'create-duplicate-field-key',
+    ['DUPLICATE_FIELD_INPUT'],
+  );
+
+  cases['tooManyFields'] = await captureGraphql('too-many-post-update-fields', queries.update, {
+    id: seed.definitionId,
+    definition: {
+      fieldDefinitions: Array.from({ length: 39 }, (_, index) => ({
+        create: {
+          key: `extra_${String(index).padStart(2, '0')}`,
+          name: `Extra ${index}`,
+          type: 'single_line_text_field',
+        },
+      })),
+    },
+  });
+  assertUserErrors(
+    cases['tooManyFields'].response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'too-many-post-update-fields',
+    ['INVALID'],
+  );
+
+  cases['displayNameKeyMissing'] = await captureGraphql('missing-display-name-key', queries.update, {
+    id: seed.definitionId,
+    definition: {
+      displayNameKey: 'missing_display',
+    },
+  });
+  assertUserErrors(
+    cases['displayNameKeyMissing'].response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'missing-display-name-key',
+    ['UNDEFINED_OBJECT_FIELD'],
+  );
+
   await cleanupDefinition(cleanup);
 
   await mkdir(outputDir, { recursive: true });
@@ -321,7 +402,7 @@ try {
         storeDomain,
         apiVersion,
         summary:
-          'metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and ordering.',
+          'metaobjectDefinitionUpdate field-operation conflict and create-key validation userError codes, field paths, messages, and ordering.',
         seed,
         setup: setupCaptures,
         cases,

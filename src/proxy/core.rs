@@ -674,7 +674,7 @@ impl DraftProxy {
                 let mut variant = variant.clone();
                 if variant.get("inventoryItem").is_none() {
                     if let Some(id) = variant.get("id").and_then(Value::as_str) {
-                        let numeric = id.rsplit('/').next().unwrap_or(id);
+                        let numeric = resource_id_path_tail(id);
                         variant["inventoryItem"] = json!({
                             "id": format!("gid://shopify/InventoryItem/{numeric}")
                         });
@@ -811,12 +811,7 @@ impl DraftProxy {
                 self.sync_draft_order_tags(&id);
                 // Advance the synthetic draft sequence past any seeded numeric id so a
                 // later create in the same scenario cannot collide with a precondition.
-                if let Some(numeric) = id
-                    .rsplit('/')
-                    .next()
-                    .and_then(|tail| tail.split('?').next())
-                    .and_then(|tail| tail.parse::<u64>().ok())
-                {
+                if let Ok(numeric) = resource_id_tail(&id).parse::<u64>() {
                     if numeric >= self.store.staged.next_draft_order_id {
                         self.store.staged.next_draft_order_id = numeric + 1;
                     }

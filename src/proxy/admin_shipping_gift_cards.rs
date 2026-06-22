@@ -4894,9 +4894,9 @@ impl DraftProxy {
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/Order/fulfillment-order-{}?shopify-draft-proxy=synthetic",
-                    resource_id_tail(id)
+                synthetic_shopify_gid(
+                    "Order",
+                    format!("fulfillment-order-{}", resource_id_tail(id)),
                 )
             });
         let mut order = node["order"].clone();
@@ -4929,9 +4929,9 @@ impl DraftProxy {
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/Order/fulfillment-order-{}?shopify-draft-proxy=synthetic",
-                    resource_id_tail(&id)
+                synthetic_shopify_gid(
+                    "Order",
+                    format!("fulfillment-order-{}", resource_id_tail(&id)),
                 )
             });
         let mut order = fulfillment_order["order"].clone();
@@ -6772,31 +6772,6 @@ impl DraftProxy {
             }
         }));
     }
-
-    pub(in crate::proxy) fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
-        let id = self.next_synthetic_id;
-        self.next_synthetic_id += 1;
-        synthetic_shopify_gid(resource_type, id)
-    }
-
-    /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
-    /// marker, mirroring Gleam `synthetic_identity.make_synthetic_gid`. Used for
-    /// entities (e.g. media files) the proxy fabricates with stable identifiers
-    /// rather than commit-rewritten placeholders.
-    pub(in crate::proxy) fn next_synthetic_gid(&mut self, resource_type: &str) -> String {
-        let id = self.next_synthetic_id;
-        self.next_synthetic_id += 1;
-        shopify_gid(resource_type, id)
-    }
-
-    /// Reserve a synthetic id for a mutation-log entry, mirroring the
-    /// `make_synthetic_gid(_, "MutationLogEntry")` reservation Gleam performs at
-    /// the start of every successful mutation. This keeps entity ids in lockstep
-    /// with the reference implementation (each mutation advances the counter once
-    /// for its log entry before allocating the resources it creates).
-    pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
-        self.next_synthetic_id += 1;
-    }
 }
 
 enum BackupRegionCountryCodeInput {
@@ -7555,7 +7530,7 @@ fn location_local_pickup_disable_payload_selected_json(
 }
 
 fn location_id_display_tail(location_id: &str) -> &str {
-    location_id.rsplit('/').next().unwrap_or(location_id)
+    resource_id_path_tail(location_id)
 }
 
 fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
@@ -8970,10 +8945,13 @@ fn split_fulfillment_order_quantities(
     source["lineItems"] = json!({ "nodes": source_lines });
     let mut split = source.clone();
     split["id"] = json!(order_ids.next().unwrap_or_else(|| {
-        format!(
-            "gid://shopify/FulfillmentOrder/{}-{}?shopify-draft-proxy=synthetic",
-            resource_id_tail(source["id"].as_str().unwrap_or_default()),
-            split_kind
+        synthetic_shopify_gid(
+            "FulfillmentOrder",
+            format!(
+                "{}-{}",
+                resource_id_tail(source["id"].as_str().unwrap_or_default()),
+                split_kind
+            ),
         )
     }));
     split["updatedAt"] = json!(timestamp);

@@ -53,7 +53,7 @@ pub(in crate::proxy) fn merge_observed_product(
                     .variants
                     .iter()
                     .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    .map(|existing| merge_json_objects(existing.clone(), variant))
+                    .map(|existing| shallow_merged_object(existing.clone(), variant))
             })
             .collect();
     }
@@ -73,18 +73,6 @@ pub(in crate::proxy) fn merge_observed_product(
         left_title.cmp(right_title)
     });
     existing
-}
-
-pub(in crate::proxy) fn merge_json_objects(left: Value, right: Value) -> Value {
-    match (left, right) {
-        (Value::Object(mut left), Value::Object(right)) => {
-            for (key, value) in right {
-                left.insert(key, value);
-            }
-            Value::Object(left)
-        }
-        (_, right) => right,
-    }
 }
 
 pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
@@ -586,7 +574,7 @@ pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
 /// serves. A publication's backing `Channel` shares the publication's numeric
 /// id suffix and name, so both are derived rather than recorded per scenario.
 pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
-    let suffix = id.rsplit('/').next().unwrap_or(id);
+    let suffix = resource_id_path_tail(id);
     let channel_id = format!("gid://shopify/Channel/{suffix}");
     json!({
         "id": id,
@@ -834,7 +822,7 @@ impl DraftProxy {
             channel
                 .get("id")
                 .and_then(Value::as_str)
-                .and_then(|id| id.rsplit('/').next())
+                .map(resource_id_path_tail)
                 .and_then(|suffix| suffix.parse::<u64>().ok())
                 .unwrap_or(u64::MAX)
         });
@@ -1214,6 +1202,19 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let input = collection_input(query, variables).unwrap_or_default();
+        if input.contains_key("id") {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["id"],
+                    "id cannot be specified on collection creation",
+                )],
+            ));
+        }
         if let Some(response) = self.collection_input_validation_response(
             query,
             variables,
@@ -2347,8 +2348,7 @@ fn collection_products_by_recency(connection: &Value) -> Value {
     fn recency(node: &Value) -> i64 {
         node.get("id")
             .and_then(Value::as_str)
-            .and_then(|id| id.rsplit('/').next())
-            .and_then(|tail| tail.split('?').next())
+            .map(resource_id_tail)
             .and_then(|tail| tail.parse::<i64>().ok())
             .unwrap_or(0)
     }

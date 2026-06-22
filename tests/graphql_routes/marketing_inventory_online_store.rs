@@ -4148,6 +4148,267 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileValidationCreate {
+          themeCreate(source: "https://example.com/theme.zip", name: "Theme file validation") { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileBodyModes {
+          text: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/unicode.txt", body: { type: TEXT, value: "caf\u00e9" } }]) {
+            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            userErrors { field message code }
+          }
+          base64: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/base64.txt", body: { type: BASE64, value: "aGVsbG8gZnJvbSBiYXNlNjQ=" } }]) {
+            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            userErrors { field message code }
+          }
+          remote: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/remote.txt", body: { type: URL, value: "https://cdn.example.com/theme-file.txt" } }]) {
+            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        upsert.body["data"]["text"]["upsertedThemeFiles"][0],
+        json!({"filename": "assets/unicode.txt", "checksumMd5": "07117fe4a1ebd544965dc19573183da2", "size": 5, "body": {"content": "caf\u{00e9}"}})
+    );
+    assert_eq!(
+        upsert.body["data"]["base64"]["upsertedThemeFiles"][0],
+        json!({"filename": "assets/base64.txt", "checksumMd5": "c46e1c777b9d4e0b47ea917d2d6d6748", "size": 17, "body": {"content": "hello from base64"}})
+    );
+    assert_eq!(
+        upsert.body["data"]["remote"]["upsertedThemeFiles"][0],
+        json!({"filename": "assets/remote.txt", "checksumMd5": "d41d8cd98f00b204e9800998ecf8427e", "size": 0, "body": {"type": "URL", "value": null}})
+    );
+
+    let conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileChecksumConflict($files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
+          themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: $files) {
+            upsertedThemeFiles { filename checksumMd5 size }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "filename": "assets/unicode.txt",
+            "checksumMd5": "stale-checksum",
+            "body": {"type": "TEXT", "value": "changed"}
+        }]}),
+    ));
+    assert_eq!(
+        conflict.body["data"]["themeFilesUpsert"],
+        json!({"upsertedThemeFiles": [], "userErrors": [{
+            "field": ["files", "0", "checksumMd5"],
+            "message": "Checksum does not match",
+            "code": "CONFLICT"
+        }]})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeFileChecksumConflictRead {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
+            files(first: 10) { nodes { filename checksumMd5 size body { content type value } } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["theme"]["files"]["nodes"][0],
+        json!({"filename": "assets/unicode.txt", "checksumMd5": "07117fe4a1ebd544965dc19573183da2", "size": 5, "body": {"content": "caf\u{00e9}"}})
+    );
+}
+
+#[test]
+fn online_store_theme_files_upsert_rejects_validation_regressions_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileValidationCreate {
+          themeCreate(source: "https://example.com/theme.zip", name: "Theme file validation") { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let mutation = r#"
+        mutation RustOnlineStoreThemeFileUpsertValidation($files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
+          themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: $files) {
+            upsertedThemeFiles { filename }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let validation = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [
+            {"filename": "", "body": {"type": "TEXT", "value": "blank"}},
+            {"filename": "evil/path.liquid", "body": {"type": "TEXT", "value": "bad"}},
+            {"filename": "_drafts/preview.liquid", "body": {"type": "TEXT", "value": "draft"}},
+            {"filename": "assets/dupe.js", "body": {"type": "TEXT", "value": "first"}},
+            {"filename": "assets/dupe.js", "body": {"type": "TEXT", "value": "second"}},
+            {"filename": "assets/bad-base64.txt", "body": {"type": "BASE64", "value": "not base64"}}
+        ]}),
+    ));
+    assert_eq!(
+        validation.body["data"]["themeFilesUpsert"],
+        json!({"upsertedThemeFiles": [], "userErrors": [
+            {"field": ["files", "0", "filename"], "message": "Filename can't be blank", "code": "INVALID"},
+            {"field": ["files", "1", "filename"], "message": "Filename is invalid", "code": "INVALID"},
+            {"field": ["files", "2", "filename"], "message": "Access denied", "code": "ACCESS_DENIED"},
+            {"field": ["files", "4", "filename"], "message": "duplicate-file-input", "code": "INVALID"},
+            {"field": ["files", "5", "body"], "message": "invalid-body-input", "code": "INVALID"}
+        ]})
+    );
+
+    let too_many_files = (0..51)
+        .map(|index| {
+            json!({
+                "filename": format!("assets/file-{index}.txt"),
+                "body": {"type": "TEXT", "value": "x"}
+            })
+        })
+        .collect::<Vec<_>>();
+    let too_many = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": too_many_files}),
+    ));
+    assert_eq!(
+        too_many.body["data"]["themeFilesUpsert"],
+        json!({"upsertedThemeFiles": [], "userErrors": [{
+            "field": ["files"],
+            "message": "Exceeded maximum number of files",
+            "code": "INVALID"
+        }]})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeFileRejectedUpsertRead {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
+            files(first: 10) { nodes { filename } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["theme"]["files"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_theme_files_copy_delete_validate_caps_duplicates_and_required_files() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileCopyDeleteValidationCreate {
+          themeCreate(source: "https://example.com/theme.zip", name: "Theme file validation") { theme { id } userErrors { field message code } }
+          themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [
+            { filename: "assets/source.js", body: { type: TEXT, value: "source" } },
+            { filename: "layout/theme.liquid", body: { type: TEXT, value: "<html></html>" } }
+          ]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let copy_mutation = r#"
+        mutation RustOnlineStoreThemeFileCopyValidation($files: [ThemeFilesCopyFileInput!]!) {
+          themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: $files) {
+            copiedThemeFiles { filename }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let duplicate_copy = proxy.process_request(json_graphql_request(
+        copy_mutation,
+        json!({"files": [
+            {"srcFilename": "assets/source.js", "dstFilename": "assets/copy.js"},
+            {"srcFilename": "assets/source.js", "dstFilename": "assets/copy.js"}
+        ]}),
+    ));
+    assert_eq!(
+        duplicate_copy.body["data"]["themeFilesCopy"],
+        json!({"copiedThemeFiles": [], "userErrors": [{
+            "field": ["files", "1", "dstFilename"],
+            "message": "duplicate-file-input",
+            "code": "INVALID"
+        }]})
+    );
+
+    let too_many_copies = (0..51)
+        .map(|index| {
+            json!({
+                "srcFilename": "assets/source.js",
+                "dstFilename": format!("assets/copy-{index}.js")
+            })
+        })
+        .collect::<Vec<_>>();
+    let copy_limit = proxy.process_request(json_graphql_request(
+        copy_mutation,
+        json!({"files": too_many_copies}),
+    ));
+    assert_eq!(
+        copy_limit.body["data"]["themeFilesCopy"],
+        json!({"copiedThemeFiles": [], "userErrors": [{
+            "field": ["files"],
+            "message": "Exceeded maximum number of files",
+            "code": "INVALID"
+        }]})
+    );
+
+    let delete_mutation = r#"
+        mutation RustOnlineStoreThemeFileDeleteValidation($files: [String!]!) {
+          themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: $files) {
+            deletedThemeFiles { filename }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete_validation = proxy.process_request(json_graphql_request(
+        delete_mutation,
+        json!({"files": ["assets/source.js", "assets/source.js", "layout/theme.liquid"]}),
+    ));
+    assert_eq!(
+        delete_validation.body["data"]["themeFilesDelete"],
+        json!({"deletedThemeFiles": [], "userErrors": [
+            {"field": ["files", "1"], "message": "duplicate-file-input", "code": "INVALID"},
+            {"field": ["files", "2"], "message": "File is required and can't be deleted", "code": "INVALID"}
+        ]})
+    );
+
+    let too_many_deletes = (0..101)
+        .map(|index| format!("assets/delete-{index}.js"))
+        .collect::<Vec<_>>();
+    let delete_limit = proxy.process_request(json_graphql_request(
+        delete_mutation,
+        json!({"files": too_many_deletes}),
+    ));
+    assert_eq!(
+        delete_limit.body["data"]["themeFilesDelete"],
+        json!({"deletedThemeFiles": [], "userErrors": [{
+            "field": ["files"],
+            "message": "Exceeded maximum number of files",
+            "code": "INVALID"
+        }]})
+    );
+}
+
+#[test]
 fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() {
     let mut proxy = snapshot_proxy();
 
@@ -4377,6 +4638,210 @@ fn metaobject_create_rejects_duplicate_field_keys() {
     assert_eq!(
         after_rejected_create.body["data"]["metaobjects"]["nodes"],
         json!([])
+    );
+}
+
+#[test]
+fn metaobject_definition_update_validates_field_create_keys_and_display_name_key() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_definition = r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } displayNameKey }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let create_field = |key: String| {
+        json!({
+            "key": key,
+            "name": "Field",
+            "type": "single_line_text_field",
+            "required": false
+        })
+    };
+    let create_local_definition =
+        |proxy: &mut DraftProxy, meta_type: &str, field_definitions: Vec<Value>| -> String {
+            let response = proxy.process_request(json_graphql_request(
+                create_definition,
+                json!({"definition": {
+                    "type": meta_type,
+                    "name": meta_type,
+                    "displayNameKey": field_definitions[0]["key"],
+                    "fieldDefinitions": field_definitions
+                }}),
+            ));
+            assert_eq!(
+                response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+                json!([])
+            );
+            response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+    let reserved_id = create_local_definition(
+        &mut proxy,
+        "update_reserved_field_key",
+        vec![create_field("title".to_string())],
+    );
+    for reserved_key in ["id", "handle", "system", "metafields"] {
+        let reserved = proxy.process_request(json_graphql_request(
+            update_definition,
+            json!({"id": reserved_id, "definition": {
+                "fieldDefinitions": [{"create": create_field(reserved_key.to_string())}]
+            }}),
+        ));
+        assert_eq!(
+            reserved.body["data"]["metaobjectDefinitionUpdate"],
+            json!({
+                "metaobjectDefinition": null,
+                "userErrors": [{
+                    "field": ["definition", "fieldDefinitions", "0"],
+                    "message": format!("The name \"{reserved_key}\" is reserved for system use"),
+                    "code": "RESERVED_NAME",
+                    "elementKey": reserved_key,
+                    "elementIndex": null
+                }]
+            })
+        );
+    }
+
+    let duplicate_id = create_local_definition(
+        &mut proxy,
+        "update_duplicate_field_key",
+        vec![create_field("title".to_string())],
+    );
+    let duplicate = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": duplicate_id, "definition": {
+            "fieldDefinitions": [
+                {"create": create_field("new_field".to_string())},
+                {"create": create_field("new_field".to_string())}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "1"],
+                "message": "Field \"new_field\" duplicates other inputs",
+                "code": "DUPLICATE_FIELD_INPUT",
+                "elementKey": "new_field",
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let max_fields = (0..40)
+        .map(|index| create_field(format!("field_{index:02}")))
+        .collect::<Vec<_>>();
+    let max_id = create_local_definition(&mut proxy, "update_too_many_fields", max_fields);
+    let too_many = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": max_id, "definition": {
+            "fieldDefinitions": [{"create": create_field("field_40".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        too_many.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions"],
+                "message": "Maximum 40 fields per metaobject definition",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_missing",
+        vec![create_field("title".to_string())],
+    );
+    let missing_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": display_id, "definition": {"displayNameKey": "ghost"}}),
+    ));
+    assert_eq!(
+        missing_display_key.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "displayNameKey"],
+                "message": "Field definition \"ghost\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let new_display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_created",
+        vec![create_field("title".to_string())],
+    );
+    let created_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": new_display_id, "definition": {
+            "displayNameKey": "subtitle",
+            "fieldDefinitions": [{"create": create_field("subtitle".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        created_display_key.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_display_key.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["displayNameKey"],
+        json!("subtitle")
+    );
+
+    let deleted_display_id = create_local_definition(
+        &mut proxy,
+        "update_display_name_key_deleted",
+        vec![
+            create_field("title".to_string()),
+            create_field("summary".to_string()),
+        ],
+    );
+    let deleted_display_key = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": deleted_display_id, "definition": {
+            "displayNameKey": "title",
+            "fieldDefinitions": [{"delete": {"key": "title"}}]
+        }}),
+    ));
+    assert_eq!(
+        deleted_display_key.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "displayNameKey"],
+                "message": "Field definition \"title\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
     );
 }
 
@@ -5003,6 +5468,79 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
             {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
         ])
     );
+}
+
+fn assert_file_create_batch_timestamps(batch_size: usize, expected_last_created_at: &str) {
+    let mut proxy = snapshot_proxy();
+    let files = (0..batch_size)
+        .map(|index| {
+            json!({
+                "alt": format!("Batch file {index}"),
+                "contentType": "IMAGE",
+                "filename": format!("batch-file-{index}.jpg"),
+                "originalSource": format!("https://cdn.example.com/batch-file-{index}.jpg")
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateBatchTimestamps($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id createdAt updatedAt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "files": files }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let created_files = create.body["data"]["fileCreate"]["files"]
+        .as_array()
+        .expect("fileCreate should return files");
+    assert_eq!(created_files.len(), batch_size);
+
+    for (index, file) in created_files.iter().enumerate() {
+        let expected_offset_seconds = u32::try_from(index + 1).unwrap();
+        assert_valid_synthetic_media_timestamp(&file["createdAt"], expected_offset_seconds);
+        assert_valid_synthetic_media_timestamp(&file["updatedAt"], expected_offset_seconds);
+        assert_eq!(file["createdAt"], file["updatedAt"]);
+    }
+    assert_eq!(
+        created_files.last().unwrap()["createdAt"],
+        json!(expected_last_created_at)
+    );
+}
+
+fn assert_valid_synthetic_media_timestamp(value: &Value, expected_offset_seconds: u32) {
+    let timestamp = value
+        .as_str()
+        .expect("fileCreate timestamp should be a string");
+    assert_eq!(timestamp.len(), "2024-01-01T00:00:00.000Z".len());
+    assert_eq!(&timestamp[0..11], "2024-01-01T");
+    assert_eq!(&timestamp[13..14], ":");
+    assert_eq!(&timestamp[16..17], ":");
+    assert_eq!(&timestamp[19..], ".000Z");
+
+    let hour = timestamp[11..13].parse::<u32>().unwrap();
+    let minute = timestamp[14..16].parse::<u32>().unwrap();
+    let second = timestamp[17..19].parse::<u32>().unwrap();
+    assert!(hour < 24, "hour should be valid in {timestamp}");
+    assert!(minute < 60, "minute should be valid in {timestamp}");
+    assert!(second < 60, "second should be valid in {timestamp}");
+    assert_eq!(
+        hour * 3600 + minute * 60 + second,
+        expected_offset_seconds,
+        "timestamp should advance deterministically by input index"
+    );
+}
+
+#[test]
+fn media_file_create_batch_timestamps_are_valid_for_large_batches() {
+    assert_file_create_batch_timestamps(60, "2024-01-01T00:01:00.000Z");
+    assert_file_create_batch_timestamps(250, "2024-01-01T00:04:10.000Z");
 }
 
 #[test]
