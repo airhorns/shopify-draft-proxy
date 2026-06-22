@@ -6879,6 +6879,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
       'fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json',
+      'fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json',
       'fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json',
       'fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json',
       'config/parity-specs/apps/app-purchase-one-time-create-validation.json',

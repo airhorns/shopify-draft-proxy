@@ -2702,28 +2702,6 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
     Value::Object(data)
 }
 
-/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
-/// representation: strip trailing zeros after the decimal point but keep at
-/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
-/// "38.25" -> "38.25", "57" -> "57.0").
-pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
-    let trimmed = amount.trim();
-    if trimmed.is_empty() {
-        return "0.0".to_string();
-    }
-    if trimmed.contains('.') {
-        let stripped = trimmed.trim_end_matches('0');
-        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
-        if stripped.contains('.') {
-            stripped.to_string()
-        } else {
-            format!("{stripped}.0")
-        }
-    } else {
-        format!("{trimmed}.0")
-    }
-}
-
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
 /// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
 /// "2026-05-27T12:00:00Z").

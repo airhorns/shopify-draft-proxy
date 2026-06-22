@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json"],
-  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-blank-name.graphql"

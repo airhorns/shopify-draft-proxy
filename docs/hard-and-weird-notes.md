@@ -3667,3 +3667,25 @@ Practical rule:
   fulfilled, has open fulfillment-order state, has requested returns, is
   refunded, or is cancelled unless a future live capture records a concrete
   public `INVALID` payload for that state
+
+## 86. App billing MoneyV2 amounts normalize like Decimal scalars
+
+Shopify Core billing tests assert app billing `MoneyV2.amount` values after
+GraphQL Decimal coercion, not as raw echoed request strings. The relevant core
+coverage includes `appUsageRecordCreate` returning `"1.0"` for an input amount
+written as `1.00`, and one-time-purchase/subscription tests expecting values
+such as `"10.0"`.
+
+Practical rule:
+
+- app billing handlers should normalize all staged MoneyV2 amount strings:
+  whole values render with one trailing zero (`"100.0"`), and fractional values
+  drop superfluous trailing zeros (`"3.00"` -> `"3.0"`, `"1.50"` -> `"1.5"`)
+- this is a deterministic serialization rule, so normalize the local store value
+  once and let downstream app-domain reads project the same value
+- the current conformance custom app cannot live-capture billing mutation
+  success paths because Shopify returns `Custom apps cannot use the Billing API`
+  before charge creation
+- a real live success-path fixture needs a disposable billing-capable app/store
+  credential that can use Shopify's Billing API and safely approve test charges;
+  do not hand-author a live billing success fixture from local proxy output

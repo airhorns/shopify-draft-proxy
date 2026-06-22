@@ -46,6 +46,7 @@ Supported mutations stage locally, append the original raw mutation request to t
 
 Billing behavior:
 
+- Billing payloads serialize `MoneyV2.amount` strings with Shopify Decimal-style formatting: whole numbers keep one trailing zero and fractional amounts drop superfluous trailing zeros. The same normalized staged values are read back through `currentAppInstallation`, `node(id:)`, and `nodes(ids:)` app-domain reads.
 - `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL. Local validation covers missing/blank `returnUrl`, blank trimmed names, prices below the local minimum, and shop billing currency mismatches.
 - `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
 - `appSubscriptionCancel` stages cancellation only for cancellable subscription statuses. Non-cancellable and unknown subscriptions return Shopify-shaped userErrors without mutating local state.
@@ -73,7 +74,7 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 
 - The proxy does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 - Billing approval, charge activation, subscription proration, usage-charge billing, app-plan enforcement, and Shopify Core chargeability guards are not emulated beyond local staged state and validation evidence.
-- Live success-path captures for billing approval, uninstall, and app grant revocation require explicitly approved disposable credentials. Current local support is based on local-runtime parity and safe live validation evidence.
+- Live success-path captures for billing approval, uninstall, and app grant revocation require explicitly approved disposable credentials. Billing mutation success captures specifically require a disposable billing-capable app/store credential that can use Shopify's Billing API and safely approve test charges; the current custom-app conformance credential cannot exercise those success paths.
 - Authorized multi-installation catalog behavior for `appInstallations(...)` remains unsupported without a suitable live grant.
 - No listed app root is registry-only. Validation-only behavior is limited to guardrails that reject before staging and to local-runtime evidence for branches that cannot be exercised safely against the current disposable app credential.
 
@@ -81,15 +82,19 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json`
 - `fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json`
+- `fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json`
+- `fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json`
+- `fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-expires-after-parent.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-shop-payload.json`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
+- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
+- `config/parity-specs/apps/app-subscription-line-item-update-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
 - `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
-- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
 - `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json`
@@ -102,6 +107,8 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 ### Validation
 
 - `corepack pnpm parity -- app-billing-access-local-staging`
+- `corepack pnpm parity -- app-usage-record-create-cap-and-idempotency`
+- `corepack pnpm parity -- app-subscription-line-item-update-validation`
 - `corepack pnpm parity -- delegate-access-token-current-input-local-staging`
 - `corepack pnpm parity -- delegate-access-token-destroy-codes`
 - `corepack pnpm conformance:check`

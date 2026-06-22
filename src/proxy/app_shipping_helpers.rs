@@ -394,13 +394,13 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
             index + 1
         ),
     };
-    let mut capped_amount = "100".to_string();
+    let mut capped_amount = "100.0".to_string();
     let mut currency_code = "USD".to_string();
     let mut terms = "usage terms".to_string();
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
-                let mut price_amount = "1".to_string();
+                let mut price_amount = "1.0".to_string();
                 let mut price_currency = "USD".to_string();
                 if let Some(ResolvedValue::Object(price)) = details.get("price") {
                     price_amount = resolved_money_amount_string(price.get("amount"));
@@ -448,20 +448,18 @@ pub(in crate::proxy) fn format_money_amount(value: f64) -> String {
         format!("{value:.1}")
     } else {
         let text = format!("{value:.2}");
-        text.trim_end_matches('0').trim_end_matches('.').to_string()
+        normalize_money_amount(text.as_str())
     }
 }
 
 pub(in crate::proxy) fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
-    match value {
+    let raw = match value {
         Some(ResolvedValue::Int(value)) => value.to_string(),
-        Some(ResolvedValue::Float(value)) => {
-            let text = value.to_string();
-            text.strip_suffix(".0").unwrap_or(&text).to_string()
-        }
+        Some(ResolvedValue::Float(value)) => value.to_string(),
         Some(ResolvedValue::String(value)) => value.clone(),
         _ => "100".to_string(),
-    }
+    };
+    normalize_money_amount(&raw)
 }
 
 pub(in crate::proxy) fn current_app_installation_json(
