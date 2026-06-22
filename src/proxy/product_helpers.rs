@@ -5365,8 +5365,6 @@ fn root_argument_value_location(
     field: &RootFieldSelection,
     argument_name: &str,
 ) -> Option<SourceLocation> {
-    let mut line = field.location.line;
-    let mut column = field.location.column;
     let start = byte_offset_for_location(query, field.location)?;
     let haystack = &query[start..];
     let argument_start = haystack.find(argument_name)?;
@@ -5375,33 +5373,7 @@ fn root_argument_value_location(
     let value_offset = query[after_colon..]
         .char_indices()
         .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-
-    for ch in query[start..value_offset].chars() {
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    Some(SourceLocation { line, column })
-}
-
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut line = 1;
-    let mut column = 1;
-    for (offset, ch) in query.char_indices() {
-        if line == location.line && column == location.column {
-            return Some(offset);
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (line == location.line && column == location.column).then_some(query.len())
+    source_location_for_byte_offset(query, value_offset)
 }
 
 fn invalid_product_status_variable_error(

@@ -27,17 +27,17 @@ struct AdminInputSchema {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ValidationContext<'a> {
-    query: &'a str,
-    operation_path: &'a str,
-    response_key: &'a str,
-    field_location: SourceLocation,
+pub(in crate::proxy) struct ValidationContext<'a> {
+    pub(in crate::proxy) query: &'a str,
+    pub(in crate::proxy) operation_path: &'a str,
+    pub(in crate::proxy) response_key: &'a str,
+    pub(in crate::proxy) field_location: SourceLocation,
     // Raw request body text. serde_json parses JSON objects into sorted maps, so
     // the author's variable field order is lost by the time variables reach this
     // validator. Shopify reports INVALID_VARIABLE coercion problems in the order
     // fields appear in the request, so we recover that order from the raw body
     // text (which preserves it) when sorting unknown-field problems.
-    raw_body: &'a str,
+    pub(in crate::proxy) raw_body: &'a str,
 }
 
 /// First byte offset at which a JSON key (`"name"`) appears in `source`, used to
@@ -121,6 +121,46 @@ pub(in crate::proxy) fn user_error(
         "message": message,
         "code": user_error_code(code),
     })
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) enum LengthUserErrorBound {
+    TooLong {
+        maximum: usize,
+    },
+    #[allow(dead_code, reason = "TOO_SHORT supports follow-up migrations.")]
+    TooShort {
+        minimum: usize,
+    },
+}
+
+pub(in crate::proxy) fn presence_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+) -> Value {
+    user_error(
+        field,
+        &format!("{field_name} can't be blank"),
+        Some("BLANK"),
+    )
+}
+
+pub(in crate::proxy) fn length_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+    bound: LengthUserErrorBound,
+) -> Value {
+    let (message, code) = match bound {
+        LengthUserErrorBound::TooLong { maximum } => (
+            format!("{field_name} is too long (maximum is {maximum} characters)"),
+            "TOO_LONG",
+        ),
+        LengthUserErrorBound::TooShort { minimum } => (
+            format!("{field_name} is too short (minimum is {minimum} characters)"),
+            "TOO_SHORT",
+        ),
+    };
+    user_error(field, &message, Some(code))
 }
 
 pub(in crate::proxy) fn user_error_with_code_value(
@@ -234,10 +274,10 @@ pub(in crate::proxy) fn metaobject_indexed_user_error(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct VariableValidationContext<'a> {
-    variable_name: &'a str,
-    variable_type: &'a str,
-    location: SourceLocation,
+pub(in crate::proxy) struct VariableValidationContext<'a> {
+    pub(in crate::proxy) variable_name: &'a str,
+    pub(in crate::proxy) variable_type: &'a str,
+    pub(in crate::proxy) location: SourceLocation,
 }
 
 pub(in crate::proxy) fn public_admin_schema_input_errors(
@@ -1108,7 +1148,7 @@ fn format_float_literal(value: f64) -> String {
     format!("{value}")
 }
 
-fn input_object_argument_not_accepted_error(
+pub(in crate::proxy) fn input_object_argument_not_accepted_error(
     input_type_name: &str,
     argument_name: &str,
     path: &[String],
@@ -1305,7 +1345,10 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
     None
 }
 
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+pub(in crate::proxy) fn byte_offset_for_location(
+    query: &str,
+    location: SourceLocation,
+) -> Option<usize> {
     let mut line = 1;
     let mut column = 1;
     for (offset, ch) in query.char_indices() {
@@ -1322,7 +1365,10 @@ fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usi
     (line == location.line && column == location.column).then_some(query.len())
 }
 
-fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+pub(in crate::proxy) fn source_location_for_byte_offset(
+    query: &str,
+    target_offset: usize,
+) -> Option<SourceLocation> {
     if target_offset > query.len() || !query.is_char_boundary(target_offset) {
         return None;
     }
@@ -1342,6 +1388,62 @@ fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<
     (target_offset == query.len()).then_some(SourceLocation { line, column })
 }
 
+fn graphql_variable_occurrence(
+    query: &str,
+    variable_name: &str,
+    search_from: usize,
+) -> Option<(usize, usize)> {
+    let needle = format!("${variable_name}");
+    let bytes = query.as_bytes();
+    let mut search_from = search_from;
+    while let Some(relative) = query[search_from..].find(&needle) {
+        let start = search_from + relative;
+        let after = start + needle.len();
+        let is_boundary = match bytes.get(after) {
+            None => true,
+            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
+        };
+        if is_boundary {
+            return Some((start, after));
+        }
+        search_from = after;
+    }
+    None
+}
+
+/// Resolves the 1-based location of a variable definition (`$name`) in the query.
+pub(in crate::proxy) fn graphql_variable_definition_location(
+    query: &str,
+    variable_name: &str,
+) -> Option<(usize, usize)> {
+    let (start, _) = graphql_variable_occurrence(query, variable_name, 0)?;
+    let location = source_location_for_byte_offset(query, start)?;
+    Some((location.line, location.column))
+}
+
+/// Resolves the declared GraphQL type of a variable definition (`$name: <TYPE>`).
+pub(in crate::proxy) fn graphql_variable_definition_type(
+    query: &str,
+    variable_name: &str,
+) -> Option<String> {
+    let mut search_from = 0;
+    while let Some((_, after)) = graphql_variable_occurrence(query, variable_name, search_from) {
+        if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
+            let declared: String = type_part
+                .trim_start()
+                .chars()
+                .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
+                .collect();
+            let declared = declared.trim();
+            if !declared.is_empty() {
+                return Some(declared.to_string());
+            }
+        }
+        search_from = after;
+    }
+    None
+}
+
 fn is_graphql_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '_'
 }
@@ -1350,7 +1452,7 @@ fn is_graphql_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
-fn invalid_variable_error(
+pub(in crate::proxy) fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
     problems: Vec<Value>,
@@ -1385,14 +1487,14 @@ fn invalid_variable_error(
     })
 }
 
-fn variable_problem(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem(path: &[String], explanation: &str) -> Value {
     json!({
         "path": path,
         "explanation": explanation
     })
 }
 
-fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
     json!({
         "path": path,
         "explanation": explanation,
