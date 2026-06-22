@@ -286,10 +286,11 @@ impl DraftProxy {
                 "product" => Some(if operation.is_some() {
                     Value::Null
                 } else {
-                    product_json_with_variants(
+                    product_json_with_variants_and_currency(
                         &product,
                         &self.store.product_variants_for_product(&product_id),
                         &product_selection,
+                        &self.store.shop_currency_code(),
                     )
                 }),
                 "productSetOperation" => Some(
@@ -579,7 +580,13 @@ impl DraftProxy {
             match selection.name.as_str() {
                 "product" => Some(
                     product
-                        .map(|product| product_json(product, product_selection))
+                        .map(|product| {
+                            product_json_with_currency(
+                                product,
+                                product_selection,
+                                &self.store.shop_currency_code(),
+                            )
+                        })
                         .unwrap_or(Value::Null),
                 ),
                 "productSetOperation" => Some(Value::Null),
@@ -813,10 +820,11 @@ impl DraftProxy {
                 } else {
                     duplicate
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 new_product_selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null)
@@ -985,10 +993,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1023,10 +1032,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1037,10 +1047,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),

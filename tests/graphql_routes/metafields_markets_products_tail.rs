@@ -5565,12 +5565,35 @@ fn product_contextual_pricing_price_list_read_returns_no_data_without_staged_pro
 }
 
 #[test]
-fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
-    let mut proxy = snapshot_proxy();
+fn product_create_then_bulk_create_recomputes_price_ranges_from_effective_variants() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
     ))
     .unwrap();
+
+    let shop = proxy.process_request(json_graphql_request(
+        "query ProductPriceRangeShopCurrency { shop { currencyCode } }",
+        json!({}),
+    ));
+    assert_eq!(shop.status, 200);
+    assert_eq!(shop.body["data"]["shop"]["currencyCode"], json!("CAD"));
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5580,6 +5603,51 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
     let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
     assert!(product_id.is_string());
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRangeV2"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["priceRange"],
+        fixture["create"]["response"]["data"]["productCreate"]["product"]["priceRange"]
+    );
+    let initial_variant_id =
+        create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"].clone();
+    assert!(initial_variant_id.is_string());
+
+    let mut price_update_variables = fixture["priceUpdate"]["variables"].clone();
+    price_update_variables["productId"] = product_id.clone();
+    price_update_variables["variants"][0]["id"] = initial_variant_id;
+    let price_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql"
+        ),
+        price_update_variables,
+    ));
+    assert_eq!(
+        price_update.body["data"]["productVariantsBulkUpdate"]["product"]["priceRangeV2"],
+        fixture["priceUpdate"]["response"]["data"]["productVariantsBulkUpdate"]["product"]
+            ["priceRangeV2"]
+    );
+
+    let mut bulk_create_variables = fixture["bulkCreate"]["variables"].clone();
+    bulk_create_variables["productId"] = product_id.clone();
+    let bulk_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql"
+        ),
+        bulk_create_variables,
+    ));
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRangeV2"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRangeV2"]
+    );
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["priceRange"],
+        fixture["bulkCreate"]["response"]["data"]["productVariantsBulkCreate"]["product"]
+            ["priceRange"]
+    );
 
     let downstream = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5589,9 +5657,18 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
     ));
 
     assert_eq!(
+        downstream.body["data"]["product"]["priceRangeV2"],
+        fixture["downstreamRead"]["data"]["product"]["priceRangeV2"]
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["priceRange"],
+        fixture["downstreamRead"]["data"]["product"]["priceRange"]
+    );
+    assert_eq!(
         downstream.body["data"]["product"]["totalInventory"],
         json!(0)
     );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]

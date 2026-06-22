@@ -3,7 +3,7 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "HAR592 Inventory Aggregate 1777950701775",
+        "title": "Draft Proxy Inventory Aggregate 1782056861660",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -44,7 +44,7 @@
       "data": {
         "productSet": {
           "product": {
-            "id": "gid://shopify/Product/10177003159858",
+            "id": "gid://shopify/Product/10218077028658",
             "totalVariants": 1,
             "hasOnlyDefaultVariant": true,
             "hasOutOfStockVariants": false,
@@ -53,15 +53,15 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51126289400114",
+                  "id": "gid://shopify/ProductVariant/51345392402738",
                   "inventoryQuantity": 1,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53229391872306",
+                    "id": "gid://shopify/InventoryItem/53450177282354",
                     "tracked": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/150024945970?inventory_item_id=53229391872306",
+                          "id": "gid://shopify/InventoryLevel/150024945970?inventory_item_id=53450177282354",
                           "location": {
                             "id": "gid://shopify/Location/112829759794",
                             "name": "HAR-571 transfer destination 20260505000619"
@@ -106,10 +106,10 @@
       "input": {
         "name": "available",
         "reason": "correction",
-        "referenceDocumentUri": "logistics://har-592/inventory-adjust/1777950701775",
+        "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1782056861660",
         "changes": [
           {
-            "inventoryItemId": "gid://shopify/InventoryItem/53229391872306",
+            "inventoryItemId": "gid://shopify/InventoryItem/53450177282354",
             "locationId": "gid://shopify/Location/112829759794",
             "delta": -1
           }
@@ -121,13 +121,13 @@
         "inventoryAdjustQuantities": {
           "inventoryAdjustmentGroup": {
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-592/inventory-adjust/1777950701775",
+            "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1782056861660",
             "changes": [
               {
                 "name": "available",
                 "delta": -1,
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53229391872306"
+                  "id": "gid://shopify/InventoryItem/53450177282354"
                 },
                 "location": {
                   "id": "gid://shopify/Location/112829759794",
@@ -138,7 +138,7 @@
                 "name": "on_hand",
                 "delta": -1,
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53229391872306"
+                  "id": "gid://shopify/InventoryItem/53450177282354"
                 },
                 "location": {
                   "id": "gid://shopify/Location/112829759794",
@@ -166,7 +166,7 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10177003159858",
+        "id": "gid://shopify/Product/10218077028658",
         "totalVariants": 1,
         "hasOnlyDefaultVariant": true,
         "hasOutOfStockVariants": true,
@@ -216,39 +216,5 @@
       }
     }
   },
-  "upstreamCalls": [
-    {
-      "operationName": "InventoryAdjustDerivedFieldsDownstream",
-      "variables": {
-        "id": "gid://shopify/Product/10177003159858"
-      },
-      "query": "query InventoryAdjustDerivedFieldsDownstream($id: ID!) {\n  product(id: $id) {\n    id\n    totalVariants\n    hasOnlyDefaultVariant\n    hasOutOfStockVariants\n    tracksInventory\n    totalInventory\n    variants(first: 5) {\n      nodes {\n        inventoryQuantity\n        inventoryItem {\n          tracked\n          inventoryLevels(first: 5) {\n            nodes {\n              location {\n                id\n                name\n              }\n              quantities(names: [\"available\", \"on_hand\"]) {\n                name\n                quantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "errors": [
-            {
-              "message": "Variable $id of type ID! was provided invalid value",
-              "locations": [
-                {
-                  "line": 1,
-                  "column": 46
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    }
-  ]
+  "upstreamCalls": []
 }
