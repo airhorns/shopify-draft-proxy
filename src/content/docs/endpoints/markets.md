@@ -12,9 +12,9 @@ and market-localized content.
 ### Implemented local roots
 
 The Rust operation registry marks the Markets roots below as locally
-implemented: they route through `LOCAL_DISPATCH_ROOTS` and are answered without
-runtime Shopify writes. Registry implementation is still narrower than support
-for arbitrary Markets documents.
+implemented: their canonical registry entries are answered without runtime
+Shopify writes. Registry implementation is still narrower than support for
+arbitrary Markets documents.
 
 Implemented read roots:
 

@@ -19,9 +19,9 @@ captured schema exposes `OrderCaptureUserError.code`.
 ## Current support and limitations
 
 `src/operation_registry.rs` marks selected payment roots as locally implemented
-when they route through `LOCAL_DISPATCH_ROOTS` and are answered by Rust runtime
-handlers. The support claims below are based on those handlers plus checked-in
-parity specs, tests, and fixtures; registry presence alone is not support.
+when their canonical registry entries are answered by Rust runtime handlers. The
+support claims below are based on those handlers plus checked-in parity specs,
+tests, and fixtures; registry presence alone is not support.
 
 ### Order-owned payment roots
 
