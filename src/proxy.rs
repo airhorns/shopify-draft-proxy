@@ -1057,6 +1057,16 @@ impl Store {
         shop
     }
 
+    fn shop_currency_code(&self) -> String {
+        self.base
+            .shop
+            .get("currencyCode")
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .unwrap_or("USD")
+            .to_string()
+    }
+
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
         effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
     }

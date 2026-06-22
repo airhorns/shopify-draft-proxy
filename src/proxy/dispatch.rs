@@ -1890,7 +1890,11 @@ impl DraftProxy {
                         if let Some(data) = self.shop_query_data(&query, &variables) {
                             ok_json(json!({ "data": data }))
                         } else {
-                            (self.upstream_transport)(request.clone())
+                            let response = (self.upstream_transport)(request.clone());
+                            if (200..300).contains(&response.status) {
+                                self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                            }
+                            response
                         }
                     } else {
                         (self.upstream_transport)(request.clone())
