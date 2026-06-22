@@ -2306,12 +2306,7 @@ fn app_discount_empty_customer_selection(input: &BTreeMap<String, ResolvedValue>
 }
 
 fn app_discount_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code.map(Value::from).unwrap_or(Value::Null),
-        "extraInfo": Value::Null
-    })
+    user_error_with_extra_info(field, message, code, Value::Null)
 }
 
 /// Enforce the signed 32-bit integer bounds Shopify applies to `usageLimit` and
@@ -3870,12 +3865,7 @@ pub(in crate::proxy) fn resolved_i64(value: &ResolvedValue) -> Option<i64> {
 }
 
 pub(in crate::proxy) fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code,
-        "extraInfo": null
-    })
+    user_error_with_extra_info(field, message, Some(code), Value::Null)
 }
 
 pub(in crate::proxy) fn resolved_object_path<'a>(
@@ -4013,11 +4003,7 @@ fn function_payload_identifier_field(function_id: &Option<String>) -> &'static s
 }
 
 fn function_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code.map(Value::from).unwrap_or(Value::Null)
-    })
+    user_error(field, message, code)
 }
 
 fn validation_payload_error(error: Value) -> Value {
@@ -5277,12 +5263,7 @@ pub(in crate::proxy) fn redeem_code_bulk_delete_selector_count(
 }
 
 pub(in crate::proxy) fn discount_null_field_user_error(message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": Value::Null,
-        "message": message,
-        "code": code.map(Value::from).unwrap_or(Value::Null),
-        "extraInfo": Value::Null
-    })
+    user_error_with_extra_info(Value::Null, message, code, Value::Null)
 }
 
 pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
@@ -5434,7 +5415,7 @@ pub(in crate::proxy) fn redeem_code_errors(
 }
 
 pub(in crate::proxy) fn redeem_code_error(message: &str) -> Value {
-    json!({ "field": ["code"], "message": message, "code": Value::Null, "extraInfo": Value::Null })
+    user_error_with_extra_info(["code"], message, None, Value::Null)
 }
 
 pub(in crate::proxy) fn stable_redeem_code_suffix(code: &str) -> u64 {
