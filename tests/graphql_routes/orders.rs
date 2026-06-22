@@ -80,7 +80,8 @@ fn seed_return_dispose_order(proxy: &mut DraftProxy) {
                             "quantity": 10,
                             "lineItem": {
                                 "id": "gid://shopify/LineItem/return-dispose-validation",
-                                "title": "Custom return line"
+                                "title": "Custom return line",
+                                "variant": null
                             }
                         }]
                     }

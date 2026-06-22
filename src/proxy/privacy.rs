@@ -130,7 +130,6 @@ impl DraftProxy {
                 json!({ "emailAddress": email }),
             );
         }
-        self.store.staged.deleted_customer_ids.remove(id);
     }
 }
 

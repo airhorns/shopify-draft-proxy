@@ -975,8 +975,7 @@ impl DraftProxy {
             })));
         }
         for id in &ids {
-            self.store.staged.deleted_media_file_ids.insert(id.clone());
-            self.store.staged.media_files.remove(id);
+            self.store.staged.media_files.tombstone_staged(id);
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
@@ -1322,7 +1321,7 @@ impl DraftProxy {
             // Stage the file record itself so the existence check passes.
             if let Some(record) = media_file_record_from_node(&node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1359,7 +1358,7 @@ impl DraftProxy {
         {
             if let Some(record) = media_file_record_from_node(media_node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1471,7 +1470,7 @@ impl DraftProxy {
                         .staged
                         .media_files
                         .iter()
-                        .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
+                        .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
                     // Order by sortKey: ID (the numeric resource id), then honor
@@ -1946,7 +1945,7 @@ impl DraftProxy {
                     .or_insert_with(|| node.clone());
             }
             Some("Metaobject") => {
-                if !self.store.staged.deleted_metaobject_ids.contains(&id) {
+                if !self.store.staged.metaobjects.is_tombstoned(&id) {
                     self.store
                         .staged
                         .metaobjects
@@ -1973,20 +1972,20 @@ impl DraftProxy {
             Some("Collection") => self.store.collection_by_id(id).is_some(),
             Some("Customer") => {
                 self.store.staged.customers.contains_key(id)
-                    && !self.store.staged.deleted_customer_ids.contains(id)
+                    && !self.store.staged.customers.is_tombstoned(id)
             }
             Some("Order") => {
                 self.store.staged.orders.contains_key(id)
-                    && !self.store.staged.deleted_order_ids.contains(id)
+                    && !self.store.staged.orders.is_tombstoned(id)
             }
             Some("Company") => self.store.staged.b2b_companies.contains_key(id),
             Some("Metaobject") => {
                 self.store.staged.metaobjects.contains_key(id)
-                    && !self.store.staged.deleted_metaobject_ids.contains(id)
+                    && !self.store.staged.metaobjects.is_tombstoned(id)
             }
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
                 self.store.staged.media_files.contains_key(id)
-                    && !self.store.staged.deleted_media_file_ids.contains(id)
+                    && !self.store.staged.media_files.is_tombstoned(id)
             }
             _ => false,
         }

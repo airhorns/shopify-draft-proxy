@@ -65,7 +65,7 @@ impl DraftProxy {
             "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => {
                 let id = resolved_field_string_arg(field, "id").unwrap_or_default();
                 !self.store.staged.discounts.contains_key(&id)
-                    && !self.store.staged.deleted_discount_ids.contains(&id)
+                    && !self.store.staged.discounts.is_tombstoned(&id)
             }
             "codeDiscountNodeByCode" => {
                 let code = resolved_field_string_arg(field, "code").unwrap_or_default();
@@ -93,7 +93,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn has_staged_discounts(&self) -> bool {
         !self.store.staged.discounts.is_empty()
-            || !self.store.staged.deleted_discount_ids.is_empty()
+            || !self.store.staged.discounts.tombstones.is_empty()
             || !self
                 .store
                 .staged
@@ -912,8 +912,7 @@ impl DraftProxy {
                 vec![discount_unknown_id_user_error(&field.name)],
             ));
         }
-        self.store.staged.deleted_discount_ids.insert(id.clone());
-        self.store.staged.discounts.remove(&id);
+        self.store.staged.discounts.tombstone_staged(&id);
         self.store
             .staged
             .discount_code_index
@@ -1029,8 +1028,8 @@ impl DraftProxy {
                     !self
                         .store
                         .staged
-                        .deleted_discount_ids
-                        .contains(discount_id(record))
+                        .discounts
+                        .is_tombstoned(discount_id(record))
                 })
                 .filter(|record| discount_kind(record) == kind)
                 .filter(|record| discount_matches_query(record, search))
@@ -1048,10 +1047,7 @@ impl DraftProxy {
     fn apply_discount_bulk_transition(&mut self, id: &str, action: DiscountBulkAction) {
         match action {
             DiscountBulkAction::Delete => {
-                self.store
-                    .staged
-                    .deleted_discount_ids
-                    .insert(id.to_string());
+                self.store.staged.discounts.tombstone(id.to_string());
                 self.store.staged.discounts.remove(id);
                 self.store
                     .staged
@@ -1366,8 +1362,8 @@ impl DraftProxy {
                 !self
                     .store
                     .staged
-                    .deleted_discount_ids
-                    .contains(discount_id(record))
+                    .discounts
+                    .is_tombstoned(discount_id(record))
             })
             .filter(|record| discount_matches_query(record, &query))
             .collect()
@@ -1391,15 +1387,11 @@ impl DraftProxy {
     }
 
     fn discount_record(&self, id: &str) -> Option<&Value> {
-        if self.store.staged.deleted_discount_ids.contains(id) {
-            return None;
-        }
         self.store.staged.discounts.get(id)
     }
 
     fn stage_discount_record(&mut self, record: Value) {
         let id = discount_id(&record).to_string();
-        self.store.staged.deleted_discount_ids.remove(&id);
         self.store.staged.discounts.insert(id, record);
         self.rebuild_discount_code_index();
     }
@@ -1407,7 +1399,7 @@ impl DraftProxy {
     fn rebuild_discount_code_index(&mut self) {
         self.store.staged.discount_code_index.clear();
         for (id, record) in &self.store.staged.discounts {
-            if self.store.staged.deleted_discount_ids.contains(id) {
+            if self.store.staged.discounts.is_tombstoned(id) {
                 continue;
             }
             for code in discount_record_codes(record) {

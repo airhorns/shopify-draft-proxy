@@ -61,6 +61,7 @@ type ExpectedDifference = {
 
 type ParitySpec = {
   scenarioId: string;
+  operationNames?: string[];
   liveCaptureFiles?: string[];
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
@@ -820,6 +821,34 @@ function collectOrderCatalogSeeds(capture: unknown): Record<string, unknown>[] {
   return [...orders.values()];
 }
 
+function collectSetupGiftCardSeeds(record: Record<string, unknown>): Record<string, unknown>[] {
+  const cards = new Map<string, Record<string, unknown>>();
+  const setup = Array.isArray(record['setup']) ? record['setup'] : [];
+  for (const rawStep of setup) {
+    if (!rawStep || typeof rawStep !== 'object') continue;
+    const step = rawStep as Record<string, unknown>;
+    const response = step['response'] as Record<string, unknown> | undefined;
+    const payload = response?.['payload'] as Record<string, unknown> | undefined;
+    const data = payload?.['data'] as Record<string, unknown> | undefined;
+    if (!data) continue;
+    for (const rawPayload of Object.values(data)) {
+      if (!rawPayload || typeof rawPayload !== 'object') continue;
+      const mutationPayload = rawPayload as Record<string, unknown>;
+      const rawGiftCard = mutationPayload['giftCard'];
+      if (!rawGiftCard || typeof rawGiftCard !== 'object') continue;
+      const giftCard = rawGiftCard as Record<string, unknown>;
+      const id = giftCard['id'];
+      if (typeof id !== 'string') continue;
+      const merged = { ...cards.get(id), ...giftCard };
+      if (typeof mutationPayload['giftCardCode'] === 'string') {
+        merged['giftCardCode'] = mutationPayload['giftCardCode'];
+      }
+      cards.set(id, merged);
+    }
+  }
+  return [...cards.values()];
+}
+
 // Recursively collect opaque InventoryLevel connection cursors (level gid -> cursor)
 // from any recorded `inventoryLevels { edges { cursor node { id } } }` shape in a
 // capture (top-level data or upstream-call response bodies). These Relay pagination
@@ -842,19 +871,56 @@ function collectInventoryLevelCursors(node: unknown, out: Record<string, string>
   for (const value of Object.values(record)) collectInventoryLevelCursors(value, out);
 }
 
-async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
+function shouldDeriveGenericResourceSeeds(record: Record<string, unknown>): boolean {
+  return Array.isArray(record['metafieldBatches']);
+}
+
+function shouldSeedSetupGiftCards(spec: ParitySpec): boolean {
+  return !(spec.operationNames ?? []).includes('giftCardCreate');
+}
+
+async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown, spec: ParitySpec): Promise<void> {
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
   const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
   const products = Array.isArray(record['seedProducts']) ? record['seedProducts'] : [];
   const productVariants = Array.isArray(record['seedProductVariants']) ? record['seedProductVariants'] : [];
   const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
+  const genericSeed =
+    record['seed'] && typeof record['seed'] === 'object' && !Array.isArray(record['seed'])
+      ? (record['seed'] as Record<string, unknown>)
+      : null;
+  const includesSeedId = (entries: unknown[], id: string): boolean =>
+    entries.some((entry) => entry && typeof entry === 'object' && (entry as Record<string, unknown>)['id'] === id);
+  if (genericSeed && shouldDeriveGenericResourceSeeds(record)) {
+    const productId = typeof genericSeed['productId'] === 'string' ? genericSeed['productId'] : null;
+    const variantId = typeof genericSeed['variantId'] === 'string' ? genericSeed['variantId'] : null;
+    const collectionId = typeof genericSeed['collectionId'] === 'string' ? genericSeed['collectionId'] : null;
+    if (productId && !includesSeedId(products, productId)) {
+      products.push({ id: productId });
+    }
+    if (variantId && productId && !includesSeedId(productVariants, variantId)) {
+      const variantTail = variantId.split('/').pop() ?? 'seed';
+      productVariants.push({
+        id: variantId,
+        productId,
+        inventoryItem: { id: `gid://shopify/InventoryItem/${variantTail}` },
+      });
+    }
+    if (collectionId && !includesSeedId(collections, collectionId)) {
+      collections.push({ id: collectionId });
+    }
+  }
   // `seedPublications` declares the store's base/default publications (id + name);
   // the proxy derives each backing channel and drives the local publication/channel
   // roots from them. Per-resource membership rides on the `publicationIds` of the
   // seeded products/collections.
   const publications = Array.isArray(record['seedPublications']) ? record['seedPublications'] : [];
   const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
+  const giftCards = [
+    ...(Array.isArray(record['seedGiftCards']) ? record['seedGiftCards'] : []),
+    ...(shouldSeedSetupGiftCards(spec) ? collectSetupGiftCardSeeds(record) : []),
+  ];
   // Draft orders / orders are derived from the recorded `setup` precondition steps
   // (and may be augmented by explicit `seedDraftOrders` / `seedOrders` arrays).
   const setupSeeds = collectSetupEntitySeeds(record);
@@ -974,6 +1040,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     collections.length === 0 &&
     publications.length === 0 &&
     discounts.length === 0 &&
+    giftCards.length === 0 &&
     draftOrders.length === 0 &&
     orders.length === 0 &&
     orderEditVariants.length === 0 &&
@@ -996,6 +1063,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       collections,
       publications,
       discounts,
+      giftCards,
       draftOrders,
       orders,
       orderEditVariants,
@@ -1025,7 +1093,7 @@ async function runSpec(
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
-  await seedPreconditionsFromCapture(proxy, capture);
+  await seedPreconditionsFromCapture(proxy, capture, spec);
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
   let previousResponse: ProxyResponse | null = null;
@@ -1057,7 +1125,7 @@ async function runSpec(
       if (target.isolatedProxy) {
         cassette.setCalls(upstreamCalls);
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
-        await seedPreconditionsFromCapture(proxy, capture);
+        await seedPreconditionsFromCapture(proxy, capture, spec);
         primaryResponse = null;
         previousResponse = null;
         namedResponses.clear();

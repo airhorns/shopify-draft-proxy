@@ -1229,9 +1229,22 @@ fn gift_card_search_date_value(value: &str) -> &str {
 }
 
 fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
-    card["recipientAttributes"]["recipient"]["id"]
+    let recipient = &card["recipientAttributes"]["recipient"];
+    if recipient["id"]
         .as_str()
         .is_some_and(|recipient_id| recipient_id.contains("no-contact"))
+    {
+        return true;
+    }
+    let has_contact_projection = recipient.get("email").is_some()
+        || recipient.get("phone").is_some()
+        || recipient.get("defaultEmailAddress").is_some()
+        || recipient.get("defaultPhoneNumber").is_some();
+    has_contact_projection
+        && recipient["email"].is_null()
+        && recipient["phone"].is_null()
+        && recipient["defaultEmailAddress"]["emailAddress"].is_null()
+        && recipient["defaultPhoneNumber"]["phoneNumber"].is_null()
 }
 
 fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {

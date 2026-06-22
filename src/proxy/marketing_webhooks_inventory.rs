@@ -106,7 +106,7 @@ impl DraftProxy {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
             quantity_updated_at: &self.store.staged.inventory_quantity_updated_at,
-            locations: Some(&self.store.staged.locations),
+            locations: Some(&self.store.staged.locations.records),
         }
     }
 
@@ -120,13 +120,7 @@ impl DraftProxy {
                         .staged
                         .marketing_activities
                         .get(&id)
-                        .filter(|_| {
-                            !self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(&id)
-                        })
+                        .filter(|_| !self.store.staged.marketing_activities.is_tombstoned(&id))
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
@@ -141,12 +135,7 @@ impl DraftProxy {
                         .values()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            if self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(id)
-                            {
+                            if self.store.staged.marketing_activities.is_tombstoned(id) {
                                 return false;
                             }
                             if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
@@ -185,8 +174,8 @@ impl DraftProxy {
                             !self
                                 .store
                                 .staged
-                                .deleted_marketing_activity_ids
-                                .contains(activity_id)
+                                .marketing_activities
+                                .is_tombstoned(activity_id)
                         })
                         .map(|record| record["marketingEvent"].clone())
                         .unwrap_or(Value::Null)
@@ -200,11 +189,7 @@ impl DraftProxy {
                         .values()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            !self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(id)
+                            !self.store.staged.marketing_activities.is_tombstoned(id)
                         })
                         .filter(|record| marketing_record_matches_query(record, &query))
                         .filter_map(|record| {
@@ -1249,7 +1234,6 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
         );
-        self.store.staged.deleted_marketing_activity_ids.remove(&id);
         self.store
             .staged
             .marketing_activities
@@ -1305,10 +1289,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        self.store
-            .staged
-            .deleted_marketing_activity_ids
-            .insert(id.clone());
+        self.store.staged.marketing_activities.tombstone(id.clone());
         selected_json(
             &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
             &field.selection,
@@ -1316,12 +1297,7 @@ impl DraftProxy {
     }
 
     fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<&Value> {
-        if self
-            .store
-            .staged
-            .deleted_marketing_activity_ids
-            .contains(id)
-        {
+        if self.store.staged.marketing_activities.is_tombstoned(id) {
             return None;
         }
         let activity = self.store.staged.marketing_activities.get(id)?;
@@ -1346,12 +1322,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .any(|(id, candidate)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return false;
                 }
                 candidate["id"].as_str() != activity["id"].as_str()
@@ -1457,8 +1428,8 @@ impl DraftProxy {
                 !self
                     .store
                     .staged
-                    .deleted_marketing_activity_ids
-                    .contains(&activity_id)
+                    .marketing_activities
+                    .is_tombstoned(&activity_id)
             })
         else {
             return selected_json(
@@ -1555,12 +1526,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .filter_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if let Some(app) = request_app {
@@ -1587,12 +1553,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["remoteId"].as_str() != Some(remote)
@@ -1620,12 +1581,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
@@ -1651,12 +1607,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["urlParameterValue"].as_str() != Some(url_parameter_value) {
@@ -2214,9 +2165,6 @@ impl DraftProxy {
         record
             .entry("isActive".to_string())
             .or_insert_with(|| json!(true));
-        if !self.store.staged.locations.contains_key(id) {
-            self.store.staged.location_order.push(id.to_string());
-        }
         self.store
             .staged
             .locations
@@ -5398,15 +5346,6 @@ impl DraftProxy {
         else {
             return;
         };
-        if !self
-            .store
-            .staged
-            .location_order
-            .iter()
-            .any(|entry| entry == &id)
-        {
-            self.store.staged.location_order.push(id.clone());
-        }
         let mut merged = self
             .store
             .staged

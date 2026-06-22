@@ -183,7 +183,9 @@ impl DraftProxy {
             {
                 let (policies, order) = shop_policy_state_from_shop(shop);
                 self.store
-                    .replace_base_shop_policies_map_with_order(policies, order);
+                    .base
+                    .shop_policies
+                    .replace_with_order(policies, order);
             }
             self.hydrate_shop_state_from_response_data(&response.body["data"]);
         }

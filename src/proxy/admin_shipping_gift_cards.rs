@@ -1408,14 +1408,15 @@ impl DraftProxy {
             "deliveryProfile" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !self.store.staged.delivery_profiles.contains_key(&id)
-                    && !self.store.staged.deleted_delivery_profile_ids.contains(&id)
+                    && !self.store.staged.delivery_profiles.is_tombstoned(&id)
             }
             "deliveryProfiles" => !self
                 .store
                 .staged
-                .delivery_profile_order
+                .delivery_profiles
+                .order
                 .iter()
-                .any(|id| !self.store.staged.deleted_delivery_profile_ids.contains(id)),
+                .any(|id| !self.store.staged.delivery_profiles.is_tombstoned(id)),
             _ => false,
         })
     }
@@ -1609,14 +1610,7 @@ impl DraftProxy {
         }
 
         self.store.staged.delivery_profiles.remove(&id);
-        self.store
-            .staged
-            .delivery_profile_order
-            .retain(|profile_id| profile_id != &id);
-        self.store
-            .staged
-            .deleted_delivery_profile_ids
-            .insert(id.clone());
+        self.store.staged.delivery_profiles.tombstone(id.clone());
         let job = json!({
             "id": self.next_proxy_synthetic_gid("Job"),
             "done": false
@@ -1979,22 +1973,10 @@ impl DraftProxy {
         else {
             return;
         };
-        self.store.staged.deleted_delivery_profile_ids.remove(&id);
-        if !self.store.staged.delivery_profiles.contains_key(&id) {
-            self.store.staged.delivery_profile_order.push(id.clone());
-        }
         self.store.staged.delivery_profiles.insert(id, profile);
     }
 
     fn delivery_profile_for_read(&self, profile_id: &str) -> Option<Value> {
-        if self
-            .store
-            .staged
-            .deleted_delivery_profile_ids
-            .contains(profile_id)
-        {
-            return None;
-        }
         self.store.staged.delivery_profiles.get(profile_id).cloned()
     }
 
@@ -2006,9 +1988,10 @@ impl DraftProxy {
         let mut profiles = self
             .store
             .staged
-            .delivery_profile_order
+            .delivery_profiles
+            .order
             .iter()
-            .filter(|id| !self.store.staged.deleted_delivery_profile_ids.contains(*id))
+            .filter(|id| !self.store.staged.delivery_profiles.is_tombstoned(id))
             .filter_map(|id| self.store.staged.delivery_profiles.get(id).cloned())
             .collect::<Vec<_>>();
         if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
@@ -2119,7 +2102,7 @@ impl DraftProxy {
                 locations.push(location);
             }
         }
-        for id in &self.store.staged.location_order {
+        for id in &self.store.staged.locations.order {
             if seen.contains(id) {
                 continue;
             }
@@ -2663,8 +2646,8 @@ impl DraftProxy {
             .remove(location_id);
         self.store
             .staged
-            .deleted_location_ids
-            .insert(location_id.to_string());
+            .locations
+            .tombstone(location_id.to_string());
     }
 
     fn delete_location_inventory_levels(&mut self, location_id: &str) {
@@ -2701,7 +2684,7 @@ impl DraftProxy {
     ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot
             || location_id.is_empty()
-            || self.store.staged.deleted_location_ids.contains(location_id)
+            || self.store.staged.locations.is_tombstoned(location_id)
         {
             return None;
         }
@@ -3271,10 +3254,6 @@ impl DraftProxy {
         else {
             return;
         };
-        if !self.store.staged.locations.contains_key(&id) {
-            self.store.staged.location_order.push(id.clone());
-        }
-        self.store.staged.deleted_location_ids.remove(&id);
         self.store.staged.locations.insert(id, location);
     }
 
@@ -3313,8 +3292,8 @@ impl DraftProxy {
     pub(in crate::proxy) fn has_location_overlay_state(&self) -> bool {
         self.config.read_mode == ReadMode::Snapshot
             || !self.store.staged.locations.is_empty()
-            || !self.store.staged.location_order.is_empty()
-            || !self.store.staged.deleted_location_ids.is_empty()
+            || !self.store.staged.locations.order.is_empty()
+            || !self.store.staged.locations.tombstones.is_empty()
             || !self.store.staged.fulfillment_service_locations.is_empty()
             || self.store.staged.location_limit_reached
     }
@@ -3384,7 +3363,7 @@ impl DraftProxy {
     }
 
     fn location_for_read(&self, location_id: &str) -> Option<Value> {
-        if self.store.staged.deleted_location_ids.contains(location_id) {
+        if self.store.staged.locations.is_tombstoned(location_id) {
             return None;
         }
         self.store
@@ -3440,9 +3419,10 @@ impl DraftProxy {
         let mut locations = self
             .store
             .staged
-            .location_order
+            .locations
+            .order
             .iter()
-            .filter(|id| !self.store.staged.deleted_location_ids.contains(*id))
+            .filter(|id| !self.store.staged.locations.is_tombstoned(id))
             .filter_map(|id| self.store.staged.locations.get(id).cloned())
             .collect::<Vec<_>>();
         if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
@@ -5437,7 +5417,9 @@ impl DraftProxy {
             let (policies, order) = shop_policy_state_from_shop(shop);
             if !policies.is_empty() {
                 self.store
-                    .replace_base_shop_policies_map_with_order(policies, order);
+                    .base
+                    .shop_policies
+                    .replace_with_order(policies, order);
             }
             self.store.base.shop = shop.clone();
         }
@@ -5872,12 +5854,7 @@ impl DraftProxy {
                         .get("id")
                         .and_then(resolved_as_string)
                         .and_then(|id| {
-                            if self
-                                .store
-                                .staged
-                                .deleted_fulfillment_service_ids
-                                .contains(&id)
-                            {
+                            if self.store.staged.fulfillment_services.is_tombstoned(&id) {
                                 None
                             } else {
                                 self.store.staged.fulfillment_services.get(&id).cloned()
@@ -5894,8 +5871,8 @@ impl DraftProxy {
                     if self
                         .store
                         .staged
-                        .deleted_fulfillment_service_location_ids
-                        .contains(&id)
+                        .fulfillment_service_locations
+                        .is_tombstoned(&id)
                     {
                         handled = true;
                         data.insert(field.response_key.clone(), Value::Null);
@@ -6070,11 +6047,13 @@ impl DraftProxy {
             .insert(location_id.clone(), location);
         self.store
             .staged
-            .deleted_fulfillment_service_ids
+            .fulfillment_services
+            .tombstones
             .remove(&service_id);
         self.store
             .staged
-            .deleted_fulfillment_service_location_ids
+            .fulfillment_service_locations
+            .tombstones
             .remove(&location_id);
         (
             fulfillment_service_payload_json(service, &field.selection, &service_selection, vec![]),
@@ -6284,14 +6263,11 @@ impl DraftProxy {
             .staged
             .fulfillment_service_locations
             .remove(&location_id);
+        self.store.staged.fulfillment_services.tombstone(id.clone());
         self.store
             .staged
-            .deleted_fulfillment_service_ids
-            .insert(id.clone());
-        self.store
-            .staged
-            .deleted_fulfillment_service_location_ids
-            .insert(location_id);
+            .fulfillment_service_locations
+            .tombstone(location_id);
         (
             fulfillment_service_delete_payload(
                 json!(id.replace("?id=true", "")),
@@ -6325,7 +6301,7 @@ impl DraftProxy {
         let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
             return Value::Null;
         };
-        if self.store.staged.deleted_carrier_service_ids.contains(&id) {
+        if self.store.staged.carrier_services.is_tombstoned(&id) {
             return Value::Null;
         }
         self.store
@@ -6351,7 +6327,7 @@ impl DraftProxy {
             .staged
             .carrier_services
             .iter()
-            .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
+            .filter(|(id, _)| !self.store.staged.carrier_services.is_tombstoned(id))
             .map(|(_, carrier)| carrier.clone())
             .filter(|carrier| {
                 active_filter
@@ -6451,7 +6427,7 @@ impl DraftProxy {
             .staged
             .carrier_services
             .iter()
-            .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
+            .filter(|(id, _)| !self.store.staged.carrier_services.is_tombstoned(id))
             .any(|(_, carrier)| {
                 carrier.get("name").and_then(Value::as_str).map(str::trim) == Some(trimmed_name)
             })
@@ -6479,7 +6455,6 @@ impl DraftProxy {
             .staged
             .carrier_services
             .insert(id.clone(), carrier.clone());
-        self.store.staged.deleted_carrier_service_ids.remove(&id);
         self.record_mutation_log_entry(request, query, variables, "carrierServiceCreate", vec![id]);
         carrier_service_payload_json(carrier, &field.selection, &carrier_selection, vec![])
     }
@@ -6594,10 +6569,7 @@ impl DraftProxy {
             );
         }
         self.store.staged.carrier_services.remove(&id);
-        self.store
-            .staged
-            .deleted_carrier_service_ids
-            .insert(id.clone());
+        self.store.staged.carrier_services.tombstone(id.clone());
         self.record_mutation_log_entry(
             request,
             query,
@@ -6662,7 +6634,6 @@ impl DraftProxy {
                     self.clear_default_shipping_packages_except(&id);
                 }
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-                self.store.staged.deleted_shipping_package_ids.remove(&id);
                 self.store
                     .staged
                     .shipping_packages
@@ -6674,7 +6645,6 @@ impl DraftProxy {
                 let mut package = self.effective_shipping_package(&id);
                 package["default"] = json!(true);
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-                self.store.staged.deleted_shipping_package_ids.remove(&id);
                 self.store
                     .staged
                     .shipping_packages
@@ -6683,10 +6653,7 @@ impl DraftProxy {
             }
             "shippingPackageDelete" => {
                 self.store.staged.shipping_packages.remove(&id);
-                self.store
-                    .staged
-                    .deleted_shipping_package_ids
-                    .insert(id.clone());
+                self.store.staged.shipping_packages.tombstone(id.clone());
                 json!({ "deletedId": id, "userErrors": [] })
             }
             _ => unreachable!("shipping package dispatcher only receives supported roots"),
@@ -6710,7 +6677,7 @@ impl DraftProxy {
             "gid://shopify/ShippingPackage/1",
             "gid://shopify/ShippingPackage/2",
         ] {
-            if id == default_id || self.store.staged.deleted_shipping_package_ids.contains(id) {
+            if id == default_id || self.store.staged.shipping_packages.is_tombstoned(id) {
                 continue;
             }
             let mut package = self.effective_shipping_package(id);

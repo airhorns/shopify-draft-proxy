@@ -2494,7 +2494,7 @@ impl DraftProxy {
             matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
         let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
         let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
+        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
             return (
                 json!({
                     "companyLocation": null,
