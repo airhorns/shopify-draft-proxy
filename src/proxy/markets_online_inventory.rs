@@ -1551,6 +1551,16 @@ pub(in crate::proxy) fn theme_file_record_from_input(
     Ok(Some(theme_file_record_from_body(&filename, body)?))
 }
 
+pub(in crate::proxy) fn theme_file_input_uses_url_body(value: &ResolvedValue) -> bool {
+    let ResolvedValue::Object(input) = value else {
+        return false;
+    };
+    let Some(ResolvedValue::Object(body)) = input.get("body") else {
+        return false;
+    };
+    resolved_string_field(body, "type").is_some_and(|body_type| body_type == "URL")
+}
+
 pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Value {
     json!({
         "filename": filename,

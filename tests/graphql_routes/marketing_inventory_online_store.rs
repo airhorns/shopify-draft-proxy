@@ -4164,14 +4164,17 @@ fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() 
         r#"
         mutation RustOnlineStoreThemeFileBodyModes {
           text: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/unicode.txt", body: { type: TEXT, value: "caf\u00e9" } }]) {
+            job { id }
             upsertedThemeFiles { filename checksumMd5 size body { content type value } }
             userErrors { field message code }
           }
           base64: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/base64.txt", body: { type: BASE64, value: "aGVsbG8gZnJvbSBiYXNlNjQ=" } }]) {
+            job { id }
             upsertedThemeFiles { filename checksumMd5 size body { content type value } }
             userErrors { field message code }
           }
           remote: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/remote.txt", body: { type: URL, value: "https://cdn.example.com/theme-file.txt" } }]) {
+            job { id }
             upsertedThemeFiles { filename checksumMd5 size body { content type value } }
             userErrors { field message code }
           }
@@ -4190,6 +4193,26 @@ fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() 
     assert_eq!(
         upsert.body["data"]["remote"]["upsertedThemeFiles"][0],
         json!({"filename": "assets/remote.txt", "checksumMd5": "d41d8cd98f00b204e9800998ecf8427e", "size": 0, "body": {"type": "URL", "value": null}})
+    );
+    for alias in ["text", "base64"] {
+        let payload = upsert.body["data"][alias].as_object().unwrap();
+        assert!(
+            payload.contains_key("job"),
+            "{alias} payload should include job"
+        );
+        assert_eq!(payload["job"], Value::Null);
+    }
+    let remote_payload = upsert.body["data"]["remote"].as_object().unwrap();
+    assert!(
+        remote_payload.contains_key("job"),
+        "URL-body payload should include job"
+    );
+    assert!(
+        remote_payload["job"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/Job/")),
+        "URL-body payload should include a synthetic Job GID: {}",
+        remote_payload["job"]
     );
 
     let conflict = proxy.process_request(json_graphql_request(
@@ -4248,6 +4271,7 @@ fn online_store_theme_files_upsert_rejects_validation_regressions_without_stagin
     let mutation = r#"
         mutation RustOnlineStoreThemeFileUpsertValidation($files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
           themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: $files) {
+            job { id }
             upsertedThemeFiles { filename }
             userErrors { field message code }
           }
@@ -4266,7 +4290,7 @@ fn online_store_theme_files_upsert_rejects_validation_regressions_without_stagin
     ));
     assert_eq!(
         validation.body["data"]["themeFilesUpsert"],
-        json!({"upsertedThemeFiles": [], "userErrors": [
+        json!({"job": null, "upsertedThemeFiles": [], "userErrors": [
             {"field": ["files", "0", "filename"], "message": "Filename can't be blank", "code": "INVALID"},
             {"field": ["files", "1", "filename"], "message": "Filename is invalid", "code": "INVALID"},
             {"field": ["files", "2", "filename"], "message": "Access denied", "code": "ACCESS_DENIED"},
@@ -4289,7 +4313,7 @@ fn online_store_theme_files_upsert_rejects_validation_regressions_without_stagin
     ));
     assert_eq!(
         too_many.body["data"]["themeFilesUpsert"],
-        json!({"upsertedThemeFiles": [], "userErrors": [{
+        json!({"job": null, "upsertedThemeFiles": [], "userErrors": [{
             "field": ["files"],
             "message": "Exceeded maximum number of files",
             "code": "INVALID"

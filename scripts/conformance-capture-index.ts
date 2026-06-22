@@ -5153,6 +5153,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-theme-files-upsert-job-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-theme-files-upsert-job-local-runtime.ts',
+    purpose: 'themeFilesUpsert returns job: null for inline writes and a synthetic Job payload for URL-body writes.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}theme-files-upsert-job.json`,
+      'config/parity-specs/online-store/theme-files-upsert-job.json',
+      'config/parity-requests/online-store/theme-files-upsert-job.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; theme and theme file records are staged locally and no Shopify store state is modified.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'The current proxy has no deterministic theme-limited-plan entitlement state, so this scenario covers the unconditionally emittable job payload branch while endpoint docs keep plan gating explicit as out of scope.',
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
