@@ -6315,7 +6315,7 @@ fn analyze_bulk_query_field(
 ) {
     if !field_is_selected(selection, "edges") {
         if field_is_selected(selection, "nodes") {
-            push_unique(&mut analysis.nodes_connection_fields, field_name);
+            push_unique_string(&mut analysis.nodes_connection_fields, field_name);
         }
         if let Some(nested_connection_name) = first_selected_connection_name(selection) {
             let next_list_depth = list_depth + usize::from(bulk_query_list_field(field_name));
@@ -6340,7 +6340,7 @@ fn analyze_bulk_query_field(
     }
     if let Some(parent_connection_name) = parent_connection_name {
         if !parent_node_has_unaliased_id {
-            push_unique(
+            push_unique_string(
                 &mut analysis.nested_without_parent_id_fields,
                 parent_connection_name,
             );
@@ -6395,12 +6395,6 @@ fn field_is_selected(selection: &[SelectedField], name: &str) -> bool {
 
 fn bulk_query_list_field(name: &str) -> bool {
     matches!(name, "fulfillments")
-}
-
-fn push_unique(values: &mut Vec<String>, value: &str) {
-    if !values.iter().any(|existing| existing == value) {
-        values.push(value.to_string());
-    }
 }
 
 fn owner_reference_from_gid(owner_id: &str) -> Value {

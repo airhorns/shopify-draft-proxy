@@ -53,7 +53,7 @@ pub(in crate::proxy) fn merge_observed_product(
                     .variants
                     .iter()
                     .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    .map(|existing| merge_json_objects(existing.clone(), variant))
+                    .map(|existing| shallow_merged_object(existing.clone(), variant))
             })
             .collect();
     }
@@ -73,18 +73,6 @@ pub(in crate::proxy) fn merge_observed_product(
         left_title.cmp(right_title)
     });
     existing
-}
-
-pub(in crate::proxy) fn merge_json_objects(left: Value, right: Value) -> Value {
-    match (left, right) {
-        (Value::Object(mut left), Value::Object(right)) => {
-            for (key, value) in right {
-                left.insert(key, value);
-            }
-            Value::Object(left)
-        }
-        (_, right) => right,
-    }
 }
 
 pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {

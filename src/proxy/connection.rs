@@ -14,6 +14,10 @@ pub(in crate::proxy) fn connection_page_info(
     })
 }
 
+pub(in crate::proxy) fn empty_page_info() -> Value {
+    connection_page_info(false, false, None, None)
+}
+
 pub(in crate::proxy) fn connection_window<T, F>(
     records: &[T],
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -93,6 +97,10 @@ pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
+    connection["nodes"].as_array().cloned().unwrap_or_default()
 }
 
 pub(in crate::proxy) fn connection_edges_with_cursor<F>(

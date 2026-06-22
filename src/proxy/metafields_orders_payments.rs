@@ -1,9 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn empty_page_info() -> Value {
-    connection_page_info(false, false, None, None)
-}
-
 pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
     namespace: &str,
     key: &str,
