@@ -71,16 +71,18 @@ pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool
 pub(in crate::proxy) fn fulfillment_service_name_whitespace_errors(name: &str) -> Vec<Value> {
     let mut errors = Vec::new();
     if name.starts_with(char::is_whitespace) {
-        errors.push(json!({
-            "field": ["name"],
-            "message": "Name cannot begin with a whitespace character"
-        }));
+        errors.push(user_error_omit_code(
+            ["name"],
+            "Name cannot begin with a whitespace character",
+            None,
+        ));
     }
     if name.ends_with(char::is_whitespace) {
-        errors.push(json!({
-            "field": ["name"],
-            "message": "Name cannot end with a whitespace character"
-        }));
+        errors.push(user_error_omit_code(
+            ["name"],
+            "Name cannot end with a whitespace character",
+            None,
+        ));
     }
     errors
 }
@@ -151,11 +153,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": null,
-        "message": message,
-        "code": code
-    })
+    user_error(Value::Null, message, Some(code))
 }
 
 pub(in crate::proxy) fn synthetic_shop_json() -> Value {
@@ -691,10 +689,7 @@ fn delivery_profile_unknown_location_user_error() -> Value {
 }
 
 fn delivery_profile_user_error(field: Value, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message
-    })
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn delivery_profile_selected_json(
@@ -1619,7 +1614,11 @@ pub(in crate::proxy) fn fulfillment_service_not_found_payload(
         Value::Null,
         payload_selection,
         &[],
-        vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })],
+        vec![user_error_omit_code(
+            ["id"],
+            "Fulfillment service could not be found.",
+            None,
+        )],
     )
 }
 
@@ -1807,11 +1806,7 @@ pub(in crate::proxy) fn carrier_service_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn carrier_service_callback_url_error(
@@ -2442,14 +2437,15 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 
 impl DraftProxy {
     // Collect the `feedbackInput[].productId`s that reference a product the
-    // proxy can prove does not exist, so `bulkProductResourceFeedbackCreate` can
-    // emit a per-entry `Product does not exist` userError. A locally tombstoned
-    // id is reported missing immediately. An id merely absent from the local
-    // catalog is NOT assumed missing — the proxy never seeds every real product,
-    // so absence alone is no proof. Instead we confirm against upstream with a
-    // cassette-backed `nodes(...)` hydrate: a null node (or, in Snapshot mode,
-    // no upstream to consult) means the product does not exist; a hydrated node
-    // means it does and feedback stages normally.
+    // proxy can prove is unavailable to resource feedback, so
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry
+    // PRODUCT_NOT_FOUND userError. A locally tombstoned id is reported missing
+    // immediately. Known non-ACTIVE products are also unavailable. An id merely
+    // absent from the local catalog is NOT assumed missing — the proxy never
+    // seeds every real product, so absence alone is no proof. Instead we confirm
+    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
+    // (or, in Snapshot mode, no upstream to consult) means the product does not
+    // exist; a hydrated node means it does and feedback stages normally.
     pub(in crate::proxy) fn feedback_missing_product_ids(
         &self,
         field: &RootFieldSelection,
@@ -2464,7 +2460,10 @@ impl DraftProxy {
                 missing.insert(id);
                 continue;
             }
-            if self.store.product_staged_or_base(&id).is_some() {
+            if let Some(product) = self.store.product_staged_or_base(&id) {
+                if !product.status.is_empty() && product.status != "ACTIVE" {
+                    missing.insert(id);
+                }
                 continue;
             }
             // Only LiveHybrid can prove a product's absence by hydrating it
@@ -2602,15 +2601,6 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str
     "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
-pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
-    json!({
-        "__typename": "Job",
-        "id": "gid://shopify/Job/2",
-        "done": false,
-        "query": { "__typename": "QueryRoot" }
-    })
-}
-
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     field: &RootFieldSelection,
     missing_product_ids: &BTreeSet<String>,
@@ -2620,9 +2610,9 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback"],
-                "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
+                "field": Value::Null,
+                "message": "The operation was attempted on too many feedback objects. The maximum number of feedback objects that you can operate on is 50.",
+                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
             }]
         })
     } else {
@@ -2633,12 +2623,10 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
                 user_errors.push(error);
                 continue;
             }
-            // Per-entry product existence is validated only after the message /
-            // generated-at / length guards pass, mirroring Shopify's resolver order:
-            // a blank-message or future-date entry never also reports the product
-            // missing. The store is the existence oracle (seeded precondition
-            // catalog), so an unknown productId yields the recorded
-            // `Product does not exist` userError with a null code.
+            // Per-entry product availability is validated only after the message /
+            // generated-at / length guards pass, mirroring Shopify's resolver
+            // order: a blank-message or future-date entry never also reports the
+            // product missing.
             let product_id = resolved_string_field(input, "productId").unwrap_or_default();
             if missing_product_ids.contains(&product_id) {
                 user_errors.push(resource_feedback_missing_product_error(Some(index)));
@@ -2725,10 +2713,10 @@ fn feedback_field_path(
     field: &str,
     nested_index: Option<usize>,
 ) -> Vec<String> {
-    let mut path = vec!["feedback".to_string()];
-    if let Some(index) = feedback_index {
-        path.push(index.to_string());
-    }
+    let mut path = match feedback_index {
+        Some(index) => vec!["feedbackInput".to_string(), index.to_string()],
+        None => vec!["feedback".to_string()],
+    };
     path.push(field.to_string());
     if let Some(index) = nested_index {
         path.push(index.to_string());
@@ -2737,22 +2725,21 @@ fn feedback_field_path(
 }
 
 fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
-// Shopify reports a referenced-but-absent product on the feedback root with a
-// null `code` (distinct from the BLANK / INVALID / TOO_LONG resolver guards),
-// anchored at the entry's `productId` argument path.
+// Shopify reports referenced-but-unavailable products at the feedback entry
+// root with PRODUCT_NOT_FOUND, distinct from the BLANK / INVALID / TOO_LONG
+// resolver guards anchored at concrete input fields.
 fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
-    json!({
-        "field": feedback_field_path(feedback_index, "productId", None),
-        "message": "Product does not exist",
-        "code": Value::Null
-    })
+    let field = feedback_index
+        .map(|index| json!(["feedbackInput", index.to_string()]))
+        .unwrap_or(Value::Null);
+    user_error(
+        field,
+        "The product wasn't found or isn't available to the channel.",
+        Some("PRODUCT_NOT_FOUND"),
+    )
 }
 
 fn feedback_generated_at_is_future(generated_at: &str) -> bool {

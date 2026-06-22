@@ -277,10 +277,7 @@ pub(in crate::proxy) fn invalid_variable_required_field_error(
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
-    json!({
-        "field": ["input", "name"],
-        "message": "Name has already been taken"
-    })
+    user_error_omit_code(["input", "name"], "Name has already been taken", None)
 }
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(

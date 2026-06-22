@@ -1,12 +1,7 @@
 use super::*;
 
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "__typename": "CatalogUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("CatalogUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn catalog_payload_error(
@@ -178,12 +173,7 @@ pub(in crate::proxy) fn price_list_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": "PriceListUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("PriceListUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn price_list_payload_error(
@@ -1172,12 +1162,7 @@ pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
 }
 
 pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
-    json!({
-        "__typename": "MarketUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed_with_code_value("MarketUserError", field, message, code)
 }
 
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
@@ -1337,11 +1322,7 @@ pub(in crate::proxy) fn shop_locale_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
@@ -1397,12 +1378,7 @@ pub(in crate::proxy) fn market_localization_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "__typename": "TranslationUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("TranslationUserError", field, message, Some(code))
 }
 
 #[cfg(test)]

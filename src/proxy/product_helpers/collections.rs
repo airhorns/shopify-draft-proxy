@@ -1662,11 +1662,7 @@ fn collection_invalid_sort_order_response(
 }
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
-    let field = field.into_iter().collect::<Vec<_>>();
-    json!({
-        "field": field,
-        "message": message
-    })
+    user_error_omit_code(field, message, None)
 }
 
 fn strip_numeric_suffix(handle: &str) -> String {

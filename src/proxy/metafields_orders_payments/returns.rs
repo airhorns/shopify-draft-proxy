@@ -24,19 +24,11 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
 }
 
 fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_status_invalid_error() -> Value {

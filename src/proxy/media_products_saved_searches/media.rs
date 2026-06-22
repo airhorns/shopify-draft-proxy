@@ -1251,7 +1251,7 @@ fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {quoted} do not exist.")
     };
-    json!({"field": ["files"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["files"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
@@ -1260,7 +1260,7 @@ fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
@@ -1269,7 +1269,7 @@ fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
@@ -1281,7 +1281,7 @@ fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
             file_ids.join(", ")
         )
     };
-    json!({"field": ["fileIds"], "message": message, "code": "NON_READY_STATE"})
+    user_error(["fileIds"], &message, Some("NON_READY_STATE"))
 }
 
 fn validate_staged_upload_input(

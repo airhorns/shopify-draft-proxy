@@ -10,6 +10,127 @@ const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!)
 const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
+        let Some(result) = self.store.staged.bulk_operation_results.get(artifact_id) else {
+            return json_error(404, "Not found");
+        };
+        Response {
+            status: 200,
+            headers: BTreeMap::from([(
+                "content-type".to_string(),
+                "application/jsonl; charset=utf-8".to_string(),
+            )]),
+            body: Value::String(result.clone()),
+        }
+    }
+
+    fn bulk_operation_result_artifact_url(&self, id: &str) -> String {
+        format!(
+            "https://localhost:{}{}",
+            self.config.port,
+            bulk_operation_result_artifact_path(id)
+        )
+    }
+
+    fn stage_bulk_operation_result(&mut self, id: &str, jsonl: String) {
+        self.store
+            .staged
+            .bulk_operation_results
+            .insert(resource_id_path_tail(id).to_string(), jsonl);
+    }
+
+    fn bulk_operation_run_query_result_jsonl(&self, query_text: &str) -> String {
+        let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
+            return String::new();
+        };
+        let Some(field) = document.root_fields.first() else {
+            return String::new();
+        };
+
+        match field.name.as_str() {
+            "products" => self.bulk_operation_products_result_jsonl(field),
+            "productVariants" => self.bulk_operation_product_variants_result_jsonl(field),
+            _ => String::new(),
+        }
+    }
+
+    fn bulk_operation_products_result_jsonl(&self, field: &RootFieldSelection) -> String {
+        let mut products = self.store.products();
+        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
+            if query.contains("status:") {
+                products.clear();
+            } else if let Some(tag) = product_tag_query_value(query) {
+                products.retain(|product| {
+                    self.store
+                        .staged
+                        .product_search_tags
+                        .get(&product.id)
+                        .map(|tags| tags.contains(tag))
+                        .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
+                });
+            } else if query.trim_start().starts_with("sku:") {
+                products.retain(|product| {
+                    let variants = self.store.product_variants_for_product(&product.id);
+                    product_matches_sku_query(product, &variants, query)
+                });
+            }
+        }
+
+        let node_selection = edge_node_selection(&field.selection);
+        let product_selection = bulk_jsonl_node_selection(&node_selection);
+        let nested_variant_selection = node_selection
+            .iter()
+            .find(|selection| selection.name == "variants")
+            .map(|selection| edge_node_selection(&selection.selection))
+            .unwrap_or_default();
+        let nested_variant_selection = bulk_jsonl_node_selection(&nested_variant_selection);
+        let mut rows = Vec::new();
+        for product in products {
+            let variants = self.store.product_variants_for_product(&product.id);
+            let product_json = product_json_with_variants_and_currency(
+                &product,
+                &variants,
+                &product_selection,
+                &self.store.shop_currency_code(),
+            );
+            let product_json = self.owner_metafield_overlay_owner_json_with_product_variants(
+                "product",
+                &product.id,
+                &product_selection,
+                &product.variants,
+                product_json,
+            );
+            rows.push(product_json);
+
+            if !nested_variant_selection.is_empty() {
+                for variant in &variants {
+                    rows.push(bulk_jsonl_child_node(
+                        product_variant_json(variant, Some(&product), &nested_variant_selection),
+                        &product.id,
+                    ));
+                }
+            }
+        }
+
+        values_to_jsonl(rows)
+    }
+
+    fn bulk_operation_product_variants_result_jsonl(&self, field: &RootFieldSelection) -> String {
+        let node_selection = edge_node_selection(&field.selection);
+        let variant_selection = bulk_jsonl_node_selection(&node_selection);
+        let rows = self
+            .store
+            .product_variants()
+            .into_iter()
+            .map(|variant| {
+                let product = self.store.product_by_id(&variant.product_id);
+                product_variant_json(&variant, product, &variant_selection)
+            })
+            .collect();
+
+        values_to_jsonl(rows)
+    }
+
     pub(in crate::proxy) fn bulk_operation_read_response(
         &self,
         request: &Request,
@@ -233,8 +354,11 @@ impl DraftProxy {
         } else {
             "2026-04-27T20:34:58Z"
         };
-        let terminal_operation =
+        let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
+        let mut terminal_operation =
             bulk_operation_record_with(&id, "COMPLETED", &query_text, count, created_at, "113499");
+        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
             .bulk_operations
@@ -359,7 +483,7 @@ impl DraftProxy {
         );
         self.next_synthetic_id += 1;
         let created_at = "2026-05-05T20:34:00Z";
-        let terminal_operation = bulk_operation_record_with_type(
+        let mut terminal_operation = bulk_operation_record_with_type(
             &id,
             "COMPLETED",
             "MUTATION",
@@ -368,6 +492,8 @@ impl DraftProxy {
             created_at,
             "0",
         );
+        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        self.stage_bulk_operation_result(&id, String::new());
         self.store
             .staged
             .bulk_operations
@@ -568,7 +694,7 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "objectCount": if completed { count } else { "0" },
         "rootObjectCount": if completed { count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
+        "url": if completed { json!(format!("https://localhost/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
         "partialDataUrl": null,
         "query": query
     })
@@ -642,11 +768,7 @@ fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> 
 }
 
 fn bulk_operation_run_query_user_error(message: &str) -> Value {
-    json!({
-        "field": ["query"],
-        "message": message,
-        "code": "INVALID"
-    })
+    user_error(["query"], message, Some("INVALID"))
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -654,6 +776,39 @@ fn bulk_operation_run_query_user_error(message: &str) -> Value {
 fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
     let document = parsed_document(query_text, &BTreeMap::new())?;
     document.root_fields.first().map(|field| field.name.clone())
+}
+
+fn bulk_operation_result_artifact_path(id: &str) -> String {
+    format!(
+        "/__meta/bulk-operations/{}/result.jsonl",
+        resource_id_path_tail(id)
+    )
+}
+
+fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
+    selection
+        .iter()
+        .filter(|field| !field_is_selected(&field.selection, "edges"))
+        .cloned()
+        .collect()
+}
+
+fn bulk_jsonl_child_node(mut node: Value, parent_id: &str) -> Value {
+    if let Some(object) = node.as_object_mut() {
+        object.insert("__parentId".to_string(), json!(parent_id));
+    }
+    node
+}
+
+fn values_to_jsonl(rows: Vec<Value>) -> String {
+    let mut output = String::new();
+    for row in rows {
+        if let Ok(line) = serde_json::to_string(&row) {
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+    output
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
@@ -671,35 +826,35 @@ fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
 
 fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Failed to parse the mutation - syntax error, unexpected end of file",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Failed to parse the mutation - syntax error, unexpected end of file",
+            Some("INVALID_MUTATION"),
+        )]);
     };
     if document.operation_type != OperationType::Mutation {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Invalid operation type. Only `mutation` operations are supported.",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Invalid operation type. Only `mutation` operations are supported.",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if document.root_fields.len() != 1 {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must specify a single top level mutation.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must specify a single top level mutation.",
+            None,
+        )]);
     }
     if matches!(
         document.root_fields[0].name.as_str(),
         "bulkOperationRunMutation" | "bulkOperationRunQuery"
     ) {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must use an allowed mutation name.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must use an allowed mutation name.",
+            None,
+        )]);
     }
     None
 }
@@ -710,37 +865,37 @@ fn bulk_operation_run_mutation_client_identifier_user_errors(
     let client_identifier = client_identifier?;
     let length = client_identifier.chars().count();
     if length < 10 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too short (minimum is 10 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too short (minimum is 10 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if length > 255 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too long (maximum is 255 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too long (maximum is 255 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     None
 }
 
 fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
-        "code": "NO_SUCH_FILE"
-    })
+    user_error(
+        Value::Null,
+        "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+        Some("NO_SUCH_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
     let max_size_mb = max_file_size_bytes / (1024 * 1024);
-    json!({
-        "field": null,
-        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
-        "code": "INVALID_STAGED_UPLOAD_FILE"
-    })
+    user_error(
+        Value::Null,
+        &format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        Some("INVALID_STAGED_UPLOAD_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_error_response(

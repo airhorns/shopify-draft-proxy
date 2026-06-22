@@ -1694,12 +1694,7 @@ fn metafield_definition_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": typename,
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(typename, field, message, Some(code))
 }
 
 fn metafield_definition_is_standard_template(definition: &Value) -> bool {

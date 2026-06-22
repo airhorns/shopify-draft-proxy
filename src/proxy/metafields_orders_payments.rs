@@ -1012,21 +1012,25 @@ fn metafields_set_value_user_error_with_element_index(
     code: &str,
     element_index: Option<usize>,
 ) -> Value {
-    json!({
-        "field": ["metafields", index.to_string(), "value"],
-        "message": message,
-        "code": code,
-        "elementIndex": element_index.map(Value::from).unwrap_or(Value::Null)
-    })
+    user_error_with_element_index(
+        vec![
+            "metafields".to_string(),
+            index.to_string(),
+            "value".to_string(),
+        ],
+        message,
+        Some(code),
+        element_index.map(Value::from).unwrap_or(Value::Null),
+    )
 }
 
 fn metafields_set_path_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": if code.is_empty() { Value::Null } else { json!(code) },
-        "elementIndex": Value::Null
-    })
+    user_error_with_element_index(
+        field,
+        message,
+        (!code.is_empty()).then_some(code),
+        Value::Null,
+    )
 }
 
 fn is_shopify_hex_color(value: &str) -> bool {
@@ -1567,12 +1571,12 @@ pub(in crate::proxy) fn quantity_pricing_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "__typename": "QuantityPricingByVariantUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "QuantityPricingByVariantUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn quantity_pricing_variant_ids_from_input(
@@ -1676,7 +1680,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
 }
 
 pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({"__typename": "QuantityRuleUserError", "field": field, "message": message, "code": code})
+    user_error_typed("QuantityRuleUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn quantity_rules_add_validation_errors(
@@ -1934,11 +1938,7 @@ pub(in crate::proxy) fn payment_customization_user_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "code": code,
-        "message": message
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_customization_required_input_field_error(field: &str) -> Value {
@@ -2090,11 +2090,7 @@ pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query Paym
 pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
 
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_terms_payload_value(

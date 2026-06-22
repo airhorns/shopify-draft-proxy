@@ -272,11 +272,7 @@ pub(super) fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Opt
 
 /// A single order-edit `userError`, optionally carrying a `code`.
 pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({ "field": field, "message": message });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 /// A failed order-edit mutation payload: every resource field is null and the

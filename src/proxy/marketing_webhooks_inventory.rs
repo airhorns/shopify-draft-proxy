@@ -427,7 +427,11 @@ impl DraftProxy {
             return self.webhook_subscription_payload(
                 Value::Null,
                 field.selection.clone(),
-                vec![json!({ "field": ["id"], "message": "Webhook subscription does not exist" })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Webhook subscription does not exist",
+                    None,
+                )],
             );
         };
         let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
@@ -6064,11 +6068,7 @@ fn is_valid_tracking_carrier(carrier: &str) -> bool {
 }
 
 fn inventory_shipment_user_error(field_path: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field_path,
-        "message": message,
-        "code": code
-    })
+    user_error(field_path, message, Some(code))
 }
 
 fn inventory_shipment_has_incoming(record: &InventoryShipmentRecord) -> bool {
@@ -6137,25 +6137,11 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
 }
 
 fn inventory_activate_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_deactivate_user_error(message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({
-        "field": Value::Null,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(Value::Null, message, code)
 }
 
 fn inventory_bulk_toggle_user_error(
@@ -6163,14 +6149,7 @@ fn inventory_bulk_toggle_user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_item_update_user_error(
@@ -6178,14 +6157,7 @@ fn inventory_item_update_user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_item_update_variable_errors(

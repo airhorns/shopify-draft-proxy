@@ -6149,10 +6149,7 @@ fn customer_tax_exemptions_payload(customer: Value, user_errors: Vec<Value>) -> 
 }
 
 fn customer_tax_exemptions_user_error() -> Value {
-    json!({
-        "field": ["customerId"],
-        "message": "Customer does not exist."
-    })
+    user_error_omit_code(["customerId"], "Customer does not exist.", None)
 }
 
 fn customer_tax_exemptions(customer: &Value) -> Vec<String> {
@@ -6215,11 +6212,7 @@ fn customer_consent_payload(customer: Value, user_errors: Vec<Value>) -> Value {
 }
 
 fn customer_consent_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn customer_consent_invalid_state_error(field: &RootFieldSelection, state: &str) -> Value {
@@ -6304,11 +6297,11 @@ fn customer_payload(customer: Value, user_errors: Vec<Value>) -> Value {
 }
 
 fn customer_user_error(field: Value, message: &str) -> Value {
-    json!({ "field": field, "message": message })
+    user_error_omit_code(field, message, None)
 }
 
 fn customer_user_error_with_code(field: Value, message: &str, code: &str) -> Value {
-    json!({ "field": field, "message": message, "code": code })
+    user_error(field, message, Some(code))
 }
 
 fn customer_identity_user_error(field: Value) -> Value {
@@ -9222,11 +9215,7 @@ fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Ve
 }
 
 fn customer_data_erasure_user_error(message: &str, code: &str) -> Value {
-    json!({
-        "field": ["customerId"],
-        "message": message,
-        "code": code
-    })
+    user_error(["customerId"], message, Some(code))
 }
 
 fn customer_tags(customer: &Value) -> Vec<String> {
@@ -9544,11 +9533,7 @@ fn empty_orders_connection() -> Value {
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
 fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 /// Read a money `amount` field from a resolved input map, accepting either the

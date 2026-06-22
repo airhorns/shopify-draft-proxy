@@ -59,11 +59,11 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
         }
         .unwrap_or_default();
         value.trim().is_empty().then(|| {
-            json!({
-                "field": ["billing_address", output_field],
-                "code": "BLANK",
-                "message": "can't be blank"
-            })
+            user_error(
+                ["billing_address", output_field],
+                "can't be blank",
+                Some("BLANK"),
+            )
         })
     })
     .collect()
@@ -501,11 +501,11 @@ impl DraftProxy {
             &field.selection,
             Value::Null,
             Some(false),
-            vec![json!({
-                "field": ["id"],
-                "message": "Customer payment method does not exist",
-                "code": "NOT_FOUND"
-            })],
+            vec![user_error(
+                ["id"],
+                "Customer payment method does not exist",
+                Some("NOT_FOUND"),
+            )],
         )
     }
 
@@ -525,11 +525,11 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     None,
-                    vec![json!({
-                        "field": ["remote_reference"],
-                        "message": "Remote reference must contain exactly one payment method.",
-                        "code": "INVALID"
-                    })],
+                    vec![user_error(
+                        ["remote_reference"],
+                        "Remote reference must contain exactly one payment method.",
+                        Some("INVALID"),
+                    )],
                 ),
                 None,
             );
@@ -548,11 +548,15 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
-                            "message": "billing_agreement_id can't be blank",
-                            "code": "BILLING_AGREEMENT_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            [
+                                "remote_reference",
+                                "paypal_payment_method",
+                                "billing_agreement_id",
+                            ],
+                            "billing_agreement_id can't be blank",
+                            Some("BILLING_AGREEMENT_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -572,11 +576,11 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "stripe_payment_method", "customer_id"],
-                            "message": "customer_id can't be blank",
-                            "code": "STRIPE_CUSTOMER_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            ["remote_reference", "stripe_payment_method", "customer_id"],
+                            "customer_id can't be blank",
+                            Some("STRIPE_CUSTOMER_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -649,19 +653,19 @@ impl DraftProxy {
         let target_customer_id =
             resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
-            vec![json!({
-                "field": ["targetShopId"],
-                "message": "Target shop is not eligible for payment method duplication",
-                "code": "SAME_SHOP"
-            })]
+            vec![user_error(
+                ["targetShopId"],
+                "Target shop is not eligible for payment method duplication",
+                Some("SAME_SHOP"),
+            )]
         } else {
             Vec::new()
         };
@@ -761,11 +765,11 @@ impl DraftProxy {
         let id =
             resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else {
             Vec::new()
         };
@@ -793,11 +797,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Customer payment method does not exist.",
-                            "code": "NOT_FOUND"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Customer payment method does not exist.",
+                            Some("NOT_FOUND")
+                        )]
                     }),
                     &field.selection,
                 ),
@@ -812,11 +816,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Cannot revoke a payment method with active subscription contracts.",
-                            "code": "ACTIVE_CONTRACT"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Cannot revoke a payment method with active subscription contracts.",
+                            Some("ACTIVE_CONTRACT")
+                        )]
                     }),
                     &field.selection,
                 ),
