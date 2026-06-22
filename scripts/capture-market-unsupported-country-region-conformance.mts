@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI capture script intentionally writes status output. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -48,12 +48,12 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'markets');
 const outputPath = path.join(outputDir, 'market-create-unsupported-country-region.json');
-const generatedModulePath = path.join(
-  'src',
-  'shopify_draft_proxy',
-  'proxy',
+const generatedModulePath = path.join('src', 'proxy', 'market_unsupported_country_regions.rs');
+const marketCreateDocumentPath = path.join(
+  'config',
+  'parity-requests',
   'markets',
-  'unsupported_country_regions.gleam',
+  'market-create-unsupported-country-region.graphql',
 );
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
@@ -71,28 +71,40 @@ query MarketCountryCodeEnumValues {
   }
 }`;
 
-const marketCreateMutation = `#graphql
-mutation MarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {
-  marketCreate(input: $input) {
-    market {
+const marketCreateMutation = await readFile(marketCreateDocumentPath, 'utf8');
+
+const marketsReadAfterRejectedCreateQuery = `#graphql
+query MarketsReadAfterUnsupportedCountryRegion($first: Int!) {
+  markets(first: $first) {
+    nodes {
       id
       name
       handle
       status
       enabled
     }
-    userErrors {
-      field
-      message
-      code
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
     }
   }
 }`;
 
+const captureStampValue = captureStamp();
 const primaryVariables = {
   input: {
-    name: `Draft Proxy Unsupported Region ${captureStamp()}`,
+    name: `Draft Proxy Unsupported Region CU ${captureStampValue}`,
     regions: [{ countryCode: 'CU' }],
+  },
+};
+const nonCuUnsupportedCountryCode = 'KP';
+const nonCuUnsupportedMarketName = `Draft Proxy Unsupported Region ${nonCuUnsupportedCountryCode} ${captureStampValue}`;
+const nonCuUnsupportedVariables = {
+  input: {
+    name: nonCuUnsupportedMarketName,
+    regions: [{ countryCode: nonCuUnsupportedCountryCode }],
   },
 };
 
@@ -135,6 +147,15 @@ function userErrors(capture: CapturedCase<MarketCreateData>): UserError[] {
   return capture.response.payload.data?.marketCreate?.userErrors ?? [];
 }
 
+function assertUnsupportedCountryRegion(countryCode: string, capture: CapturedCase<MarketCreateData>): void {
+  const errors = userErrors(capture);
+  if (marketId(capture) || !errors.some((error) => error.code === 'UNSUPPORTED_COUNTRY_REGION')) {
+    throw new Error(
+      `${countryCode} capture did not return UNSUPPORTED_COUNTRY_REGION: ${JSON.stringify(capture.response.payload)}`,
+    );
+  }
+}
+
 function classifyProbe(capture: CapturedCase<MarketCreateData>): CountryProbe['outcome'] {
   if (capture.response.payload.errors) return 'error';
   const errors = userErrors(capture);
@@ -153,6 +174,22 @@ function errorMessages(capture: CapturedCase<MarketCreateData>): string[] {
         : null,
     )
     .filter((message): message is string => message !== null);
+}
+
+function marketNamesFromRead(capture: CapturedCase): string[] {
+  const data = capture.response.payload.data;
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return [];
+  const markets = data['markets'];
+  if (typeof markets !== 'object' || markets === null || Array.isArray(markets)) return [];
+  const nodes = markets['nodes'];
+  if (!Array.isArray(nodes)) return [];
+  return nodes
+    .map((node) =>
+      typeof node === 'object' && node !== null && !Array.isArray(node) && typeof node['name'] === 'string'
+        ? node['name']
+        : null,
+    )
+    .filter((name): name is string => name !== null);
 }
 
 async function captureCase<TData>(
@@ -190,24 +227,18 @@ async function captureMarketCreate(countryCode: string): Promise<CapturedCase<Ma
 
 function renderUnsupportedModule(unsupportedCodes: string[]): string {
   const codeLines = unsupportedCodes.map((code) => `    "${code}",`).join('\n');
-  return `//// Shopify-derived Markets country/region support data.
-////
-//// Generated from live Admin GraphQL conformance capture:
-//// fixtures/conformance/${storeDomain}/${apiVersion}/markets/market-create-unsupported-country-region.json
+  return `// Shopify-derived Markets country/region support data.
+//
+// Generated from live Admin GraphQL conformance capture:
+// fixtures/conformance/${storeDomain}/${apiVersion}/markets/market-create-unsupported-country-region.json
 
-import gleam/list
-
-@internal
-pub fn is_unsupported_country_region(country_code: String) -> Bool {
-  list.contains(unsupported_country_region_codes(), country_code)
+pub(in crate::proxy) fn is_unsupported_country_region(country_code: &str) -> bool {
+    UNSUPPORTED_COUNTRY_REGION_CODES.contains(&country_code)
 }
 
-@internal
-pub fn unsupported_country_region_codes() -> List(String) {
-  [
+pub(in crate::proxy) const UNSUPPORTED_COUNTRY_REGION_CODES: &[&str] = &[
 ${codeLines}
-  ]
-}
+];
 `;
 }
 
@@ -218,10 +249,21 @@ const primaryCase = await captureCase<MarketCreateData>(
   marketCreateMutation,
   primaryVariables,
 );
-const primaryErrors = userErrors(primaryCase);
-if (marketId(primaryCase) || !primaryErrors.some((error) => error.code === 'UNSUPPORTED_COUNTRY_REGION')) {
+assertUnsupportedCountryRegion('CU', primaryCase);
+const nonCuUnsupportedCase = await captureCase<MarketCreateData>(
+  'marketCreateUnsupportedCountryRegionNonCu',
+  marketCreateMutation,
+  nonCuUnsupportedVariables,
+);
+assertUnsupportedCountryRegion(nonCuUnsupportedCountryCode, nonCuUnsupportedCase);
+const readAfterNonCuUnsupportedCase = await captureCase(
+  'marketsReadAfterUnsupportedCountryRegionNonCu',
+  marketsReadAfterRejectedCreateQuery,
+  { first: 10 },
+);
+if (marketNamesFromRead(readAfterNonCuUnsupportedCase).includes(nonCuUnsupportedMarketName)) {
   throw new Error(
-    `Primary unsupported-region capture did not return UNSUPPORTED_COUNTRY_REGION: ${JSON.stringify(primaryCase.response.payload)}`,
+    `Rejected ${nonCuUnsupportedCountryCode} market appeared in follow-up markets read: ${nonCuUnsupportedMarketName}`,
   );
 }
 
@@ -251,7 +293,7 @@ await writeFile(
       capturedAt: new Date().toISOString(),
       storeDomain,
       apiVersion,
-      cases: [primaryCase],
+      cases: [primaryCase, nonCuUnsupportedCase, readAfterNonCuUnsupportedCase],
       evidence: {
         source: 'Live Admin GraphQL CountryCode enum plus per-code marketCreate resolver probes.',
         countryCodeEnumCase: introspectionCase,

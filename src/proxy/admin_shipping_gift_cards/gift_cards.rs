@@ -1,5 +1,8 @@
 use crate::proxy::*;
 
+const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
+const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+
 impl DraftProxy {
     pub(in crate::proxy) fn gift_card_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
@@ -188,6 +191,8 @@ impl DraftProxy {
         }
         if let Some(customer_id) = resolved_string_field(&input, "customerId") {
             card["customer"] = json!({ "id": customer_id });
+        } else {
+            card["customer"] = Value::Null;
         }
         if let Some(recipient_attributes) = resolved_object_field(&input, "recipientAttributes") {
             card["recipientAttributes"] =
@@ -347,26 +352,16 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(processed_at) = resolved_string_field(&input, "processedAt") {
-                if processed_at.starts_with("1969") {
-                    user_errors.push(gift_card_user_error(
-                        &field.name,
-                        json!([input_name, "processedAt"]),
-                        Some("INVALID"),
-                        "A valid processed date must be used.",
-                    ));
-                } else if processed_at.starts_with("2099") {
-                    user_errors.push(gift_card_user_error(
-                        &field.name,
-                        json!([input_name, "processedAt"]),
-                        Some("INVALID"),
-                        "The processed date must not be in the future.",
-                    ));
+                if let Some(error) =
+                    gift_card_processed_at_error(&field.name, input_name, &processed_at)
+                {
+                    user_errors.push(error);
                 }
             }
         }
         if user_errors.is_empty() {
             if let Some(existing) = card.as_ref() {
-                if gift_card_is_expired(existing) {
+                if self.gift_card_is_expired(existing) {
                     user_errors.push(gift_card_user_error(
                         &field.name,
                         json!(["id"]),
@@ -449,7 +444,6 @@ impl DraftProxy {
         } else {
             0.0 - requested_amount_number
         };
-        let default_processed_at = "2026-04-29T09:31:02Z";
         let transaction_id = if is_credit {
             self.next_synthetic_gid("GiftCardCreditTransaction")
         } else {
@@ -459,7 +453,7 @@ impl DraftProxy {
             "id": transaction_id,
             "__typename": if is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
             "note": resolved_string_field(&input, "note").unwrap_or_default(),
-            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| default_processed_at.to_string()),
+            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| GIFT_CARD_SYNTHETIC_NOW.to_string()),
             "amount": { "amount": format_money_amount(signed_amount), "currencyCode": currency },
             "giftCard": card.clone()
         });
@@ -537,7 +531,7 @@ impl DraftProxy {
                         Some("INVALID"),
                         "Notifications for this gift card are disabled.",
                     ));
-                } else if gift_card_is_expired(card) {
+                } else if self.gift_card_is_expired(card) {
                     user_errors.push(gift_card_user_error(
                         &field.name,
                         json!(["id"]),
@@ -628,6 +622,27 @@ impl DraftProxy {
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
+    }
+
+    fn gift_card_is_expired(&self, card: &Value) -> bool {
+        let Some(expires_on) = card.get("expiresOn").and_then(Value::as_str) else {
+            return false;
+        };
+        let Some(expires_on_day) = parse_iso_date_epoch_days(expires_on) else {
+            return false;
+        };
+        self.gift_card_today_epoch_day() > expires_on_day
+    }
+
+    fn gift_card_today_epoch_day(&self) -> i64 {
+        let now = gift_card_synthetic_now_epoch_seconds();
+        let Some(offset_minutes) = self.store.base.shop["timezoneOffsetMinutes"].as_i64() else {
+            eprintln!(
+                "shopify-draft-proxy: gift-card expiry validation using UTC date because shop timezone baseline is missing"
+            );
+            return epoch_seconds_to_utc_epoch_days(now);
+        };
+        epoch_seconds_to_utc_epoch_days(now + offset_minutes * 60)
     }
 
     fn gift_card_code_error(&self, code: &str) -> Option<Value> {
@@ -863,17 +878,59 @@ fn gift_card_recipient_errors(
             "Message cannot contain HTML tags",
         )];
     }
-    if resolved_string_field(&recipient, "sendNotificationAt")
-        .is_some_and(|value| value.starts_with("1990") || value.starts_with("2099"))
-    {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "sendNotificationAt"]),
-            Some("INVALID"),
-            "Send notification at must be within 90 days from now",
-        )];
+    if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
+        let now = gift_card_synthetic_now_epoch_seconds();
+        let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
+        match parse_rfc3339_epoch_seconds(&send_at) {
+            Some(send_at) if send_at >= now && send_at <= max_send_at => {}
+            _ => {
+                return vec![gift_card_user_error(
+                    "giftCardCreate",
+                    json!([field_prefix, "recipientAttributes", "sendNotificationAt"]),
+                    Some("INVALID"),
+                    "Send notification at must be within 90 days from now",
+                )];
+            }
+        }
     }
     Vec::new()
+}
+
+fn gift_card_processed_at_error(
+    root_field: &str,
+    input_name: &str,
+    processed_at: &str,
+) -> Option<Value> {
+    let Some(processed_at) = parse_rfc3339_epoch_seconds(processed_at) else {
+        return Some(gift_card_user_error(
+            root_field,
+            json!([input_name, "processedAt"]),
+            Some("INVALID"),
+            "A valid processed date must be used.",
+        ));
+    };
+    if processed_at < 0 {
+        return Some(gift_card_user_error(
+            root_field,
+            json!([input_name, "processedAt"]),
+            Some("INVALID"),
+            "A valid processed date must be used.",
+        ));
+    }
+    if processed_at > gift_card_synthetic_now_epoch_seconds() {
+        return Some(gift_card_user_error(
+            root_field,
+            json!([input_name, "processedAt"]),
+            Some("INVALID"),
+            "The processed date must not be in the future.",
+        ));
+    }
+    None
+}
+
+fn gift_card_synthetic_now_epoch_seconds() -> i64 {
+    parse_rfc3339_epoch_seconds(GIFT_CARD_SYNTHETIC_NOW)
+        .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
 }
 
 fn gift_card_text_contains_html(value: &str) -> bool {
@@ -976,12 +1033,6 @@ fn gift_card_is_deactivated(card: &Value) -> bool {
         || card
             .get("deactivatedAt")
             .is_some_and(|value| !value.is_null())
-}
-
-fn gift_card_is_expired(card: &Value) -> bool {
-    card.get("expiresOn")
-        .and_then(Value::as_str)
-        .is_some_and(|expires_on| expires_on < "2026-01-01")
 }
 
 fn gift_card_currency(card: &Value) -> String {

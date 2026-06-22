@@ -1,0 +1,22 @@
+mutation GiftCardNotificationValidationGiftCardCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      enabled
+      expiresOn
+      customer {
+        id
+      }
+      recipientAttributes {
+        recipient {
+          id
+        }
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      message
+    }
+  }
+}

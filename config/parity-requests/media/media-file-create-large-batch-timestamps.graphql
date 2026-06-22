@@ -1,0 +1,16 @@
+mutation MediaFileCreateLargeBatchTimestamps($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      alt
+      createdAt
+      updatedAt
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

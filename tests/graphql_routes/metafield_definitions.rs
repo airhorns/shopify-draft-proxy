@@ -1448,6 +1448,22 @@ fn metafield_definition_delete_keeps_type_guard_exceptions_without_associated_va
 fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_values() {
     let mut proxy = snapshot_proxy();
     let namespace = "delete_reference_guard";
+    let owner_id = "gid://shopify/Product/10173064872242";
+
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "products": [{
+                "id": owner_id,
+                "title": "Delete reference guard product",
+                "handle": "delete-reference-guard-product",
+                "status": "ACTIVE"
+            }]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -1484,11 +1500,11 @@ fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_
         "#,
         json!({
             "metafields": [{
-                "ownerId": "gid://shopify/Product/10173064872242",
+                "ownerId": owner_id,
                 "namespace": namespace,
                 "key": "target",
                 "type": "product_reference",
-                "value": "gid://shopify/Product/10178790424882"
+                "value": owner_id
             }]
         }),
     ));
@@ -1558,7 +1574,7 @@ fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_
         }
         "#,
         json!({
-            "id": "gid://shopify/Product/10173064872242",
+            "id": owner_id,
             "namespace": namespace,
             "key": "target"
         }),

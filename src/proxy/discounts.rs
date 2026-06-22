@@ -466,7 +466,7 @@ impl DraftProxy {
                             vec![input_arg, selection, "items", "collections", "add"],
                             &format!(
                                 "Collection with id: {} is invalid",
-                                discount_reference_numeric_id(collection_id)
+                                resource_id_tail(collection_id)
                             ),
                             "INVALID",
                         ));
@@ -480,7 +480,7 @@ impl DraftProxy {
                     vec![input_arg, selection, "items", "products", "productsToAdd"],
                     &format!(
                         "Product with id: {} is invalid",
-                        discount_reference_numeric_id(product_id)
+                        resource_id_tail(product_id)
                     ),
                     "INVALID",
                 ));
@@ -498,7 +498,7 @@ impl DraftProxy {
                     ],
                     &format!(
                         "Product variant with id: {} is invalid",
-                        discount_reference_numeric_id(variant_id)
+                        resource_id_tail(variant_id)
                     ),
                     "INVALID",
                 ));
@@ -508,7 +508,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_product_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         if self.store.has_product_state() {
@@ -519,7 +519,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_product_variant_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         let authoritative = !self.store.staged.product_variants.records.is_empty()
@@ -532,7 +532,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_collection_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         if self.store.has_collection_state() {
@@ -1158,7 +1158,7 @@ impl DraftProxy {
                 // Only codes that pass validation are actually assigned.
                 if redeem_code_accepted(code, &codes, index, &existing_codes) {
                     next.push(json!({
-                        "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+                        "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
                         "code": code,
                         "asyncUsageCount": 0
                     }));
@@ -2580,7 +2580,7 @@ fn discount_record_from_input(
         .as_ref()
         .map(|code| {
             json!([{
-                "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+                "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
                 "code": code,
                 "asyncUsageCount": 0
             }])
@@ -2783,14 +2783,6 @@ fn discount_unknown_id_user_error(root: &str) -> Value {
 
 fn discount_id(record: &Value) -> &str {
     record["id"].as_str().unwrap_or_default()
-}
-
-/// The trailing numeric segment of a Shopify gid (`gid://shopify/Product/123` → `123`),
-/// stripping any `?shopify-draft-proxy=...` synthetic-id query. Used to render the
-/// `… with id: N is invalid` item-reference messages exactly as Shopify does.
-fn discount_reference_numeric_id(gid: &str) -> &str {
-    let tail = gid.rsplit('/').next().unwrap_or(gid);
-    tail.split('?').next().unwrap_or(tail)
 }
 
 fn discount_kind(record: &Value) -> &str {
@@ -3221,7 +3213,7 @@ fn discount_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Op
                 .enumerate()
                 .filter_map(|(index, value)| match value {
                     ResolvedValue::Object(metafield) => Some(json!({
-                        "id": format!("gid://shopify/Metafield/discount-app-{index}?shopify-draft-proxy=synthetic"),
+                        "id": synthetic_shopify_gid("Metafield", format!("discount-app-{index}")),
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),
@@ -3959,6 +3951,7 @@ fn function_catalog() -> Vec<Value> {
             "apiType": "CART_TRANSFORM"
         }),
         functions_owner_cart_function(),
+        local_fulfillment_constraint_rule_function(),
         json!({
             "id": "gid://shopify/ShopifyFunction/guardrail-validation-plan",
             "title": "Guardrail validation plan",
@@ -4470,6 +4463,190 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
     record
 }
 
+fn fulfillment_constraint_rule_payload_error(error: Value) -> Value {
+    json!({ "fulfillmentConstraintRule": Value::Null, "userErrors": [error] })
+}
+
+fn fulfillment_constraint_rule_identifier_error(
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Option<Value> {
+    match (function_id.is_some(), function_handle.is_some()) {
+        (false, false) => Some(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!("functionHandle")],
+                "Either function_id or function_handle must be provided.",
+                Some("MISSING_FUNCTION_IDENTIFIER"),
+            ),
+        )),
+        (true, true) => Some(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!("functionHandle")],
+                "Only one of function_id or function_handle can be provided, not both.",
+                Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+            ),
+        )),
+        _ => None,
+    }
+}
+
+fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
+    match field.arguments.get("deliveryMethodTypes") {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn fulfillment_constraint_rule_delivery_method_error(
+    delivery_method_types: &[String],
+) -> Option<Value> {
+    if delivery_method_types.is_empty() {
+        Some(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!("deliveryMethodTypes")],
+                "Delivery method types cannot be empty.",
+                Some("INPUT_INVALID"),
+            ),
+        ))
+    } else {
+        None
+    }
+}
+
+fn fulfillment_constraint_rule_function_not_found_error(
+    field_name: &str,
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Value {
+    let message = if let Some(handle) = function_handle {
+        format!("Could not find function with handle: {handle}.")
+    } else if let Some(id) = function_id {
+        format!("Could not find function with id: {id}.")
+    } else {
+        "Could not find function.".to_string()
+    };
+    fulfillment_constraint_rule_payload_error(function_user_error(
+        vec![json!(field_name)],
+        &message,
+        Some("FUNCTION_NOT_FOUND"),
+    ))
+}
+
+fn fulfillment_constraint_rule_function_resolution_payload(
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Result<Value, Value> {
+    if let Some(payload) =
+        fulfillment_constraint_rule_identifier_error(function_id, function_handle)
+    {
+        return Err(payload);
+    }
+    let field_name = function_payload_identifier_field(function_id);
+    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+        .ok_or_else(|| {
+            fulfillment_constraint_rule_function_not_found_error(
+                field_name,
+                function_id,
+                function_handle,
+            )
+        })?;
+    if function["apiType"].as_str() != Some("FULFILLMENT_CONSTRAINT_RULE") {
+        return Err(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!(field_name)],
+                "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.fulfillment-constraint-rule.run, cart.fulfillment-constraints.generate.run].",
+                Some("FUNCTION_DOES_NOT_IMPLEMENT"),
+            ),
+        ));
+    }
+    if let Some(code) = function["createGuardrailCode"].as_str() {
+        return Err(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!(field_name)],
+                function["createGuardrailMessage"]
+                    .as_str()
+                    .unwrap_or_default(),
+                Some(code),
+            ),
+        ));
+    }
+    Ok(function)
+}
+
+fn fulfillment_constraint_rule_metafields_from_field(
+    field: &RootFieldSelection,
+    ids: Vec<String>,
+) -> Vec<Value> {
+    match field.arguments.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => metafields
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| match value {
+                ResolvedValue::Object(metafield) => {
+                    let now = "2026-05-07T17:20:12Z";
+                    Some(json!({
+                        "id": ids.get(index).cloned().unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index + 1)),
+                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
+                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
+                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
+                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
+                        "compareDigest": format!("proxy-fulfillment-constraint-digest-{}", index + 1),
+                        "ownerType": "FULFILLMENTCONSTRAINTRULE",
+                        "createdAt": now,
+                        "updatedAt": now
+                    }))
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
+    record: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let mut record = record.clone();
+    let Some(metafield_selection) = selection.iter().find(|field| field.name == "metafield") else {
+        return record;
+    };
+    let namespace = metafield_selection
+        .arguments
+        .get("namespace")
+        .and_then(|value| match value {
+            ResolvedValue::String(value) => Some(value.as_str()),
+            _ => None,
+        });
+    let key = metafield_selection
+        .arguments
+        .get("key")
+        .and_then(|value| match value {
+            ResolvedValue::String(value) => Some(value.as_str()),
+            _ => None,
+        });
+    if let (Some(namespace), Some(key)) = (namespace, key) {
+        let metafield = record["metafields"]["nodes"]
+            .as_array()
+            .and_then(|nodes| {
+                nodes.iter().find(|node| {
+                    node["namespace"].as_str() == Some(namespace)
+                        && node["key"].as_str() == Some(key)
+                })
+            })
+            .cloned()
+            .unwrap_or(Value::Null);
+        record["metafield"] = metafield;
+    }
+    record
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn function_validation_create_payload(
         &mut self,
@@ -4724,6 +4901,122 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn function_fulfillment_constraint_rule_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let function_id = resolved_field_string_arg(field, "functionId");
+        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        if let Some(payload) =
+            fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
+        {
+            return payload;
+        }
+        let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
+        if let Some(payload) =
+            fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
+        {
+            return payload;
+        }
+        let function = match fulfillment_constraint_rule_function_resolution_payload(
+            &function_id,
+            &function_handle,
+        ) {
+            Ok(function) => function,
+            Err(payload) => return payload,
+        };
+        let id = format!(
+            "gid://shopify/FulfillmentConstraintRule/{}",
+            self.store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .len()
+                + 1
+        );
+        let metafield_ids = match field.arguments.get("metafields") {
+            Some(ResolvedValue::List(metafields)) => metafields
+                .iter()
+                .map(|_| self.next_proxy_synthetic_gid("Metafield"))
+                .collect(),
+            _ => Vec::new(),
+        };
+        let metafields = fulfillment_constraint_rule_metafields_from_field(field, metafield_ids);
+        let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
+        let mut rule = json!({
+            "id": id,
+            "deliveryMethodTypes": delivery_method_types,
+            "functionId": function["id"].clone(),
+            "functionHandle": function["handle"].clone(),
+            "function": function.clone(),
+            "shopifyFunction": function,
+            "metafield": first_metafield,
+            "metafields": { "nodes": metafields }
+        });
+        if rule["metafield"].is_null() {
+            rule.as_object_mut().unwrap().remove("metafield");
+        }
+        self.stage_function_fulfillment_constraint_rule(rule.clone());
+        json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
+    }
+
+    pub(in crate::proxy) fn function_fulfillment_constraint_rule_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
+        if let Some(payload) =
+            fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
+        {
+            return payload;
+        }
+        let Some(mut rule) = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(&id)
+            .cloned()
+        else {
+            return fulfillment_constraint_rule_payload_error(function_user_error(
+                vec![json!("id")],
+                &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                Some("NOT_FOUND"),
+            ));
+        };
+        rule["deliveryMethodTypes"] = json!(delivery_method_types);
+        self.stage_function_fulfillment_constraint_rule(rule.clone());
+        json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
+    }
+
+    pub(in crate::proxy) fn function_fulfillment_constraint_rule_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        if self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .remove(&id)
+            .is_some()
+        {
+            self.store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .retain(|ordered_id| ordered_id != &id);
+            json!({ "success": true, "userErrors": [] })
+        } else {
+            json!({
+                "success": false,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    "code": "NOT_FOUND"
+                }]
+            })
+        }
+    }
+
     pub(in crate::proxy) fn function_tax_app_configure_payload(
         &mut self,
         field: &RootFieldSelection,
@@ -4770,6 +5063,27 @@ impl DraftProxy {
             .insert(id, cart_transform.clone());
         self.store.staged.function_cart_transform = Some(cart_transform);
     }
+
+    fn stage_function_fulfillment_constraint_rule(&mut self, rule: Value) {
+        let Some(id) = rule["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if !self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .contains_key(&id)
+        {
+            self.store
+                .staged
+                .function_fulfillment_constraint_rule_order
+                .push(id.clone());
+        }
+        self.store
+            .staged
+            .function_fulfillment_constraint_rules
+            .insert(id, rule);
+    }
 }
 
 pub(in crate::proxy) fn local_validation_function() -> Value {
@@ -4787,6 +5101,15 @@ pub(in crate::proxy) fn local_cart_transform_function() -> Value {
         "title": "Cart Transform Local",
         "handle": "cart-transform-local",
         "apiType": "CART_TRANSFORM"
+    })
+}
+
+pub(in crate::proxy) fn local_fulfillment_constraint_rule_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
+        "title": "Fulfillment Constraint Local",
+        "handle": "fulfillment-constraint-local",
+        "apiType": "FULFILLMENT_CONSTRAINT_RULE"
     })
 }
 
@@ -5013,7 +5336,7 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
         "code": code,
         "errors": errors,
         "discountRedeemCode": if pending || !accepted { Value::Null } else { json!({
-            "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+            "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
             "code": code
         }) }
     })

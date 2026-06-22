@@ -1,0 +1,47 @@
+mutation FulfillmentConstraintRuleErrorShape {
+  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  multiple: fulfillmentConstraintRuleCreate(
+    functionId: "gid://shopify/ShopifyFunction/999999999999"
+    functionHandle: "definitely-missing-fulfillment-constraint"
+    deliveryMethodTypes: [SHIPPING]
+  ) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  emptyDelivery: fulfillmentConstraintRuleCreate(
+    functionId: "gid://shopify/ShopifyFunction/999999999999"
+    deliveryMethodTypes: []
+  ) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  deleteUnknown: fulfillmentConstraintRuleDelete(id: "gid://shopify/FulfillmentConstraintRule/999999999999") {
+    success
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

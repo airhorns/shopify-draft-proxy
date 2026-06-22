@@ -1,0 +1,7 @@
+query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFinancialStatus
+  }
+}

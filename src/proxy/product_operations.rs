@@ -286,10 +286,11 @@ impl DraftProxy {
                 "product" => Some(if operation.is_some() {
                     Value::Null
                 } else {
-                    product_json_with_variants(
+                    product_json_with_variants_and_currency(
                         &product,
                         &self.store.product_variants_for_product(&product_id),
                         &product_selection,
+                        &self.store.shop_currency_code(),
                     )
                 }),
                 "productSetOperation" => Some(
@@ -346,7 +347,21 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+        let field = primary_root_field(query, variables);
+        if let Some(field) = field.as_ref() {
+            if let Some(response) = product_status_argument_validation_error(
+                request,
+                query,
+                field,
+                "newStatus",
+                "Field",
+                "productDuplicate",
+                "ProductStatus",
+            ) {
+                return MutationOutcome::response(response);
+            }
+        }
+        let (response_key, payload_selection, arguments) = field
             .map(|field| (field.response_key, field.selection, field.arguments))
             .unwrap_or_else(|| ("productDuplicate".into(), Vec::new(), BTreeMap::new()));
         let new_product_selection =
@@ -356,6 +371,7 @@ impl DraftProxy {
                 .unwrap_or_default();
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();
         let new_title = resolved_string_field(&arguments, "newTitle").unwrap_or_default();
+        let new_status = resolved_string_field(&arguments, "newStatus");
         let synchronous = resolved_bool_field(&arguments, "synchronous").unwrap_or(true);
         // The source product usually lives upstream during parity replay; hydrate it via
         // the shared `nodes(ids:)` observation path so the duplicate is built from real
@@ -414,7 +430,7 @@ impl DraftProxy {
             ));
         };
 
-        let duplicate = self.duplicate_product_record(&source, &new_title);
+        let duplicate = self.duplicate_product_record(&source, &new_title, new_status.as_deref());
         let duplicate_id = duplicate.id.clone();
         self.stage_duplicate_variants(&source.id, &duplicate_id);
         self.store.stage_product(duplicate.clone());
@@ -564,7 +580,13 @@ impl DraftProxy {
             match selection.name.as_str() {
                 "product" => Some(
                     product
-                        .map(|product| product_json(product, product_selection))
+                        .map(|product| {
+                            product_json_with_currency(
+                                product,
+                                product_selection,
+                                &self.store.shop_currency_code(),
+                            )
+                        })
                         .unwrap_or(Value::Null),
                 ),
                 "productSetOperation" => Some(Value::Null),
@@ -750,12 +772,15 @@ impl DraftProxy {
         &mut self,
         source: &ProductRecord,
         new_title: &str,
+        new_status: Option<&str>,
     ) -> ProductRecord {
         let mut duplicate = source.clone();
         duplicate.id = self.next_proxy_synthetic_gid("Product");
         duplicate.title = new_title.to_string();
         duplicate.handle = slugify_handle(new_title);
-        duplicate.status = "DRAFT".to_string();
+        if let Some(status) = new_status {
+            duplicate.status = status.to_string();
+        }
         let timestamp = self.next_product_timestamp();
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
@@ -795,10 +820,11 @@ impl DraftProxy {
                 } else {
                     duplicate
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 new_product_selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null)
@@ -967,10 +993,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1005,10 +1032,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1019,10 +1047,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),

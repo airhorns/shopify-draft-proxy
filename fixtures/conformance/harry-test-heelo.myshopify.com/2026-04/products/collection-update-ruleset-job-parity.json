@@ -1,0 +1,323 @@
+{
+  "summary": "Live 2026-04 collectionUpdate capture for async job payload shape plus ruleSet validation on custom and empty-rules branches.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "customCreate": {
+    "variables": {
+      "input": {
+        "title": "Hermes Collection Update Job 1782071517594",
+        "sortOrder": "MANUAL"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/513731559730",
+            "title": "Hermes Collection Update Job 1782071517594",
+            "handle": "hermes-collection-update-job-1782071517594",
+            "sortOrder": "MANUAL",
+            "ruleSet": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "id": "gid://shopify/Collection/513731559730"
+  },
+  "successfulUpdate": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/513731559730",
+        "title": "Hermes Collection Update Job 1782071517594 Updated",
+        "handle": "hermes-collection-update-job-1782071517594-updated"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": {
+            "id": "gid://shopify/Collection/513731559730",
+            "title": "Hermes Collection Update Job 1782071517594 Updated",
+            "handle": "hermes-collection-update-job-1782071517594-updated",
+            "ruleSet": null
+          },
+          "job": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customRuleSetUpdate": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/513731559730",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "Hermes"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": null,
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Cannot update rule set of a custom collection"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postCustomRuleSetRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/513731559730"
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/513731559730",
+          "title": "Hermes Collection Update Job 1782071517594 Updated",
+          "handle": "hermes-collection-update-job-1782071517594-updated",
+          "ruleSet": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartCreate": {
+    "variables": {
+      "input": {
+        "title": "Hermes Smart Collection Update Job 1782071517594",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "Hermes"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/513731592498",
+            "title": "Hermes Smart Collection Update Job 1782071517594",
+            "handle": "hermes-smart-collection-update-job-1782071517594",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "Hermes"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "id": "gid://shopify/Collection/513731592498"
+  },
+  "smartRuleSetUpdate": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/513731592498",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "Updated Hermes"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": {
+            "id": "gid://shopify/Collection/513731592498",
+            "title": "Hermes Smart Collection Update Job 1782071517594",
+            "handle": "hermes-smart-collection-update-job-1782071517594",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "Updated Hermes"
+                }
+              ]
+            }
+          },
+          "job": {
+            "id": "gid://shopify/Job/f31a3149-4963-4f1f-af32-22ac79d1f5b6",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "emptyRulesUpdate": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/513731592498",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": []
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": null,
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["ruleSet", "rules"],
+              "message": "Rules cannot be an empty set"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Collection/513731592498": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/513731592498",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "gid://shopify/Collection/513731559730": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/513731559730",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

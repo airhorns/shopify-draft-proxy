@@ -1,0 +1,45 @@
+{
+  "capturedAt": "2026-06-21T21:34:25.245Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scenarios": {
+    "inputId": {
+      "document": "mutation CollectionCreateRejectsId($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/123",
+          "title": "Reject ID Collection"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "id cannot be specified on collection creation"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live public Admin GraphQL 2026-04 rejects collectionCreate with caller-supplied CollectionInput.id before creating a collection.",
+    "The mutation payload returns collection: null and a generic UserError with field [\"id\"]."
+  ],
+  "upstreamCalls": []
+}
