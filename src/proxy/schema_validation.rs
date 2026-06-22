@@ -123,6 +123,18 @@ pub(in crate::proxy) fn user_error(
     })
 }
 
+pub(in crate::proxy) fn user_error_with_code_value(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": code,
+    })
+}
+
 pub(in crate::proxy) fn user_error_omit_code(
     field: impl Into<UserErrorField>,
     message: &str,
@@ -152,6 +164,31 @@ pub(in crate::proxy) fn user_error_typed(
     })
 }
 
+pub(in crate::proxy) fn user_error_typed_with_code_value(
+    typename: &str,
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Value,
+) -> Value {
+    json!({
+        "__typename": typename,
+        "field": user_error_field(field),
+        "message": message,
+        "code": code,
+    })
+}
+
+pub(in crate::proxy) fn user_error_typed_omit_code(
+    typename: &str,
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    let mut error = user_error_omit_code(field, message, code);
+    error["__typename"] = json!(typename);
+    error
+}
+
 pub(in crate::proxy) fn user_error_with_extra_info(
     field: impl Into<UserErrorField>,
     message: &str,
@@ -163,6 +200,20 @@ pub(in crate::proxy) fn user_error_with_extra_info(
         "message": message,
         "code": user_error_code(code),
         "extraInfo": extra_info,
+    })
+}
+
+pub(in crate::proxy) fn user_error_with_element_index(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+    element_index: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+        "elementIndex": element_index,
     })
 }
 
@@ -181,15 +232,6 @@ pub(in crate::proxy) fn metaobject_indexed_user_error(
         "elementIndex": element_index,
     })
 }
-
-// Keep these ADD-only builders reachable in non-test builds until follow-on
-// migration PRs replace the per-domain helpers with direct calls.
-const _: fn(Value) -> Value = user_error_field;
-const _: fn(Value, &str, Option<&str>) -> Value = user_error;
-const _: fn(Value, &str, Option<&str>) -> Value = user_error_omit_code;
-const _: fn(&str, Value, &str, Option<&str>) -> Value = user_error_typed;
-const _: fn(Value, &str, Option<&str>, Value) -> Value = user_error_with_extra_info;
-const _: fn(Value, &str, Option<&str>, Value, Value) -> Value = metaobject_indexed_user_error;
 
 #[derive(Debug, Clone, Copy)]
 struct VariableValidationContext<'a> {

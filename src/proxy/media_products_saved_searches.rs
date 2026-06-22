@@ -3597,7 +3597,7 @@ impl DraftProxy {
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let user_error = selected_json(
-            &json!({"field": [field], "message": message}),
+            &user_error_omit_code([field], message, None),
             &error_selection,
         );
         MutationOutcome::response(ok_json(json!({
@@ -4848,13 +4848,7 @@ impl DraftProxy {
     }
 
     fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-        json!({
-            "field": field,
-            "message": message,
-            "code": code
-                .map(|code| Value::String(code.to_string()))
-                .unwrap_or(Value::Null),
-        })
+        user_error(field, message, code)
     }
 
     fn product_variant_bulk_option_user_errors(
@@ -6222,11 +6216,7 @@ fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> 
 }
 
 fn bulk_operation_run_query_user_error(message: &str) -> Value {
-    json!({
-        "field": ["query"],
-        "message": message,
-        "code": "INVALID"
-    })
+    user_error(["query"], message, Some("INVALID"))
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -6251,35 +6241,35 @@ fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
 
 fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Failed to parse the mutation - syntax error, unexpected end of file",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Failed to parse the mutation - syntax error, unexpected end of file",
+            Some("INVALID_MUTATION"),
+        )]);
     };
     if document.operation_type != OperationType::Mutation {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Invalid operation type. Only `mutation` operations are supported.",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Invalid operation type. Only `mutation` operations are supported.",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if document.root_fields.len() != 1 {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must specify a single top level mutation.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must specify a single top level mutation.",
+            None,
+        )]);
     }
     if matches!(
         document.root_fields[0].name.as_str(),
         "bulkOperationRunMutation" | "bulkOperationRunQuery"
     ) {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must use an allowed mutation name.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must use an allowed mutation name.",
+            None,
+        )]);
     }
     None
 }
@@ -6290,37 +6280,37 @@ fn bulk_operation_run_mutation_client_identifier_user_errors(
     let client_identifier = client_identifier?;
     let length = client_identifier.chars().count();
     if length < 10 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too short (minimum is 10 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too short (minimum is 10 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if length > 255 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too long (maximum is 255 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too long (maximum is 255 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     None
 }
 
 fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
-        "code": "NO_SUCH_FILE"
-    })
+    user_error(
+        Value::Null,
+        "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+        Some("NO_SUCH_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
     let max_size_mb = max_file_size_bytes / (1024 * 1024);
-    json!({
-        "field": null,
-        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
-        "code": "INVALID_STAGED_UPLOAD_FILE"
-    })
+    user_error(
+        Value::Null,
+        &format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        Some("INVALID_STAGED_UPLOAD_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_error_response(
@@ -6857,7 +6847,7 @@ fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {quoted} do not exist.")
     };
-    json!({"field": ["files"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["files"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
@@ -6866,7 +6856,7 @@ fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
@@ -6875,7 +6865,7 @@ fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
@@ -6887,7 +6877,7 @@ fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
             file_ids.join(", ")
         )
     };
-    json!({"field": ["fileIds"], "message": message, "code": "NON_READY_STATE"})
+    user_error(["fileIds"], &message, Some("NON_READY_STATE"))
 }
 
 fn validate_staged_upload_input(

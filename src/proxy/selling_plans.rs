@@ -353,11 +353,11 @@ impl DraftProxy {
                 &field.name,
                 group_add_payload(
                     None,
-                    vec![json!({
-                        "field": [resource_kind.ids_arg()],
-                        "message": "Resource has already been taken",
-                        "code": "TAKEN"
-                    })],
+                    vec![user_error(
+                        [resource_kind.ids_arg()],
+                        "Resource has already been taken",
+                        Some("TAKEN"),
+                    )],
                     payload_selection,
                     &field.response_key,
                     self,
@@ -517,11 +517,11 @@ impl DraftProxy {
         ids.iter()
             .find(|id| !self.has_resource(id, resource_kind))
             .map(|id| {
-                json!({
-                    "field": [resource_kind.ids_arg()],
-                    "message": format!("{} {} does not exist.", resource_kind.label(), id),
-                    "code": "NOT_FOUND"
-                })
+                user_error(
+                    [resource_kind.ids_arg()],
+                    &format!("{} {} does not exist.", resource_kind.label(), id),
+                    Some("NOT_FOUND"),
+                )
             })
     }
 
@@ -592,36 +592,36 @@ impl DraftProxy {
         is_join: bool,
     ) -> Vec<Value> {
         if group_ids.is_empty() {
-            return vec![json!({
-                "field": ["sellingPlanGroupIds"],
-                "message": "Selling plan group IDs can't be blank",
-                "code": "BLANK"
-            })];
+            return vec![user_error(
+                ["sellingPlanGroupIds"],
+                "Selling plan group IDs can't be blank",
+                Some("BLANK"),
+            )];
         }
         let mut seen = BTreeSet::new();
         if group_ids.iter().any(|id| !seen.insert(id)) {
-            return vec![json!({
-                "field": ["sellingPlanGroupIds"],
-                "message": "Selling plan group IDs contains duplicate values.",
-                "code": "DUPLICATE"
-            })];
+            return vec![user_error(
+                ["sellingPlanGroupIds"],
+                "Selling plan group IDs contains duplicate values.",
+                Some("DUPLICATE"),
+            )];
         }
         if !self.has_resource(resource_id, resource_kind) {
-            return vec![json!({
-                "field": ["id"],
-                "message": format!("{} does not exist.", resource_kind.label()),
-                "code": "NOT_FOUND"
-            })];
+            return vec![user_error(
+                ["id"],
+                &format!("{} does not exist.", resource_kind.label()),
+                Some("NOT_FOUND"),
+            )];
         }
         if let Some(_missing_group) = group_ids
             .iter()
             .find(|id| self.store.selling_plan_group_by_id(id).is_none())
         {
-            return vec![json!({
-                "field": ["sellingPlanGroupIds"],
-                "message": "Selling plan group does not exist.",
-                "code": "GROUP_DOES_NOT_EXIST"
-            })];
+            return vec![user_error(
+                ["sellingPlanGroupIds"],
+                "Selling plan group does not exist.",
+                Some("GROUP_DOES_NOT_EXIST"),
+            )];
         }
         if is_join {
             let current = self.direct_group_ids_for_resource(resource_kind, resource_id);
@@ -639,11 +639,11 @@ impl DraftProxy {
                     !resource_members(group, resource_kind).contains(&resource_id.to_string())
                 })
         }) {
-            return vec![json!({
-                "field": ["sellingPlanGroupIds"],
-                "message": "Selling plan group is not a member.",
-                "code": "NOT_A_MEMBER"
-            })];
+            return vec![user_error(
+                ["sellingPlanGroupIds"],
+                "Selling plan group is not a member.",
+                Some("NOT_A_MEMBER"),
+            )];
         }
         Vec::new()
     }
@@ -970,11 +970,11 @@ fn selling_plan_group_input_user_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if resolved_string_list_field_unsorted(input, "options").len() > 3 {
-        errors.push(json!({
-            "field": ["input", "options"],
-            "message": "Too many selling plan group options (maximum 3 options)",
-            "code": "TOO_LONG"
-        }));
+        errors.push(user_error(
+            ["input", "options"],
+            "Too many selling plan group options (maximum 3 options)",
+            Some("TOO_LONG"),
+        ));
     }
     if let Some(position) = resolved_int_field(input, "position") {
         if !is_int32(position) {
@@ -1002,11 +1002,16 @@ fn selling_plan_group_input_user_errors(
             .enumerate()
         {
             if resolved_string_field(plan, "id").is_none() {
-                errors.push(json!({
-                    "field": ["input", "sellingPlansToUpdate", index.to_string(), "id"],
-                    "message": "Id must be specificed to update a Selling Plan.",
-                    "code": "PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE"
-                }));
+                errors.push(user_error(
+                    vec![
+                        "input".to_string(),
+                        "sellingPlansToUpdate".to_string(),
+                        index.to_string(),
+                        "id".to_string(),
+                    ],
+                    "Id must be specificed to update a Selling Plan.",
+                    Some("PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE"),
+                ));
             }
             errors.extend(selling_plan_input_user_errors(
                 plan,
@@ -1028,11 +1033,16 @@ fn selling_plan_input_user_errors(
     let mut errors = Vec::new();
     let index = index.to_string();
     if resolved_string_list_field_unsorted(plan, "options").len() > 3 {
-        errors.push(json!({
-            "field": ["input", list_field, index, "options"],
-            "message": "Too many selling plan options (maximum 3 options)",
-            "code": "TOO_LONG"
-        }));
+        errors.push(user_error(
+            vec![
+                "input".to_string(),
+                list_field.to_string(),
+                index.clone(),
+                "options".to_string(),
+            ],
+            "Too many selling plan options (maximum 3 options)",
+            Some("TOO_LONG"),
+        ));
     }
     let pricing_policies = resolved_object_list_field(plan, "pricingPolicies");
     if pricing_policies.len() > 2 {
@@ -1044,11 +1054,16 @@ fn selling_plan_input_user_errors(
                 "Selling plans to update pricing policies can't have more than 2 pricing policies"
             }
         };
-        errors.push(json!({
-            "field": ["input", list_field, index, "pricingPolicies"],
-            "message": message,
-            "code": "SELLING_PLAN_PRICING_POLICIES_LIMIT"
-        }));
+        errors.push(user_error(
+            vec![
+                "input".to_string(),
+                list_field.to_string(),
+                index.clone(),
+                "pricingPolicies".to_string(),
+            ],
+            message,
+            Some("SELLING_PLAN_PRICING_POLICIES_LIMIT"),
+        ));
     }
     if let Some(position) = resolved_int_field(plan, "position") {
         if !is_int32(position) {
@@ -1068,25 +1083,30 @@ fn selling_plan_input_user_errors(
     let delivery_fixed = resolved_object_field(&delivery_policy, "fixed");
     if billing_recurring.is_some() && delivery_fixed.is_some() {
         match mode {
-            SellingPlanInputMode::Create => errors.push(json!({
-                "field": ["input", list_field, index],
-                "message": "billing and delivery policy types must be the same.",
-                "code": "BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME"
-            })),
-            SellingPlanInputMode::Update => errors.push(json!({
-                "field": ["input", list_field, index],
-                "message": "Only one of fixed or recurring delivery policy is allowed",
-                "code": "ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY"
-            })),
+            SellingPlanInputMode::Create => errors.push(user_error(
+                vec!["input".to_string(), list_field.to_string(), index.clone()],
+                "billing and delivery policy types must be the same.",
+                Some("BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME"),
+            )),
+            SellingPlanInputMode::Update => errors.push(user_error(
+                vec!["input".to_string(), list_field.to_string(), index.clone()],
+                "Only one of fixed or recurring delivery policy is allowed",
+                Some("ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY"),
+            )),
         }
     }
     if let Some(delivery_recurring) = delivery_recurring.as_ref() {
         if resolved_int_field(delivery_recurring, "intervalCount") == Some(0) {
-            errors.push(json!({
-                "field": ["input", list_field, index, "deliveryPolicy", "recurring", "intervalCount"],
-                "message": "Interval count must be greater than 0",
-                "code": "GREATER_THAN"
-            }));
+            errors.push(user_error(
+                selling_plan_recurring_field_path(
+                    list_field,
+                    &index,
+                    "deliveryPolicy",
+                    "intervalCount",
+                ),
+                "Interval count must be greater than 0",
+                Some("GREATER_THAN"),
+            ));
         }
         if let Some(cutoff) = resolved_int_field(delivery_recurring, "cutoff") {
             if !is_non_negative_int32(cutoff) {
@@ -1104,11 +1124,16 @@ fn selling_plan_input_user_errors(
     }
     if let Some(billing_recurring) = billing_recurring.as_ref() {
         if resolved_int_field(billing_recurring, "intervalCount") == Some(0) {
-            errors.push(json!({
-                "field": ["input", list_field, index, "billingPolicy", "recurring", "intervalCount"],
-                "message": "Interval count must be greater than 0",
-                "code": "GREATER_THAN"
-            }));
+            errors.push(user_error(
+                selling_plan_recurring_field_path(
+                    list_field,
+                    &index,
+                    "billingPolicy",
+                    "intervalCount",
+                ),
+                "Interval count must be greater than 0",
+                Some("GREATER_THAN"),
+            ));
         }
         if let Some(min_cycles) = resolved_int_field(billing_recurring, "minCycles") {
             if !is_positive_int32(min_cycles) {
@@ -1149,11 +1174,11 @@ fn selling_plan_input_user_errors(
                 .get("anchors")
                 .unwrap_or(&ResolvedValue::Null),
         ) {
-            errors.push(json!({
-                "field": ["input", list_field, index],
-                "message": "Billing and delivery policy anchors must be the same",
-                "code": "SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL"
-            }));
+            errors.push(user_error(
+                vec!["input".to_string(), list_field.to_string(), index],
+                "Billing and delivery policy anchors must be the same",
+                Some("SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL"),
+            ));
         }
     }
     errors
@@ -1173,19 +1198,15 @@ fn is_non_negative_int32(value: i64) -> bool {
 
 fn position_invalid_error(field: Vec<impl Into<String>>) -> Value {
     let field = field.into_iter().map(Into::into).collect::<Vec<String>>();
-    json!({
-        "field": field,
-        "message": "Position must be within the range of -2,147,483,648 to 2,147,483,647",
-        "code": "INVALID"
-    })
+    user_error(
+        field,
+        "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+        Some("INVALID"),
+    )
 }
 
 fn range_invalid_error(field: Vec<String>, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": "INVALID"
-    })
+    user_error(field, message, Some("INVALID"))
 }
 
 fn selling_plan_recurring_field_path(
@@ -1541,19 +1562,19 @@ fn selected_user_errors(user_errors: &[Value], selections: &[SelectedField]) -> 
 }
 
 fn group_does_not_exist_error() -> Value {
-    json!({
-        "field": ["id"],
-        "message": "Selling plan group does not exist.",
-        "code": "GROUP_DOES_NOT_EXIST"
-    })
+    user_error(
+        ["id"],
+        "Selling plan group does not exist.",
+        Some("GROUP_DOES_NOT_EXIST"),
+    )
 }
 
 fn too_many_groups_error(field: &str) -> Value {
-    json!({
-        "field": [field],
-        "message": "Exceeded maximum number of selling plan groups per resource.",
-        "code": "SELLING_PLAN_GROUPS_TOO_MANY"
-    })
+    user_error(
+        [field],
+        "Exceeded maximum number of selling plan groups per resource.",
+        Some("SELLING_PLAN_GROUPS_TOO_MANY"),
+    )
 }
 
 fn resource_members(group: &SellingPlanGroupRecord, resource_kind: ResourceKind) -> &Vec<String> {

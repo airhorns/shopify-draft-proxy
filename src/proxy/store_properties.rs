@@ -510,11 +510,7 @@ fn shop_policy_update_invalid_variable_response(
 }
 
 fn shop_policy_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_with_code_value(field, message, code)
 }
 
 fn shop_policy_title(policy_type: &str) -> Option<&'static str> {
