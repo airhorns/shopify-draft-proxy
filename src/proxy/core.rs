@@ -356,6 +356,26 @@ impl DraftProxy {
                 .map(|ids| ids.iter().cloned().collect::<Vec<_>>())
                 .collect::<Vec<_>>());
         }
+        if !self.store.staged.customer_payment_methods.is_empty() {
+            snapshot["stagedState"]["customerPaymentMethods"] =
+                json!(self.store.staged.customer_payment_methods.clone());
+        }
+        if !self
+            .store
+            .staged
+            .customer_payment_method_customer_index
+            .is_empty()
+        {
+            snapshot["stagedState"]["customerPaymentMethodCustomerIndex"] = json!(self
+                .store
+                .staged
+                .customer_payment_method_customer_index
+                .clone());
+        }
+        if self.store.staged.next_customer_payment_method_id != 1 {
+            snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
+                json!(self.store.staged.next_customer_payment_method_id);
+        }
         if !self.store.staged.flow_signatures.is_empty() {
             snapshot["stagedState"]["flowSignatures"] = json!(self.store.staged.flow_signatures);
         }
@@ -482,6 +502,46 @@ impl DraftProxy {
         }
         if let Some(author) = &self.store.staged.order_edit_author {
             snapshot["stagedState"]["orderEditAuthor"] = json!(author);
+        }
+        if !self.store.staged.order_customer_orders.is_empty() {
+            snapshot["stagedState"]["orderCustomerOrders"] =
+                json!(self.store.staged.order_customer_orders.clone());
+        }
+        if !self.store.staged.order_customer_cancelled_ids.is_empty() {
+            snapshot["stagedState"]["orderCustomerCancelledIds"] = json!(self
+                .store
+                .staged
+                .order_customer_cancelled_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.order_customer_b2b_order_ids.is_empty() {
+            snapshot["stagedState"]["orderCustomerB2bOrderIds"] = json!(self
+                .store
+                .staged
+                .order_customer_b2b_order_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .order_customer_contact_customer_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["orderCustomerContactCustomerIds"] = json!(self
+                .store
+                .staged
+                .order_customer_contact_customer_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.next_order_customer_order_id != 1 {
+            snapshot["stagedState"]["nextOrderCustomerOrderId"] =
+                json!(self.store.staged.next_order_customer_order_id);
         }
         snapshot
     }
@@ -1289,24 +1349,62 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        // These customer-payment-method and order-customer sentinel maps are not
-        // part of the dump schema yet. Reset the maps and their local counters
-        // together so restoring a dump onto a previously-used proxy cannot leak
-        // stale in-memory records or counters from outside the restored state.
-        self.store.staged.customer_payment_methods.clear();
-        self.store
-            .staged
-            .customer_payment_method_customer_index
-            .clear();
-        self.store.staged.next_customer_payment_method_id = 1;
-        self.store.staged.order_customer_orders.clear();
-        self.store.staged.order_customer_cancelled_ids.clear();
-        self.store.staged.order_customer_b2b_order_ids.clear();
-        self.store
-            .staged
-            .order_customer_contact_customer_ids
-            .clear();
-        self.store.staged.next_order_customer_order_id = 1;
+        self.store.staged.customer_payment_methods = state["stagedState"]["customerPaymentMethods"]
+            .as_object()
+            .map(|methods| {
+                methods
+                    .iter()
+                    .map(|(id, method)| (id.clone(), method.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_payment_method_customer_index = state["stagedState"]
+            ["customerPaymentMethodCustomerIndex"]
+            .as_object()
+            .map(|index| {
+                index
+                    .iter()
+                    .map(|(customer_id, ids)| (customer_id.clone(), string_array_from_json(ids)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.next_customer_payment_method_id = state["stagedState"]
+            .get("nextCustomerPaymentMethodId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.order_customer_orders = state["stagedState"]["orderCustomerOrders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.order_customer_cancelled_ids = state["stagedState"]
+            .get("orderCustomerCancelledIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.order_customer_b2b_order_ids = state["stagedState"]
+            .get("orderCustomerB2bOrderIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.order_customer_contact_customer_ids = state["stagedState"]
+            .get("orderCustomerContactCustomerIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.next_order_customer_order_id = state["stagedState"]
+            .get("nextOrderCustomerOrderId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
         self.store.staged.orders = state["stagedState"]["orders"]
             .as_object()
             .map(|orders| {
