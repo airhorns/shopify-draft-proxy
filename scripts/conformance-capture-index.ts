@@ -3867,6 +3867,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-update-scalars',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-update-scalars-conformance.mts',
+    purpose:
+      'marketUpdate scalar name/status lifecycle, enabled coupling, and downstream market(id:) read-after-write for a disposable market.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-update-scalars.json`,
+      'config/parity-specs/markets/market-update-scalars.json',
+      'config/parity-requests/markets/market-update-scalars-create.graphql',
+      'config/parity-requests/markets/market-update-scalars-update.graphql',
+      'config/parity-requests/markets/market-update-scalars-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active market, updates name/status to DRAFT, records payload plus readback, then deletes the market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',

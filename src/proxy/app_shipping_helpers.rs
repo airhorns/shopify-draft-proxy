@@ -2882,16 +2882,6 @@ fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
-fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
-    let year = year - i32::from(month <= 2);
-    let era = (if year >= 0 { year } else { year - 399 }) / 400;
-    let year_of_era = year - era * 400;
-    let month = month as i32;
-    let day_of_year = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day as i32 - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    i64::from(era) * 146_097 + i64::from(day_of_era) - 719_468
-}
-
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
     request_header(request, "x-shopify-draft-proxy-api-client-id")
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())
