@@ -4712,8 +4712,7 @@ impl DraftProxy {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
-            let payload =
-                json!({"upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
+            let payload = json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
             return selected_json(&payload, &field.selection);
         }
         let mut errors = Vec::new();
@@ -4755,10 +4754,20 @@ impl DraftProxy {
         }
         if !errors.is_empty() {
             return selected_json(
-                &json!({"upsertedThemeFiles": [], "userErrors": errors}),
+                &json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": errors}),
                 &field.selection,
             );
         }
+        let job = if files.iter().any(theme_file_input_uses_url_body) {
+            json!({
+                "__typename": "Job",
+                "id": self.next_proxy_synthetic_gid("Job"),
+                "done": false,
+                "query": Value::Null
+            })
+        } else {
+            Value::Null
+        };
         let mut upserted = Vec::new();
         let mut staged = false;
         for file in files {
@@ -4773,7 +4782,7 @@ impl DraftProxy {
             staged_ids.push(theme_id);
         }
         selected_json(
-            &json!({"upsertedThemeFiles": upserted, "userErrors": []}),
+            &json!({"job": job, "upsertedThemeFiles": upserted, "userErrors": []}),
             &field.selection,
         )
     }
