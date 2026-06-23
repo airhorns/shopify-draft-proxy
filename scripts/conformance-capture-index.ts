@@ -9879,6 +9879,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'store-credit-unknown-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-store-credit-unknown-id-conformance.ts',
+    purpose:
+      'StoreCreditAccountCredit and StoreCreditAccountDebit missing-id userError envelopes for well-formed but nonexistent StoreCreditAccount, Customer, and CompanyLocation ids.',
+    requiredAuthScopes: ['read_customers', 'read_companies', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-unknown-id-user-errors.json`,
+      'config/parity-specs/customers/store-credit-account-unknown-id-user-errors.json',
+    ],
+    cleanupBehavior: 'Uses fixed never-created IDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-set',
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',
