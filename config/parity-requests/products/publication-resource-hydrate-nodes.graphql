@@ -1,0 +1,29 @@
+query PublicationResourceHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Product {
+      id
+      title
+      handle
+      status
+      resourcePublications(first: 50) {
+        nodes {
+          publication {
+            id
+          }
+        }
+      }
+    }
+    ... on Collection {
+      id
+      title
+      handle
+      resourcePublications(first: 50) {
+        nodes {
+          publication {
+            id
+          }
+        }
+      }
+    }
+  }
+}

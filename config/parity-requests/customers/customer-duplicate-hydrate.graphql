@@ -1,0 +1,6 @@
+
+query CustomerDuplicateHydrate($query: String!) {
+  customers(first: 1, query: $query) {
+    nodes { id }
+  }
+}

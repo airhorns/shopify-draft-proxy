@@ -1009,21 +1009,25 @@ fn metafields_set_value_user_error_with_element_index(
     code: &str,
     element_index: Option<usize>,
 ) -> Value {
-    json!({
-        "field": ["metafields", index.to_string(), "value"],
-        "message": message,
-        "code": code,
-        "elementIndex": element_index.map(Value::from).unwrap_or(Value::Null)
-    })
+    user_error_with_element_index(
+        vec![
+            "metafields".to_string(),
+            index.to_string(),
+            "value".to_string(),
+        ],
+        message,
+        Some(code),
+        element_index.map(Value::from).unwrap_or(Value::Null),
+    )
 }
 
 fn metafields_set_path_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": if code.is_empty() { Value::Null } else { json!(code) },
-        "elementIndex": Value::Null
-    })
+    user_error_with_element_index(
+        field,
+        message,
+        (!code.is_empty()).then_some(code),
+        Value::Null,
+    )
 }
 
 fn is_shopify_hex_color(value: &str) -> bool {
@@ -1564,12 +1568,12 @@ pub(in crate::proxy) fn quantity_pricing_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "__typename": "QuantityPricingByVariantUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "QuantityPricingByVariantUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn quantity_pricing_variant_ids_from_input(
@@ -1673,7 +1677,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
 }
 
 pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
-    json!({"__typename": "QuantityRuleUserError", "field": field, "message": message, "code": code})
+    user_error_typed("QuantityRuleUserError", field, message, Some(code))
 }
 
 pub(in crate::proxy) fn quantity_rules_add_validation_errors(
@@ -2373,11 +2377,7 @@ pub(in crate::proxy) fn payment_customization_user_error(
     code: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "code": code,
-        "message": message
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_customization_required_input_field_error(field: &str) -> Value {
@@ -2446,11 +2446,16 @@ pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
     field: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": ["paymentCustomization", "metafields", index.to_string(), field],
-        "code": "INVALID_METAFIELDS",
-        "message": message
-    })
+    user_error(
+        vec![
+            "paymentCustomization".to_string(),
+            "metafields".to_string(),
+            index.to_string(),
+            field.to_string(),
+        ],
+        message,
+        Some("INVALID_METAFIELDS"),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
@@ -2529,11 +2534,7 @@ pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query Paym
 pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
 
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn payment_terms_payload_value(
@@ -2702,53 +2703,6 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
     Value::Object(data)
 }
 
-/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
-/// representation: strip trailing zeros after the decimal point but keep at
-/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
-/// "38.25" -> "38.25", "57" -> "57.0").
-pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
-    let trimmed = amount.trim();
-    if trimmed.is_empty() {
-        return "0.0".to_string();
-    }
-    if trimmed.contains('.') {
-        let stripped = trimmed.trim_end_matches('0');
-        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
-        if stripped.contains('.') {
-            stripped.to_string()
-        } else {
-            format!("{stripped}.0")
-        }
-    } else {
-        format!("{trimmed}.0")
-    }
-}
-
-// Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
-// so we can compute a NET term's `dueAt` as `issuedAt` + the template's due-day
-// count without pulling in a date library.
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
-}
-
-fn civil_from_days(z: i64) -> (i64, i64, i64) {
-    let z = z + 719468;
-    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if m <= 2 { y + 1 } else { y }, m, d)
-}
-
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
 /// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
 /// "2026-05-27T12:00:00Z").
@@ -2762,9 +2716,9 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
         return iso.to_string();
     }
     let (Ok(year), Ok(month), Ok(day)) = (
-        parts[0].parse::<i64>(),
-        parts[1].parse::<i64>(),
-        parts[2].parse::<i64>(),
+        parts[0].parse::<i32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>(),
     ) else {
         return iso.to_string();
     };
@@ -3244,11 +3198,11 @@ pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Opti
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     json!({
         "success": null,
-        "userErrors": [{
-            "field": null,
-            "message": message,
-            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-        }]
+        "userErrors": [user_error(
+            Value::Null,
+            message,
+            Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL")
+        )]
     })
 }
 
@@ -3310,11 +3264,11 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
         }
         .unwrap_or_default();
         value.trim().is_empty().then(|| {
-            json!({
-                "field": ["billing_address", output_field],
-                "code": "BLANK",
-                "message": "can't be blank"
-            })
+            user_error(
+                ["billing_address", output_field],
+                "can't be blank",
+                Some("BLANK"),
+            )
         })
     })
     .collect()
@@ -3340,26 +3294,15 @@ fn return_connection(nodes: Vec<Value>) -> Value {
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
     let amount = money_bag_normalized_amount(amount);
-    json!({
-        "shopMoney": { "amount": amount, "currencyCode": currency_code },
-        "presentmentMoney": { "amount": amount, "currencyCode": currency_code }
-    })
+    money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
 fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn return_status_invalid_error() -> Value {
@@ -3540,23 +3483,6 @@ fn return_status_transition_error(
         }
         _ => None,
     }
-}
-
-fn money_bag_set(amount: &str, currency_code: impl Into<String>) -> Value {
-    let currency_code = currency_code.into();
-    money_bag_set_pair(amount, &currency_code, amount, &currency_code)
-}
-
-fn money_bag_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": { "amount": shop_amount, "currencyCode": shop_currency },
-        "presentmentMoney": { "amount": presentment_amount, "currencyCode": presentment_currency }
-    })
 }
 
 fn money_bag_currency(money_set: &Value) -> String {
@@ -3792,25 +3718,25 @@ impl DraftProxy {
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
-                            "message": "invalid",
-                            "code": "NOT_FOUND"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "marketingActivityId"],
+                            "invalid",
+                            Some("NOT_FOUND"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else if delivered_at.starts_with("2099-") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveredAt"],
-                            "message": "invalid",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveredAt"],
+                            "invalid",
+                            Some("INVALID"),
+                        ));
                         ("SENDING".to_string(), Value::Null)
                     } else if status == "SENDING" {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
-                            "message": "invalid_transition",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveryStatus"],
+                            "invalid_transition",
+                            Some("INVALID"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else {
                         (status, Value::String(delivered_at.clone()))
@@ -4020,7 +3946,7 @@ impl DraftProxy {
                         .get(&order_id)
                         .map(|order| money_bag_currency(&order["totalPriceSet"]))
                         .unwrap_or_else(|| "USD".to_string());
-                    let total = money_bag_set(&amount, currency);
+                    let total = money_set_pair(&amount, &currency, &amount, &currency);
                     if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
                         order["totalRefundedSet"] = total.clone();
                     }
@@ -4071,7 +3997,7 @@ impl DraftProxy {
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
                         "originalOrder": { "id": order_id },
-                        "totalPriceSet": money_bag_set("12.0", "CAD")
+                        "totalPriceSet": money_set_pair("12.0", "CAD", "12.0", "CAD")
                     });
                     self.store.staged.order_edit_existing_calculated_order =
                         Some(calculated.clone());
@@ -4147,13 +4073,13 @@ impl DraftProxy {
         let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
         let presentment_total =
             money_bag_add_decimal_strings(&presentment_amount, &presentment_tax_amount);
-        let line_price = money_bag_set_pair(
+        let line_price = money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         );
-        let total_set = money_bag_set_pair(
+        let total_set = money_set_pair(
             &total,
             &shop_currency,
             &presentment_total,
@@ -4163,8 +4089,8 @@ impl DraftProxy {
             "id": id,
             "currentTotalPriceSet": total_set.clone(),
             "totalPriceSet": total_set.clone(),
-            "totalTaxSet": money_bag_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
-            "totalReceivedSet": money_bag_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            "totalTaxSet": money_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
+            "totalReceivedSet": money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
             "totalOutstandingSet": total_set,
             "lineItems": { "nodes": [{ "originalUnitPriceSet": line_price }] },
             "transactions": []
@@ -4514,11 +4440,11 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     Some(false),
-                    vec![json!({
-                        "field": ["sessionId"],
-                        "message": "Session id can't be blank",
-                        "code": "BLANK"
-                    })],
+                    vec![user_error(
+                        ["sessionId"],
+                        "Session id can't be blank",
+                        Some("BLANK"),
+                    )],
                 ),
                 None,
             );
@@ -4607,11 +4533,11 @@ impl DraftProxy {
             &field.selection,
             Value::Null,
             Some(false),
-            vec![json!({
-                "field": ["id"],
-                "message": "Customer payment method does not exist",
-                "code": "NOT_FOUND"
-            })],
+            vec![user_error(
+                ["id"],
+                "Customer payment method does not exist",
+                Some("NOT_FOUND"),
+            )],
         )
     }
 
@@ -4631,11 +4557,11 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     None,
-                    vec![json!({
-                        "field": ["remote_reference"],
-                        "message": "Remote reference must contain exactly one payment method.",
-                        "code": "INVALID"
-                    })],
+                    vec![user_error(
+                        ["remote_reference"],
+                        "Remote reference must contain exactly one payment method.",
+                        Some("INVALID"),
+                    )],
                 ),
                 None,
             );
@@ -4654,11 +4580,15 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
-                            "message": "billing_agreement_id can't be blank",
-                            "code": "BILLING_AGREEMENT_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            [
+                                "remote_reference",
+                                "paypal_payment_method",
+                                "billing_agreement_id",
+                            ],
+                            "billing_agreement_id can't be blank",
+                            Some("BILLING_AGREEMENT_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -4678,11 +4608,11 @@ impl DraftProxy {
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![json!({
-                            "field": ["remote_reference", "stripe_payment_method", "customer_id"],
-                            "message": "customer_id can't be blank",
-                            "code": "STRIPE_CUSTOMER_ID_BLANK"
-                        })],
+                        vec![user_error(
+                            ["remote_reference", "stripe_payment_method", "customer_id"],
+                            "customer_id can't be blank",
+                            Some("STRIPE_CUSTOMER_ID_BLANK"),
+                        )],
                     ),
                     None,
                 );
@@ -4755,19 +4685,19 @@ impl DraftProxy {
         let target_customer_id =
             resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
-            vec![json!({
-                "field": ["targetShopId"],
-                "message": "Target shop is not eligible for payment method duplication",
-                "code": "SAME_SHOP"
-            })]
+            vec![user_error(
+                ["targetShopId"],
+                "Target shop is not eligible for payment method duplication",
+                Some("SAME_SHOP"),
+            )]
         } else {
             Vec::new()
         };
@@ -4867,11 +4797,11 @@ impl DraftProxy {
         let id =
             resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
-            vec![json!({
-                "field": ["customerPaymentMethodId"],
-                "message": "Invalid instrument",
-                "code": "INVALID_INSTRUMENT"
-            })]
+            vec![user_error(
+                ["customerPaymentMethodId"],
+                "Invalid instrument",
+                Some("INVALID_INSTRUMENT"),
+            )]
         } else {
             Vec::new()
         };
@@ -4899,11 +4829,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Customer payment method does not exist.",
-                            "code": "NOT_FOUND"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Customer payment method does not exist.",
+                            Some("NOT_FOUND")
+                        )]
                     }),
                     &field.selection,
                 ),
@@ -4918,11 +4848,11 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [{
-                            "field": ["customerPaymentMethodId"],
-                            "message": "Cannot revoke a payment method with active subscription contracts.",
-                            "code": "ACTIVE_CONTRACT"
-                        }]
+                        "userErrors": [user_error(
+                            ["customerPaymentMethodId"],
+                            "Cannot revoke a payment method with active subscription contracts.",
+                            Some("ACTIVE_CONTRACT")
+                        )]
                     }),
                     &field.selection,
                 ),
@@ -5211,12 +5141,19 @@ impl DraftProxy {
         }
         if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
             let money = payment_terms_extract_owner_money(&owner);
-            let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-                &mut self.store.staged.draft_orders
+            if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                self.store
+                    .staged
+                    .draft_orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
             } else {
-                &mut self.store.staged.orders
-            };
-            target.entry(owner_id.to_string()).or_insert(owner);
+                self.store
+                    .staged
+                    .orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
+            }
             if let Some(money) = money {
                 return money;
             }
@@ -5349,17 +5286,29 @@ impl DraftProxy {
     }
 
     fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
-        let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-            &mut self.store.staged.draft_orders
+        let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            self.store
+                .staged
+                .draft_orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#DRAFT"
+                    })
+                })
         } else {
-            &mut self.store.staged.orders
+            self.store
+                .staged
+                .orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#1"
+                    })
+                })
         };
-        let entry = target.entry(owner_id.to_string()).or_insert_with(|| {
-            json!({
-                "id": owner_id,
-                "name": if owner_id.starts_with("gid://shopify/DraftOrder/") { "#DRAFT" } else { "#1" }
-            })
-        });
         entry["paymentTerms"] = terms.unwrap_or(Value::Null);
     }
 
@@ -5432,6 +5381,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_return_local_runtime_data(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -5450,11 +5400,11 @@ impl DraftProxy {
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
             "returnCreate" => {
-                let value = self.stage_return_from_input(field, "returnInput", "OPEN");
+                let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnRequest" => {
-                let value = self.stage_return_from_input(field, "input", "REQUESTED");
+                let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
@@ -5584,12 +5534,17 @@ impl DraftProxy {
     /// payload — `return` is null when validation fails.
     fn stage_return_from_input(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         input_name: &str,
         status: &str,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        // The order a return runs against is a precondition that may not have been
+        // created locally in this scenario; forward+observe it on a cold miss so
+        // line validation and quantity caps run against real store state.
+        self.hydrate_order_for_return(request, &order_id);
         let order = self
             .store
             .staged
@@ -6269,10 +6224,14 @@ impl DraftProxy {
 
             let disposition_type =
                 resolved_string_field(input, "dispositionType").unwrap_or_default();
-            let has_product_variant = line_item
+            let explicitly_custom_line = line_item
                 .pointer("/fulfillmentLineItem/lineItem/variant")
-                .is_some_and(|variant| !variant.is_null());
-            if disposition_type == "RESTOCKED" && !has_product_variant {
+                .is_some_and(Value::is_null)
+                || line_item
+                    .pointer("/fulfillmentLineItem/lineItem/custom")
+                    .and_then(Value::as_bool)
+                    == Some(true);
+            if disposition_type == "RESTOCKED" && explicitly_custom_line {
                 user_errors.push(return_user_error_owned(
                     vec![
                         "dispositionInputs".to_string(),

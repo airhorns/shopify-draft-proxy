@@ -9,7 +9,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["product", "Product"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -18,7 +17,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["productByIdentifier", "ProductByIdentifier"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -27,7 +25,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["products", "Products"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -36,7 +33,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["productsCount", "ProductsCount"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -45,7 +41,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productVariants", "ProductVariants"],
             &[],
         ),
         registry_entry(
@@ -54,7 +49,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productVariantsCount", "ProductVariantsCount"],
             &[],
         ),
         registry_entry(
@@ -63,7 +57,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productTags", "ProductTags"],
             &[],
         ),
         registry_entry(
@@ -72,7 +65,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productTypes", "ProductTypes"],
             &[],
         ),
         registry_entry(
@@ -81,7 +73,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productVendors", "ProductVendors"],
             &[],
         ),
         registry_entry(
@@ -90,7 +81,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["productOperation", "ProductOperation"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -99,7 +89,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productDuplicateJob", "ProductDuplicateJob"],
             &[],
         ),
         registry_entry(
@@ -108,7 +97,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productResourceFeedback", "ProductResourceFeedback"],
             &[],
         ),
         registry_entry(
@@ -117,7 +105,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productFeed", "ProductFeed"],
             &[],
         ),
         registry_entry(
@@ -126,7 +113,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productFeeds", "ProductFeeds"],
             &[],
         ),
         registry_entry(
@@ -135,7 +121,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["sellingPlanGroup", "SellingPlanGroup"],
             &[],
         ),
         registry_entry(
@@ -144,7 +129,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["sellingPlanGroups", "SellingPlanGroups"],
             &[],
         ),
         registry_entry(
@@ -153,7 +137,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             false,
-            &["publicApiVersions", "PublicApiVersions"],
             &[],
         ),
         registry_entry(
@@ -162,7 +145,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &["node", "Node"],
             &[],
         ),
         registry_entry(
@@ -171,7 +153,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &["nodes", "Nodes"],
             &[],
         ),
         registry_entry(
@@ -180,7 +161,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &["job", "Job"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -189,7 +169,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             false,
-            &["taxonomy", "Taxonomy"],
             &[],
         ),
         registry_entry(
@@ -198,7 +177,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &["domain", "Domain"],
             &[],
         ),
         registry_entry(
@@ -207,7 +185,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &["backupRegion", "BackupRegion"],
             &[],
         ),
         registry_entry(
@@ -216,7 +193,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::StageLocally,
             true,
-            &["backupRegionUpdate", "BackupRegionUpdate"],
             &[],
         ),
         registry_entry(
@@ -225,7 +201,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             false,
-            &["staffMember", "StaffMember"],
             &[],
         ),
         registry_entry(
@@ -234,7 +209,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             false,
-            &["staffMembers", "StaffMembers"],
             &[],
         ),
         registry_entry(
@@ -243,7 +217,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::StageLocally,
             true,
-            &["flowGenerateSignature", "FlowGenerateSignature"],
             &[],
         ),
         registry_entry(
@@ -252,7 +225,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::StageLocally,
             true,
-            &["flowTriggerReceive", "FlowTriggerReceive"],
             &[],
         ),
         registry_entry(
@@ -261,7 +233,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             false,
-            &["app", "App"],
             &[],
         ),
         registry_entry(
@@ -270,7 +241,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             false,
-            &["appByHandle", "AppByHandle"],
             &[],
         ),
         registry_entry(
@@ -279,7 +249,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             false,
-            &["appByKey", "AppByKey"],
             &[],
         ),
         registry_entry(
@@ -288,7 +257,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             false,
-            &["appInstallation", "AppInstallation"],
             &[],
         ),
         registry_entry(
@@ -297,7 +265,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             false,
-            &["appInstallations", "AppInstallations"],
             &[],
         ),
         registry_entry(
@@ -306,7 +273,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::OverlayRead,
             true,
-            &["currentAppInstallation", "CurrentAppInstallation"],
             &[],
         ),
         registry_entry(
@@ -315,7 +281,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
             &[],
         ),
         registry_entry(
@@ -324,7 +289,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appSubscriptionCreate", "AppSubscriptionCreate"],
             &[],
         ),
         registry_entry(
@@ -333,7 +297,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appSubscriptionCancel", "AppSubscriptionCancel"],
             &[],
         ),
         registry_entry(
@@ -342,10 +305,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "appSubscriptionLineItemUpdate",
-                "AppSubscriptionLineItemUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -354,7 +313,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
             &[],
         ),
         registry_entry(
@@ -363,7 +321,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appUsageRecordCreate", "AppUsageRecordCreate"],
             &[],
         ),
         registry_entry(
@@ -372,7 +329,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appRevokeAccessScopes", "AppRevokeAccessScopes"],
             &[],
         ),
         registry_entry(
@@ -381,7 +337,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["appUninstall", "AppUninstall"],
             &[],
         ),
         registry_entry(
@@ -390,7 +345,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
             &[],
         ),
         registry_entry(
@@ -399,7 +353,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Apps,
             CapabilityExecution::StageLocally,
             true,
-            &["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
             &[],
         ),
         registry_entry(
@@ -408,7 +361,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["productVariant", "ProductVariant"],
             &["tests/graphql_routes/products_saved_searches.rs"],
         ),
         registry_entry(
@@ -417,7 +369,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["productVariantByIdentifier", "ProductVariantByIdentifier"],
             &[],
         ),
         registry_entry(
@@ -426,7 +377,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryItem", "InventoryItem"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -435,7 +385,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryItems", "InventoryItems"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -444,7 +393,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryShipment", "InventoryShipment"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -453,7 +401,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryLevel", "InventoryLevel"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -462,7 +409,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryProperties", "InventoryProperties"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -471,7 +417,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryTransfer", "InventoryTransfer"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -480,7 +425,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["inventoryTransfers", "InventoryTransfers"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -489,7 +433,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             true,
-            &["collection", "Collection"],
             &[],
         ),
         registry_entry(
@@ -498,7 +441,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["collectionByIdentifier", "CollectionByIdentifier"],
             &[],
         ),
         registry_entry(
@@ -507,7 +449,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["collectionByHandle", "CollectionByHandle"],
             &[],
         ),
         registry_entry(
@@ -516,7 +457,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["collections", "Collections"],
             &[],
         ),
         registry_entry(
@@ -525,7 +465,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["locations", "Locations"],
             &[],
         ),
         registry_entry(
@@ -534,7 +473,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             true,
-            &["shop", "Shop"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -543,7 +481,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             true,
-            &["location", "Location"],
             &[],
         ),
         registry_entry(
@@ -552,7 +489,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             true,
-            &["locationByIdentifier", "LocationByIdentifier"],
             &[],
         ),
         registry_entry(
@@ -561,7 +497,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             false,
-            &["businessEntities", "BusinessEntities"],
             &[],
         ),
         registry_entry(
@@ -570,7 +505,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             false,
-            &["businessEntity", "BusinessEntity"],
             &[],
         ),
         registry_entry(
@@ -579,7 +513,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             true,
-            &["companies", "Companies"],
             &[],
         ),
         registry_entry(
@@ -588,7 +521,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             false,
-            &["companiesCount", "CompaniesCount"],
             &[],
         ),
         registry_entry(
@@ -597,7 +529,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             true,
-            &["company", "Company"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -606,7 +537,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             true,
-            &["companyContact", "CompanyContact"],
             &[],
         ),
         registry_entry(
@@ -615,7 +545,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             false,
-            &["companyContactRole", "CompanyContactRole"],
             &[],
         ),
         registry_entry(
@@ -624,7 +553,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             true,
-            &["companyLocation", "CompanyLocation"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -633,7 +561,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::OverlayRead,
             true,
-            &["companyLocations", "CompanyLocations"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -642,7 +569,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companiesDelete", "CompaniesDelete"],
             &[],
         ),
         registry_entry(
@@ -651,7 +577,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyAddressDelete", "CompanyAddressDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -660,10 +585,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyAssignCustomerAsContact",
-                "CompanyAssignCustomerAsContact",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -672,7 +593,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyAssignMainContact", "CompanyAssignMainContact"],
             &[],
         ),
         registry_entry(
@@ -681,7 +601,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactAssignRole", "CompanyContactAssignRole"],
             &[],
         ),
         registry_entry(
@@ -690,7 +609,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactAssignRoles", "CompanyContactAssignRoles"],
             &[],
         ),
         registry_entry(
@@ -699,7 +617,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactCreate", "CompanyContactCreate"],
             &[],
         ),
         registry_entry(
@@ -708,7 +625,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactDelete", "CompanyContactDelete"],
             &[],
         ),
         registry_entry(
@@ -717,10 +633,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyContactRemoveFromCompany",
-                "CompanyContactRemoveFromCompany",
-            ],
             &[],
         ),
         registry_entry(
@@ -729,7 +641,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactRevokeRole", "CompanyContactRevokeRole"],
             &[],
         ),
         registry_entry(
@@ -738,7 +649,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
             &[],
         ),
         registry_entry(
@@ -747,7 +657,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactsDelete", "CompanyContactsDelete"],
             &[],
         ),
         registry_entry(
@@ -756,10 +665,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "companyContactSendWelcomeEmail",
-                "CompanyContactSendWelcomeEmail",
-            ],
             &[],
         ),
         registry_entry(
@@ -768,7 +673,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyContactUpdate", "CompanyContactUpdate"],
             &[],
         ),
         registry_entry(
@@ -777,7 +681,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyCreate", "CompanyCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -786,7 +689,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyDelete", "CompanyDelete"],
             &[],
         ),
         registry_entry(
@@ -795,10 +697,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyLocationAssignAddress",
-                "CompanyLocationAssignAddress",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -807,7 +705,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -816,10 +713,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyLocationAssignStaffMembers",
-                "CompanyLocationAssignStaffMembers",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -828,7 +721,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationCreate", "CompanyLocationCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -837,7 +729,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationDelete", "CompanyLocationDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -846,10 +737,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyLocationRemoveStaffMembers",
-                "CompanyLocationRemoveStaffMembers",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -858,7 +745,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -867,7 +753,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationsDelete", "CompanyLocationsDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -876,10 +761,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "companyLocationTaxSettingsUpdate",
-                "CompanyLocationTaxSettingsUpdate",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -888,7 +769,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyLocationUpdate", "CompanyLocationUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -897,7 +777,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyRevokeMainContact", "CompanyRevokeMainContact"],
             &[],
         ),
         registry_entry(
@@ -906,7 +785,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
             true,
-            &["companyUpdate", "CompanyUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -915,10 +793,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
             false,
-            &[
-                "cashManagementLocationSummary",
-                "CashManagementLocationSummary",
-            ],
             &[],
         ),
         registry_entry(
@@ -927,7 +801,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["cashTrackingSession", "CashTrackingSession"],
             &[],
         ),
         registry_entry(
@@ -936,7 +809,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["cashTrackingSessions", "CashTrackingSessions"],
             &[],
         ),
         registry_entry(
@@ -945,7 +817,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["customerPaymentMethod", "CustomerPaymentMethod"],
             &[],
         ),
         registry_entry(
@@ -954,7 +825,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             false,
-            &["orderPaymentStatus", "OrderPaymentStatus"],
             &[],
         ),
         registry_entry(
@@ -963,7 +833,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["paymentCustomization", "PaymentCustomization"],
             &[],
         ),
         registry_entry(
@@ -972,7 +841,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["paymentCustomizations", "PaymentCustomizations"],
             &[],
         ),
         registry_entry(
@@ -981,7 +849,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["validation", "Validation"],
             &[],
         ),
         registry_entry(
@@ -990,7 +857,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["validations", "Validations"],
             &[],
         ),
         registry_entry(
@@ -999,7 +865,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["cartTransforms", "CartTransforms"],
             &[],
         ),
         registry_entry(
@@ -1008,7 +873,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["shopifyFunction", "ShopifyFunction"],
             &[],
         ),
         registry_entry(
@@ -1017,7 +881,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["shopifyFunctions", "ShopifyFunctions"],
             &[],
         ),
         registry_entry(
@@ -1026,7 +889,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["paymentTermsTemplates", "PaymentTermsTemplates"],
             &["tests/graphql_routes/orders.rs"],
         ),
         registry_entry(
@@ -1035,7 +897,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             false,
-            &["financeAppAccessPolicy", "FinanceAppAccessPolicy"],
             &[],
         ),
         registry_entry(
@@ -1044,7 +905,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             false,
-            &["financeKycInformation", "FinanceKycInformation"],
             &[],
         ),
         registry_entry(
@@ -1053,7 +913,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["pointOfSaleDevice", "PointOfSaleDevice"],
             &[],
         ),
         registry_entry(
@@ -1062,7 +921,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["dispute", "Dispute"],
             &[],
         ),
         registry_entry(
@@ -1071,7 +929,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["disputes", "Disputes"],
             &[],
         ),
         registry_entry(
@@ -1080,7 +937,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["disputeEvidence", "DisputeEvidence"],
             &[],
         ),
         registry_entry(
@@ -1089,10 +945,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "shopPayPaymentRequestReceipt",
-                "ShopPayPaymentRequestReceipt",
-            ],
             &[],
         ),
         registry_entry(
@@ -1101,10 +953,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "shopPayPaymentRequestReceipts",
-                "ShopPayPaymentRequestReceipts",
-            ],
             &[],
         ),
         registry_entry(
@@ -1113,7 +961,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             true,
-            &["shopifyPaymentsAccount", "ShopifyPaymentsAccount"],
             &[],
         ),
         registry_entry(
@@ -1122,7 +969,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::OverlayRead,
             false,
-            &["tenderTransactions", "TenderTransactions"],
             &[],
         ),
         registry_entry(
@@ -1131,7 +977,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["channel", "Channel"],
             &[],
         ),
         registry_entry(
@@ -1140,7 +985,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["channels", "Channels"],
             &[],
         ),
         registry_entry(
@@ -1149,7 +993,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["publication", "Publication"],
             &[],
         ),
         registry_entry(
@@ -1158,7 +1001,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             false,
-            &["publications", "Publications"],
             &[],
         ),
         registry_entry(
@@ -1167,7 +1009,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["publicationsCount", "PublicationsCount"],
             &[],
         ),
         registry_entry(
@@ -1176,7 +1017,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
             true,
-            &["publishedProductsCount", "PublishedProductsCount"],
             &[],
         ),
         registry_entry(
@@ -1185,7 +1025,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["storeCreditAccount", "StoreCreditAccount"],
             &[],
         ),
         registry_entry(
@@ -1194,7 +1033,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["customer", "Customer"],
             &[],
         ),
         registry_entry(
@@ -1203,7 +1041,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             false,
-            &["customerAccountPage", "CustomerAccountPage"],
             &[],
         ),
         registry_entry(
@@ -1212,7 +1049,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Events,
             CapabilityExecution::OverlayRead,
             true,
-            &["event", "Event"],
             &[],
         ),
         registry_entry(
@@ -1221,7 +1057,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Events,
             CapabilityExecution::OverlayRead,
             true,
-            &["events", "Events"],
             &[],
         ),
         registry_entry(
@@ -1230,7 +1065,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Events,
             CapabilityExecution::OverlayRead,
             true,
-            &["eventsCount", "EventsCount"],
             &[],
         ),
         registry_entry(
@@ -1239,7 +1073,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["customers", "Customers"],
             &[],
         ),
         registry_entry(
@@ -1248,7 +1081,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             false,
-            &["customerAccountPages", "CustomerAccountPages"],
             &[],
         ),
         registry_entry(
@@ -1257,7 +1089,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["customersCount", "CustomersCount"],
             &[],
         ),
         registry_entry(
@@ -1266,7 +1097,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["customerByIdentifier", "CustomerByIdentifier"],
             &[],
         ),
         registry_entry(
@@ -1275,7 +1105,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             false,
-            &["customerMergePreview", "CustomerMergePreview"],
             &[],
         ),
         registry_entry(
@@ -1284,7 +1113,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::OverlayRead,
             true,
-            &["customerMergeJobStatus", "CustomerMergeJobStatus"],
             &["tests/graphql_routes/customers.rs"],
         ),
         registry_entry(
@@ -1293,7 +1121,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerCreate", "CustomerCreate"],
             &[],
         ),
         registry_entry(
@@ -1302,7 +1129,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerUpdate", "CustomerUpdate"],
             &[],
         ),
         registry_entry(
@@ -1311,7 +1137,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerDelete", "CustomerDelete"],
             &[],
         ),
         registry_entry(
@@ -1320,7 +1145,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerRequestDataErasure", "CustomerRequestDataErasure"],
             &["tests/graphql_routes/customers.rs"],
         ),
         registry_entry(
@@ -1329,7 +1153,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerCancelDataErasure", "CustomerCancelDataErasure"],
             &["tests/graphql_routes/customers.rs"],
         ),
         registry_entry(
@@ -1338,7 +1161,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerAddressCreate", "CustomerAddressCreate"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1347,7 +1169,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerAddressUpdate", "CustomerAddressUpdate"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1356,7 +1177,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerAddressDelete", "CustomerAddressDelete"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1365,10 +1185,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerUpdateDefaultAddress",
-                "CustomerUpdateDefaultAddress",
-            ],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1377,10 +1193,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerEmailMarketingConsentUpdate",
-                "CustomerEmailMarketingConsentUpdate",
-            ],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1389,10 +1201,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerSmsMarketingConsentUpdate",
-                "CustomerSmsMarketingConsentUpdate",
-            ],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1401,7 +1209,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1410,7 +1217,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerRemoveTaxExemptions", "CustomerRemoveTaxExemptions"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1419,10 +1225,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerReplaceTaxExemptions",
-                "CustomerReplaceTaxExemptions",
-            ],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -1431,7 +1233,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerSet", "CustomerSet"],
             &[],
         ),
         registry_entry(
@@ -1440,10 +1241,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "customerGenerateAccountActivationUrl",
-                "CustomerGenerateAccountActivationUrl",
-            ],
             &[],
         ),
         registry_entry(
@@ -1452,10 +1249,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "customerSendAccountInviteEmail",
-                "CustomerSendAccountInviteEmail",
-            ],
             &[],
         ),
         registry_entry(
@@ -1464,7 +1257,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["storeCreditAccountCredit", "StoreCreditAccountCredit"],
             &[],
         ),
         registry_entry(
@@ -1473,7 +1265,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["storeCreditAccountDebit", "StoreCreditAccountDebit"],
             &[],
         ),
         registry_entry(
@@ -1482,10 +1273,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "customerPaymentMethodSendUpdateEmail",
-                "CustomerPaymentMethodSendUpdateEmail",
-            ],
             &[],
         ),
         registry_entry(
@@ -1494,7 +1281,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
             true,
-            &["customerMerge", "CustomerMerge"],
             &[],
         ),
         registry_entry(
@@ -1503,7 +1289,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["sellingPlanGroupCreate", "SellingPlanGroupCreate"],
             &[],
         ),
         registry_entry(
@@ -1512,7 +1297,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["sellingPlanGroupUpdate", "SellingPlanGroupUpdate"],
             &[],
         ),
         registry_entry(
@@ -1521,7 +1305,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["sellingPlanGroupDelete", "SellingPlanGroupDelete"],
             &[],
         ),
         registry_entry(
@@ -1530,7 +1313,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["sellingPlanGroupAddProducts", "SellingPlanGroupAddProducts"],
             &[],
         ),
         registry_entry(
@@ -1539,10 +1321,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "sellingPlanGroupRemoveProducts",
-                "SellingPlanGroupRemoveProducts",
-            ],
             &[],
         ),
         registry_entry(
@@ -1551,10 +1329,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "sellingPlanGroupAddProductVariants",
-                "SellingPlanGroupAddProductVariants",
-            ],
             &[],
         ),
         registry_entry(
@@ -1563,10 +1337,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "sellingPlanGroupRemoveProductVariants",
-                "SellingPlanGroupRemoveProductVariants",
-            ],
             &[],
         ),
         registry_entry(
@@ -1575,10 +1345,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "productJoinSellingPlanGroups",
-                "ProductJoinSellingPlanGroups",
-            ],
             &[],
         ),
         registry_entry(
@@ -1587,10 +1353,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "productLeaveSellingPlanGroups",
-                "ProductLeaveSellingPlanGroups",
-            ],
             &[],
         ),
         registry_entry(
@@ -1599,10 +1361,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "productVariantJoinSellingPlanGroups",
-                "ProductVariantJoinSellingPlanGroups",
-            ],
             &[],
         ),
         registry_entry(
@@ -1611,13 +1369,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "productVariantLeaveSellingPlanGroups",
-                "ProductVariantLeaveSellingPlanGroups",
-            ],
             &[],
         ),
-        registry_entry(
+        registry_entry_aliased(
             "tagsAdd",
             OperationType::Mutation,
             CapabilityDomain::Products,
@@ -1626,7 +1380,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             &["tagsAdd"],
             &["tests/graphql_routes.rs"],
         ),
-        registry_entry(
+        registry_entry_aliased(
             "tagsRemove",
             OperationType::Mutation,
             CapabilityDomain::Products,
@@ -1641,10 +1395,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "bulkProductResourceFeedbackCreate",
-                "BulkProductResourceFeedbackCreate",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1653,7 +1403,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1662,7 +1411,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productCreate", "ProductCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1671,7 +1419,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productUpdate", "ProductUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1680,7 +1427,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productDelete", "ProductDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1689,7 +1435,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productDuplicate", "ProductDuplicate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1698,7 +1443,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productSet", "ProductSet"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1707,7 +1451,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productChangeStatus", "ProductChangeStatus"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1716,7 +1459,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productFeedCreate", "ProductFeedCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1725,7 +1467,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             false,
-            &["productFeedDelete", "ProductFeedDelete"],
             &[],
         ),
         registry_entry(
@@ -1734,7 +1475,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productFullSync", "ProductFullSync"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1743,7 +1483,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productBundleCreate", "ProductBundleCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1752,7 +1491,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productBundleUpdate", "ProductBundleUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1761,7 +1499,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             false,
-            &["combinedListingUpdate", "CombinedListingUpdate"],
             &[],
         ),
         registry_entry(
@@ -1770,7 +1507,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["publicationCreate", "PublicationCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1779,7 +1515,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["publicationUpdate", "PublicationUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1788,7 +1523,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["publicationDelete", "PublicationDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1797,7 +1531,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productPublish", "ProductPublish"],
             &["tests/graphql_routes/products_saved_searches.rs"],
         ),
         registry_entry(
@@ -1806,7 +1539,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productUnpublish", "ProductUnpublish"],
             &["tests/graphql_routes/products_saved_searches.rs"],
         ),
         registry_entry(
@@ -1815,7 +1547,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["locationAdd", "LocationAdd"],
             &[],
         ),
         registry_entry(
@@ -1824,7 +1555,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["locationEdit", "LocationEdit"],
             &[],
         ),
         registry_entry(
@@ -1833,7 +1563,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["locationActivate", "LocationActivate"],
             &[],
         ),
         registry_entry(
@@ -1842,7 +1571,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["locationDeactivate", "LocationDeactivate"],
             &[],
         ),
         registry_entry(
@@ -1851,7 +1579,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["locationDelete", "LocationDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1860,7 +1587,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["publishablePublish", "PublishablePublish"],
             &[],
         ),
         registry_entry(
@@ -1869,10 +1595,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "publishablePublishToCurrentChannel",
-                "PublishablePublishToCurrentChannel",
-            ],
             &[],
         ),
         registry_entry(
@@ -1881,7 +1603,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["publishableUnpublish", "PublishableUnpublish"],
             &[],
         ),
         registry_entry(
@@ -1890,10 +1611,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "publishableUnpublishToCurrentChannel",
-                "PublishableUnpublishToCurrentChannel",
-            ],
             &[],
         ),
         registry_entry(
@@ -1902,7 +1619,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
             true,
-            &["shopPolicyUpdate", "ShopPolicyUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1911,7 +1627,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["productSavedSearches", "ProductSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1920,7 +1635,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["collectionSavedSearches", "CollectionSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1929,7 +1643,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["customerSavedSearches", "CustomerSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1938,7 +1651,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["orderSavedSearches", "OrderSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1947,7 +1659,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["draftOrderSavedSearches", "DraftOrderSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1956,7 +1667,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["fileSavedSearches", "FileSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1965,7 +1675,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1974,10 +1683,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "automaticDiscountSavedSearches",
-                "AutomaticDiscountSavedSearches",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1986,10 +1691,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "discountRedeemCodeSavedSearches",
-                "DiscountRedeemCodeSavedSearches",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -1998,7 +1699,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::StageLocally,
             true,
-            &["savedSearchCreate", "SavedSearchCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2007,7 +1707,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::StageLocally,
             true,
-            &["savedSearchUpdate", "SavedSearchUpdate"],
             &[],
         ),
         registry_entry(
@@ -2016,7 +1715,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::SavedSearches,
             CapabilityExecution::StageLocally,
             true,
-            &["savedSearchDelete", "SavedSearchDelete"],
             &[],
         ),
         registry_entry(
@@ -2025,7 +1723,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["urlRedirectSavedSearches", "UrlRedirectSavedSearches"],
             &[],
         ),
         registry_entry(
@@ -2034,7 +1731,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["urlRedirect", "UrlRedirect"],
             &[],
         ),
         registry_entry(
@@ -2043,7 +1739,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["urlRedirects", "UrlRedirects"],
             &[],
         ),
         registry_entry(
@@ -2052,7 +1747,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["urlRedirectsCount", "UrlRedirectsCount"],
             &[],
         ),
         registry_entry(
@@ -2061,7 +1755,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectCreate", "UrlRedirectCreate"],
             &[],
         ),
         registry_entry(
@@ -2070,7 +1763,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectUpdate", "UrlRedirectUpdate"],
             &[],
         ),
         registry_entry(
@@ -2079,7 +1771,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectDelete", "UrlRedirectDelete"],
             &[],
         ),
         registry_entry(
@@ -2088,7 +1779,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectBulkDeleteAll", "UrlRedirectBulkDeleteAll"],
             &[],
         ),
         registry_entry(
@@ -2097,7 +1787,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectBulkDeleteByIds", "UrlRedirectBulkDeleteByIds"],
             &[],
         ),
         registry_entry(
@@ -2106,10 +1795,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "urlRedirectBulkDeleteBySavedSearch",
-                "UrlRedirectBulkDeleteBySavedSearch",
-            ],
             &[],
         ),
         registry_entry(
@@ -2118,10 +1803,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "urlRedirectBulkDeleteBySearch",
-                "UrlRedirectBulkDeleteBySearch",
-            ],
             &[],
         ),
         registry_entry(
@@ -2130,7 +1811,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectImportCreate", "UrlRedirectImportCreate"],
             &[],
         ),
         registry_entry(
@@ -2139,7 +1819,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["urlRedirectImportSubmit", "UrlRedirectImportSubmit"],
             &[],
         ),
         registry_entry(
@@ -2148,7 +1827,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["article", "Article"],
             &[],
         ),
         registry_entry(
@@ -2157,7 +1835,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["articleAuthors", "ArticleAuthors"],
             &[],
         ),
         registry_entry(
@@ -2166,7 +1843,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["articles", "Articles"],
             &[],
         ),
         registry_entry(
@@ -2175,7 +1851,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["articleTags", "ArticleTags"],
             &[],
         ),
         registry_entry(
@@ -2184,7 +1859,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["articleCreate", "ArticleCreate"],
             &[],
         ),
         registry_entry(
@@ -2193,7 +1867,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["articleUpdate", "ArticleUpdate"],
             &[],
         ),
         registry_entry(
@@ -2202,7 +1875,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["articleDelete", "ArticleDelete"],
             &[],
         ),
         registry_entry(
@@ -2211,7 +1883,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["blog", "Blog"],
             &[],
         ),
         registry_entry(
@@ -2220,7 +1891,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["blogs", "Blogs"],
             &[],
         ),
         registry_entry(
@@ -2229,7 +1899,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["blogsCount", "BlogsCount"],
             &[],
         ),
         registry_entry(
@@ -2238,7 +1907,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["blogCreate", "BlogCreate"],
             &[],
         ),
         registry_entry(
@@ -2247,7 +1915,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["blogUpdate", "BlogUpdate"],
             &[],
         ),
         registry_entry(
@@ -2256,7 +1923,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["blogDelete", "BlogDelete"],
             &[],
         ),
         registry_entry(
@@ -2265,7 +1931,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["page", "Page"],
             &[],
         ),
         registry_entry(
@@ -2274,7 +1939,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["pages", "Pages"],
             &[],
         ),
         registry_entry(
@@ -2283,7 +1947,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["pagesCount", "PagesCount"],
             &[],
         ),
         registry_entry(
@@ -2292,7 +1955,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["pageCreate", "PageCreate"],
             &[],
         ),
         registry_entry(
@@ -2301,7 +1963,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["pageUpdate", "PageUpdate"],
             &[],
         ),
         registry_entry(
@@ -2310,7 +1971,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["pageDelete", "PageDelete"],
             &[],
         ),
         registry_entry(
@@ -2319,7 +1979,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["comment", "Comment"],
             &[],
         ),
         registry_entry(
@@ -2328,7 +1987,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["comments", "Comments"],
             &[],
         ),
         registry_entry(
@@ -2337,7 +1995,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["commentApprove", "CommentApprove"],
             &[],
         ),
         registry_entry(
@@ -2346,7 +2003,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["commentSpam", "CommentSpam"],
             &[],
         ),
         registry_entry(
@@ -2355,7 +2011,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["commentNotSpam", "CommentNotSpam"],
             &[],
         ),
         registry_entry(
@@ -2364,7 +2019,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["commentDelete", "CommentDelete"],
             &[],
         ),
         registry_entry(
@@ -2373,7 +2027,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["menu", "Menu"],
             &[],
         ),
         registry_entry(
@@ -2382,7 +2035,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             false,
-            &["menus", "Menus"],
             &[],
         ),
         registry_entry(
@@ -2391,7 +2043,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["theme", "Theme"],
             &[],
         ),
         registry_entry(
@@ -2400,7 +2051,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["themes", "Themes"],
             &[],
         ),
         registry_entry(
@@ -2409,7 +2059,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["scriptTag", "ScriptTag"],
             &[],
         ),
         registry_entry(
@@ -2418,7 +2067,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["scriptTags", "ScriptTags"],
             &[],
         ),
         registry_entry(
@@ -2427,7 +2075,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["webPixel", "WebPixel"],
             &[],
         ),
         registry_entry(
@@ -2436,7 +2083,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["serverPixel", "ServerPixel"],
             &[],
         ),
         registry_entry(
@@ -2445,7 +2091,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["mobilePlatformApplication", "MobilePlatformApplication"],
             &[],
         ),
         registry_entry(
@@ -2454,7 +2099,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
             true,
-            &["mobilePlatformApplications", "MobilePlatformApplications"],
             &[],
         ),
         registry_entry(
@@ -2463,7 +2107,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["menuCreate", "MenuCreate"],
             &[],
         ),
         registry_entry(
@@ -2472,7 +2115,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["menuUpdate", "MenuUpdate"],
             &[],
         ),
         registry_entry(
@@ -2481,7 +2123,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["menuDelete", "MenuDelete"],
             &[],
         ),
         registry_entry(
@@ -2490,7 +2131,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeCreate", "ThemeCreate"],
             &[],
         ),
         registry_entry(
@@ -2499,7 +2139,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeUpdate", "ThemeUpdate"],
             &[],
         ),
         registry_entry(
@@ -2508,7 +2147,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeDelete", "ThemeDelete"],
             &[],
         ),
         registry_entry(
@@ -2517,7 +2155,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themePublish", "ThemePublish"],
             &[],
         ),
         registry_entry(
@@ -2526,7 +2163,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeFilesCopy", "ThemeFilesCopy"],
             &[],
         ),
         registry_entry(
@@ -2535,7 +2171,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeFilesUpsert", "ThemeFilesUpsert"],
             &[],
         ),
         registry_entry(
@@ -2544,7 +2179,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["themeFilesDelete", "ThemeFilesDelete"],
             &[],
         ),
         registry_entry(
@@ -2553,7 +2187,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["scriptTagCreate", "ScriptTagCreate"],
             &[],
         ),
         registry_entry(
@@ -2562,7 +2195,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["scriptTagUpdate", "ScriptTagUpdate"],
             &[],
         ),
         registry_entry(
@@ -2571,7 +2203,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["scriptTagDelete", "ScriptTagDelete"],
             &[],
         ),
         registry_entry(
@@ -2580,7 +2211,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["webPixelCreate", "WebPixelCreate"],
             &[],
         ),
         registry_entry(
@@ -2589,7 +2219,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["webPixelUpdate", "WebPixelUpdate"],
             &[],
         ),
         registry_entry(
@@ -2598,7 +2227,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["webPixelDelete", "WebPixelDelete"],
             &[],
         ),
         registry_entry(
@@ -2607,7 +2235,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["serverPixelCreate", "ServerPixelCreate"],
             &[],
         ),
         registry_entry(
@@ -2616,7 +2243,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["serverPixelDelete", "ServerPixelDelete"],
             &[],
         ),
         registry_entry(
@@ -2625,10 +2251,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "eventBridgeServerPixelUpdate",
-                "EventBridgeServerPixelUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -2637,7 +2259,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["pubSubServerPixelUpdate", "PubSubServerPixelUpdate"],
             &[],
         ),
         registry_entry(
@@ -2646,7 +2267,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &["storefrontAccessTokenCreate", "StorefrontAccessTokenCreate"],
             &[],
         ),
         registry_entry(
@@ -2655,7 +2275,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &["storefrontAccessTokenDelete", "StorefrontAccessTokenDelete"],
             &[],
         ),
         registry_entry(
@@ -2664,10 +2283,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "mobilePlatformApplicationCreate",
-                "MobilePlatformApplicationCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -2676,10 +2291,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "mobilePlatformApplicationUpdate",
-                "MobilePlatformApplicationUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -2688,10 +2299,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "mobilePlatformApplicationDelete",
-                "MobilePlatformApplicationDelete",
-            ],
             &[],
         ),
         registry_entry(
@@ -2700,7 +2307,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::OverlayRead,
             false,
-            &["privacySettings", "PrivacySettings"],
             &[],
         ),
         registry_entry(
@@ -2709,7 +2315,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::OverlayRead,
             false,
-            &["consentPolicy", "ConsentPolicy"],
             &[],
         ),
         registry_entry(
@@ -2718,7 +2323,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::OverlayRead,
             false,
-            &["consentPolicyRegions", "ConsentPolicyRegions"],
             &[],
         ),
         registry_entry(
@@ -2727,7 +2331,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::StageLocally,
             false,
-            &["consentPolicyUpdate", "ConsentPolicyUpdate"],
             &[],
         ),
         registry_entry(
@@ -2736,7 +2339,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::StageLocally,
             false,
-            &["privacyFeaturesDisable", "PrivacyFeaturesDisable"],
             &[],
         ),
         registry_entry(
@@ -2745,7 +2347,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Privacy,
             CapabilityExecution::StageLocally,
             true,
-            &["dataSaleOptOut", "DataSaleOptOut"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -2754,7 +2355,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::OverlayRead,
             true,
-            &["bulkOperation", "BulkOperation"],
             &[],
         ),
         registry_entry(
@@ -2763,7 +2363,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::OverlayRead,
             true,
-            &["bulkOperations", "BulkOperations"],
             &[],
         ),
         registry_entry(
@@ -2772,7 +2371,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::OverlayRead,
             true,
-            &["currentBulkOperation", "CurrentBulkOperation"],
             &[],
         ),
         registry_entry(
@@ -2781,7 +2379,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::StageLocally,
             true,
-            &["bulkOperationRunQuery", "BulkOperationRunQuery"],
             &[],
         ),
         registry_entry(
@@ -2790,7 +2387,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::StageLocally,
             true,
-            &["bulkOperationRunMutation", "BulkOperationRunMutation"],
             &[],
         ),
         registry_entry(
@@ -2799,7 +2395,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::BulkOperations,
             CapabilityExecution::StageLocally,
             true,
-            &["bulkOperationCancel", "BulkOperationCancel"],
             &[],
         ),
         registry_entry(
@@ -2808,7 +2403,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productOptionsCreate", "ProductOptionsCreate"],
             &[],
         ),
         registry_entry(
@@ -2817,7 +2411,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productOptionUpdate", "ProductOptionUpdate"],
             &[],
         ),
         registry_entry(
@@ -2826,7 +2419,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productOptionsDelete", "ProductOptionsDelete"],
             &[],
         ),
         registry_entry(
@@ -2835,7 +2427,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productOptionsReorder", "ProductOptionsReorder"],
             &[],
         ),
         registry_entry(
@@ -2844,7 +2435,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantsBulkCreate", "ProductVariantsBulkCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2853,7 +2443,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantsBulkUpdate", "ProductVariantsBulkUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2862,7 +2451,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2871,7 +2459,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantsBulkReorder", "ProductVariantsBulkReorder"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2880,7 +2467,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantCreate", "ProductVariantCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2889,7 +2475,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantUpdate", "ProductVariantUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2898,7 +2483,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantDelete", "ProductVariantDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2907,7 +2491,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productCreateMedia", "ProductCreateMedia"],
             &[],
         ),
         registry_entry(
@@ -2916,7 +2499,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productUpdateMedia", "ProductUpdateMedia"],
             &[],
         ),
         registry_entry(
@@ -2925,7 +2507,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productDeleteMedia", "ProductDeleteMedia"],
             &[],
         ),
         registry_entry(
@@ -2934,7 +2515,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productReorderMedia", "ProductReorderMedia"],
             &[],
         ),
         registry_entry(
@@ -2943,7 +2523,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantAppendMedia", "ProductVariantAppendMedia"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2952,7 +2531,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["productVariantDetachMedia", "ProductVariantDetachMedia"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2961,10 +2539,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "productVariantRelationshipBulkUpdate",
-                "ProductVariantRelationshipBulkUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -2973,7 +2547,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryItemUpdate", "InventoryItemUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2982,7 +2555,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -2991,7 +2563,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventorySetQuantities", "InventorySetQuantities"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3000,10 +2571,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "inventorySetOnHandQuantities",
-                "InventorySetOnHandQuantities",
-            ],
             &[],
         ),
         registry_entry(
@@ -3012,7 +2579,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryMoveQuantities", "InventoryMoveQuantities"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3021,7 +2587,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryActivate", "InventoryActivate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3030,7 +2595,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryDeactivate", "InventoryDeactivate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3039,10 +2603,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryBulkToggleActivation",
-                "InventoryBulkToggleActivation",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3051,7 +2611,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferCreate", "InventoryTransferCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3060,10 +2619,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryTransferCreateAsReadyToShip",
-                "InventoryTransferCreateAsReadyToShip",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3072,7 +2627,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferEdit", "InventoryTransferEdit"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3081,7 +2635,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferSetItems", "InventoryTransferSetItems"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3090,10 +2643,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryTransferRemoveItems",
-                "InventoryTransferRemoveItems",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3102,10 +2651,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryTransferMarkAsReadyToShip",
-                "InventoryTransferMarkAsReadyToShip",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3114,7 +2659,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferDuplicate", "InventoryTransferDuplicate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3123,7 +2667,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferCancel", "InventoryTransferCancel"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3132,7 +2675,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryTransferDelete", "InventoryTransferDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3141,7 +2683,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryShipmentCreate", "InventoryShipmentCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3150,10 +2691,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryShipmentCreateInTransit",
-                "InventoryShipmentCreateInTransit",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3162,7 +2699,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryShipmentAddItems", "InventoryShipmentAddItems"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3171,10 +2707,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryShipmentRemoveItems",
-                "InventoryShipmentRemoveItems",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3183,10 +2715,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryShipmentUpdateItemQuantities",
-                "InventoryShipmentUpdateItemQuantities",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3195,10 +2723,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryShipmentSetTracking",
-                "InventoryShipmentSetTracking",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3207,10 +2731,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "inventoryShipmentMarkInTransit",
-                "InventoryShipmentMarkInTransit",
-            ],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3219,7 +2739,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryShipmentReceive", "InventoryShipmentReceive"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3228,7 +2747,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["inventoryShipmentDelete", "InventoryShipmentDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3237,7 +2755,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldsSet", "MetafieldsSet"],
             &[],
         ),
         registry_entry(
@@ -3246,7 +2763,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldsDelete", "MetafieldsDelete"],
             &[],
         ),
         registry_entry(
@@ -3255,7 +2771,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             false,
-            &["metafieldDelete", "MetafieldDelete"],
             &[],
         ),
         registry_entry(
@@ -3264,7 +2779,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::OverlayRead,
             true,
-            &["metafieldDefinition", "MetafieldDefinition"],
             &[],
         ),
         registry_entry(
@@ -3273,7 +2787,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::OverlayRead,
             true,
-            &["metafieldDefinitions", "MetafieldDefinitions"],
             &[],
         ),
         registry_entry(
@@ -3282,10 +2795,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::OverlayRead,
             false,
-            &[
-                "standardMetafieldDefinitionTemplates",
-                "StandardMetafieldDefinitionTemplates",
-            ],
             &[],
         ),
         registry_entry(
@@ -3294,7 +2803,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
             &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
@@ -3303,7 +2811,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
             &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
@@ -3312,7 +2819,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
             &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
@@ -3321,7 +2827,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldDefinitionPin", "MetafieldDefinitionPin"],
             &[],
         ),
         registry_entry(
@@ -3330,7 +2835,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
             &[],
         ),
         registry_entry(
@@ -3339,10 +2843,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "standardMetafieldDefinitionEnable",
-                "StandardMetafieldDefinitionEnable",
-            ],
             &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
@@ -3351,7 +2851,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobject", "Metaobject"],
             &[],
         ),
         registry_entry(
@@ -3360,7 +2859,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobjectByHandle", "MetaobjectByHandle"],
             &[],
         ),
         registry_entry(
@@ -3369,7 +2867,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobjects", "Metaobjects"],
             &[],
         ),
         registry_entry(
@@ -3378,7 +2875,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobjectDefinition", "MetaobjectDefinition"],
             &[],
         ),
         registry_entry(
@@ -3387,7 +2883,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
             &[],
         ),
         registry_entry(
@@ -3396,7 +2891,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::OverlayRead,
             true,
-            &["metaobjectDefinitions", "MetaobjectDefinitions"],
             &[],
         ),
         registry_entry(
@@ -3405,7 +2899,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectCreate", "MetaobjectCreate"],
             &[],
         ),
         registry_entry(
@@ -3414,7 +2907,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectUpdate", "MetaobjectUpdate"],
             &[],
         ),
         registry_entry(
@@ -3423,7 +2915,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectUpsert", "MetaobjectUpsert"],
             &[],
         ),
         registry_entry(
@@ -3432,7 +2923,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectDelete", "MetaobjectDelete"],
             &[],
         ),
         registry_entry(
@@ -3441,7 +2931,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             false,
-            &["metaobjectBulkDelete", "MetaobjectBulkDelete"],
             &[],
         ),
         registry_entry(
@@ -3450,7 +2939,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
             &[],
         ),
         registry_entry(
@@ -3459,7 +2947,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
             &[],
         ),
         registry_entry(
@@ -3468,7 +2955,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             true,
-            &["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
             &[],
         ),
         registry_entry(
@@ -3477,10 +2963,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "standardMetaobjectDefinitionEnable",
-                "StandardMetaobjectDefinitionEnable",
-            ],
             &[],
         ),
         registry_entry(
@@ -3489,7 +2971,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionCreate", "CollectionCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3498,7 +2979,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionUpdate", "CollectionUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3507,7 +2987,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionDelete", "CollectionDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3516,7 +2995,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionAddProducts", "CollectionAddProducts"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3525,7 +3003,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionAddProductsV2", "CollectionAddProductsV2"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3534,7 +3011,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionRemoveProducts", "CollectionRemoveProducts"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3543,7 +3019,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Products,
             CapabilityExecution::StageLocally,
             true,
-            &["collectionReorderProducts", "CollectionReorderProducts"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3552,7 +3027,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["order", "Order"],
             &[],
         ),
         registry_entry(
@@ -3561,7 +3035,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["return", "Return"],
             &[],
         ),
         registry_entry(
@@ -3570,7 +3043,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["orders", "Orders"],
             &[],
         ),
         registry_entry(
@@ -3579,7 +3051,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["ordersCount", "OrdersCount"],
             &[],
         ),
         registry_entry(
@@ -3588,7 +3059,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["returnCalculate", "ReturnCalculate"],
             &[],
         ),
         registry_entry(
@@ -3597,7 +3067,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["returnableFulfillment", "ReturnableFulfillment"],
             &[],
         ),
         registry_entry(
@@ -3606,7 +3075,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["returnableFulfillments", "ReturnableFulfillments"],
             &[],
         ),
         registry_entry(
@@ -3615,7 +3083,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["reverseDelivery", "ReverseDelivery"],
             &[],
         ),
         registry_entry(
@@ -3624,7 +3091,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
             &[],
         ),
         registry_entry(
@@ -3633,7 +3099,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["abandonedCheckouts", "AbandonedCheckouts"],
             &[],
         ),
         registry_entry(
@@ -3642,7 +3107,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
             &[],
         ),
         registry_entry(
@@ -3651,7 +3115,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["abandonment", "Abandonment"],
             &[],
         ),
         registry_entry(
@@ -3660,10 +3123,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &[
-                "abandonmentByAbandonedCheckoutId",
-                "AbandonmentByAbandonedCheckoutId",
-            ],
             &[],
         ),
         registry_entry(
@@ -3672,7 +3131,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderUpdate", "OrderUpdate"],
             &[],
         ),
         registry_entry(
@@ -3681,7 +3139,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderClose", "OrderClose"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3690,7 +3147,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderOpen", "OrderOpen"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -3699,7 +3155,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderMarkAsPaid", "OrderMarkAsPaid"],
             &[],
         ),
         registry_entry(
@@ -3708,7 +3163,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             false,
-            &["orderCreateManualPayment", "OrderCreateManualPayment"],
             &[],
         ),
         registry_entry(
@@ -3717,7 +3171,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             false,
-            &["orderRiskAssessmentCreate", "OrderRiskAssessmentCreate"],
             &[],
         ),
         registry_entry(
@@ -3726,10 +3179,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodCreateFromDuplicationData",
-                "CustomerPaymentMethodCreateFromDuplicationData",
-            ],
             &[],
         ),
         registry_entry(
@@ -3738,10 +3187,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodCreditCardCreate",
-                "CustomerPaymentMethodCreditCardCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3750,10 +3195,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodCreditCardUpdate",
-                "CustomerPaymentMethodCreditCardUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3762,10 +3203,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodGetDuplicationData",
-                "CustomerPaymentMethodGetDuplicationData",
-            ],
             &[],
         ),
         registry_entry(
@@ -3774,10 +3211,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodGetUpdateUrl",
-                "CustomerPaymentMethodGetUpdateUrl",
-            ],
             &[],
         ),
         registry_entry(
@@ -3786,10 +3219,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodPaypalBillingAgreementCreate",
-                "CustomerPaymentMethodPaypalBillingAgreementCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3798,10 +3227,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodPaypalBillingAgreementUpdate",
-                "CustomerPaymentMethodPaypalBillingAgreementUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3810,10 +3235,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerPaymentMethodRemoteCreate",
-                "CustomerPaymentMethodRemoteCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3822,7 +3243,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["customerPaymentMethodRevoke", "CustomerPaymentMethodRevoke"],
             &[],
         ),
         registry_entry(
@@ -3831,7 +3251,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCapture", "OrderCapture"],
             &[],
         ),
         registry_entry(
@@ -3840,7 +3259,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCreateMandatePayment", "OrderCreateMandatePayment"],
             &[],
         ),
         registry_entry(
@@ -3849,10 +3267,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "paymentCustomizationActivation",
-                "PaymentCustomizationActivation",
-            ],
             &[],
         ),
         registry_entry(
@@ -3861,7 +3275,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentCustomizationCreate", "PaymentCustomizationCreate"],
             &[],
         ),
         registry_entry(
@@ -3870,7 +3283,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentCustomizationDelete", "PaymentCustomizationDelete"],
             &[],
         ),
         registry_entry(
@@ -3879,7 +3291,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
             &[],
         ),
         registry_entry(
@@ -3888,7 +3299,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["validationCreate", "ValidationCreate"],
             &[],
         ),
         registry_entry(
@@ -3897,7 +3307,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["validationUpdate", "ValidationUpdate"],
             &[],
         ),
         registry_entry(
@@ -3906,7 +3315,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["validationDelete", "ValidationDelete"],
             &[],
         ),
         registry_entry(
@@ -3915,7 +3323,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["cartTransformCreate", "CartTransformCreate"],
             &[],
         ),
         registry_entry(
@@ -3924,7 +3331,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["cartTransformDelete", "CartTransformDelete"],
             &[],
         ),
         registry_entry(
@@ -3933,7 +3339,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &["taxAppConfigure", "TaxAppConfigure"],
             &[],
         ),
         registry_entry(
@@ -3942,7 +3347,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentReminderSend", "PaymentReminderSend"],
             &[],
         ),
         registry_entry(
@@ -3951,7 +3355,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentTermsCreate", "PaymentTermsCreate"],
             &[],
         ),
         registry_entry(
@@ -3960,7 +3363,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentTermsDelete", "PaymentTermsDelete"],
             &[],
         ),
         registry_entry(
@@ -3969,7 +3371,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["paymentTermsUpdate", "PaymentTermsUpdate"],
             &[],
         ),
         registry_entry(
@@ -3978,7 +3379,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             false,
-            &["disputeEvidenceUpdate", "DisputeEvidenceUpdate"],
             &[],
         ),
         registry_entry(
@@ -3987,10 +3387,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "shopifyPaymentsPayoutAlternateCurrencyCreate",
-                "ShopifyPaymentsPayoutAlternateCurrencyCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -3999,7 +3395,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Payments,
             CapabilityExecution::StageLocally,
             true,
-            &["transactionVoid", "TransactionVoid"],
             &[],
         ),
         registry_entry(
@@ -4008,7 +3403,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCustomerSet", "OrderCustomerSet"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -4017,7 +3411,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCustomerRemove", "OrderCustomerRemove"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -4026,7 +3419,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             false,
-            &["orderInvoiceSend", "OrderInvoiceSend"],
             &[],
         ),
         registry_entry(
@@ -4035,7 +3427,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             false,
-            &["taxSummaryCreate", "TaxSummaryCreate"],
             &[],
         ),
         registry_entry(
@@ -4044,7 +3435,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCancel", "OrderCancel"],
             &[],
         ),
         registry_entry(
@@ -4053,7 +3443,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentCreate", "FulfillmentCreate"],
             &[],
         ),
         registry_entry(
@@ -4062,10 +3451,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentTrackingInfoUpdate",
-                "FulfillmentTrackingInfoUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -4074,7 +3459,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentCancel", "FulfillmentCancel"],
             &[],
         ),
         registry_entry(
@@ -4083,7 +3467,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["fulfillment", "Fulfillment"],
             &["tests/graphql_routes/orders.rs"],
         ),
         registry_entry(
@@ -4092,7 +3475,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentEventCreate", "FulfillmentEventCreate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -4101,7 +3483,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
             &[],
         ),
         registry_entry(
@@ -4110,7 +3491,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["fulfillmentOrder", "FulfillmentOrder"],
             &[],
         ),
         registry_entry(
@@ -4119,7 +3499,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["fulfillmentOrders", "FulfillmentOrders"],
             &[],
         ),
         registry_entry(
@@ -4128,10 +3507,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "manualHoldsFulfillmentOrders",
-                "ManualHoldsFulfillmentOrders",
-            ],
             &[],
         ),
         registry_entry(
@@ -4140,10 +3515,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderAcceptCancellationRequest",
-                "FulfillmentOrderAcceptCancellationRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4152,10 +3523,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderAcceptFulfillmentRequest",
-                "FulfillmentOrderAcceptFulfillmentRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4164,7 +3531,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
             &[],
         ),
         registry_entry(
@@ -4173,7 +3539,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderClose", "FulfillmentOrderClose"],
             &[],
         ),
         registry_entry(
@@ -4182,7 +3547,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderHold", "FulfillmentOrderHold"],
             &[],
         ),
         registry_entry(
@@ -4191,10 +3555,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "fulfillmentOrderLineItemsPreparedForPickup",
-                "FulfillmentOrderLineItemsPreparedForPickup",
-            ],
             &[],
         ),
         registry_entry(
@@ -4203,7 +3563,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderMerge", "FulfillmentOrderMerge"],
             &[],
         ),
         registry_entry(
@@ -4212,7 +3571,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderMove", "FulfillmentOrderMove"],
             &[],
         ),
         registry_entry(
@@ -4221,7 +3579,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
             &[],
         ),
         registry_entry(
@@ -4230,10 +3587,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderRejectCancellationRequest",
-                "FulfillmentOrderRejectCancellationRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4242,10 +3595,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderRejectFulfillmentRequest",
-                "FulfillmentOrderRejectFulfillmentRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4254,7 +3603,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderReleaseHold", "FulfillmentOrderReleaseHold"],
             &[],
         ),
         registry_entry(
@@ -4263,10 +3611,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderReportProgress",
-                "FulfillmentOrderReportProgress",
-            ],
             &[],
         ),
         registry_entry(
@@ -4275,7 +3619,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
             &[],
         ),
         registry_entry(
@@ -4284,7 +3627,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrdersReroute", "FulfillmentOrdersReroute"],
             &[],
         ),
         registry_entry(
@@ -4293,10 +3635,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrdersSetFulfillmentDeadline",
-                "FulfillmentOrdersSetFulfillmentDeadline",
-            ],
             &[],
         ),
         registry_entry(
@@ -4305,7 +3643,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentOrderSplit", "FulfillmentOrderSplit"],
             &[],
         ),
         registry_entry(
@@ -4314,10 +3651,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderSubmitCancellationRequest",
-                "FulfillmentOrderSubmitCancellationRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4326,10 +3659,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentOrderSubmitFulfillmentRequest",
-                "FulfillmentOrderSubmitFulfillmentRequest",
-            ],
             &[],
         ),
         registry_entry(
@@ -4338,7 +3667,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["fulfillmentService", "FulfillmentService"],
             &[],
         ),
         registry_entry(
@@ -4347,7 +3675,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentServiceCreate", "FulfillmentServiceCreate"],
             &[],
         ),
         registry_entry(
@@ -4356,7 +3683,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
             &[],
         ),
         registry_entry(
@@ -4365,7 +3691,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["fulfillmentServiceUpdate", "FulfillmentServiceUpdate"],
             &[],
         ),
         registry_entry(
@@ -4374,7 +3699,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["availableCarrierServices", "AvailableCarrierServices"],
             &[],
         ),
         registry_entry(
@@ -4383,7 +3707,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["carrierService", "CarrierService"],
             &[],
         ),
         registry_entry(
@@ -4392,7 +3715,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["carrierServices", "CarrierServices"],
             &[],
         ),
         registry_entry(
@@ -4401,7 +3723,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["carrierServiceCreate", "CarrierServiceCreate"],
             &[],
         ),
         registry_entry(
@@ -4410,7 +3731,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["carrierServiceDelete", "CarrierServiceDelete"],
             &[],
         ),
         registry_entry(
@@ -4419,7 +3739,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["carrierServiceUpdate", "CarrierServiceUpdate"],
             &[],
         ),
         registry_entry(
@@ -4428,7 +3747,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::OverlayRead,
             true,
-            &["giftCard", "GiftCard"],
             &[],
         ),
         registry_entry(
@@ -4437,7 +3755,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::OverlayRead,
             true,
-            &["giftCards", "GiftCards"],
             &[],
         ),
         registry_entry(
@@ -4446,7 +3763,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::OverlayRead,
             true,
-            &["giftCardsCount", "GiftCardsCount"],
             &[],
         ),
         registry_entry(
@@ -4455,7 +3771,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::OverlayRead,
             true,
-            &["giftCardConfiguration", "GiftCardConfiguration"],
             &[],
         ),
         registry_entry(
@@ -4464,7 +3779,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &["giftCardCreate", "GiftCardCreate"],
             &[],
         ),
         registry_entry(
@@ -4473,7 +3787,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &["giftCardUpdate", "GiftCardUpdate"],
             &[],
         ),
         registry_entry(
@@ -4482,7 +3795,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &["giftCardCredit", "GiftCardCredit"],
             &[],
         ),
         registry_entry(
@@ -4491,7 +3803,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &["giftCardDebit", "GiftCardDebit"],
             &[],
         ),
         registry_entry(
@@ -4500,7 +3811,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &["giftCardDeactivate", "GiftCardDeactivate"],
             &[],
         ),
         registry_entry(
@@ -4509,10 +3819,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "giftCardSendNotificationToCustomer",
-                "GiftCardSendNotificationToCustomer",
-            ],
             &[],
         ),
         registry_entry(
@@ -4521,10 +3827,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::GiftCards,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "giftCardSendNotificationToRecipient",
-                "GiftCardSendNotificationToRecipient",
-            ],
             &[],
         ),
         registry_entry(
@@ -4533,7 +3835,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             false,
-            &["deliveryCustomization", "DeliveryCustomization"],
             &[],
         ),
         registry_entry(
@@ -4542,7 +3843,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             false,
-            &["deliveryCustomizations", "DeliveryCustomizations"],
             &[],
         ),
         registry_entry(
@@ -4551,7 +3851,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             false,
-            &["deliveryPromiseParticipants", "DeliveryPromiseParticipants"],
             &[],
         ),
         registry_entry(
@@ -4560,7 +3859,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             false,
-            &["deliveryPromiseProvider", "DeliveryPromiseProvider"],
             &[],
         ),
         registry_entry(
@@ -4569,7 +3867,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["deliveryPromiseSettings", "DeliveryPromiseSettings"],
             &[],
         ),
         registry_entry(
@@ -4578,7 +3875,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["deliverySettings", "DeliverySettings"],
             &[],
         ),
         registry_entry(
@@ -4587,7 +3883,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["deliveryProfile", "DeliveryProfile"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4596,7 +3891,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &["deliveryProfiles", "DeliveryProfiles"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4605,10 +3899,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "locationsAvailableForDeliveryProfilesConnection",
-                "LocationsAvailableForDeliveryProfilesConnection",
-            ],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4617,7 +3907,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["locationLocalPickupDisable", "LocationLocalPickupDisable"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4626,7 +3915,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["locationLocalPickupEnable", "LocationLocalPickupEnable"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4635,7 +3923,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["shippingPackageDelete", "ShippingPackageDelete"],
             &[],
         ),
         registry_entry(
@@ -4644,7 +3931,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["shippingPackageMakeDefault", "ShippingPackageMakeDefault"],
             &[],
         ),
         registry_entry(
@@ -4653,7 +3939,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["shippingPackageUpdate", "ShippingPackageUpdate"],
             &[],
         ),
         registry_entry(
@@ -4662,7 +3947,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::OverlayRead,
             true,
-            &["fulfillmentConstraintRules", "FulfillmentConstraintRules"],
             &["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
         ),
         registry_entry(
@@ -4671,10 +3955,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentConstraintRuleCreate",
-                "FulfillmentConstraintRuleCreate",
-            ],
             &["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
         ),
         registry_entry(
@@ -4683,10 +3963,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentConstraintRuleDelete",
-                "FulfillmentConstraintRuleDelete",
-            ],
             &["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
         ),
         registry_entry(
@@ -4695,10 +3971,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Functions,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "fulfillmentConstraintRuleUpdate",
-                "FulfillmentConstraintRuleUpdate",
-            ],
             &["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
         ),
         registry_entry(
@@ -4707,7 +3979,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["deliveryProfileCreate", "DeliveryProfileCreate"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4716,7 +3987,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["deliveryProfileRemove", "DeliveryProfileRemove"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4725,7 +3995,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &["deliveryProfileUpdate", "DeliveryProfileUpdate"],
             &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
@@ -4734,10 +4003,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "deliveryCustomizationActivation",
-                "DeliveryCustomizationActivation",
-            ],
             &[],
         ),
         registry_entry(
@@ -4746,7 +4011,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &["deliveryCustomizationCreate", "DeliveryCustomizationCreate"],
             &[],
         ),
         registry_entry(
@@ -4755,7 +4019,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &["deliveryCustomizationDelete", "DeliveryCustomizationDelete"],
             &[],
         ),
         registry_entry(
@@ -4764,7 +4027,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &["deliveryCustomizationUpdate", "DeliveryCustomizationUpdate"],
             &[],
         ),
         registry_entry(
@@ -4773,10 +4035,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "deliveryPromiseParticipantsUpdate",
-                "DeliveryPromiseParticipantsUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -4785,10 +4043,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &[
-                "deliveryPromiseProviderUpsert",
-                "DeliveryPromiseProviderUpsert",
-            ],
             &[],
         ),
         registry_entry(
@@ -4797,7 +4051,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             false,
-            &["deliverySettingUpdate", "DeliverySettingUpdate"],
             &[],
         ),
         registry_entry(
@@ -4806,7 +4059,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditAddShippingLine", "OrderEditAddShippingLine"],
             &[],
         ),
         registry_entry(
@@ -4815,7 +4067,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditRemoveShippingLine", "OrderEditRemoveShippingLine"],
             &[],
         ),
         registry_entry(
@@ -4824,7 +4075,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditUpdateShippingLine", "OrderEditUpdateShippingLine"],
             &[],
         ),
         registry_entry(
@@ -4833,7 +4083,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderDelete", "OrderDelete"],
             &[],
         ),
         registry_entry(
@@ -4842,7 +4091,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditAddCustomItem", "OrderEditAddCustomItem"],
             &[],
         ),
         registry_entry(
@@ -4851,10 +4099,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "orderEditAddLineItemDiscount",
-                "OrderEditAddLineItemDiscount",
-            ],
             &[],
         ),
         registry_entry(
@@ -4863,7 +4107,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditRemoveDiscount", "OrderEditRemoveDiscount"],
             &[],
         ),
         registry_entry(
@@ -4872,7 +4115,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderCreate", "OrderCreate"],
             &[],
         ),
         registry_entry(
@@ -4881,10 +4123,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "abandonmentUpdateActivitiesDeliveryStatuses",
-                "AbandonmentUpdateActivitiesDeliveryStatuses",
-            ],
             &[],
         ),
         registry_entry(
@@ -4893,7 +4131,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["refundCreate", "RefundCreate"],
             &[],
         ),
         registry_entry(
@@ -4902,7 +4139,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnCreate", "ReturnCreate"],
             &[],
         ),
         registry_entry(
@@ -4911,7 +4147,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnRequest", "ReturnRequest"],
             &[],
         ),
         registry_entry(
@@ -4920,7 +4155,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnApproveRequest", "ReturnApproveRequest"],
             &[],
         ),
         registry_entry(
@@ -4929,7 +4163,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnDeclineRequest", "ReturnDeclineRequest"],
             &[],
         ),
         registry_entry(
@@ -4938,7 +4171,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnCancel", "ReturnCancel"],
             &[],
         ),
         registry_entry(
@@ -4947,7 +4179,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnClose", "ReturnClose"],
             &[],
         ),
         registry_entry(
@@ -4956,7 +4187,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnReopen", "ReturnReopen"],
             &[],
         ),
         registry_entry(
@@ -4965,7 +4195,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["removeFromReturn", "RemoveFromReturn"],
             &[],
         ),
         registry_entry(
@@ -4974,7 +4203,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["returnProcess", "ReturnProcess"],
             &[],
         ),
         registry_entry(
@@ -4983,10 +4211,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "reverseDeliveryCreateWithShipping",
-                "ReverseDeliveryCreateWithShipping",
-            ],
             &[],
         ),
         registry_entry(
@@ -4995,10 +4219,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "reverseDeliveryShippingUpdate",
-                "ReverseDeliveryShippingUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5007,10 +4227,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::ShippingFulfillments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "reverseFulfillmentOrderDispose",
-                "ReverseFulfillmentOrderDispose",
-            ],
             &[],
         ),
         registry_entry(
@@ -5019,7 +4235,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["draftOrder", "DraftOrder"],
             &[],
         ),
         registry_entry(
@@ -5028,7 +4243,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["draftOrders", "DraftOrders"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5037,7 +4251,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             true,
-            &["draftOrdersCount", "DraftOrdersCount"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5046,10 +4259,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &[
-                "draftOrderAvailableDeliveryOptions",
-                "DraftOrderAvailableDeliveryOptions",
-            ],
             &[],
         ),
         registry_entry(
@@ -5058,7 +4267,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::OverlayRead,
             false,
-            &["draftOrderTag", "DraftOrderTag"],
             &[],
         ),
         registry_entry(
@@ -5067,7 +4275,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderCreate", "DraftOrderCreate"],
             &[],
         ),
         registry_entry(
@@ -5076,7 +4283,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderComplete", "DraftOrderComplete"],
             &[],
         ),
         registry_entry(
@@ -5085,7 +4291,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderUpdate", "DraftOrderUpdate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5094,7 +4299,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderDuplicate", "DraftOrderDuplicate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5103,7 +4307,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderBulkAddTags", "DraftOrderBulkAddTags"],
             &[],
         ),
         registry_entry(
@@ -5112,7 +4315,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderBulkRemoveTags", "DraftOrderBulkRemoveTags"],
             &[],
         ),
         registry_entry(
@@ -5121,7 +4323,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderBulkDelete", "DraftOrderBulkDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5130,7 +4331,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderDelete", "DraftOrderDelete"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5139,7 +4339,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderCalculate", "DraftOrderCalculate"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5148,7 +4347,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderInvoicePreview", "DraftOrderInvoicePreview"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5157,7 +4355,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderInvoiceSend", "DraftOrderInvoiceSend"],
             &[],
         ),
         registry_entry(
@@ -5166,7 +4363,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["draftOrderCreateFromOrder", "DraftOrderCreateFromOrder"],
             &["tests/graphql_routes.rs"],
         ),
         registry_entry(
@@ -5175,7 +4371,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditBegin", "OrderEditBegin"],
             &[],
         ),
         registry_entry(
@@ -5184,7 +4379,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditAddVariant", "OrderEditAddVariant"],
             &[],
         ),
         registry_entry(
@@ -5193,7 +4387,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditSetQuantity", "OrderEditSetQuantity"],
             &[],
         ),
         registry_entry(
@@ -5202,7 +4395,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
             true,
-            &["orderEditCommit", "OrderEditCommit"],
             &[],
         ),
         registry_entry(
@@ -5211,7 +4403,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["discountNodes", "DiscountNodes"],
             &[],
         ),
         registry_entry(
@@ -5220,7 +4411,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["discountNodesCount", "DiscountNodesCount"],
             &[],
         ),
         registry_entry(
@@ -5229,7 +4419,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["discountNode", "DiscountNode"],
             &[],
         ),
         registry_entry(
@@ -5238,7 +4427,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             false,
-            &["codeDiscountNodes", "CodeDiscountNodes"],
             &[],
         ),
         registry_entry(
@@ -5247,7 +4435,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["codeDiscountNode", "CodeDiscountNode"],
             &[],
         ),
         registry_entry(
@@ -5256,7 +4443,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
             &[],
         ),
         registry_entry(
@@ -5265,10 +4451,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &[
-                "discountRedeemCodeBulkCreation",
-                "DiscountRedeemCodeBulkCreation",
-            ],
             &[],
         ),
         registry_entry(
@@ -5277,7 +4459,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["automaticDiscountNodes", "AutomaticDiscountNodes"],
             &[],
         ),
         registry_entry(
@@ -5286,7 +4467,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::OverlayRead,
             true,
-            &["automaticDiscountNode", "AutomaticDiscountNode"],
             &[],
         ),
         registry_entry(
@@ -5295,7 +4475,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
             &[],
         ),
         registry_entry(
@@ -5304,7 +4483,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
             &[],
         ),
         registry_entry(
@@ -5313,7 +4491,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
             &[],
         ),
         registry_entry(
@@ -5322,7 +4499,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
             &[],
         ),
         registry_entry(
@@ -5331,10 +4507,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountCodeFreeShippingCreate",
-                "DiscountCodeFreeShippingCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5343,10 +4515,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountCodeFreeShippingUpdate",
-                "DiscountCodeFreeShippingUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5355,7 +4523,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeActivate", "DiscountCodeActivate"],
             &[],
         ),
         registry_entry(
@@ -5364,7 +4531,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeDeactivate", "DiscountCodeDeactivate"],
             &[],
         ),
         registry_entry(
@@ -5373,7 +4539,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeDelete", "DiscountCodeDelete"],
             &[],
         ),
         registry_entry(
@@ -5382,7 +4547,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             false,
-            &["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
             &[],
         ),
         registry_entry(
@@ -5391,7 +4555,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             false,
-            &["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
             &[],
         ),
         registry_entry(
@@ -5400,7 +4563,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             false,
-            &["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
             &[],
         ),
         registry_entry(
@@ -5409,10 +4571,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
             &[],
         ),
-        registry_entry(
+        registry_entry_aliased(
             "discountCodeRedeemCodeBulkDelete",
             OperationType::Mutation,
             CapabilityDomain::Discounts,
@@ -5432,10 +4593,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountAutomaticBasicCreate",
-                "DiscountAutomaticBasicCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5444,10 +4601,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountAutomaticBasicUpdate",
-                "DiscountAutomaticBasicUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5456,7 +4609,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
             &[],
         ),
         registry_entry(
@@ -5465,7 +4617,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
             &[],
         ),
         registry_entry(
@@ -5474,10 +4625,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountAutomaticFreeShippingCreate",
-                "DiscountAutomaticFreeShippingCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5486,10 +4633,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "discountAutomaticFreeShippingUpdate",
-                "DiscountAutomaticFreeShippingUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5498,7 +4641,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticActivate", "DiscountAutomaticActivate"],
             &[],
         ),
         registry_entry(
@@ -5507,7 +4649,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
             &[],
         ),
         registry_entry(
@@ -5516,7 +4657,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticDelete", "DiscountAutomaticDelete"],
             &[],
         ),
         registry_entry(
@@ -5525,7 +4665,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             false,
-            &["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
             &[],
         ),
         registry_entry(
@@ -5534,7 +4673,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeAppCreate", "DiscountCodeAppCreate"],
             &[],
         ),
         registry_entry(
@@ -5543,7 +4681,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
             &[],
         ),
         registry_entry(
@@ -5552,7 +4689,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
             &[],
         ),
         registry_entry(
@@ -5561,7 +4697,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Discounts,
             CapabilityExecution::StageLocally,
             true,
-            &["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
             &[],
         ),
         registry_entry(
@@ -5570,7 +4705,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketingActivities", "MarketingActivities"],
             &[],
         ),
         registry_entry(
@@ -5579,7 +4713,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketingActivity", "MarketingActivity"],
             &[],
         ),
         registry_entry(
@@ -5588,7 +4721,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketingEvent", "MarketingEvent"],
             &[],
         ),
         registry_entry(
@@ -5597,7 +4729,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketingEvents", "MarketingEvents"],
             &[],
         ),
         registry_entry(
@@ -5606,7 +4737,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &["marketingActivityCreate", "MarketingActivityCreate"],
             &[],
         ),
         registry_entry(
@@ -5615,7 +4745,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &["marketingActivityUpdate", "MarketingActivityUpdate"],
             &[],
         ),
         registry_entry(
@@ -5624,10 +4753,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "marketingActivityCreateExternal",
-                "MarketingActivityCreateExternal",
-            ],
             &[],
         ),
         registry_entry(
@@ -5636,10 +4761,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "marketingActivityUpdateExternal",
-                "MarketingActivityUpdateExternal",
-            ],
             &[],
         ),
         registry_entry(
@@ -5648,10 +4769,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "marketingActivityUpsertExternal",
-                "MarketingActivityUpsertExternal",
-            ],
             &[],
         ),
         registry_entry(
@@ -5660,10 +4777,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "marketingActivityDeleteExternal",
-                "MarketingActivityDeleteExternal",
-            ],
             &[],
         ),
         registry_entry(
@@ -5672,10 +4785,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "marketingActivitiesDeleteAllExternal",
-                "MarketingActivitiesDeleteAllExternal",
-            ],
             &[],
         ),
         registry_entry(
@@ -5684,7 +4793,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &["marketingEngagementCreate", "MarketingEngagementCreate"],
             &[],
         ),
         registry_entry(
@@ -5693,7 +4801,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Marketing,
             CapabilityExecution::StageLocally,
             true,
-            &["marketingEngagementsDelete", "MarketingEngagementsDelete"],
             &[],
         ),
         registry_entry(
@@ -5702,7 +4809,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::OverlayRead,
             true,
-            &["webhookSubscription", "WebhookSubscription"],
             &[],
         ),
         registry_entry(
@@ -5711,7 +4817,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::OverlayRead,
             true,
-            &["webhookSubscriptions", "WebhookSubscriptions"],
             &[],
         ),
         registry_entry(
@@ -5720,7 +4825,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::OverlayRead,
             true,
-            &["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
             &[],
         ),
         registry_entry(
@@ -5729,10 +4833,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "eventBridgeWebhookSubscriptionCreate",
-                "EventBridgeWebhookSubscriptionCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5741,10 +4841,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "eventBridgeWebhookSubscriptionUpdate",
-                "EventBridgeWebhookSubscriptionUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5753,10 +4849,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "pubSubWebhookSubscriptionCreate",
-                "PubSubWebhookSubscriptionCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5765,10 +4857,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "pubSubWebhookSubscriptionUpdate",
-                "PubSubWebhookSubscriptionUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5777,7 +4865,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
             &[],
         ),
         registry_entry(
@@ -5786,7 +4873,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
             &[],
         ),
         registry_entry(
@@ -5795,7 +4881,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Webhooks,
             CapabilityExecution::StageLocally,
             true,
-            &["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
             &[],
         ),
         registry_entry(
@@ -5804,7 +4889,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             true,
-            &["segment", "Segment"],
             &[],
         ),
         registry_entry(
@@ -5813,7 +4897,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             true,
-            &["segments", "Segments"],
             &[],
         ),
         registry_entry(
@@ -5822,7 +4905,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             true,
-            &["segmentsCount", "SegmentsCount"],
             &[],
         ),
         registry_entry(
@@ -5831,7 +4913,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["segmentFilters", "SegmentFilters"],
             &[],
         ),
         registry_entry(
@@ -5840,7 +4921,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["segmentFilterSuggestions", "SegmentFilterSuggestions"],
             &[],
         ),
         registry_entry(
@@ -5849,7 +4929,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["segmentValueSuggestions", "SegmentValueSuggestions"],
             &[],
         ),
         registry_entry(
@@ -5858,7 +4937,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["segmentMigrations", "SegmentMigrations"],
             &[],
         ),
         registry_entry(
@@ -5867,7 +4945,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["customerSegmentMembers", "CustomerSegmentMembers"],
             &[],
         ),
         registry_entry(
@@ -5876,7 +4953,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             true,
-            &["customerSegmentMembersQuery", "CustomerSegmentMembersQuery"],
             &[],
         ),
         registry_entry(
@@ -5885,7 +4961,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::OverlayRead,
             false,
-            &["customerSegmentMembership", "CustomerSegmentMembership"],
             &[],
         ),
         registry_entry(
@@ -5894,10 +4969,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "customerSegmentMembersQueryCreate",
-                "CustomerSegmentMembersQueryCreate",
-            ],
             &[],
         ),
         registry_entry(
@@ -5906,7 +4977,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::StageLocally,
             true,
-            &["segmentCreate", "SegmentCreate"],
             &[],
         ),
         registry_entry(
@@ -5915,7 +4985,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::StageLocally,
             true,
-            &["segmentUpdate", "SegmentUpdate"],
             &[],
         ),
         registry_entry(
@@ -5924,7 +4993,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Segments,
             CapabilityExecution::StageLocally,
             true,
-            &["segmentDelete", "SegmentDelete"],
             &[],
         ),
         registry_entry(
@@ -5933,7 +5001,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["market", "Market"],
             &[],
         ),
         registry_entry(
@@ -5942,7 +5009,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["markets", "Markets"],
             &[],
         ),
         registry_entry(
@@ -5951,7 +5017,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["catalog", "Catalog"],
             &[],
         ),
         registry_entry(
@@ -5960,7 +5025,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["catalogs", "Catalogs"],
             &[],
         ),
         registry_entry(
@@ -5969,7 +5033,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             false,
-            &["catalogsCount", "CatalogsCount"],
             &[],
         ),
         registry_entry(
@@ -5978,7 +5041,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["priceList", "PriceList"],
             &[],
         ),
         registry_entry(
@@ -5987,7 +5049,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["priceLists", "PriceLists"],
             &[],
         ),
         registry_entry(
@@ -5996,7 +5057,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListCreate", "PriceListCreate"],
             &[],
         ),
         registry_entry(
@@ -6005,7 +5065,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListUpdate", "PriceListUpdate"],
             &[],
         ),
         registry_entry(
@@ -6014,7 +5073,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListDelete", "PriceListDelete"],
             &[],
         ),
         registry_entry(
@@ -6023,7 +5081,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListFixedPricesAdd", "PriceListFixedPricesAdd"],
             &[],
         ),
         registry_entry(
@@ -6032,7 +5089,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListFixedPricesUpdate", "PriceListFixedPricesUpdate"],
             &[],
         ),
         registry_entry(
@@ -6041,7 +5097,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["priceListFixedPricesDelete", "PriceListFixedPricesDelete"],
             &[],
         ),
         registry_entry(
@@ -6050,10 +5105,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "priceListFixedPricesByProductUpdate",
-                "PriceListFixedPricesByProductUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -6062,10 +5113,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &[
-                "quantityPricingByVariantUpdate",
-                "QuantityPricingByVariantUpdate",
-            ],
             &[],
         ),
         registry_entry(
@@ -6074,7 +5121,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["quantityRulesAdd", "QuantityRulesAdd"],
             &[],
         ),
         registry_entry(
@@ -6083,7 +5129,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["quantityRulesDelete", "QuantityRulesDelete"],
             &[],
         ),
         registry_entry(
@@ -6092,7 +5137,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["webPresences", "WebPresences"],
             &[],
         ),
         registry_entry(
@@ -6101,7 +5145,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             false,
-            &["marketsResolvedValues", "MarketsResolvedValues"],
             &[],
         ),
         registry_entry(
@@ -6110,7 +5153,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketLocalizableResource", "MarketLocalizableResource"],
             &[],
         ),
         registry_entry(
@@ -6119,7 +5161,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             true,
-            &["marketLocalizableResources", "MarketLocalizableResources"],
             &[],
         ),
         registry_entry(
@@ -6128,10 +5169,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
             false,
-            &[
-                "marketLocalizableResourcesByIds",
-                "MarketLocalizableResourcesByIds",
-            ],
             &[],
         ),
         registry_entry(
@@ -6140,7 +5177,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["marketCreate", "MarketCreate"],
             &[],
         ),
         registry_entry(
@@ -6149,7 +5185,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["marketUpdate", "MarketUpdate"],
             &[],
         ),
         registry_entry(
@@ -6158,7 +5193,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["marketDelete", "MarketDelete"],
             &[],
         ),
         registry_entry(
@@ -6167,7 +5201,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["catalogCreate", "CatalogCreate"],
             &[],
         ),
         registry_entry(
@@ -6176,7 +5209,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["catalogUpdate", "CatalogUpdate"],
             &[],
         ),
         registry_entry(
@@ -6185,7 +5217,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["catalogContextUpdate", "CatalogContextUpdate"],
             &[],
         ),
         registry_entry(
@@ -6194,7 +5225,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["catalogDelete", "CatalogDelete"],
             &[],
         ),
         registry_entry(
@@ -6203,7 +5233,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["webPresenceCreate", "WebPresenceCreate"],
             &[],
         ),
         registry_entry(
@@ -6212,7 +5241,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["webPresenceUpdate", "WebPresenceUpdate"],
             &[],
         ),
         registry_entry(
@@ -6221,7 +5249,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["webPresenceDelete", "WebPresenceDelete"],
             &[],
         ),
         registry_entry(
@@ -6230,7 +5257,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["marketLocalizationsRegister", "MarketLocalizationsRegister"],
             &[],
         ),
         registry_entry(
@@ -6239,7 +5265,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Markets,
             CapabilityExecution::StageLocally,
             true,
-            &["marketLocalizationsRemove", "MarketLocalizationsRemove"],
             &[],
         ),
         registry_entry(
@@ -6248,7 +5273,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::OverlayRead,
             true,
-            &["availableLocales", "AvailableLocales"],
             &[],
         ),
         registry_entry(
@@ -6257,7 +5281,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::OverlayRead,
             true,
-            &["shopLocales", "ShopLocales"],
             &[],
         ),
         registry_entry(
@@ -6266,7 +5289,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::OverlayRead,
             true,
-            &["translatableResource", "TranslatableResource"],
             &[],
         ),
         registry_entry(
@@ -6275,7 +5297,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::OverlayRead,
             true,
-            &["translatableResources", "TranslatableResources"],
             &[],
         ),
         registry_entry(
@@ -6284,7 +5305,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::OverlayRead,
             true,
-            &["translatableResourcesByIds", "TranslatableResourcesByIds"],
             &[],
         ),
         registry_entry(
@@ -6293,7 +5313,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::StageLocally,
             true,
-            &["shopLocaleEnable", "ShopLocaleEnable"],
             &[],
         ),
         registry_entry(
@@ -6302,7 +5321,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::StageLocally,
             true,
-            &["shopLocaleUpdate", "ShopLocaleUpdate"],
             &[],
         ),
         registry_entry(
@@ -6311,7 +5329,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::StageLocally,
             true,
-            &["shopLocaleDisable", "ShopLocaleDisable"],
             &[],
         ),
         registry_entry(
@@ -6320,7 +5337,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::StageLocally,
             true,
-            &["translationsRegister", "TranslationsRegister"],
             &[],
         ),
         registry_entry(
@@ -6329,7 +5345,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Localization,
             CapabilityExecution::StageLocally,
             true,
-            &["translationsRemove", "TranslationsRemove"],
             &[],
         ),
         registry_entry(
@@ -6338,7 +5353,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::OverlayRead,
             true,
-            &["files", "Files"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
@@ -6347,7 +5361,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
             true,
-            &["stagedUploadsCreate", "StagedUploadsCreate"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
@@ -6356,7 +5369,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
             true,
-            &["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
@@ -6365,7 +5377,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
             true,
-            &["fileCreate", "FileCreate"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
@@ -6374,7 +5385,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
             true,
-            &["fileUpdate", "FileUpdate"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
@@ -6383,7 +5393,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
             true,
-            &["fileDelete", "FileDelete"],
             &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
     ]
@@ -6395,7 +5404,46 @@ fn registry_entry(
     domain: CapabilityDomain,
     execution: CapabilityExecution,
     implemented: bool,
+    runtime_tests: &[&str],
+) -> OperationRegistryEntry {
+    registry_entry_with_match_names(
+        name,
+        operation_type,
+        domain,
+        execution,
+        implemented,
+        default_match_names(name),
+        runtime_tests,
+    )
+}
+
+fn registry_entry_aliased(
+    name: &str,
+    operation_type: OperationType,
+    domain: CapabilityDomain,
+    execution: CapabilityExecution,
+    implemented: bool,
     match_names: &[&str],
+    runtime_tests: &[&str],
+) -> OperationRegistryEntry {
+    registry_entry_with_match_names(
+        name,
+        operation_type,
+        domain,
+        execution,
+        implemented,
+        strings(match_names),
+        runtime_tests,
+    )
+}
+
+fn registry_entry_with_match_names(
+    name: &str,
+    operation_type: OperationType,
+    domain: CapabilityDomain,
+    execution: CapabilityExecution,
+    implemented: bool,
+    match_names: Vec<String>,
     runtime_tests: &[&str],
 ) -> OperationRegistryEntry {
     OperationRegistryEntry {
@@ -6404,10 +5452,20 @@ fn registry_entry(
         domain,
         execution,
         implemented,
-        match_names: strings(match_names),
+        match_names,
         runtime_tests: strings(runtime_tests),
         support_notes: None,
     }
+}
+
+fn default_match_names(name: &str) -> Vec<String> {
+    let mut chars = name.chars();
+    let mut capitalized = String::with_capacity(name.len());
+    if let Some(first) = chars.next() {
+        capitalized.extend(first.to_uppercase());
+        capitalized.push_str(chars.as_str());
+    }
+    vec![name.to_string(), capitalized]
 }
 
 fn strings(values: &[&str]) -> Vec<String> {

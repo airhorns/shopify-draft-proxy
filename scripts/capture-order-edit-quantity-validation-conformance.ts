@@ -162,6 +162,14 @@ const beginDocument = await readRequest('orderEdit-quantity-validation-begin.gra
 const setQuantityDocument = await readRequest('orderEdit-quantity-validation-setQuantity.graphql');
 const addVariantDocument = await readRequest('orderEdit-quantity-validation-addVariant.graphql');
 
+// The exact hydrate queries the proxy forwards on cold reads, byte-identical to the Rust constants
+// so the recorded cassettes replay verbatim (the matcher trims trailing ws). ORDER_EDIT_HYDRATE_QUERY
+// is `include_str!` of order-edit-hydrate.graphql; DRAFT_ORDER_VARIANT_HYDRATE_QUERY is an inline
+// Rust const. The de-seeded begin/addVariant resolve their preconditions via these forwards.
+const orderEditHydrateQuery = await readRequest('order-edit-hydrate.graphql');
+const variantHydrateQuery =
+  'query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n';
+
 const orderFields = `#graphql
   fragment OrderEditQuantityValidationOrderFields on Order {
     id
@@ -270,15 +278,6 @@ const orderCreateMutation = `#graphql
   }
 `;
 
-const orderReadQuery = `#graphql
-  ${orderFields}
-  query OrderEditQuantityValidationHydrate($id: ID!) {
-    order(id: $id) {
-      ...OrderEditQuantityValidationOrderFields
-    }
-  }
-`;
-
 const orderCancelMutation = `#graphql
   mutation OrderEditQuantityValidationCancel(
     $orderId: ID!
@@ -358,11 +357,19 @@ try {
   const createdOrder = orderFromPayload(orderCreate, 'orderCreate');
   createdOrderId = requireString(createdOrder['id'], 'created order id');
 
-  const orderReadBeforeEdit = await capture(orderReadQuery, { id: createdOrderId });
-  assertNoTopLevelErrors('pre-edit order read', orderReadBeforeEdit);
-  const seedOrder = readRecord(responseData(orderReadBeforeEdit)['order']);
-  if (!seedOrder) {
-    throw new Error(`Expected pre-edit order read: ${JSON.stringify(orderReadBeforeEdit.response.payload, null, 2)}`);
+  // Resolve the precondition the de-seeded way: forward the exact cold hydrate queries the proxy
+  // emits (order on begin, variant on the valid addVariant) and record their responses verbatim as
+  // the upstreamCalls. No seed, no setup block.
+  const orderEditHydrate = await capture(orderEditHydrateQuery, { id: createdOrderId });
+  assertNoTopLevelErrors('order-edit hydrate', orderEditHydrate);
+  if (!readRecord(responseData(orderEditHydrate)['order'])) {
+    throw new Error(`Expected order-edit hydrate read: ${JSON.stringify(orderEditHydrate.response.payload, null, 2)}`);
+  }
+
+  const variantHydrate = await capture(variantHydrateQuery, { id: variantId });
+  assertNoTopLevelErrors('variant hydrate', variantHydrate);
+  if (!readRecord(responseData(variantHydrate)['productVariant'])) {
+    throw new Error(`Expected variant hydrate read: ${JSON.stringify(variantHydrate.response.payload, null, 2)}`);
   }
 
   const begin = await capture(beginDocument, { id: createdOrderId });
@@ -411,29 +418,21 @@ try {
 
   const upstreamCalls = [
     {
-      operationName: 'OrdersOrderHydrate',
+      operationName: 'OrdersOrderEditHydrate',
       variables: { id: createdOrderId },
-      query: 'hand-synthesized from live setup order read for orderEdit quantity validation replay',
+      query: orderEditHydrateQuery,
       response: {
-        status: 200,
-        body: {
-          data: {
-            order: seedOrder,
-          },
-        },
+        status: orderEditHydrate.response.status,
+        body: orderEditHydrate.response.payload,
       },
     },
     {
-      operationName: 'OrdersProductVariantHydrate',
+      operationName: 'OrdersDraftOrderVariantHydrate',
       variables: { id: variantId },
-      query: 'hand-synthesized from live product variant seed for orderEditAddVariant quantity validation replay',
+      query: variantHydrateQuery,
       response: {
-        status: 200,
-        body: {
-          data: {
-            productVariant: variant,
-          },
-        },
+        status: variantHydrate.response.status,
+        body: variantHydrate.response.payload,
       },
     },
   ];
@@ -445,16 +444,7 @@ try {
     storeDomain,
     source: 'live-shopify-admin-graphql',
     notes:
-      'Live order-edit quantity validation capture against one disposable order-edit session. Rejected quantity branches must not mutate the open calculated order; the final valid addVariant payload proves read-after-reject state.',
-    setupReferences: {
-      selectedLocationId: locationId,
-      selectedVariant: variant,
-    },
-    setup: {
-      seed,
-      orderCreate,
-      orderReadBeforeEdit,
-    },
+      'Live order-edit quantity validation capture against one disposable order-edit session. The precondition order and variant are resolved via real cold OrdersOrderEditHydrate + OrdersDraftOrderVariantHydrate forwards (the two upstreamCalls) rather than a seed/setup block. Rejected quantity branches must not mutate the open calculated order; the final valid addVariant payload proves read-after-reject state.',
     begin,
     cases: {
       setQuantityNegative,

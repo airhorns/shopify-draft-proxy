@@ -950,12 +950,92 @@ impl DraftProxy {
         }
 
         let mut updated_market = existing_market;
+        Self::apply_market_update_scalar_fields(&mut updated_market, &input);
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
         selected_json(
             &json!({ "market": updated_market, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn apply_market_update_scalar_fields(
+        market: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let Some(object) = market.as_object_mut() else {
+            return;
+        };
+
+        if let Some(name) = resolved_string_field(input, "name") {
+            object.insert("name".to_string(), json!(name));
+        }
+        if let Some(handle) = resolved_string_field(input, "handle") {
+            object.insert(
+                "handle".to_string(),
+                json!(normalize_localized_handle(&handle)),
+            );
+        }
+
+        let status_input = resolved_string_field(input, "status");
+        let enabled_input = resolved_bool_field(input, "enabled");
+        match (status_input, enabled_input) {
+            (Some(status), Some(enabled)) => {
+                object.insert("status".to_string(), json!(status));
+                object.insert("enabled".to_string(), json!(enabled));
+            }
+            (Some(status), None) => {
+                let enabled = status == "ACTIVE";
+                object.insert("status".to_string(), json!(status));
+                object.insert("enabled".to_string(), json!(enabled));
+            }
+            (None, Some(enabled)) => {
+                let status = if enabled { "ACTIVE" } else { "DRAFT" };
+                object.insert("status".to_string(), json!(status));
+                object.insert("enabled".to_string(), json!(enabled));
+            }
+            (None, None) => {}
+        }
+
+        if matches!(
+            input.get("currencySettings"),
+            Some(ResolvedValue::Object(_))
+        ) {
+            let currency_settings =
+                market_update_currency_settings_json(object.get("currencySettings"), input);
+            object.insert("currencySettings".to_string(), currency_settings);
+        }
+        if matches!(input.get("priceInclusions"), Some(ResolvedValue::Object(_))) {
+            let price_inclusions =
+                market_update_price_inclusions_json(object.get("priceInclusions"), input);
+            object.insert("priceInclusions".to_string(), price_inclusions);
+        }
+        if market_update_region_input_present(input) {
+            let region_codes = market_region_country_codes(input);
+            let region_nodes = region_codes
+                .iter()
+                .map(|code| json!({"code": code}))
+                .collect::<Vec<_>>();
+            object.insert("regionCodes".to_string(), json!(region_codes));
+            object.insert(
+                "type".to_string(),
+                json!(if region_nodes.is_empty() {
+                    "NONE"
+                } else {
+                    "REGION"
+                }),
+            );
+            object.insert(
+                "conditions".to_string(),
+                json!({
+                    "regionsCondition": {
+                        "regions": {
+                            "nodes": region_nodes
+                        }
+                    }
+                }),
+            );
+        }
     }
 
     pub(in crate::proxy) fn set_market_relation_fields(&self, market: &mut Value, market_id: &str) {
@@ -3896,6 +3976,71 @@ fn market_record_region_type(market: &Value) -> bool {
         Some("REGION") => true,
         _ => !market_record_country_codes(market).is_empty(),
     }
+}
+
+fn market_update_currency_settings_json(
+    existing: Option<&Value>,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let currency_settings = resolved_object_field(input, "currencySettings").unwrap_or_default();
+    let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
+        .or_else(|| value_string_field(existing, "baseCurrency", "currencyCode"))
+        .unwrap_or_else(|| "USD".to_string());
+    let currency_name = market_currency_name(&currency_code);
+    json!({
+        "baseCurrency": {
+            "currencyCode": currency_code,
+            "currencyName": currency_name
+        },
+        "localCurrencies": resolved_bool_field(&currency_settings, "localCurrencies")
+            .or_else(|| value_bool_field(existing, "localCurrencies"))
+            .unwrap_or(false),
+        "roundingEnabled": resolved_bool_field(&currency_settings, "roundingEnabled")
+            .or_else(|| value_bool_field(existing, "roundingEnabled"))
+            .unwrap_or(false)
+    })
+}
+
+fn market_update_price_inclusions_json(
+    existing: Option<&Value>,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let price_inclusions = resolved_object_field(input, "priceInclusions").unwrap_or_default();
+    json!({
+        "inclusiveDutiesPricingStrategy": resolved_string_field(&price_inclusions, "dutiesPricingStrategy")
+            .or_else(|| value_string_field(existing, "inclusiveDutiesPricingStrategy", ""))
+            .unwrap_or_else(|| "NOT_INCLUDED".to_string()),
+        "inclusiveTaxPricingStrategy": resolved_string_field(&price_inclusions, "taxPricingStrategy")
+            .or_else(|| value_string_field(existing, "inclusiveTaxPricingStrategy", ""))
+            .unwrap_or_else(|| "ADD_TAXES_AT_CHECKOUT".to_string())
+    })
+}
+
+fn market_update_region_input_present(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    if input.contains_key("regions") {
+        return true;
+    }
+    let Some(ResolvedValue::Object(conditions)) = input.get("conditions") else {
+        return false;
+    };
+    let Some(ResolvedValue::Object(regions_condition)) = conditions.get("regionsCondition") else {
+        return false;
+    };
+    regions_condition.contains_key("regions")
+}
+
+fn value_string_field(existing: Option<&Value>, field: &str, nested_field: &str) -> Option<String> {
+    let value = existing?.get(field)?;
+    let value = if nested_field.is_empty() {
+        value
+    } else {
+        value.get(nested_field)?
+    };
+    value.as_str().map(str::to_string)
+}
+
+fn value_bool_field(existing: Option<&Value>, field: &str) -> Option<bool> {
+    existing?.get(field)?.as_bool()
 }
 
 fn market_record_legacy(market: &Value) -> bool {

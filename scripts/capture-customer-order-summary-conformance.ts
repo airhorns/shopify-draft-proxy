@@ -48,8 +48,8 @@ function readPayloadPath<T>(source: unknown, pathSegments: string[], label: stri
   return current as T;
 }
 
-const seedOrderQuery = `#graphql
-  query CustomerOrderSummarySeedOrder {
+const latestOrderQuery = `#graphql
+  query CustomerOrderSummaryLatestOrder {
     orders(first: 1, sortKey: CREATED_AT, reverse: true) {
       nodes {
         id
@@ -62,6 +62,60 @@ const seedOrderQuery = `#graphql
     }
   }
 `;
+
+// Byte-for-byte copy of the proxy's ORDER_LIFECYCLE_HYDRATE_QUERY
+// (online_store_orders_payments.rs `OrderManagementDownstreamRead`). The proxy
+// forwards this verbatim for a cold `orderCustomerSet` to earn the order from
+// the backend instead of a precondition seed, so the recorded cassette must
+// match the emitted query exactly (cassette matching is byte-exact on the
+// query text + variables).
+const orderLifecycleHydrateQuery = `query OrderManagementDownstreamRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    closed
+    closedAt
+    cancelledAt
+    cancelReason
+    displayFinancialStatus
+    paymentGatewayNames
+    totalOutstandingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    customer {
+      id
+      email
+      displayName
+    }
+    transactions {
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+}`;
+
+// Byte-for-byte copy of the proxy's CUSTOMER_COUNT_HYDRATE_QUERY
+// (config/parity-requests/customers/customer-count-hydrate.graphql). The proxy
+// forwards this once (variables: {}) the first time a `customersCount` read is
+// served from the staged overlay, caching the store-wide baseline. Recording it
+// replaces the former `seedCustomersCount` precondition with the real forward.
+const customerCountHydrateQuery = `query CustomerCountHydrate { customersCount { count precision } }`;
 
 const customerCreateMutation = `#graphql
   mutation CustomerOrderSummaryCreateCustomer($input: CustomerInput!) {
@@ -169,16 +223,16 @@ async function main(): Promise<void> {
   let customerId: string | null = null;
   let originalCustomerId: string | null = null;
 
-  const seedOrder = await runGraphqlRequest(seedOrderQuery);
-  assertNoTopLevelErrors(seedOrder, 'seed order query');
-  const seedOrders = readPayloadPath<Record<string, unknown>[]>(
-    seedOrder.payload,
+  const latestOrder = await runGraphqlRequest(latestOrderQuery);
+  assertNoTopLevelErrors(latestOrder, 'latest order query');
+  const latestOrderNodes = readPayloadPath<Record<string, unknown>[]>(
+    latestOrder.payload,
     ['data', 'orders', 'nodes'],
-    'seed order query',
+    'latest order query',
   );
-  const firstOrder = seedOrders[0];
+  const firstOrder = latestOrderNodes[0];
   if (!firstOrder || typeof firstOrder['id'] !== 'string') {
-    throw new Error('seed order query did not return an order to mutate for customer summary capture');
+    throw new Error('latest order query did not return an order to mutate for customer summary capture');
   }
 
   orderId = firstOrder['id'];
@@ -219,8 +273,21 @@ async function main(): Promise<void> {
   customerId = createdCustomer['id'];
 
   try {
+    // Record the store-wide customersCount baseline the proxy forwards
+    // (CustomerCountHydrate, variables {}) the first time it serves a
+    // `customersCount` read from the staged overlay. Replaces seedCustomersCount.
+    const customerCountHydrate = await runGraphqlRequest(customerCountHydrateQuery);
+    assertNoTopLevelErrors(customerCountHydrate, 'customer count hydrate');
+
     const beforeSet = await runGraphqlRequest(customerSummaryQuery, { id: customerId, emailQuery });
     assertNoTopLevelErrors(beforeSet, 'before-set customer summary read');
+
+    // Record the order projection the proxy forwards (OrderManagementDownstreamRead)
+    // for the cold orderCustomerSet, captured here while the order still carries its
+    // original customer — exactly the state the proxy observes before applying the
+    // set. Replaces the former seedOrder/seedOrders precondition.
+    const orderLifecycleHydrate = await runGraphqlRequest(orderLifecycleHydrateQuery, { id: orderId });
+    assertNoTopLevelErrors(orderLifecycleHydrate, 'order lifecycle hydrate');
 
     const setCustomer = await runGraphqlRequest(orderCustomerSetMutation, { orderId, customerId });
     assertNoTopLevelErrors(setCustomer, 'orderCustomerSet');
@@ -259,7 +326,6 @@ async function main(): Promise<void> {
             scenario: 'customer order summary read effects after orderCustomerSet/orderCustomerRemove',
           },
           variables: { orderId, customerId, email, emailQuery, originalCustomerId },
-          seedOrder: { query: seedOrderQuery.trim(), response: seedOrder.payload },
           setup: { query: customerCreateMutation.trim(), response: createCustomer.payload },
           beforeSet: { query: customerSummaryQuery.trim(), response: beforeSet.payload },
           orderCustomerSet: {
@@ -274,6 +340,22 @@ async function main(): Promise<void> {
             response: removeCustomer.payload,
           },
           afterRemove: { query: customerSummaryQuery.trim(), response: afterRemove.payload },
+          // Real upstream forwards the proxy makes when no precondition seed exists:
+          // the store-wide customersCount baseline and the cold order projection.
+          upstreamCalls: [
+            {
+              operationName: 'CustomerCountHydrate',
+              query: customerCountHydrateQuery,
+              variables: {},
+              response: { status: customerCountHydrate.status, body: customerCountHydrate.payload },
+            },
+            {
+              operationName: 'OrderManagementDownstreamRead',
+              query: orderLifecycleHydrateQuery,
+              variables: { id: orderId },
+              response: { status: orderLifecycleHydrate.status, body: orderLifecycleHydrate.payload },
+            },
+          ],
           cleanup,
         },
         null,

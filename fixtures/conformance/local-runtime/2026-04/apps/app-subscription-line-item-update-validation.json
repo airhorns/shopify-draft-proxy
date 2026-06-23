@@ -32,7 +32,7 @@
                           "currencyCode": "USD"
                         },
                         "cappedAmount": {
-                          "amount": "5",
+                          "amount": "5.0",
                           "currencyCode": "USD"
                         },
                         "interval": "EVERY_30_DAYS",
@@ -98,7 +98,7 @@
                       "pricingDetails": {
                         "__typename": "AppUsagePricing",
                         "cappedAmount": {
-                          "amount": "5",
+                          "amount": "5.0",
                           "currencyCode": "USD"
                         }
                       }
@@ -110,7 +110,7 @@
                       "pricingDetails": {
                         "__typename": "AppRecurringPricing",
                         "price": {
-                          "amount": "1",
+                          "amount": "1.0",
                           "currencyCode": "USD"
                         }
                       }

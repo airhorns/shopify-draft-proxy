@@ -24,41 +24,27 @@ impl B2bCompanyLocationDeleteBlocker {
     }
 }
 
-const CUSTOMER_HYDRATE_QUERY: &str = r#"
-query CustomerHydrate($id: ID!) {
-  customer(id: $id) {
-    id
-    firstName
-    lastName
-    displayName
-    email
-    phone
-    locale
-    note
-    canDelete
-    verifiedEmail
-    dataSaleOptOut
-    taxExempt
-    taxExemptions
-    state
-    tags
-    createdAt
-    updatedAt
-    defaultEmailAddress { emailAddress }
-    defaultPhoneNumber { phoneNumber }
-    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
-  }
-}
-"#;
+// Shared with the parity capture scripts via include_str! so recorded `CustomerHydrate`
+// cassettes byte-match what `hydrate_customer_for_mutation` forwards upstream. The leading
+// newline is significant: the cassette matcher only trims trailing whitespace.
+const CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-mutation-hydrate.graphql");
 
-const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str = r#"
-query CustomerDuplicateHydrate($query: String!) {
-  customers(first: 1, query: $query) {
-    nodes { id }
-  }
-}
-"#;
+// Shared with the parity capture scripts via include_str! so recorded
+// `CustomerDuplicateHydrate` dedupe cassettes byte-match what the create path forwards
+// upstream. The leading newline is significant: the cassette matcher only trims trailing
+// whitespace.
+const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
+
+// `customerMerge` resolves both referenced customers the real way (forward + observe) and
+// must reconcile their *attached* resources — metafields, addresses, and orders — into the
+// resulting customer. The general `CustomerHydrate` mutation hydrate only carries scalars +
+// addresses, so the merge forwards this richer query instead and stages metafields/orders
+// from it. Shared with the merge capture scripts via include_str! so the recorded
+// `CustomerMergeHydrate` cassettes byte-match what `hydrate_customer_for_merge` forwards.
+const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-merge-hydrate.graphql");
 
 impl DraftProxy {
     pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
@@ -247,6 +233,7 @@ impl DraftProxy {
                         | "companyRevokeMainContact"
                         | "companyContactAssignRole"
                         | "companyContactAssignRoles"
+                        | "companyContactRevokeRole"
                         | "companyContactRevokeRoles"
                         | "companyLocationCreate"
                         | "companyLocationUpdate"
@@ -309,6 +296,9 @@ impl DraftProxy {
                         }
                         "companyContactAssignRoles" => {
                             self.b2b_company_contact_assign_roles_payload(&field)
+                        }
+                        "companyContactRevokeRole" => {
+                            self.b2b_company_contact_revoke_role_payload(&field)
                         }
                         "companyContactRevokeRoles" => {
                             self.b2b_company_contact_revoke_roles_payload(&field)
@@ -892,7 +882,7 @@ impl DraftProxy {
             let external_id_errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 None,
             );
             if !external_id_errors.is_empty() {
@@ -992,7 +982,7 @@ impl DraftProxy {
             let errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 Some(&location_id),
             );
             if !errors.is_empty() {
@@ -1639,6 +1629,58 @@ impl DraftProxy {
         )
     }
 
+    /// Revokes one contact role assignment by id, scoped to the supplied contact.
+    pub(in crate::proxy) fn b2b_company_contact_revoke_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_id = resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
+            .unwrap_or_default();
+        let assignment_matches_contact = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .get(&assignment_id)
+            .and_then(|assignment| assignment["companyContactId"].as_str())
+            == Some(contact_id.as_str());
+
+        if !assignment_matches_contact {
+            return (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "companyContact": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactRoleAssignmentId"],
+                        "message": "The role assignment doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let company_contact = self
+            .store
+            .staged
+            .b2b_contacts
+            .get(&contact_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let _ = self.b2b_remove_role_assignment(&assignment_id);
+        (
+            json!({
+                "revokedCompanyContactRoleAssignmentId": assignment_id,
+                "companyContact": company_contact,
+                "userErrors": []
+            }),
+            "staged",
+            vec![assignment_id],
+        )
+    }
+
     /// Revokes contact role assignments by id, reporting a per-index
     /// RESOURCE_NOT_FOUND for any unknown assignment id.
     pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
@@ -1650,14 +1692,7 @@ impl DraftProxy {
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-                if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                    self.b2b_remove_location_assignment_id(
-                        location_id,
-                        "roleAssignmentIds",
-                        assignment_id,
-                    );
-                }
+            if self.b2b_remove_role_assignment(assignment_id).is_some() {
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -2121,7 +2156,7 @@ impl DraftProxy {
     /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
     pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
-        let location_ids = self.store.staged.b2b_location_order.clone();
+        let location_ids = self.store.staged.b2b_locations.order.clone();
         for location_id in location_ids {
             let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned()
             else {
@@ -2829,7 +2864,8 @@ impl DraftProxy {
     fn b2b_ordered_locations(&self) -> Vec<Value> {
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .iter()
             .filter_map(|id| self.store.staged.b2b_locations.get(id).cloned())
             .collect()
@@ -2905,18 +2941,6 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.to_string(), location);
-        if !self
-            .store
-            .staged
-            .b2b_location_order
-            .iter()
-            .any(|id| id == location_id)
-        {
-            self.store
-                .staged
-                .b2b_location_order
-                .push(location_id.to_string());
-        }
         self.store
             .staged
             .b2b_companies
@@ -2929,7 +2953,8 @@ impl DraftProxy {
         };
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .retain(|id| id != location_id);
         if let Some(company_id) = location["companyId"].as_str() {
             if let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() {
@@ -3484,7 +3509,7 @@ impl DraftProxy {
         );
 
         for assignment_id in b2b_passthrough_deleted_request_ids(&response, &assignment_ids) {
-            self.b2b_remove_role_assignment(&assignment_id);
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
         }
         response
     }
@@ -3493,16 +3518,16 @@ impl DraftProxy {
     /// location's `roleAssignmentIds` list. A contact's roleAssignments connection
     /// is resolved by filtering the assignment map, so dropping the entry here is
     /// enough to clear it from the contact view too.
-    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) {
-        if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-            if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                self.b2b_remove_location_assignment_id(
-                    location_id,
-                    "roleAssignmentIds",
-                    assignment_id,
-                );
-            }
+    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) -> Option<Value> {
+        let assignment = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .remove(assignment_id)?;
+        if let Some(location_id) = assignment["companyLocationId"].as_str() {
+            self.b2b_remove_location_assignment_id(location_id, "roleAssignmentIds", assignment_id);
         }
+        Some(assignment)
     }
 
     /// Points a company's main contact at `main_contact_id` (or clears it when
@@ -3746,6 +3771,10 @@ impl DraftProxy {
                         .publications
                         .insert(id.clone(), record.clone());
                 }
+                // Materialize the store's default Online Store publication now
+                // that the engine is active, so `channels`/`publicationsCount`
+                // reflect it without a seeded precondition.
+                self.ensure_default_publication();
                 if let Some(catalog_id) = catalog_id.as_deref() {
                     if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
                         set_catalog_publication_relation(catalog, Some(id));
@@ -3785,6 +3814,35 @@ impl DraftProxy {
         let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
         let publishables_to_remove =
             resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        // Resolve publishable (product / variant) existence against real store
+        // state rather than a seeded catalog: forward a `nodes(...)` hydrate for
+        // any referenced product/variant not already staged and observe it, so the
+        // "Publishable ID not found." check below reflects upstream truth (a null
+        // node leaves the id unstaged → reported missing). Shopify enforces the
+        // batch-size cap before resolving any publishable, so an oversized batch is
+        // left untouched — the limit error fires regardless of existence.
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && publishables_to_add.len() + publishables_to_remove.len() <= PUBLICATION_UPDATE_LIMIT
+        {
+            let pending = publishables_to_add
+                .iter()
+                .chain(publishables_to_remove.iter())
+                .filter(|id| {
+                    matches!(
+                        shopify_gid_resource_type(id),
+                        Some("Product") | Some("ProductVariant")
+                    )
+                })
+                .filter(|id| !self.publication_update_publishable_exists(id))
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if !pending.is_empty() {
+                self.hydrate_product_nodes_for_observation_with_request(
+                    request,
+                    pending.into_iter().collect(),
+                );
+            }
+        }
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
@@ -4057,7 +4115,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "productFeed": null,
-                    "userErrors": [{ "field": ["country"], "message": "Country is invalid", "code": "INVALID" }]
+                    "userErrors": [user_error(["country"], "Country is invalid", Some("INVALID"))]
                 }),
                 &field.selection,
             );
@@ -4074,7 +4132,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "productFeed": null,
-                    "userErrors": [{ "field": ["language"], "message": "Language is invalid", "code": "INVALID" }]
+                    "userErrors": [user_error(["language"], "Language is invalid", Some("INVALID"))]
                 }),
                 &field.selection,
             );
@@ -4130,38 +4188,69 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let feed_exists = self.has_products_tail_staged_resource_id(&id);
-        let (payload, staged_ids, status) =
-            if id == "gid://shopify/ProductFeed/US-EN" && feed_exists {
-                (
-                    json!({
-                        "__typename": "ProductFullSyncPayload",
-                        "id": id,
-                        "job": product_tail_full_sync_job(),
-                        "userErrors": []
-                    }),
-                    vec![
-                        "gid://shopify/ProductFeed/US-EN".to_string(),
-                        "gid://shopify/Job/2".to_string(),
-                    ],
-                    "staged",
-                )
-            } else {
-                (
-                    json!({
-                        "__typename": "ProductFullSyncPayload",
-                        "id": null,
-                        "job": null,
-                        "userErrors": [{
-                            "field": ["id"],
-                            "message": "ProductFeed does not exist",
-                            "code": "NOT_FOUND"
-                        }]
-                    }),
-                    Vec::new(),
-                    "failed",
-                )
-            };
+        let feed_exists = shopify_gid_resource_type(&id) == Some("ProductFeed")
+            && self.has_products_tail_staged_resource_id(&id);
+        let before_updated_at = resolved_string_arg(&field.arguments, "beforeUpdatedAt");
+        let updated_at_since = resolved_string_arg(&field.arguments, "updatedAtSince");
+        let (payload, staged_ids, status) = if !feed_exists {
+            (
+                json!({
+                    "__typename": "ProductFullSyncPayload",
+                    "id": null,
+                    "job": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "ProductFeed does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        } else if product_full_sync_updated_at_range_invalid(
+            before_updated_at.as_deref(),
+            updated_at_since.as_deref(),
+        ) {
+            (
+                json!({
+                    "__typename": "ProductFullSyncPayload",
+                    "id": null,
+                    "job": Value::Null,
+                    "userErrors": [{
+                        "field": ["updatedAtSince"],
+                        "message": "updatedAtSince must be before beforeUpdatedAt",
+                        "code": Value::Null
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        } else {
+            let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
+            let job_id = self.next_synthetic_gid("Job");
+            let job = json!({
+                "__typename": "Job",
+                "id": job_id.clone(),
+                "done": false,
+                "query": { "__typename": "QueryRoot" },
+            });
+            if let Some(job_id) = job.get("id").and_then(Value::as_str) {
+                self.store
+                    .staged
+                    .collection_jobs
+                    .insert(job_id.to_string(), job.clone());
+            }
+            (
+                json!({
+                    "__typename": "ProductFullSyncPayload",
+                    "id": id,
+                    "job": job,
+                    "userErrors": []
+                }),
+                vec![id, operation_id, job_id],
+                "staged",
+            )
+        };
         self.record_products_tail_log(
             request,
             query,
@@ -4177,11 +4266,6 @@ impl DraftProxy {
         let Some(id) = resolved_string_arg(&field.arguments, "id") else {
             return Value::Null;
         };
-        if id == "gid://shopify/Job/2"
-            && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
-        {
-            return selected_json(&product_tail_full_sync_job(), &field.selection);
-        }
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
             return selected_json(job, &field.selection);
         }
@@ -4350,7 +4434,8 @@ impl DraftProxy {
         for field_name in ["customerOneId", "customerTwoId"] {
             if let Some(id) = resolved_string_field(&arguments, field_name) {
                 if id != resulting_id {
-                    self.store.staged.deleted_customer_ids.insert(id);
+                    self.store.staged.customers.remove(&id);
+                    self.store.staged.customers.tombstone(id);
                 }
             }
         }
@@ -4364,7 +4449,7 @@ impl DraftProxy {
             "customer" => match field.arguments.get("id") {
                 Some(ResolvedValue::String(id)) => {
                     self.store.staged.customers.contains_key(id)
-                        || self.store.staged.deleted_customer_ids.contains(id)
+                        || self.store.staged.customers.is_tombstoned(id)
                         || self.store_credit_owner_has_accounts(id)
                 }
                 _ => false,
@@ -4416,7 +4501,7 @@ impl DraftProxy {
             .staged
             .customers_count_base
             .unwrap_or(177)
-            .saturating_sub(self.store.staged.deleted_customer_ids.len() as u64)
+            .saturating_sub(self.store.staged.customers.tombstones.len() as u64)
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -4471,7 +4556,7 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return Value::Null;
         };
-        if self.store.staged.deleted_customer_ids.contains(id) {
+        if self.store.staged.customers.is_tombstoned(id) {
             return Value::Null;
         }
         self.store
@@ -4747,12 +4832,12 @@ impl DraftProxy {
         let balance_display = shopify_decimal_text(balance_after);
         let transaction_id = self.next_store_credit_transaction_gid();
         let mut account = existing;
-        account["balance"] = store_credit_money(&balance_display, &currency);
+        account["balance"] = money_value(&balance_display, &currency);
         let transaction = json!({
             "id": transaction_id,
             "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
-            "amount": store_credit_money(&amount_display, &currency),
-            "balanceAfterTransaction": store_credit_money(&balance_display, &currency),
+            "amount": money_value(&amount_display, &currency),
+            "balanceAfterTransaction": money_value(&balance_display, &currency),
             "createdAt": self.next_product_timestamp(),
             "event": "ADJUSTMENT",
             "origin": Value::Null,
@@ -4830,14 +4915,10 @@ impl DraftProxy {
         let owner = self.store_credit_owner_json(owner_id);
         let account = json!({
             "id": account_id,
-            "balance": store_credit_money("0.0", currency),
+            "balance": money_value("0.0", currency),
             "owner": owner,
             "transactions": connection_json(Vec::new())
         });
-        self.store
-            .staged
-            .store_credit_account_order
-            .push(account_id.clone());
         self.store
             .staged
             .store_credit_accounts
@@ -4928,7 +5009,8 @@ impl DraftProxy {
         let accounts = self
             .store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
@@ -4944,7 +5026,8 @@ impl DraftProxy {
     ) -> Option<String> {
         self.store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .find(|account| {
@@ -4966,10 +5049,10 @@ impl DraftProxy {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
                 self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.deleted_customer_ids.contains(owner_id)
+                    && !self.store.staged.customers.is_tombstoned(owner_id)
             }
             Some("CompanyLocation") => {
-                b2b_company_location_exists(&self.store.staged.b2b_locations, owner_id)
+                b2b_company_location_exists(&self.store.staged.b2b_locations.records, owner_id)
             }
             _ => false,
         }
@@ -5025,7 +5108,7 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                !self.store.staged.deleted_customer_ids.contains(id)
+                !self.store.staged.customers.is_tombstoned(id)
             })
             .filter(|customer| customer_matches_query(customer, query.as_deref()))
             .cloned()
@@ -5061,7 +5144,7 @@ impl DraftProxy {
             customer
                 .get("id")
                 .and_then(Value::as_str)
-                .map(|id| !self.store.staged.deleted_customer_ids.contains(id))
+                .map(|id| !self.store.staged.customers.is_tombstoned(id))
                 .unwrap_or(true)
         };
         let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
@@ -5087,7 +5170,7 @@ impl DraftProxy {
                 .staged
                 .customers
                 .get(&id)
-                .filter(|_| !self.store.staged.deleted_customer_ids.contains(&id))
+                .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
         } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
             .or_else(|| resolved_string_field(identifier, "phoneNumber"))
         {
@@ -5784,7 +5867,7 @@ impl DraftProxy {
             })
         } else {
             self.store.staged.customers.remove(&id);
-            self.store.staged.deleted_customer_ids.insert(id.clone());
+            self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
@@ -5917,7 +6000,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(id) = find(&self.store.staged.customers, identifier_value) {
+        if let Some(id) = find(&self.store.staged.customers.records, identifier_value) {
             let Some(existing) = self.customer_existing_for_update(request, &id) else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
@@ -6017,7 +6100,6 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        self.store.staged.deleted_customer_ids.remove(id);
         self.store
             .staged
             .customers
@@ -6030,7 +6112,7 @@ impl DraftProxy {
     }
 
     fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
-        if id.is_empty() || self.store.staged.deleted_customer_ids.contains(id) {
+        if id.is_empty() || self.store.staged.customers.is_tombstoned(id) {
             return None;
         }
         self.store
@@ -6043,6 +6125,67 @@ impl DraftProxy {
 
     fn customer_exists_for_mutation(&mut self, request: &Request, id: &str) -> bool {
         self.customer_existing_for_update(request, id).is_some()
+    }
+
+    /// Ensure a customer referenced by `customerMerge` is present in staged state
+    /// by forwarding a hydrate upstream and observing the result. Mirrors
+    /// `customer_existing_for_update`'s forward-on-miss, but *stages* the observed
+    /// record so both the existence validation (`customer_exists`) and the merge
+    /// body read the same customer. No-op when the customer is already staged or
+    /// has been deleted/merged away.
+    fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
+        if id.is_empty()
+            || self.store.staged.customers.contains_staged(id)
+            || self.store.staged.customers.is_tombstoned(id)
+        {
+            return;
+        }
+        if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
+            self.store.staged.customers.stage(id.to_string(), customer);
+        }
+    }
+
+    /// Forward the richer `CustomerMergeHydrate` query and observe a customer the merge
+    /// references, so the merge body reads consistent state for the customer's attached
+    /// resources. Unlike `hydrate_customer_for_mutation`, this also lifts the customer's
+    /// `orders` connection into the staged `customer_orders` index (preserving each order's
+    /// opaque connection cursor) so the merge can transfer them to the resulting customer and
+    /// downstream order reads window/cursor them like locally-created orders. Returns the
+    /// staged customer record (metafields/addresses retained) or `None` for a missing
+    /// customer / snapshot mode.
+    fn hydrate_customer_for_merge(&mut self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_MERGE_HYDRATE_QUERY,
+                "operationName": "CustomerMergeHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let customer = response.body["data"]["customer"].clone();
+        if customer.is_null() {
+            return None;
+        }
+        let orders = customer_merge_extract_order_records(id, &customer["orders"]);
+        if !orders.is_empty() {
+            self.store
+                .staged
+                .customer_orders
+                .insert(id.to_string(), orders);
+        }
+        let mut record = normalize_hydrated_customer_record(customer);
+        // The orders connection is served from `customer_orders`; drop the raw hydrate edges
+        // so the stored record keeps the canonical staged-customer shape.
+        if let Some(object) = record.as_object_mut() {
+            object.remove("orders");
+        }
+        Some(record)
     }
 
     fn customer_input_validation_errors(
@@ -6262,7 +6405,11 @@ impl DraftProxy {
         }) || self.customer_upstream_contact_taken(request, current_id, "phone", phone)
     }
 
-    fn hydrate_customer_for_mutation(&mut self, request: &Request, id: &str) -> Option<Value> {
+    pub(in crate::proxy) fn hydrate_customer_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
@@ -6381,7 +6528,7 @@ impl DraftProxy {
 /// mode. Mirrors the per-resource hydrate queries; the count is cached into
 /// `customers_count_base` so subsequent reads track deletions generically.
 const CUSTOMER_COUNT_HYDRATE_QUERY: &str =
-    "query CustomerCountHydrate { customersCount { count precision } }";
+    include_str!("../../config/parity-requests/customers/customer-count-hydrate.graphql");
 
 impl DraftProxy {
     /// `customerAddTaxExemptions` / `customerRemoveTaxExemptions` /
@@ -6416,13 +6563,7 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
-        if customer_id.is_empty()
-            || self
-                .store
-                .staged
-                .deleted_customer_ids
-                .contains(&customer_id)
-        {
+        if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(&customer_id) {
             return (
                 customer_tax_exemptions_payload(
                     Value::Null,
@@ -6796,10 +6937,7 @@ fn customer_tax_exemptions_payload(customer: Value, user_errors: Vec<Value>) -> 
 }
 
 fn customer_tax_exemptions_user_error() -> Value {
-    json!({
-        "field": ["customerId"],
-        "message": "Customer does not exist."
-    })
+    user_error_omit_code(["customerId"], "Customer does not exist.", None)
 }
 
 fn customer_tax_exemptions(customer: &Value) -> Vec<String> {
@@ -6862,11 +7000,7 @@ fn customer_consent_payload(customer: Value, user_errors: Vec<Value>) -> Value {
 }
 
 fn customer_consent_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn customer_consent_invalid_state_error(field: &RootFieldSelection, state: &str) -> Value {
@@ -6951,11 +7085,11 @@ fn customer_payload(customer: Value, user_errors: Vec<Value>) -> Value {
 }
 
 fn customer_user_error(field: Value, message: &str) -> Value {
-    json!({ "field": field, "message": message })
+    user_error_omit_code(field, message, None)
 }
 
 fn customer_user_error_with_code(field: Value, message: &str, code: &str) -> Value {
-    json!({ "field": field, "message": message, "code": code })
+    user_error(field, message, Some(code))
 }
 
 fn customer_identity_user_error(field: Value) -> Value {
@@ -8118,6 +8252,28 @@ fn normalize_hydrated_customer_record(mut customer: Value) -> Value {
             object.insert("taxExemptions".to_string(), json!([]));
         }
     }
+    // The hydrate query returns `addressesV2 { nodes }` with no edges/pageInfo, but a real
+    // connection read always reports them. Rebuild the connection into the full
+    // nodes/edges/pageInfo shape so reads that select `addressesV2.pageInfo` (e.g. the merge
+    // downstream read) match Shopify instead of observing an undefined pageInfo. Cursors are the
+    // deterministic per-node form, matched leniently as `any-string` downstream.
+    if customer.get("addressesV2").is_some() {
+        let nodes = connection_nodes(&customer["addressesV2"]);
+        let default_id = customer
+            .get("defaultAddress")
+            .and_then(|address| address.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        customer_rebuild_addresses(&mut customer, nodes, default_id.as_deref());
+    }
+    // The hydrate query likewise returns `metafields { nodes }` with no pageInfo, so rebuild it
+    // into the full nodes/pageInfo connection shape. Otherwise an (often empty) metafields
+    // connection reports an undefined pageInfo for reads that select it — e.g. the merge
+    // downstream read, which expects the empty-connection `{hasNextPage:false, …, endCursor:null}`.
+    if customer.get("metafields").is_some() {
+        let nodes = connection_nodes(&customer["metafields"]);
+        customer["metafields"] = nodes_connection(nodes);
+    }
     customer
 }
 
@@ -8164,6 +8320,8 @@ const TAX_EXEMPTION_VALUES: &[&str] = &[
     "CA_BC_RESELLER_EXEMPTION",
     "CA_MB_RESELLER_EXEMPTION",
     "CA_SK_RESELLER_EXEMPTION",
+    "CA_SK_VPT_RESELLER_EXEMPTION",
+    "CA_NL_VPT_RESELLER_EXEMPTION",
     "CA_DIPLOMAT_EXEMPTION",
     "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
     "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
@@ -8438,82 +8596,6 @@ fn sms_consent_invalid_variable_response(
     ok_json(json!({ "errors": [Value::Object(error)] }))
 }
 
-/// Resolves the 1-based (line, column) of a variable *definition* (`$name`) in the query
-/// document. Shopify anchors `INVALID_VARIABLE` coercion errors to the variable definition,
-/// which is always the first `$name` occurrence (definitions precede usages).
-pub(in crate::proxy) fn graphql_variable_definition_location(
-    query: &str,
-    variable_name: &str,
-) -> Option<(usize, usize)> {
-    let needle = format!("${variable_name}");
-    let bytes = query.as_bytes();
-    let mut search_from = 0;
-    while let Some(relative) = query[search_from..].find(&needle) {
-        let start = search_from + relative;
-        let after = start + needle.len();
-        let is_boundary = match bytes.get(after) {
-            None => true,
-            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
-        };
-        if is_boundary {
-            let mut line = 1usize;
-            let mut column = 1usize;
-            for (index, ch) in query.char_indices() {
-                if index == start {
-                    return Some((line, column));
-                }
-                if ch == '\n' {
-                    line += 1;
-                    column = 1;
-                } else {
-                    column += 1;
-                }
-            }
-            return Some((line, column));
-        }
-        search_from = after;
-    }
-    None
-}
-
-/// Resolves the declared GraphQL type of a variable (`$name: <TYPE>`) from the query
-/// document, e.g. `[TaxExemption!]!` or `CustomerSmsMarketingConsentUpdateInput!`.
-/// Shopify echoes the exact declared type in `INVALID_VARIABLE` coercion messages, so
-/// we parse it from the variable definition rather than hardcoding a single shape.
-pub(in crate::proxy) fn graphql_variable_definition_type(
-    query: &str,
-    variable_name: &str,
-) -> Option<String> {
-    let needle = format!("${variable_name}");
-    let bytes = query.as_bytes();
-    let mut search_from = 0;
-    while let Some(relative) = query[search_from..].find(&needle) {
-        let start = search_from + relative;
-        let after = start + needle.len();
-        let is_boundary = match bytes.get(after) {
-            None => true,
-            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
-        };
-        if is_boundary {
-            // A variable *definition* is `$name: <TYPE>`; a *usage* (`field(arg: $name)`)
-            // has no `:` immediately following. Only the definition yields a type.
-            if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
-                let declared: String = type_part
-                    .trim_start()
-                    .chars()
-                    .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
-                    .collect();
-                let declared = declared.trim();
-                if !declared.is_empty() {
-                    return Some(declared.to_string());
-                }
-            }
-        }
-        search_from = after;
-    }
-    None
-}
-
 fn is_known_tax_exemption(value: &str) -> bool {
     TAX_EXEMPTION_VALUES.contains(&value)
 }
@@ -8692,6 +8774,23 @@ fn publication_default_state_invalid_response(
         }),
     );
     ok_json(json!({ "errors": [Value::Object(error)] }))
+}
+
+fn product_full_sync_updated_at_range_invalid(
+    before_updated_at: Option<&str>,
+    updated_at_since: Option<&str>,
+) -> bool {
+    let (Some(before_updated_at), Some(updated_at_since)) = (before_updated_at, updated_at_since)
+    else {
+        return false;
+    };
+    let Some(before_updated_at) = parse_rfc3339_epoch_seconds(before_updated_at) else {
+        return false;
+    };
+    let Some(updated_at_since) = parse_rfc3339_epoch_seconds(updated_at_since) else {
+        return false;
+    };
+    updated_at_since > before_updated_at
 }
 
 /// ProductFeed `country` is a Shopify `CountryCode` — an ISO 3166-1 alpha-2 code
@@ -9706,6 +9805,14 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(variables, "customerTwoId"))
             .unwrap_or_default();
 
+        // Pre-existing customers referenced by a merge are resolved the real way:
+        // forward a hydrate upstream and stage the observed record so both the
+        // existence checks and the merge body read consistent state. Already-staged
+        // or deleted/merged-away customers are left untouched (a deleted source must
+        // still surface DOES_NOT_EXIST rather than be re-hydrated).
+        self.ensure_customer_hydrated_for_merge(request, &one_id);
+        self.ensure_customer_hydrated_for_merge(request, &two_id);
+
         // Compute the payload generically from staged state. State only mutates on
         // the success branch; each early return mirrors a live customerMerge
         // userError branch (self-merge, unknown customer, merge blockers).
@@ -9910,10 +10017,7 @@ impl DraftProxy {
             .customers
             .insert(result_id.clone(), result);
         self.store.staged.customers.remove(&source_id);
-        self.store
-            .staged
-            .deleted_customer_ids
-            .insert(source_id.clone());
+        self.store.staged.customers.tombstone(source_id.clone());
         self.store
             .staged
             .merged_customer_ids
@@ -9960,7 +10064,7 @@ impl DraftProxy {
     fn customer_exists(&self, id: &str) -> bool {
         !id.is_empty()
             && self.store.staged.customers.contains_key(id)
-            && !self.store.staged.deleted_customer_ids.contains(id)
+            && !self.store.staged.customers.is_tombstoned(id)
     }
 
     fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
@@ -10089,11 +10193,7 @@ fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Ve
 }
 
 fn customer_data_erasure_user_error(message: &str, code: &str) -> Value {
-    json!({
-        "field": ["customerId"],
-        "message": message,
-        "code": code
-    })
+    user_error(["customerId"], message, Some(code))
 }
 
 fn customer_tags(customer: &Value) -> Vec<String> {
@@ -10337,6 +10437,36 @@ fn node_connection_cursor(node: &Value) -> String {
         .to_string()
 }
 
+/// Lift a customer's hydrated `orders` connection (an `edges { cursor node { … } }` page)
+/// into the per-customer order records the staged `customer_orders` index expects: each node
+/// carries its opaque connection `__cursor` (so downstream order reads reproduce Shopify's
+/// cursors verbatim) and a `customer { id }` back-reference (so a transferred order re-stamps
+/// the resulting customer's email like a locally-created order).
+fn customer_merge_extract_order_records(customer_id: &str, orders: &Value) -> Vec<Value> {
+    let Some(edges) = orders.get("edges").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    edges
+        .iter()
+        .filter_map(|edge| {
+            let node = edge.get("node")?;
+            if node.is_null() {
+                return None;
+            }
+            let mut record = node.clone();
+            if let Some(object) = record.as_object_mut() {
+                if let Some(cursor) = edge.get("cursor").and_then(Value::as_str) {
+                    object.insert("__cursor".to_string(), json!(cursor));
+                }
+                if !object.contains_key("customer") {
+                    object.insert("customer".to_string(), json!({ "id": customer_id }));
+                }
+            }
+            Some(record)
+        })
+        .collect()
+}
+
 /// Cursor for an order node within a customer's `orders` connection. Prefers a
 /// seeded opaque `__cursor` (the live Shopify connection cursor a scenario captured
 /// and re-seeded, which downstream reads compare verbatim) and otherwise falls back
@@ -10411,18 +10541,7 @@ fn empty_orders_connection() -> Value {
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
 fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-fn store_credit_money(amount: &str, currency: &str) -> Value {
-    json!({
-        "amount": amount,
-        "currencyCode": currency
-    })
+    user_error(field, message, Some(code))
 }
 
 /// Read a money `amount` field from a resolved input map, accepting either the

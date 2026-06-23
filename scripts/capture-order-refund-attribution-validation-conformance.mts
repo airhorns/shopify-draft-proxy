@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -102,56 +102,16 @@ mutation RefundCreateAttributionValidation($input: RefundInput!) {
 }
 `;
 
-const orderReadAfterRefundAttributionRejection = `#graphql
-  query OrderRefundReadParity($id: ID!) {
-    order(id: $id) {
-      id
-      name
-      displayFinancialStatus
-      displayFulfillmentStatus
-      refunds {
-        id
-        note
-        totalRefundedSet {
-          shopMoney {
-            amount
-            currencyCode
-          }
-        }
-      }
-      returns(first: 5) {
-        nodes {
-          id
-          status
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-        }
-      }
-      transactions {
-        id
-        kind
-        status
-        gateway
-        amountSet {
-          shopMoney {
-            amount
-            currencyCode
-          }
-        }
-      }
-      totalRefundedSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-      }
-    }
-  }
-`;
+// The downstream read the parity harness issues against the proxy uses this exact
+// document (`config/parity-requests/orders/refundCreate-downstream-read.graphql`). Forward
+// the byte-identical query here so the recorded cassette matches the proxy's cold-read
+// forward verbatim — the order is no longer seeded, so this cassette is what answers the
+// read. (Replaces a hand-synthesized placeholder query string that only ever worked because
+// the order was seeded and the downstream read was served from seed, not this cassette.)
+const orderReadAfterRefundAttributionRejection = await readFile(
+  path.join('config', 'parity-requests', 'orders', 'refundCreate-downstream-read.graphql'),
+  'utf8',
+);
 
 const orderCancelMutation = `#graphql
   mutation RefundAttributionValidationOrderCancel(
@@ -350,13 +310,6 @@ await writeJson(fixturePath, {
     query: schemaProbeQuery,
     response: schemaProbe.payload,
   },
-  setup: {
-    orderCreate: {
-      query: orderCreateMutation,
-      variables: orderVariables,
-      response: orderCreate.payload,
-    },
-  },
   invalidVariable: {
     query: refundCreateAttributionValidationMutation,
     variables: invalidVariables,
@@ -379,7 +332,7 @@ await writeJson(fixturePath, {
     {
       operationName: 'OrderRefundReadParity',
       variables: downstreamReadVariables,
-      query: 'captured downstream order read after refundCreate attribution validation rejection',
+      query: orderReadAfterRefundAttributionRejection,
       response: {
         status: 200,
         body: downstreamRead.payload,

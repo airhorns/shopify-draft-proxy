@@ -5,7 +5,8 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
-const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
+const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
@@ -32,6 +33,127 @@ const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydr
 const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
+        let Some(result) = self.store.staged.bulk_operation_results.get(artifact_id) else {
+            return json_error(404, "Not found");
+        };
+        Response {
+            status: 200,
+            headers: BTreeMap::from([(
+                "content-type".to_string(),
+                "application/jsonl; charset=utf-8".to_string(),
+            )]),
+            body: Value::String(result.clone()),
+        }
+    }
+
+    fn bulk_operation_result_artifact_url(&self, id: &str) -> String {
+        format!(
+            "https://localhost:{}{}",
+            self.config.port,
+            bulk_operation_result_artifact_path(id)
+        )
+    }
+
+    fn stage_bulk_operation_result(&mut self, id: &str, jsonl: String) {
+        self.store
+            .staged
+            .bulk_operation_results
+            .insert(resource_id_path_tail(id).to_string(), jsonl);
+    }
+
+    fn bulk_operation_run_query_result_jsonl(&self, query_text: &str) -> String {
+        let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
+            return String::new();
+        };
+        let Some(field) = document.root_fields.first() else {
+            return String::new();
+        };
+
+        match field.name.as_str() {
+            "products" => self.bulk_operation_products_result_jsonl(field),
+            "productVariants" => self.bulk_operation_product_variants_result_jsonl(field),
+            _ => String::new(),
+        }
+    }
+
+    fn bulk_operation_products_result_jsonl(&self, field: &RootFieldSelection) -> String {
+        let mut products = self.store.products();
+        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
+            if query.contains("status:") {
+                products.clear();
+            } else if let Some(tag) = product_tag_query_value(query) {
+                products.retain(|product| {
+                    self.store
+                        .staged
+                        .product_search_tags
+                        .get(&product.id)
+                        .map(|tags| tags.contains(tag))
+                        .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
+                });
+            } else if query.trim_start().starts_with("sku:") {
+                products.retain(|product| {
+                    let variants = self.store.product_variants_for_product(&product.id);
+                    product_matches_sku_query(product, &variants, query)
+                });
+            }
+        }
+
+        let node_selection = edge_node_selection(&field.selection);
+        let product_selection = bulk_jsonl_node_selection(&node_selection);
+        let nested_variant_selection = node_selection
+            .iter()
+            .find(|selection| selection.name == "variants")
+            .map(|selection| edge_node_selection(&selection.selection))
+            .unwrap_or_default();
+        let nested_variant_selection = bulk_jsonl_node_selection(&nested_variant_selection);
+        let mut rows = Vec::new();
+        for product in products {
+            let variants = self.store.product_variants_for_product(&product.id);
+            let product_json = product_json_with_variants_and_currency(
+                &product,
+                &variants,
+                &product_selection,
+                &self.store.shop_currency_code(),
+            );
+            let product_json = self.owner_metafield_overlay_owner_json_with_product_variants(
+                "product",
+                &product.id,
+                &product_selection,
+                &product.variants,
+                product_json,
+            );
+            rows.push(product_json);
+
+            if !nested_variant_selection.is_empty() {
+                for variant in &variants {
+                    rows.push(bulk_jsonl_child_node(
+                        product_variant_json(variant, Some(&product), &nested_variant_selection),
+                        &product.id,
+                    ));
+                }
+            }
+        }
+
+        values_to_jsonl(rows)
+    }
+
+    fn bulk_operation_product_variants_result_jsonl(&self, field: &RootFieldSelection) -> String {
+        let node_selection = edge_node_selection(&field.selection);
+        let variant_selection = bulk_jsonl_node_selection(&node_selection);
+        let rows = self
+            .store
+            .product_variants()
+            .into_iter()
+            .map(|variant| {
+                let product = self.store.product_by_id(&variant.product_id);
+                product_variant_json(&variant, product, &variant_selection)
+            })
+            .collect();
+
+        values_to_jsonl(rows)
+    }
+
     pub(in crate::proxy) fn bulk_operation_read_response(
         &self,
         request: &Request,
@@ -255,8 +377,11 @@ impl DraftProxy {
         } else {
             "2026-04-27T20:34:58Z"
         };
-        let terminal_operation =
+        let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
+        let mut terminal_operation =
             bulk_operation_record_with(&id, "COMPLETED", &query_text, count, created_at, "113499");
+        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
             .bulk_operations
@@ -381,7 +506,7 @@ impl DraftProxy {
         );
         self.next_synthetic_id += 1;
         let created_at = "2026-05-05T20:34:00Z";
-        let terminal_operation = bulk_operation_record_with_type(
+        let mut terminal_operation = bulk_operation_record_with_type(
             &id,
             "COMPLETED",
             "MUTATION",
@@ -390,6 +515,8 @@ impl DraftProxy {
             created_at,
             "0",
         );
+        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        self.stage_bulk_operation_result(&id, String::new());
         self.store
             .staged
             .bulk_operations
@@ -975,8 +1102,7 @@ impl DraftProxy {
             })));
         }
         for id in &ids {
-            self.store.staged.deleted_media_file_ids.insert(id.clone());
-            self.store.staged.media_files.remove(id);
+            self.store.staged.media_files.tombstone_staged(id);
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
@@ -1322,7 +1448,7 @@ impl DraftProxy {
             // Stage the file record itself so the existence check passes.
             if let Some(record) = media_file_record_from_node(&node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1359,7 +1485,7 @@ impl DraftProxy {
         {
             if let Some(record) = media_file_record_from_node(media_node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1471,7 +1597,7 @@ impl DraftProxy {
                         .staged
                         .media_files
                         .iter()
-                        .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
+                        .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
                     // Order by sortKey: ID (the numeric resource id), then honor
@@ -1530,11 +1656,18 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
-        if inputs.len() <= 25 {
-            self.hydrate_metafield_reference_ids(request, metafields_set_reference_values(&inputs));
-        }
-        let mut user_errors =
-            metafields_set_input_errors(&inputs, |id| self.metafield_reference_exists(id));
+        let fallback_reference_ids = if inputs.len() <= 25 {
+            self.hydrate_metafield_reference_ids(
+                request,
+                metafields_set_reference_values(&inputs),
+                metafields_set_product_owner_ids(&inputs),
+            )
+        } else {
+            BTreeSet::new()
+        };
+        let mut user_errors = metafields_set_input_errors(&inputs, |id| {
+            self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
+        });
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
@@ -1758,6 +1891,21 @@ impl DraftProxy {
             }
             match field.name.as_str() {
                 "collection" | "customer" | "order" | "company" => {
+                    if self.config.read_mode == ReadMode::LiveHybrid {
+                        let owner_id = self.owner_field_id(&field, variables);
+                        let cold = self.owner_needs_metafield_hydration(&field.name, &owner_id);
+                        // A cold (unstaged) owner that also selects sub-resources the
+                        // metafields overlay cannot synthesize (addresses, orders, events, …)
+                        // must forward the whole read upstream as a passthrough rather than be
+                        // answered with a metafields-only projection that silently drops them.
+                        if cold
+                            && !Self::owner_metafields_read_selection_is_metafields_only(
+                                &field.selection,
+                            )
+                        {
+                            continue;
+                        }
+                    }
                     has_non_product_owner_read = true;
                 }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
@@ -1854,9 +2002,14 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_metafield_reference_ids(&mut self, request: &Request, ids: Vec<String>) {
+    fn hydrate_metafield_reference_ids(
+        &mut self,
+        request: &Request,
+        ids: Vec<String>,
+        product_owner_ids: BTreeSet<String>,
+    ) -> BTreeSet<String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
+            return BTreeSet::new();
         }
         let mut ids = ids
             .into_iter()
@@ -1865,7 +2018,7 @@ impl DraftProxy {
         ids.sort();
         ids.dedup();
         if ids.is_empty() {
-            return;
+            return BTreeSet::new();
         }
 
         let mut product_domain_ids = Vec::new();
@@ -1876,11 +2029,26 @@ impl DraftProxy {
                 _ => generic_ids.push(id),
             }
         }
+        let mut fallback_reference_ids = BTreeSet::new();
         if !product_domain_ids.is_empty() {
-            self.hydrate_product_nodes_for_observation_with_request(request, product_domain_ids);
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY,
+                    "operationName": "ProductsHydrateNodes",
+                    "variables": { "ids": product_domain_ids.clone() }
+                }),
+            );
+            if response.status >= 400 {
+                fallback_reference_ids.extend(product_domain_ids.iter().filter_map(|id| {
+                    metafield_product_domain_reference_fallback(id, &product_owner_ids)
+                }));
+            } else {
+                self.observe_nodes_response(&response);
+            }
         }
         if generic_ids.is_empty() {
-            return;
+            return fallback_reference_ids;
         }
         let response = self.upstream_post(
             request,
@@ -1891,13 +2059,14 @@ impl DraftProxy {
             }),
         );
         if response.status >= 400 {
-            return;
+            return fallback_reference_ids;
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
             for node in nodes {
                 self.stage_metafield_reference_node(node);
             }
         }
+        fallback_reference_ids
     }
 
     fn stage_metafield_reference_node(&mut self, node: &Value) {
@@ -1946,7 +2115,7 @@ impl DraftProxy {
                     .or_insert_with(|| node.clone());
             }
             Some("Metaobject") => {
-                if !self.store.staged.deleted_metaobject_ids.contains(&id) {
+                if !self.store.staged.metaobjects.is_tombstoned(&id) {
                     self.store
                         .staged
                         .metaobjects
@@ -1973,20 +2142,20 @@ impl DraftProxy {
             Some("Collection") => self.store.collection_by_id(id).is_some(),
             Some("Customer") => {
                 self.store.staged.customers.contains_key(id)
-                    && !self.store.staged.deleted_customer_ids.contains(id)
+                    && !self.store.staged.customers.is_tombstoned(id)
             }
             Some("Order") => {
                 self.store.staged.orders.contains_key(id)
-                    && !self.store.staged.deleted_order_ids.contains(id)
+                    && !self.store.staged.orders.is_tombstoned(id)
             }
             Some("Company") => self.store.staged.b2b_companies.contains_key(id),
             Some("Metaobject") => {
                 self.store.staged.metaobjects.contains_key(id)
-                    && !self.store.staged.deleted_metaobject_ids.contains(id)
+                    && !self.store.staged.metaobjects.is_tombstoned(id)
             }
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
                 self.store.staged.media_files.contains_key(id)
-                    && !self.store.staged.deleted_media_file_ids.contains(id)
+                    && !self.store.staged.media_files.is_tombstoned(id)
             }
             _ => false,
         }
@@ -2430,6 +2599,19 @@ impl DraftProxy {
             }
         }
         Value::Object(connection)
+    }
+
+    /// True when an owner read selects only fields the metafields overlay can synthesize
+    /// for a cold (unstaged) owner: `id`, `__typename`, `metafield`, `metafields`. Any other
+    /// field (addresses, orders, events, …) cannot be projected from an empty base, so the
+    /// read must instead forward upstream as a full passthrough.
+    fn owner_metafields_read_selection_is_metafields_only(selections: &[SelectedField]) -> bool {
+        selections.iter().all(|selection| {
+            matches!(
+                selection.name.as_str(),
+                "id" | "__typename" | "metafield" | "metafields"
+            )
+        })
     }
 
     fn owner_field_selects_metafields_at_root(
@@ -3597,7 +3779,7 @@ impl DraftProxy {
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let user_error = selected_json(
-            &json!({"field": [field], "message": message}),
+            &user_error_omit_code([field], message, None),
             &error_selection,
         );
         MutationOutcome::response(ok_json(json!({
@@ -3629,7 +3811,7 @@ impl DraftProxy {
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
             "productVariantAppendMedia" | "productVariantDetachMedia" => {
-                self.product_variant_media_mutation(root_field, query, variables)
+                self.product_variant_media_mutation(request, root_field, query, variables)
             }
             "productVariantsBulkCreate" => {
                 self.product_variants_bulk_create(request, query, variables)
@@ -3652,6 +3834,7 @@ impl DraftProxy {
 
     fn product_variant_media_mutation(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -3660,7 +3843,7 @@ impl DraftProxy {
             primary_root_response_selection(query, variables, || root_field.to_string());
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_media = resolved_object_list_field(variables, "variantMedia");
-        self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
+        self.hydrate_product_variant_media_owner_state(request, &product_id, &variant_media);
         let user_errors =
             self.product_variant_media_user_errors(root_field, &product_id, &variant_media);
 
@@ -3729,27 +3912,45 @@ impl DraftProxy {
 
     fn hydrate_product_variant_media_owner_state(
         &mut self,
+        request: &Request,
         product_id: &str,
         variant_media: &[BTreeMap<String, ResolvedValue>],
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let mut ids = Vec::new();
-        if !product_id.is_empty() && self.store.product_by_id(product_id).is_none() {
-            ids.push(product_id.to_string());
+        // The owning product (and its variants + media) must be in local state for
+        // the variant-existence and media-existence checks to resolve against real
+        // store data. The generic node-observation query does not select `media`, so
+        // forward the media-aware product hydrate (which also brings the product's
+        // variants) and observe it. Hydrate when the product is missing locally or
+        // when any referenced variant is not yet known.
+        if product_id.is_empty() {
+            return;
         }
-        for item in variant_media {
-            let Some(variant_id) = resolved_string_field(item, "variantId") else {
-                continue;
-            };
-            if self.store.product_variant_by_id(&variant_id).is_none() {
-                ids.push(variant_id);
-            }
+        let product_missing = self.store.product_by_id(product_id).is_none();
+        let any_variant_missing = variant_media.iter().any(|item| {
+            resolved_string_field(item, "variantId")
+                .is_some_and(|variant_id| self.store.product_variant_by_id(&variant_id).is_none())
+        });
+        if !product_missing && !any_variant_missing {
+            return;
         }
-        ids.sort();
-        ids.dedup();
-        self.hydrate_product_nodes_for_observation(ids);
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": MEDIA_PRODUCT_HYDRATE_QUERY,
+                "operationName": "MediaProductHydrate",
+                "variables": { "id": product_id },
+            }),
+        );
+        if response.status >= 400 {
+            return;
+        }
+        if response.body["data"]["product"].is_object() {
+            let product_node = response.body["data"]["product"].clone();
+            self.observe_media_product_node(&product_node);
+        }
     }
 
     fn product_variant_media_user_errors(
@@ -4848,13 +5049,7 @@ impl DraftProxy {
     }
 
     fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-        json!({
-            "field": field,
-            "message": message,
-            "code": code
-                .map(|code| Value::String(code.to_string()))
-                .unwrap_or(Value::Null),
-        })
+        user_error(field, message, code)
     }
 
     fn product_variant_bulk_option_user_errors(
@@ -6222,11 +6417,7 @@ fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> 
 }
 
 fn bulk_operation_run_query_user_error(message: &str) -> Value {
-    json!({
-        "field": ["query"],
-        "message": message,
-        "code": "INVALID"
-    })
+    user_error(["query"], message, Some("INVALID"))
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -6234,6 +6425,39 @@ fn bulk_operation_run_query_user_error(message: &str) -> Value {
 fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
     let document = parsed_document(query_text, &BTreeMap::new())?;
     document.root_fields.first().map(|field| field.name.clone())
+}
+
+fn bulk_operation_result_artifact_path(id: &str) -> String {
+    format!(
+        "/__meta/bulk-operations/{}/result.jsonl",
+        resource_id_path_tail(id)
+    )
+}
+
+fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
+    selection
+        .iter()
+        .filter(|field| !field_is_selected(&field.selection, "edges"))
+        .cloned()
+        .collect()
+}
+
+fn bulk_jsonl_child_node(mut node: Value, parent_id: &str) -> Value {
+    if let Some(object) = node.as_object_mut() {
+        object.insert("__parentId".to_string(), json!(parent_id));
+    }
+    node
+}
+
+fn values_to_jsonl(rows: Vec<Value>) -> String {
+    let mut output = String::new();
+    for row in rows {
+        if let Ok(line) = serde_json::to_string(&row) {
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+    output
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
@@ -6251,35 +6475,35 @@ fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
 
 fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Failed to parse the mutation - syntax error, unexpected end of file",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Failed to parse the mutation - syntax error, unexpected end of file",
+            Some("INVALID_MUTATION"),
+        )]);
     };
     if document.operation_type != OperationType::Mutation {
-        return Some(vec![json!({
-            "field": null,
-            "message": "Invalid operation type. Only `mutation` operations are supported.",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            Value::Null,
+            "Invalid operation type. Only `mutation` operations are supported.",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if document.root_fields.len() != 1 {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must specify a single top level mutation.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must specify a single top level mutation.",
+            None,
+        )]);
     }
     if matches!(
         document.root_fields[0].name.as_str(),
         "bulkOperationRunMutation" | "bulkOperationRunQuery"
     ) {
-        return Some(vec![json!({
-            "field": ["mutation"],
-            "message": "You must use an allowed mutation name.",
-            "code": null
-        })]);
+        return Some(vec![user_error(
+            ["mutation"],
+            "You must use an allowed mutation name.",
+            None,
+        )]);
     }
     None
 }
@@ -6290,37 +6514,37 @@ fn bulk_operation_run_mutation_client_identifier_user_errors(
     let client_identifier = client_identifier?;
     let length = client_identifier.chars().count();
     if length < 10 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too short (minimum is 10 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too short (minimum is 10 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     if length > 255 {
-        return Some(vec![json!({
-            "field": ["clientIdentifier"],
-            "message": "is too long (maximum is 255 characters)",
-            "code": "INVALID_MUTATION"
-        })]);
+        return Some(vec![user_error(
+            ["clientIdentifier"],
+            "is too long (maximum is 255 characters)",
+            Some("INVALID_MUTATION"),
+        )]);
     }
     None
 }
 
 fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
-        "code": "NO_SUCH_FILE"
-    })
+    user_error(
+        Value::Null,
+        "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+        Some("NO_SUCH_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
     let max_size_mb = max_file_size_bytes / (1024 * 1024);
-    json!({
-        "field": null,
-        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
-        "code": "INVALID_STAGED_UPLOAD_FILE"
-    })
+    user_error(
+        Value::Null,
+        &format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        Some("INVALID_STAGED_UPLOAD_FILE"),
+    )
 }
 
 fn bulk_operation_run_mutation_error_response(
@@ -6464,6 +6688,32 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
         "__typename": owner_typename_from_gid(owner_id),
         "id": owner_id
     })
+}
+
+fn metafields_set_product_owner_ids(
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) -> BTreeSet<String> {
+    inputs
+        .iter()
+        .filter_map(|input| resolved_string_field(input, "ownerId"))
+        .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
+        .collect()
+}
+
+fn metafield_product_domain_reference_fallback(
+    id: &str,
+    product_owner_ids: &BTreeSet<String>,
+) -> Option<String> {
+    if resource_id_tail(id).parse::<u64>().is_err() {
+        return None;
+    }
+    match shopify_gid_resource_type(id) {
+        Some("Product") if product_owner_ids.contains(id) => Some(id.to_string()),
+        Some("ProductVariant" | "Collection") if !product_owner_ids.is_empty() => {
+            Some(id.to_string())
+        }
+        _ => None,
+    }
 }
 
 fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<ProductVariantRecord> {
@@ -6857,7 +7107,7 @@ fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {quoted} do not exist.")
     };
-    json!({"field": ["files"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["files"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
@@ -6866,7 +7116,7 @@ fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
@@ -6875,7 +7125,7 @@ fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
     } else {
         format!("File ids {} do not exist.", file_ids.join(","))
     };
-    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
 }
 
 fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
@@ -6887,7 +7137,7 @@ fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
             file_ids.join(", ")
         )
     };
-    json!({"field": ["fileIds"], "message": message, "code": "NON_READY_STATE"})
+    user_error(["fileIds"], &message, Some("NON_READY_STATE"))
 }
 
 fn validate_staged_upload_input(

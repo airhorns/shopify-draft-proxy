@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "state-machine-guardrail"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderClose-noop-on-already-closed.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderClose-noop-on-already-closed.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderClose-noop-on-already-closed.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-588 captured redundant orderClose against an already-closed disposable order after waiting across a timestamp boundary; Shopify returns silent success without changing closedAt or updatedAt.",
+  "notes": "HAR-588 redundant orderClose against an already-closed disposable order; Shopify returns silent success without changing closed/closedAt. The proxy resolves the precondition by forwarding a cold order hydrate (ORDER_LIFECYCLE_HYDRATE_QUERY / OrderManagementDownstreamRead, recorded in upstreamCalls) — no /__meta/seed pre-stage — so closed and closedAt are read live and match strictly. updatedAt is outside the lifecycle hydrate projection, so the no-op returns the proxy's normalized lifecycle timestamp rather than the live one (iso-timestamp tolerance).",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -19,7 +19,14 @@
       {
         "name": "mutation-order",
         "capturePath": "$.mutation.response.data.orderClose.order",
-        "proxyPath": "$.data.orderClose.order"
+        "proxyPath": "$.data.orderClose.order",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "updatedAt is outside the cold lifecycle hydrate projection, so the local no-op returns a normalized lifecycle timestamp; the redundant close still leaves closed/closedAt unchanged."
+          }
+        ]
       },
       {
         "name": "mutation-user-errors",

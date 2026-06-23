@@ -1,16 +1,16 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
     Health,
     MetaConfig,
     MetaLog,
     MetaState,
     MetaReset,
-    MetaSeed,
     MetaDump,
     MetaRestore,
     MetaCommit,
+    BulkOperationResult { artifact_id: String },
     Graphql,
     NotFound,
     MethodNotAllowed,
@@ -24,15 +24,29 @@ pub(in crate::proxy) fn route(request: &Request) -> Route {
         "/__meta/log" => only_method("GET", &method, Route::MetaLog),
         "/__meta/state" => only_method("GET", &method, Route::MetaState),
         "/__meta/reset" => only_method("POST", &method, Route::MetaReset),
-        "/__meta/seed" => only_method("POST", &method, Route::MetaSeed),
         "/__meta/dump" => only_method("POST", &method, Route::MetaDump),
         "/__meta/restore" => only_method("POST", &method, Route::MetaRestore),
         "/__meta/commit" => only_method("POST", &method, Route::MetaCommit),
+        path if path.starts_with("/__meta/bulk-operations/") && path.ends_with("/result.jsonl") => {
+            only_method(
+                "GET",
+                &method,
+                Route::BulkOperationResult {
+                    artifact_id: bulk_operation_result_artifact_id(path),
+                },
+            )
+        }
         path if admin_graphql_version(path).is_some() => {
             only_method("POST", &method, Route::Graphql)
         }
         _ => Route::NotFound,
     }
+}
+
+fn bulk_operation_result_artifact_id(path: &str) -> String {
+    path.trim_start_matches("/__meta/bulk-operations/")
+        .trim_end_matches("/result.jsonl")
+        .to_string()
 }
 
 pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) -> Route {

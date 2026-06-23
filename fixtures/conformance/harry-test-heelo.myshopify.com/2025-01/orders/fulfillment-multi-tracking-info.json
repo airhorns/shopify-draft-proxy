@@ -1,23 +1,23 @@
 {
-  "capturedAt": "2026-05-08T02:30:27.315Z",
+  "capturedAt": "2026-06-23T00:34:34.136Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "adminOrigin": "https://harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "orderId": "gid://shopify/Order/8735474614578",
-  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9659296842034",
-  "fulfillmentId": "gid://shopify/Fulfillment/7882908107058",
+  "orderId": "gid://shopify/Order/8838122012978",
+  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774478360882",
+  "fulfillmentId": "gid://shopify/Fulfillment/7987152585010",
   "setup": {
     "orderCreate": {
       "query": "mutation FulfillmentMultiTrackingOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
       "variables": {
         "order": {
-          "email": "fulfillment-multi-tracking-1778207425024@example.com",
-          "note": "fulfillment multi-tracking capture 1778207425024",
+          "email": "fulfillment-multi-tracking-1782174871459@example.com",
+          "note": "fulfillment multi-tracking capture 1782174871459",
           "tags": ["parity-probe", "fulfillment-multi-tracking"],
           "test": true,
           "lineItems": [
             {
-              "title": "Fulfillment multi-tracking item 1778207425024",
+              "title": "Fulfillment multi-tracking item 1782174871459",
               "quantity": 2,
               "priceSet": {
                 "shopMoney": {
@@ -27,7 +27,7 @@
               },
               "requiresShipping": true,
               "taxable": false,
-              "sku": "MULTI-TRACK-1778207425024"
+              "sku": "MULTI-TRACK-1782174871459"
             }
           ],
           "transactions": [
@@ -52,24 +52,24 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8735474614578",
-              "name": "#1387",
+              "id": "gid://shopify/Order/8838122012978",
+              "name": "#1520",
               "displayFulfillmentStatus": "UNFULFILLED",
               "fulfillmentOrders": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrder/9659296842034",
+                    "id": "gid://shopify/FulfillmentOrder/9774478360882",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19461838766386",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19663798075698",
                           "totalQuantity": 2,
                           "remainingQuantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19312610869554",
-                            "title": "Fulfillment multi-tracking item 1778207425024",
+                            "id": "gid://shopify/LineItem/19495388840242",
+                            "title": "Fulfillment multi-tracking item 1782174871459",
                             "quantity": 2,
                             "fulfillableQuantity": 2
                           }
@@ -97,65 +97,74 @@
       }
     },
     "hydrateBeforeFulfillmentCreate": {
-      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9659296842034"
+        "id": "gid://shopify/FulfillmentOrder/9774478360882"
       },
       "status": 200,
       "response": {
         "data": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9659296842034",
-            "order": {
-              "id": "gid://shopify/Order/8735474614578",
-              "name": "#1387",
-              "email": "fulfillment-multi-tracking-1778207425024@example.com",
-              "phone": null,
-              "createdAt": "2026-05-08T02:30:25Z",
-              "updatedAt": "2026-05-08T02:30:25Z",
-              "closed": false,
-              "closedAt": null,
-              "cancelledAt": null,
-              "cancelReason": null,
-              "displayFinancialStatus": "PAID",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "note": "fulfillment multi-tracking capture 1778207425024",
-              "tags": ["fulfillment-multi-tracking", "parity-probe"],
-              "fulfillments": [],
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9659296842034",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19461838766386",
-                          "totalQuantity": 2,
-                          "remainingQuantity": 2,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19312610869554",
-                            "title": "Fulfillment multi-tracking item 1778207425024",
-                            "quantity": 2,
-                            "fulfillableQuantity": 2
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
+            "id": "gid://shopify/FulfillmentOrder/9774478360882",
+            "status": "OPEN",
+            "requestStatus": "UNSUBMITTED",
+            "fulfillAt": "2026-06-23T00:00:00Z",
+            "fulfillBy": null,
+            "updatedAt": "2026-06-23T00:34:32Z",
+            "supportedActions": [
+              {
+                "action": "CREATE_FULFILLMENT"
+              },
+              {
+                "action": "MOVE"
+              },
+              {
+                "action": "HOLD"
+              },
+              {
+                "action": "SPLIT"
               }
+            ],
+            "assignedLocation": {
+              "name": "Shop location",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              }
+            },
+            "fulfillmentHolds": [],
+            "merchantRequests": {
+              "nodes": []
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19663798075698",
+                  "totalQuantity": 2,
+                  "remainingQuantity": 2,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19495388840242",
+                    "title": "Fulfillment multi-tracking item 1782174871459",
+                    "quantity": 2,
+                    "fulfillableQuantity": 2
+                  }
+                }
+              ]
+            },
+            "order": {
+              "id": "gid://shopify/Order/8838122012978",
+              "name": "#1520",
+              "displayFulfillmentStatus": "UNFULFILLED"
             }
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 50,
-            "actualQueryCost": 8,
+            "requestedQueryCost": 25,
+            "actualQueryCost": 15,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1992,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -169,16 +178,16 @@
       "fulfillment": {
         "notifyCustomer": false,
         "trackingInfo": {
-          "numbers": ["MULTI-CREATE-1778207425024-1", "MULTI-CREATE-1778207425024-2"],
+          "numbers": ["MULTI-CREATE-1782174871459-1", "MULTI-CREATE-1782174871459-2"],
           "urls": [
-            "https://example.com/track/MULTI-CREATE-1778207425024-1",
-            "https://example.com/track/MULTI-CREATE-1778207425024-2"
+            "https://example.com/track/MULTI-CREATE-1782174871459-1",
+            "https://example.com/track/MULTI-CREATE-1782174871459-2"
           ],
           "company": "Hermes"
         },
         "lineItemsByFulfillmentOrder": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9659296842034"
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774478360882"
           }
         ]
       },
@@ -189,18 +198,18 @@
       "data": {
         "fulfillmentCreate": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7882908107058",
+            "id": "gid://shopify/Fulfillment/7987152585010",
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "trackingInfo": [
               {
-                "number": "MULTI-CREATE-1778207425024-1",
-                "url": "https://example.com/track/MULTI-CREATE-1778207425024-1",
+                "number": "MULTI-CREATE-1782174871459-1",
+                "url": "https://example.com/track/MULTI-CREATE-1782174871459-1",
                 "company": "Hermes"
               },
               {
-                "number": "MULTI-CREATE-1778207425024-2",
-                "url": "https://example.com/track/MULTI-CREATE-1778207425024-2",
+                "number": "MULTI-CREATE-1782174871459-2",
+                "url": "https://example.com/track/MULTI-CREATE-1782174871459-2",
                 "company": "Hermes"
               }
             ]
@@ -224,13 +233,13 @@
   "fulfillmentTrackingInfoUpdate": {
     "query": "mutation FulfillmentTrackingInfoUpdateMultiTracking(\n  $fulfillmentId: ID!\n  $trackingInfoInput: FulfillmentTrackingInput!\n  $notifyCustomer: Boolean\n) {\n  fulfillmentTrackingInfoUpdate(\n    fulfillmentId: $fulfillmentId\n    trackingInfoInput: $trackingInfoInput\n    notifyCustomer: $notifyCustomer\n  ) {\n    fulfillment {\n      id\n      status\n      trackingInfo(first: 5) {\n        number\n        url\n        company\n      }\n    }\n    userErrors { field message }\n  }\n}",
     "variables": {
-      "fulfillmentId": "gid://shopify/Fulfillment/7882908107058",
+      "fulfillmentId": "gid://shopify/Fulfillment/7987152585010",
       "notifyCustomer": true,
       "trackingInfoInput": {
-        "numbers": ["MULTI-UPDATE-1778207425024-1", "MULTI-UPDATE-1778207425024-2"],
+        "numbers": ["MULTI-UPDATE-1782174871459-1", "MULTI-UPDATE-1782174871459-2"],
         "urls": [
-          "https://example.com/track/MULTI-UPDATE-1778207425024-1",
-          "https://example.com/track/MULTI-UPDATE-1778207425024-2"
+          "https://example.com/track/MULTI-UPDATE-1782174871459-1",
+          "https://example.com/track/MULTI-UPDATE-1782174871459-2"
         ],
         "company": "UPS"
       }
@@ -240,17 +249,17 @@
       "data": {
         "fulfillmentTrackingInfoUpdate": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7882908107058",
+            "id": "gid://shopify/Fulfillment/7987152585010",
             "status": "SUCCESS",
             "trackingInfo": [
               {
-                "number": "MULTI-UPDATE-1778207425024-1",
-                "url": "https://example.com/track/MULTI-UPDATE-1778207425024-1",
+                "number": "MULTI-UPDATE-1782174871459-1",
+                "url": "https://example.com/track/MULTI-UPDATE-1782174871459-1",
                 "company": "UPS"
               },
               {
-                "number": "MULTI-UPDATE-1778207425024-2",
-                "url": "https://example.com/track/MULTI-UPDATE-1778207425024-2",
+                "number": "MULTI-UPDATE-1782174871459-2",
+                "url": "https://example.com/track/MULTI-UPDATE-1782174871459-2",
                 "company": "UPS"
               }
             ]
@@ -260,11 +269,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 11,
+          "requestedQueryCost": 51,
+          "actualQueryCost": 51,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1949,
             "restoreRate": 100
           }
         }
@@ -274,28 +283,28 @@
   "downstreamRead": {
     "query": "query FulfillmentMultiTrackingRead($id: ID!) {\n  order(id: $id) {\n    id\n    displayFulfillmentStatus\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      trackingInfo(first: 5) {\n        number\n        url\n        company\n      }\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8735474614578"
+      "id": "gid://shopify/Order/8838122012978"
     },
     "status": 200,
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8735474614578",
+          "id": "gid://shopify/Order/8838122012978",
           "displayFulfillmentStatus": "FULFILLED",
           "fulfillments": [
             {
-              "id": "gid://shopify/Fulfillment/7882908107058",
+              "id": "gid://shopify/Fulfillment/7987152585010",
               "status": "SUCCESS",
               "displayStatus": "FULFILLED",
               "trackingInfo": [
                 {
-                  "number": "MULTI-UPDATE-1778207425024-1",
-                  "url": "https://example.com/track/MULTI-UPDATE-1778207425024-1",
+                  "number": "MULTI-UPDATE-1782174871459-1",
+                  "url": "https://example.com/track/MULTI-UPDATE-1782174871459-1",
                   "company": "UPS"
                 },
                 {
-                  "number": "MULTI-UPDATE-1778207425024-2",
-                  "url": "https://example.com/track/MULTI-UPDATE-1778207425024-2",
+                  "number": "MULTI-UPDATE-1782174871459-2",
+                  "url": "https://example.com/track/MULTI-UPDATE-1782174871459-2",
                   "company": "UPS"
                 }
               ]
@@ -309,7 +318,7 @@
           "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1997,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -318,67 +327,76 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersFulfillmentOrderHydrate",
+      "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9659296842034"
+        "id": "gid://shopify/FulfillmentOrder/9774478360882"
       },
-      "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9659296842034",
-              "order": {
-                "id": "gid://shopify/Order/8735474614578",
-                "name": "#1387",
-                "email": "fulfillment-multi-tracking-1778207425024@example.com",
-                "phone": null,
-                "createdAt": "2026-05-08T02:30:25Z",
-                "updatedAt": "2026-05-08T02:30:25Z",
-                "closed": false,
-                "closedAt": null,
-                "cancelledAt": null,
-                "cancelReason": null,
-                "displayFinancialStatus": "PAID",
-                "displayFulfillmentStatus": "UNFULFILLED",
-                "note": "fulfillment multi-tracking capture 1778207425024",
-                "tags": ["fulfillment-multi-tracking", "parity-probe"],
-                "fulfillments": [],
-                "fulfillmentOrders": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/FulfillmentOrder/9659296842034",
-                      "status": "OPEN",
-                      "requestStatus": "UNSUBMITTED",
-                      "lineItems": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19461838766386",
-                            "totalQuantity": 2,
-                            "remainingQuantity": 2,
-                            "lineItem": {
-                              "id": "gid://shopify/LineItem/19312610869554",
-                              "title": "Fulfillment multi-tracking item 1778207425024",
-                              "quantity": 2,
-                              "fulfillableQuantity": 2
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
+              "id": "gid://shopify/FulfillmentOrder/9774478360882",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-23T00:34:32Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
                 }
+              ],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19663798075698",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19495388840242",
+                      "title": "Fulfillment multi-tracking item 1782174871459",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8838122012978",
+                "name": "#1520",
+                "displayFulfillmentStatus": "UNFULFILLED"
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 50,
-              "actualQueryCost": 8,
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -391,7 +409,7 @@
     "cancel": {
       "query": "mutation FulfillmentMultiTrackingCleanupCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
       "variables": {
-        "orderId": "gid://shopify/Order/8735474614578",
+        "orderId": "gid://shopify/Order/8838122012978",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": true
@@ -432,13 +450,13 @@
     "delete": {
       "query": "mutation FulfillmentMultiTrackingCleanupDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message }\n  }\n}",
       "variables": {
-        "orderId": "gid://shopify/Order/8735474614578"
+        "orderId": "gid://shopify/Order/8838122012978"
       },
       "status": 200,
       "response": {
         "data": {
           "orderDelete": {
-            "deletedId": "gid://shopify/Order/8735474614578",
+            "deletedId": "gid://shopify/Order/8838122012978",
             "userErrors": []
           }
         },

@@ -202,6 +202,71 @@ query OrdersFulfillmentOrderHydrate($id: ID!) {
 }
 `;
 
+// Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
+// (src/proxy/online_store_orders_payments.rs). On a cold fulfillmentCreate the
+// proxy forwards THIS expanded document (operationName ShippingFulfillmentOrderHydrate),
+// not the richer OrdersFulfillmentOrderHydrate above — the latter is only used
+// here for internal status polling. Recording this per fulfillment order at its
+// precondition state is what replaces the seeded order. Kept flush-left so
+// trimGraphql leaves it identical to the constant.
+const shippingHydrateQuery = `query ShippingFulfillmentOrderHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+        }
+      }
+      lineItems(first: 20) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
+    }
+  }`;
+
 const fulfillmentCreateMutation = `#graphql
 mutation FulfillmentCreatePreconditions($fulfillment: FulfillmentInput!, $message: String) {
   fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
@@ -364,6 +429,12 @@ async function hydrateFulfillmentOrder(id: string): Promise<GraphqlStep> {
   return capture('OrdersFulfillmentOrderHydrate', orderHydrateQuery, { id });
 }
 
+// The exact cold-miss hydrate the proxy forwards for a fulfillmentCreate. Recorded
+// per fulfillment order at its precondition state and surfaced as upstreamCalls.
+async function captureShippingHydrate(id: string): Promise<GraphqlStep> {
+  return capture('ShippingFulfillmentOrderHydrate', shippingHydrateQuery, { id });
+}
+
 async function waitForFulfillmentOrderStatus(id: string, wanted: string): Promise<GraphqlStep> {
   let latest = await hydrateFulfillmentOrder(id);
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -416,6 +487,7 @@ try {
   });
   requireNoUserErrors(cancelledSetup.response, 'data.orderCancel.userErrors');
   const cancelledHydrate = await waitForFulfillmentOrderStatus(String(cancelled.fulfillmentOrder['id']), 'CLOSED');
+  const cancelledShippingHydrate = await captureShippingHydrate(String(cancelled.fulfillmentOrder['id']));
   const cancelledCreate = await captureAllowingUserErrors(
     'cancelled.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -427,6 +499,7 @@ try {
   );
 
   const overHydrate = await hydrateFulfillmentOrder(String(over.fulfillmentOrder['id']));
+  const overShippingHydrate = await captureShippingHydrate(String(over.fulfillmentOrder['id']));
   const overCreate = await captureAllowingUserErrors(
     'over.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -450,6 +523,7 @@ try {
   );
   requireNoUserErrors(closedSetupCreate.response, 'data.fulfillmentCreate.userErrors');
   const closedHydrate = await waitForFulfillmentOrderStatus(String(closed.fulfillmentOrder['id']), 'CLOSED');
+  const closedShippingHydrate = await captureShippingHydrate(String(closed.fulfillmentOrder['id']));
   const closedCreate = await captureAllowingUserErrors(
     'closed.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -473,6 +547,7 @@ try {
     String(inProgress.fulfillmentOrder['id']),
     'IN_PROGRESS',
   );
+  const inProgressShippingHydrate = await captureShippingHydrate(String(inProgress.fulfillmentOrder['id']));
   const inProgressCreate = await captureAllowingUserErrors(
     'inProgress.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -484,6 +559,7 @@ try {
   );
 
   const happyHydrate = await hydrateFulfillmentOrder(String(happy.fulfillmentOrder['id']));
+  const happyShippingHydrate = await captureShippingHydrate(String(happy.fulfillmentOrder['id']));
   const happyCreate = await capture(
     'happy.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -527,8 +603,14 @@ try {
         response: happyCreate.response,
       },
     },
-    upstreamCalls: [cancelledHydrate, overHydrate, closedHydrate, inProgressHydrate, happyHydrate].map((step) => ({
-      operationName: 'OrdersFulfillmentOrderHydrate',
+    upstreamCalls: [
+      cancelledShippingHydrate,
+      overShippingHydrate,
+      closedShippingHydrate,
+      inProgressShippingHydrate,
+      happyShippingHydrate,
+    ].map((step) => ({
+      operationName: 'ShippingFulfillmentOrderHydrate',
       variables: step.variables,
       query: step.query,
       response: {

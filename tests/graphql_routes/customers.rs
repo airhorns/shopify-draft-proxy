@@ -117,35 +117,6 @@ fn assert_merge_survivor(
         .any(|id| id.as_str() == Some(expected_source_id)));
 }
 
-fn seeded_customer(id: &str, email: &str, state: &str) -> Value {
-    json!({
-        "id": id,
-        "firstName": "Merge",
-        "lastName": state,
-        "displayName": format!("Merge {state}"),
-        "email": email,
-        "state": state,
-        "note": Value::Null,
-        "tags": [],
-        "numberOfOrders": "0",
-        "defaultEmailAddress": {
-            "emailAddress": email,
-            "marketingState": "NOT_SUBSCRIBED"
-        },
-        "emailMarketingConsent": {
-            "marketingState": "NOT_SUBSCRIBED"
-        },
-        "defaultPhoneNumber": Value::Null,
-        "defaultAddress": Value::Null,
-        "addressesV2": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-        "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-        "orders": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-        "lastOrder": Value::Null,
-        "createdAt": "2026-01-01T00:00:00Z",
-        "updatedAt": "2026-01-01T00:00:00Z"
-    })
-}
-
 #[test]
 fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     let mut proxy = snapshot_proxy();
@@ -365,23 +336,6 @@ fn customer_merge_selects_survivor_from_email_and_state_rules() {
         None,
     );
     assert_merge_survivor(&mut proxy, &one_id, &two_id, Value::Null, &one_id, &two_id);
-
-    let mut proxy = snapshot_proxy();
-    let one_id = "gid://shopify/Customer/merge-invited-one";
-    let two_id = "gid://shopify/Customer/merge-disabled-two";
-    let seed = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/seed",
-        &json!({
-            "customers": [
-                seeded_customer(one_id, "merge-invited-one@example.test", "INVITED"),
-                seeded_customer(two_id, "merge-disabled-two@example.test", "DISABLED")
-            ]
-        })
-        .to_string(),
-    ));
-    assert_eq!(seed.status, 200);
-    assert_merge_survivor(&mut proxy, one_id, two_id, Value::Null, one_id, two_id);
 
     let mut proxy = snapshot_proxy();
     let one_id = create_customer_from_input(

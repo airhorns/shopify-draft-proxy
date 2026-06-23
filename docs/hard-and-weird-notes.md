@@ -281,6 +281,20 @@ local-runtime parity fixture as the current internal guardrail contract, and
 re-capture against a target that reproduces the internal package behavior before
 changing those codes/messages or replacing the fixture with live evidence.
 
+## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` applies the
+`SELLING_PLAN_COUNT_LOWER_BOUND` model validation to `sellingPlanGroupCreate`
+when `sellingPlansToCreate` is absent or empty. The same live capture confirms
+`sellingPlanGroupUpdate` accepts an empty `sellingPlansToCreate: []` list, so
+the create lower-bound should not be treated as a blanket update-input guard.
+
+That carve-out is narrower than "updates may leave zero plans." A live probe
+that attempted to delete the only existing plan on update returned
+`SELLING_PLAN_COUNT_LOWER_BOUND` at `["input", "sellingPlansToDelete"]`.
+Model update behavior should therefore distinguish an empty create list from an
+actual delete-to-zero transition.
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
@@ -3667,3 +3681,25 @@ Practical rule:
   fulfilled, has open fulfillment-order state, has requested returns, is
   refunded, or is cancelled unless a future live capture records a concrete
   public `INVALID` payload for that state
+
+## 86. App billing MoneyV2 amounts normalize like Decimal scalars
+
+Shopify Core billing tests assert app billing `MoneyV2.amount` values after
+GraphQL Decimal coercion, not as raw echoed request strings. The relevant core
+coverage includes `appUsageRecordCreate` returning `"1.0"` for an input amount
+written as `1.00`, and one-time-purchase/subscription tests expecting values
+such as `"10.0"`.
+
+Practical rule:
+
+- app billing handlers should normalize all staged MoneyV2 amount strings:
+  whole values render with one trailing zero (`"100.0"`), and fractional values
+  drop superfluous trailing zeros (`"3.00"` -> `"3.0"`, `"1.50"` -> `"1.5"`)
+- this is a deterministic serialization rule, so normalize the local store value
+  once and let downstream app-domain reads project the same value
+- the current conformance custom app cannot live-capture billing mutation
+  success paths because Shopify returns `Custom apps cannot use the Billing API`
+  before charge creation
+- a real live success-path fixture needs a disposable billing-capable app/store
+  credential that can use Shopify's Billing API and safely approve test charges;
+  do not hand-author a live billing success fixture from local proxy output

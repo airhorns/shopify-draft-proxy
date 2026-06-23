@@ -27,17 +27,17 @@ struct AdminInputSchema {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ValidationContext<'a> {
-    query: &'a str,
-    operation_path: &'a str,
-    response_key: &'a str,
-    field_location: SourceLocation,
+pub(in crate::proxy) struct ValidationContext<'a> {
+    pub(in crate::proxy) query: &'a str,
+    pub(in crate::proxy) operation_path: &'a str,
+    pub(in crate::proxy) response_key: &'a str,
+    pub(in crate::proxy) field_location: SourceLocation,
     // Raw request body text. serde_json parses JSON objects into sorted maps, so
     // the author's variable field order is lost by the time variables reach this
     // validator. Shopify reports INVALID_VARIABLE coercion problems in the order
     // fields appear in the request, so we recover that order from the raw body
     // text (which preserves it) when sorting unknown-field problems.
-    raw_body: &'a str,
+    pub(in crate::proxy) raw_body: &'a str,
 }
 
 /// First byte offset at which a JSON key (`"name"`) appears in `source`, used to
@@ -48,11 +48,236 @@ fn key_order_index(source: &str, field_name: &str) -> usize {
     source.find(&needle).unwrap_or(usize::MAX)
 }
 
+#[derive(Debug, Clone)]
+pub(in crate::proxy) struct UserErrorField(Value);
+
+impl UserErrorField {
+    fn into_value(self) -> Value {
+        self.0
+    }
+}
+
+impl From<Value> for UserErrorField {
+    fn from(field: Value) -> Self {
+        Self(field)
+    }
+}
+
+impl From<Vec<Value>> for UserErrorField {
+    fn from(field: Vec<Value>) -> Self {
+        Self(Value::Array(field))
+    }
+}
+
+impl From<Vec<String>> for UserErrorField {
+    fn from(field: Vec<String>) -> Self {
+        Self(Value::Array(field.into_iter().map(Value::from).collect()))
+    }
+}
+
+impl<'a> From<Vec<&'a str>> for UserErrorField {
+    fn from(field: Vec<&'a str>) -> Self {
+        Self(Value::Array(field.into_iter().map(Value::from).collect()))
+    }
+}
+
+impl<'a, 'b> From<&'a [&'b str]> for UserErrorField {
+    fn from(field: &'a [&'b str]) -> Self {
+        Self(Value::Array(
+            field.iter().copied().map(Value::from).collect(),
+        ))
+    }
+}
+
+impl<'a, 'b, const N: usize> From<&'a [&'b str; N]> for UserErrorField {
+    fn from(field: &'a [&'b str; N]) -> Self {
+        Self(Value::Array(
+            field.iter().copied().map(Value::from).collect(),
+        ))
+    }
+}
+
+impl<'a, const N: usize> From<[&'a str; N]> for UserErrorField {
+    fn from(field: [&'a str; N]) -> Self {
+        Self(Value::Array(field.into_iter().map(Value::from).collect()))
+    }
+}
+
+pub(in crate::proxy) fn user_error_field(field: impl Into<UserErrorField>) -> Value {
+    field.into().into_value()
+}
+
+fn user_error_code(code: Option<&str>) -> Value {
+    code.map(Value::from).unwrap_or(Value::Null)
+}
+
+pub(in crate::proxy) fn user_error(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+    })
+}
+
 #[derive(Debug, Clone, Copy)]
-struct VariableValidationContext<'a> {
-    variable_name: &'a str,
-    variable_type: &'a str,
-    location: SourceLocation,
+pub(in crate::proxy) enum LengthUserErrorBound {
+    TooLong {
+        maximum: usize,
+    },
+    #[allow(dead_code, reason = "TOO_SHORT supports follow-up migrations.")]
+    TooShort {
+        minimum: usize,
+    },
+}
+
+pub(in crate::proxy) fn presence_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+) -> Value {
+    user_error(
+        field,
+        &format!("{field_name} can't be blank"),
+        Some("BLANK"),
+    )
+}
+
+pub(in crate::proxy) fn length_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+    bound: LengthUserErrorBound,
+) -> Value {
+    let (message, code) = match bound {
+        LengthUserErrorBound::TooLong { maximum } => (
+            format!("{field_name} is too long (maximum is {maximum} characters)"),
+            "TOO_LONG",
+        ),
+        LengthUserErrorBound::TooShort { minimum } => (
+            format!("{field_name} is too short (minimum is {minimum} characters)"),
+            "TOO_SHORT",
+        ),
+    };
+    user_error(field, &message, Some(code))
+}
+
+pub(in crate::proxy) fn user_error_with_code_value(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": code,
+    })
+}
+
+pub(in crate::proxy) fn user_error_omit_code(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    let mut error = json!({
+        "field": user_error_field(field),
+        "message": message,
+    });
+    if let Some(code) = code {
+        error["code"] = json!(code);
+    }
+    error
+}
+
+pub(in crate::proxy) fn user_error_typed(
+    typename: &str,
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    json!({
+        "__typename": typename,
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+    })
+}
+
+pub(in crate::proxy) fn user_error_typed_with_code_value(
+    typename: &str,
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Value,
+) -> Value {
+    json!({
+        "__typename": typename,
+        "field": user_error_field(field),
+        "message": message,
+        "code": code,
+    })
+}
+
+pub(in crate::proxy) fn user_error_typed_omit_code(
+    typename: &str,
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    let mut error = user_error_omit_code(field, message, code);
+    error["__typename"] = json!(typename);
+    error
+}
+
+pub(in crate::proxy) fn user_error_with_extra_info(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+    extra_info: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+        "extraInfo": extra_info,
+    })
+}
+
+pub(in crate::proxy) fn user_error_with_element_index(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+    element_index: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+        "elementIndex": element_index,
+    })
+}
+
+pub(in crate::proxy) fn metaobject_indexed_user_error(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+    element_key: Value,
+    element_index: Value,
+) -> Value {
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": user_error_code(code),
+        "elementKey": element_key,
+        "elementIndex": element_index,
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) struct VariableValidationContext<'a> {
+    pub(in crate::proxy) variable_name: &'a str,
+    pub(in crate::proxy) variable_type: &'a str,
+    pub(in crate::proxy) location: SourceLocation,
 }
 
 pub(in crate::proxy) fn public_admin_schema_input_errors(
@@ -923,7 +1148,7 @@ fn format_float_literal(value: f64) -> String {
     format!("{value}")
 }
 
-fn input_object_argument_not_accepted_error(
+pub(in crate::proxy) fn input_object_argument_not_accepted_error(
     input_type_name: &str,
     argument_name: &str,
     path: &[String],
@@ -1120,7 +1345,10 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
     None
 }
 
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+pub(in crate::proxy) fn byte_offset_for_location(
+    query: &str,
+    location: SourceLocation,
+) -> Option<usize> {
     let mut line = 1;
     let mut column = 1;
     for (offset, ch) in query.char_indices() {
@@ -1137,7 +1365,10 @@ fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usi
     (line == location.line && column == location.column).then_some(query.len())
 }
 
-fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+pub(in crate::proxy) fn source_location_for_byte_offset(
+    query: &str,
+    target_offset: usize,
+) -> Option<SourceLocation> {
     if target_offset > query.len() || !query.is_char_boundary(target_offset) {
         return None;
     }
@@ -1157,6 +1388,62 @@ fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<
     (target_offset == query.len()).then_some(SourceLocation { line, column })
 }
 
+fn graphql_variable_occurrence(
+    query: &str,
+    variable_name: &str,
+    search_from: usize,
+) -> Option<(usize, usize)> {
+    let needle = format!("${variable_name}");
+    let bytes = query.as_bytes();
+    let mut search_from = search_from;
+    while let Some(relative) = query[search_from..].find(&needle) {
+        let start = search_from + relative;
+        let after = start + needle.len();
+        let is_boundary = match bytes.get(after) {
+            None => true,
+            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
+        };
+        if is_boundary {
+            return Some((start, after));
+        }
+        search_from = after;
+    }
+    None
+}
+
+/// Resolves the 1-based location of a variable definition (`$name`) in the query.
+pub(in crate::proxy) fn graphql_variable_definition_location(
+    query: &str,
+    variable_name: &str,
+) -> Option<(usize, usize)> {
+    let (start, _) = graphql_variable_occurrence(query, variable_name, 0)?;
+    let location = source_location_for_byte_offset(query, start)?;
+    Some((location.line, location.column))
+}
+
+/// Resolves the declared GraphQL type of a variable definition (`$name: <TYPE>`).
+pub(in crate::proxy) fn graphql_variable_definition_type(
+    query: &str,
+    variable_name: &str,
+) -> Option<String> {
+    let mut search_from = 0;
+    while let Some((_, after)) = graphql_variable_occurrence(query, variable_name, search_from) {
+        if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
+            let declared: String = type_part
+                .trim_start()
+                .chars()
+                .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
+                .collect();
+            let declared = declared.trim();
+            if !declared.is_empty() {
+                return Some(declared.to_string());
+            }
+        }
+        search_from = after;
+    }
+    None
+}
+
 fn is_graphql_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '_'
 }
@@ -1165,7 +1452,7 @@ fn is_graphql_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
-fn invalid_variable_error(
+pub(in crate::proxy) fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
     problems: Vec<Value>,
@@ -1200,14 +1487,14 @@ fn invalid_variable_error(
     })
 }
 
-fn variable_problem(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem(path: &[String], explanation: &str) -> Value {
     json!({
         "path": path,
         "explanation": explanation
     })
 }
 
-fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
     json!({
         "path": path,
         "explanation": explanation,
@@ -2367,4 +2654,177 @@ fn type_ref_is_list(type_ref: &SchemaTypeRef) -> bool {
 
 fn type_ref_has_non_null_list_items(type_ref: &SchemaTypeRef) -> bool {
     type_ref.display.contains("!]")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_same_json_bytes(actual: Value, expected: Value) {
+        assert_eq!(actual.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn user_error_field_coerces_supported_shapes() {
+        assert_eq!(
+            user_error_field(["input", "title"]),
+            json!(["input", "title"])
+        );
+        assert_eq!(
+            user_error_field(&["input", "title"][..]),
+            json!(["input", "title"])
+        );
+        assert_eq!(
+            user_error_field(vec!["input", "title"]),
+            json!(["input", "title"])
+        );
+        assert_eq!(
+            user_error_field(vec!["input".to_string(), "title".to_string()]),
+            json!(["input", "title"])
+        );
+        assert_eq!(
+            user_error_field(vec![json!("input"), json!(0), json!("title")]),
+            json!(["input", 0, "title"])
+        );
+        assert_eq!(
+            user_error_field(json!(["input", 0, "title"])),
+            json!(["input", 0, "title"])
+        );
+    }
+
+    #[test]
+    fn user_error_matches_string_code_and_nullable_code_helpers() {
+        assert_same_json_bytes(
+            user_error(["input", "name"], "Name can't be blank", Some("BLANK")),
+            json!({
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK",
+            }),
+        );
+
+        let mut expected_nullable = serde_json::Map::new();
+        expected_nullable.insert("field".to_string(), json!(["fulfillmentOrderId"]));
+        expected_nullable.insert(
+            "message".to_string(),
+            json!("Fulfillment order does not exist"),
+        );
+        expected_nullable.insert("code".to_string(), Value::Null);
+        assert_same_json_bytes(
+            user_error(
+                json!(["fulfillmentOrderId"]),
+                "Fulfillment order does not exist",
+                None,
+            ),
+            Value::Object(expected_nullable),
+        );
+    }
+
+    #[test]
+    fn user_error_omit_code_matches_inventory_missing_code_shape() {
+        assert_same_json_bytes(
+            user_error_omit_code(vec!["input", "locationId"], "Location is invalid", None),
+            json!({
+                "field": ["input", "locationId"],
+                "message": "Location is invalid",
+            }),
+        );
+        assert_same_json_bytes(
+            user_error_omit_code(
+                vec!["input".to_string(), "inventoryItemId".to_string()],
+                "Inventory item is invalid",
+                Some("INVALID"),
+            ),
+            json!({
+                "field": ["input", "inventoryItemId"],
+                "message": "Inventory item is invalid",
+                "code": "INVALID",
+            }),
+        );
+    }
+
+    #[test]
+    fn user_error_typed_matches_typename_variants() {
+        assert_same_json_bytes(
+            user_error_typed(
+                "MetafieldDefinitionUserError",
+                json!(["definition", "name"]),
+                "Name has already been taken",
+                Some("TAKEN"),
+            ),
+            json!({
+                "__typename": "MetafieldDefinitionUserError",
+                "field": ["definition", "name"],
+                "message": "Name has already been taken",
+                "code": "TAKEN",
+            }),
+        );
+
+        let mut expected_gift_card = serde_json::Map::new();
+        expected_gift_card.insert("__typename".to_string(), json!("GiftCardCreateUserError"));
+        expected_gift_card.insert("field".to_string(), json!(["input", "initialValue"]));
+        expected_gift_card.insert("code".to_string(), Value::Null);
+        expected_gift_card.insert("message".to_string(), json!("Initial value is invalid"));
+        assert_same_json_bytes(
+            user_error_typed(
+                "GiftCardCreateUserError",
+                vec!["input", "initialValue"],
+                "Initial value is invalid",
+                None,
+            ),
+            Value::Object(expected_gift_card),
+        );
+    }
+
+    #[test]
+    fn user_error_with_extra_info_matches_discount_shape() {
+        assert_same_json_bytes(
+            user_error_with_extra_info(
+                vec![json!("basicCodeDiscount"), json!("startsAt")],
+                "Starts at must be before ends at",
+                Some("INVALID"),
+                Value::Null,
+            ),
+            json!({
+                "field": ["basicCodeDiscount", "startsAt"],
+                "message": "Starts at must be before ends at",
+                "code": "INVALID",
+                "extraInfo": Value::Null,
+            }),
+        );
+        assert_same_json_bytes(
+            user_error_with_extra_info(
+                vec![json!("automaticAppDiscount"), json!("functionId")],
+                "Function does not exist",
+                None,
+                Value::Null,
+            ),
+            json!({
+                "field": ["automaticAppDiscount", "functionId"],
+                "message": "Function does not exist",
+                "code": Value::Null,
+                "extraInfo": Value::Null,
+            }),
+        );
+    }
+
+    #[test]
+    fn metaobject_indexed_user_error_matches_element_key_and_index_shape() {
+        assert_same_json_bytes(
+            metaobject_indexed_user_error(
+                vec!["metaobject", "fields"],
+                "Field is invalid",
+                Some("INVALID"),
+                json!("seo.title"),
+                json!(3),
+            ),
+            json!({
+                "field": ["metaobject", "fields"],
+                "message": "Field is invalid",
+                "code": "INVALID",
+                "elementKey": "seo.title",
+                "elementIndex": 3,
+            }),
+        );
+    }
 }

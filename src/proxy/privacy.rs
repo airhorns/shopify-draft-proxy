@@ -1,5 +1,13 @@
 use super::*;
 
+// Shared with the parity capture script via include_str! so the recorded
+// `DataSaleOptOutCustomerLookup` cassette byte-matches this forward. dataSaleOptOut
+// resolves a pre-existing customer by email the real way (forward + observe) rather
+// than reading from seeded state, so the lookup text must stay in lockstep with the
+// recorded request.
+const DATA_SALE_OPT_OUT_CUSTOMER_LOOKUP_QUERY: &str =
+    include_str!("../../config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql");
+
 impl DraftProxy {
     pub(in crate::proxy) fn data_sale_opt_out(
         &mut self,
@@ -71,7 +79,7 @@ impl DraftProxy {
             return None;
         }
         let body = json!({
-            "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) { customerByIdentifier(identifier: $identifier) { id email defaultEmailAddress { emailAddress } } }",
+            "query": DATA_SALE_OPT_OUT_CUSTOMER_LOOKUP_QUERY,
             "operationName": "DataSaleOptOutCustomerLookup",
             "variables": { "identifier": { "emailAddress": email } }
         });
@@ -130,7 +138,6 @@ impl DraftProxy {
                 json!({ "emailAddress": email }),
             );
         }
-        self.store.staged.deleted_customer_ids.remove(id);
     }
 }
 
@@ -148,11 +155,11 @@ fn data_sale_opt_out_response(
 }
 
 fn data_sale_opt_out_failed_user_errors() -> Vec<Value> {
-    vec![json!({
-        "field": Value::Null,
-        "message": "Data sale opt out failed.",
-        "code": "FAILED",
-    })]
+    vec![user_error(
+        Value::Null,
+        "Data sale opt out failed.",
+        Some("FAILED"),
+    )]
 }
 
 fn data_sale_opt_out_sanitized_email(email: &str) -> Option<String> {

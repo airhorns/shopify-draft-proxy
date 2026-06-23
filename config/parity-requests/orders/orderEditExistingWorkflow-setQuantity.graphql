@@ -7,7 +7,6 @@ mutation OrderEditExistingWorkflowSetQuantity($id: ID!, $lineItemId: ID!, $quant
           id
           title
           quantity
-          currentQuantity
           sku
           variant {
             id
@@ -35,7 +34,6 @@ mutation OrderEditExistingWorkflowSetQuantity($id: ID!, $lineItemId: ID!, $quant
     calculatedLineItem {
       title
       quantity
-      currentQuantity
       sku
       variant {
         id

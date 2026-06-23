@@ -106,7 +106,7 @@ impl DraftProxy {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
             quantity_updated_at: &self.store.staged.inventory_quantity_updated_at,
-            locations: Some(&self.store.staged.locations),
+            locations: Some(&self.store.staged.locations.records),
         }
     }
 
@@ -120,13 +120,7 @@ impl DraftProxy {
                         .staged
                         .marketing_activities
                         .get(&id)
-                        .filter(|_| {
-                            !self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(&id)
-                        })
+                        .filter(|_| !self.store.staged.marketing_activities.is_tombstoned(&id))
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
@@ -141,12 +135,7 @@ impl DraftProxy {
                         .values()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            if self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(id)
-                            {
+                            if self.store.staged.marketing_activities.is_tombstoned(id) {
                                 return false;
                             }
                             if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
@@ -185,8 +174,8 @@ impl DraftProxy {
                             !self
                                 .store
                                 .staged
-                                .deleted_marketing_activity_ids
-                                .contains(activity_id)
+                                .marketing_activities
+                                .is_tombstoned(activity_id)
                         })
                         .map(|record| record["marketingEvent"].clone())
                         .unwrap_or(Value::Null)
@@ -200,11 +189,7 @@ impl DraftProxy {
                         .values()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            !self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(id)
+                            !self.store.staged.marketing_activities.is_tombstoned(id)
                         })
                         .filter(|record| marketing_record_matches_query(record, &query))
                         .filter_map(|record| {
@@ -419,7 +404,11 @@ impl DraftProxy {
             return self.webhook_subscription_payload(
                 Value::Null,
                 field.selection.clone(),
-                vec![json!({ "field": ["id"], "message": "Webhook subscription does not exist" })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Webhook subscription does not exist",
+                    None,
+                )],
             );
         };
         let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
@@ -1249,7 +1238,6 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
         );
-        self.store.staged.deleted_marketing_activity_ids.remove(&id);
         self.store
             .staged
             .marketing_activities
@@ -1305,10 +1293,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        self.store
-            .staged
-            .deleted_marketing_activity_ids
-            .insert(id.clone());
+        self.store.staged.marketing_activities.tombstone(id.clone());
         selected_json(
             &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
             &field.selection,
@@ -1316,12 +1301,7 @@ impl DraftProxy {
     }
 
     fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<&Value> {
-        if self
-            .store
-            .staged
-            .deleted_marketing_activity_ids
-            .contains(id)
-        {
+        if self.store.staged.marketing_activities.is_tombstoned(id) {
             return None;
         }
         let activity = self.store.staged.marketing_activities.get(id)?;
@@ -1346,12 +1326,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .any(|(id, candidate)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return false;
                 }
                 candidate["id"].as_str() != activity["id"].as_str()
@@ -1457,8 +1432,8 @@ impl DraftProxy {
                 !self
                     .store
                     .staged
-                    .deleted_marketing_activity_ids
-                    .contains(&activity_id)
+                    .marketing_activities
+                    .is_tombstoned(&activity_id)
             })
         else {
             return selected_json(
@@ -1555,12 +1530,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .filter_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if let Some(app) = request_app {
@@ -1587,12 +1557,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["remoteId"].as_str() != Some(remote)
@@ -1620,12 +1585,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
@@ -1651,12 +1611,7 @@ impl DraftProxy {
             .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self
-                    .store
-                    .staged
-                    .deleted_marketing_activity_ids
-                    .contains(id)
-                {
+                if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
                 if record["urlParameterValue"].as_str() != Some(url_parameter_value) {
@@ -1982,6 +1937,78 @@ impl DraftProxy {
         Value::Object(fields)
     }
 
+    /// Fill `inventory_level_cursors` from real Shopify when a product/variant overlay
+    /// read selects `inventoryLevels` edge or pageInfo cursors and none have been
+    /// observed yet. The cursor is an opaque, server-assigned token that cannot be
+    /// synthesized; the only honest source is the upstream read itself. Forwards the
+    /// client's exact request once (LiveHybrid only) and observes the returned edge
+    /// cursors. A no-op in Snapshot mode, once cursors are staged, or when the query
+    /// does not select level cursors.
+    pub(in crate::proxy) fn hydrate_inventory_level_cursors_for_read(
+        &mut self,
+        request: &Request,
+        query: &str,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        if !self.store.staged.inventory_level_cursors.is_empty() {
+            return;
+        }
+        if !(query.contains("inventoryLevels") && query.contains("cursor")) {
+            return;
+        }
+        let response = (self.upstream_transport)(request.clone());
+        if response.status < 400 {
+            self.observe_inventory_level_cursors(&response.body);
+        }
+    }
+
+    /// Walk an upstream response for every `inventoryLevels { edges { cursor node { id } } }`
+    /// connection and stage each level's opaque cursor keyed by its level id, so a later
+    /// overlay read of the same connection reproduces the real pagination cursors.
+    pub(in crate::proxy) fn observe_inventory_level_cursors(&mut self, body: &Value) {
+        fn walk(value: &Value, sink: &mut Vec<(String, String)>) {
+            match value {
+                Value::Object(map) => {
+                    if let Some(edges) = map
+                        .get("inventoryLevels")
+                        .and_then(|connection| connection.get("edges"))
+                        .and_then(Value::as_array)
+                    {
+                        for edge in edges {
+                            let cursor = edge.get("cursor").and_then(Value::as_str);
+                            let id = edge
+                                .get("node")
+                                .and_then(|node| node.get("id"))
+                                .and_then(Value::as_str);
+                            if let (Some(cursor), Some(id)) = (cursor, id) {
+                                sink.push((id.to_string(), cursor.to_string()));
+                            }
+                        }
+                    }
+                    for child in map.values() {
+                        walk(child, sink);
+                    }
+                }
+                Value::Array(items) => {
+                    for item in items {
+                        walk(item, sink);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut pairs = Vec::new();
+        walk(body, &mut pairs);
+        for (level_id, cursor) in pairs {
+            self.store
+                .staged
+                .inventory_level_cursors
+                .insert(level_id, cursor);
+        }
+    }
+
     pub(in crate::proxy) fn observe_inventory_item_node(&mut self, node: &Value) {
         let Some(inventory_item_id) = node.get("id").and_then(Value::as_str) else {
             return;
@@ -2214,9 +2241,6 @@ impl DraftProxy {
         record
             .entry("isActive".to_string())
             .or_insert_with(|| json!(true));
-        if !self.store.staged.locations.contains_key(id) {
-            self.store.staged.location_order.push(id.to_string());
-        }
         self.store
             .staged
             .locations
@@ -5398,15 +5422,6 @@ impl DraftProxy {
         else {
             return;
         };
-        if !self
-            .store
-            .staged
-            .location_order
-            .iter()
-            .any(|entry| entry == &id)
-        {
-            self.store.staged.location_order.push(id.clone());
-        }
         let mut merged = self
             .store
             .staged
@@ -6056,11 +6071,7 @@ fn is_valid_tracking_carrier(carrier: &str) -> bool {
 }
 
 fn inventory_shipment_user_error(field_path: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field_path,
-        "message": message,
-        "code": code
-    })
+    user_error(field_path, message, Some(code))
 }
 
 fn inventory_shipment_has_incoming(record: &InventoryShipmentRecord) -> bool {
@@ -6129,25 +6140,11 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
 }
 
 fn inventory_activate_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_deactivate_user_error(message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({
-        "field": Value::Null,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(Value::Null, message, code)
 }
 
 fn inventory_bulk_toggle_user_error(
@@ -6155,14 +6152,7 @@ fn inventory_bulk_toggle_user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_item_update_user_error(
@@ -6170,14 +6160,7 @@ fn inventory_item_update_user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let mut error = json!({
-        "field": field,
-        "message": message
-    });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 fn inventory_item_update_variable_errors(

@@ -183,7 +183,9 @@ impl DraftProxy {
             {
                 let (policies, order) = shop_policy_state_from_shop(shop);
                 self.store
-                    .replace_base_shop_policies_map_with_order(policies, order);
+                    .base
+                    .shop_policies
+                    .replace_with_order(policies, order);
             }
             self.hydrate_shop_state_from_response_data(&response.body["data"]);
         }
@@ -510,11 +512,7 @@ fn shop_policy_update_invalid_variable_response(
 }
 
 fn shop_policy_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_with_code_value(field, message, code)
 }
 
 fn shop_policy_title(policy_type: &str) -> Option<&'static str> {

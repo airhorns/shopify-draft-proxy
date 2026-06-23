@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -265,10 +265,8 @@ struct StagedState {
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
-    shipping_packages: BTreeMap<String, Value>,
-    deleted_shipping_package_ids: BTreeSet<String>,
-    customers: BTreeMap<String, Value>,
-    deleted_customer_ids: BTreeSet<String>,
+    shipping_packages: StagedRecords<Value>,
+    customers: StagedRecords<Value>,
     customer_addresses: BTreeMap<String, Value>,
     customer_address_order: BTreeMap<String, Vec<String>>,
     customer_address_owners: BTreeMap<String, String>,
@@ -283,33 +281,25 @@ struct StagedState {
     // count tracks merges/deletes generically. `None` falls back to the legacy
     // default for scenarios that never seed a baseline.
     customers_count_base: Option<u64>,
-    store_credit_accounts: BTreeMap<String, Value>,
-    store_credit_account_order: Vec<String>,
+    store_credit_accounts: StagedRecords<Value>,
     store_credit_transactions: BTreeMap<String, Value>,
     store_credit_transaction_order: Vec<String>,
     next_store_credit_account_id: u64,
     next_store_credit_transaction_id: u64,
     taggable_resources: BTreeMap<String, Value>,
-    carrier_services: BTreeMap<String, Value>,
-    deleted_carrier_service_ids: BTreeSet<String>,
+    carrier_services: StagedRecords<Value>,
     app_subscriptions: BTreeMap<String, Value>,
     app_one_time_purchases: BTreeMap<String, Value>,
     revoked_app_access_scopes: BTreeSet<String>,
     app_uninstalled: bool,
     delegate_access_tokens: BTreeMap<String, Value>,
     customer_segment_member_queries: BTreeMap<String, Value>,
-    fulfillment_services: BTreeMap<String, Value>,
-    fulfillment_service_locations: BTreeMap<String, Value>,
-    deleted_fulfillment_service_ids: BTreeSet<String>,
-    deleted_fulfillment_service_location_ids: BTreeSet<String>,
-    delivery_profiles: BTreeMap<String, Value>,
-    delivery_profile_order: Vec<String>,
-    deleted_delivery_profile_ids: BTreeSet<String>,
+    fulfillment_services: StagedRecords<Value>,
+    fulfillment_service_locations: StagedRecords<Value>,
+    delivery_profiles: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
-    locations: BTreeMap<String, Value>,
-    location_order: Vec<String>,
-    deleted_location_ids: BTreeSet<String>,
+    locations: StagedRecords<Value>,
     location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
     // Recorded segment-catalog read baselines, keyed by root field name
@@ -331,15 +321,14 @@ struct StagedState {
     // every scenario that does not seed a catalog, leaving the upstream-passthrough
     // collections read path untouched.
     collection_catalog: BTreeMap<String, Value>,
-    collections: BTreeMap<String, Value>,
-    deleted_collection_ids: BTreeSet<String>,
+    collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
-    discounts: BTreeMap<String, Value>,
+    bulk_operation_results: BTreeMap<String, String>,
+    discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
-    deleted_discount_ids: BTreeSet<String>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
@@ -373,13 +362,11 @@ struct StagedState {
     // translation remove). Keeps the proxy authoritative for localization reads so a
     // now-empty staged set is not mistaken for a cold cache that must forward upstream.
     localization_dirty: bool,
-    marketing_activities: BTreeMap<String, Value>,
-    deleted_marketing_activity_ids: BTreeSet<String>,
+    marketing_activities: StagedRecords<Value>,
     marketing_delete_all_external: bool,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
-    b2b_locations: BTreeMap<String, Value>,
-    b2b_location_order: Vec<String>,
+    b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,
     b2b_contact_roles: BTreeMap<String, Value>,
     b2b_role_assignments: BTreeMap<String, Value>,
@@ -398,10 +385,8 @@ struct StagedState {
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
-    metaobject_definitions: BTreeMap<String, Value>,
-    deleted_metaobject_definition_ids: BTreeSet<String>,
-    metaobjects: BTreeMap<String, Value>,
-    deleted_metaobject_ids: BTreeSet<String>,
+    metaobject_definitions: StagedRecords<Value>,
+    metaobjects: StagedRecords<Value>,
     url_redirects: BTreeMap<String, Value>,
     url_redirect_order: Vec<String>,
     linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,
@@ -410,8 +395,7 @@ struct StagedState {
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
     metafield_reference_ids: BTreeSet<String>,
-    media_files: BTreeMap<String, Value>,
-    deleted_media_file_ids: BTreeSet<String>,
+    media_files: StagedRecords<Value>,
     online_store_integrations: BTreeMap<String, Value>,
     online_store_blogs: BTreeMap<String, Value>,
     online_store_blog_order: Vec<String>,
@@ -438,7 +422,7 @@ struct StagedState {
     customer_payment_method_customer_index: BTreeMap<String, Vec<String>>,
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
-    orders: BTreeMap<String, Value>,
+    orders: StagedRecords<Value>,
     draft_orders: BTreeMap<String, Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
@@ -493,7 +477,6 @@ struct StagedState {
     deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
     next_b2b_contact_id: u64,
     next_b2b_contact_role_assignment_id: u64,
-    deleted_order_ids: BTreeSet<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -620,12 +603,30 @@ impl<T> StagedRecords<T> {
         self.order = normalized_order(self.records.keys(), order);
     }
 
-    fn stage(&mut self, id: String, record: T) {
+    fn replace_tombstones(&mut self, ids: BTreeSet<String>) {
+        self.tombstones = ids;
+    }
+
+    fn replace_with_order_and_tombstones(
+        &mut self,
+        records: BTreeMap<String, T>,
+        order: Vec<String>,
+        tombstones: BTreeSet<String>,
+    ) {
+        self.replace_with_order(records, order);
+        self.replace_tombstones(tombstones);
+    }
+
+    fn stage(&mut self, id: String, record: T) -> Option<T> {
         self.tombstones.remove(&id);
         if !self.records.contains_key(&id) {
             self.order.push(id.clone());
         }
-        self.records.insert(id, record);
+        self.records.insert(id, record)
+    }
+
+    fn insert(&mut self, id: String, record: T) -> Option<T> {
+        self.stage(id, record)
     }
 
     fn remove_staged(&mut self, id: &str) -> Option<T> {
@@ -637,8 +638,30 @@ impl<T> StagedRecords<T> {
         self.tombstones.insert(id);
     }
 
+    fn tombstone_staged(&mut self, id: &str) -> bool {
+        let existed = self.remove_staged(id).is_some();
+        if existed {
+            self.tombstone(id.to_string());
+        }
+        existed
+    }
+
     fn get(&self, id: &str) -> Option<&T> {
+        if self.is_tombstoned(id) {
+            return None;
+        }
         self.records.get(id)
+    }
+
+    fn get_mut(&mut self, id: &str) -> Option<&mut T> {
+        if self.is_tombstoned(id) {
+            return None;
+        }
+        self.records.get_mut(id)
+    }
+
+    fn contains_key(&self, id: &str) -> bool {
+        !self.is_tombstoned(id) && self.records.contains_key(id)
     }
 
     fn contains_staged(&self, id: &str) -> bool {
@@ -647,6 +670,48 @@ impl<T> StagedRecords<T> {
 
     fn is_tombstoned(&self, id: &str) -> bool {
         self.tombstones.contains(id)
+    }
+
+    fn remove(&mut self, id: &str) -> Option<T> {
+        self.remove_staged(id)
+    }
+
+    fn entry(&mut self, id: String) -> btree_map::Entry<'_, String, T> {
+        self.tombstones.remove(&id);
+        if !self.records.contains_key(&id) {
+            self.order.push(id.clone());
+        }
+        self.records.entry(id)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&String, &T)> {
+        self.records
+            .iter()
+            .filter(|(id, _)| !self.tombstones.contains(*id))
+    }
+
+    fn values(&self) -> impl Iterator<Item = &T> {
+        self.iter().map(|(_, record)| record)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.records.is_empty() && self.tombstones.is_empty()
+    }
+
+    fn len(&self) -> usize {
+        self.records
+            .keys()
+            .filter(|id| !self.tombstones.contains(*id))
+            .count()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a StagedRecords<T> {
+    type Item = (&'a String, &'a T);
+    type IntoIter = btree_map::Iter<'a, String, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.iter()
     }
 }
 
@@ -659,10 +724,8 @@ impl Default for StagedState {
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
-            shipping_packages: BTreeMap::new(),
-            deleted_shipping_package_ids: BTreeSet::new(),
-            customers: BTreeMap::new(),
-            deleted_customer_ids: BTreeSet::new(),
+            shipping_packages: StagedRecords::default(),
+            customers: StagedRecords::default(),
             customer_addresses: BTreeMap::new(),
             customer_address_order: BTreeMap::new(),
             customer_address_owners: BTreeMap::new(),
@@ -671,46 +734,37 @@ impl Default for StagedState {
             customer_merge_requests: BTreeMap::new(),
             customer_data_erasure_requests: BTreeMap::new(),
             customers_count_base: None,
-            store_credit_accounts: BTreeMap::new(),
-            store_credit_account_order: Vec::new(),
+            store_credit_accounts: StagedRecords::default(),
             store_credit_transactions: BTreeMap::new(),
             store_credit_transaction_order: Vec::new(),
             next_store_credit_account_id: 1,
             next_store_credit_transaction_id: 1,
             taggable_resources: BTreeMap::new(),
-            carrier_services: BTreeMap::new(),
-            deleted_carrier_service_ids: BTreeSet::new(),
+            carrier_services: StagedRecords::default(),
             app_subscriptions: BTreeMap::new(),
             app_one_time_purchases: BTreeMap::new(),
             revoked_app_access_scopes: BTreeSet::new(),
             app_uninstalled: false,
             delegate_access_tokens: BTreeMap::new(),
             customer_segment_member_queries: BTreeMap::new(),
-            fulfillment_services: BTreeMap::new(),
-            fulfillment_service_locations: BTreeMap::new(),
-            deleted_fulfillment_service_ids: BTreeSet::new(),
-            deleted_fulfillment_service_location_ids: BTreeSet::new(),
-            delivery_profiles: BTreeMap::new(),
-            delivery_profile_order: Vec::new(),
-            deleted_delivery_profile_ids: BTreeSet::new(),
+            fulfillment_services: StagedRecords::default(),
+            fulfillment_service_locations: StagedRecords::default(),
+            delivery_profiles: StagedRecords::default(),
             observed_shipping_locations: BTreeMap::new(),
             observed_shipping_location_order: Vec::new(),
-            locations: BTreeMap::new(),
-            location_order: Vec::new(),
-            deleted_location_ids: BTreeSet::new(),
+            locations: StagedRecords::default(),
             location_limit_reached: false,
             segments: BTreeMap::new(),
             segment_catalog: BTreeMap::new(),
             collection_catalog: BTreeMap::new(),
-            collections: BTreeMap::new(),
-            deleted_collection_ids: BTreeSet::new(),
+            collections: StagedRecords::default(),
             collection_jobs: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
-            discounts: BTreeMap::new(),
+            bulk_operation_results: BTreeMap::new(),
+            discounts: StagedRecords::default(),
             discount_code_index: BTreeMap::new(),
-            deleted_discount_ids: BTreeSet::new(),
             discount_redeem_code_bulk_creations: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
@@ -725,13 +779,11 @@ impl Default for StagedState {
             localization_translations: Vec::new(),
             localization_resources: BTreeMap::new(),
             localization_dirty: false,
-            marketing_activities: BTreeMap::new(),
-            deleted_marketing_activity_ids: BTreeSet::new(),
+            marketing_activities: StagedRecords::default(),
             marketing_delete_all_external: false,
             webhook_subscriptions: BTreeMap::new(),
             b2b_companies: BTreeMap::new(),
-            b2b_locations: BTreeMap::new(),
-            b2b_location_order: Vec::new(),
+            b2b_locations: StagedRecords::default(),
             b2b_contacts: BTreeMap::new(),
             b2b_contact_roles: BTreeMap::new(),
             b2b_role_assignments: BTreeMap::new(),
@@ -746,10 +798,8 @@ impl Default for StagedState {
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
             inventory_shipments: BTreeMap::new(),
-            metaobject_definitions: BTreeMap::new(),
-            deleted_metaobject_definition_ids: BTreeSet::new(),
-            metaobjects: BTreeMap::new(),
-            deleted_metaobject_ids: BTreeSet::new(),
+            metaobject_definitions: StagedRecords::default(),
+            metaobjects: StagedRecords::default(),
             url_redirects: BTreeMap::new(),
             url_redirect_order: Vec::new(),
             linked_product_option_metaobject_sets: Vec::new(),
@@ -758,8 +808,7 @@ impl Default for StagedState {
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
             metafield_reference_ids: BTreeSet::new(),
-            media_files: BTreeMap::new(),
-            deleted_media_file_ids: BTreeSet::new(),
+            media_files: StagedRecords::default(),
             online_store_integrations: BTreeMap::new(),
             online_store_blogs: BTreeMap::new(),
             online_store_blog_order: Vec::new(),
@@ -786,7 +835,7 @@ impl Default for StagedState {
             customer_payment_method_customer_index: BTreeMap::new(),
             next_customer_payment_method_id: 1,
             abandonments: BTreeMap::new(),
-            orders: BTreeMap::new(),
+            orders: StagedRecords::default(),
             draft_orders: BTreeMap::new(),
             returns: BTreeMap::new(),
             returns_by_order: BTreeMap::new(),
@@ -831,7 +880,6 @@ impl Default for StagedState {
             deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
             next_b2b_contact_id: 1,
             next_b2b_contact_role_assignment_id: 1,
-            deleted_order_ids: BTreeSet::new(),
         }
     }
 }
@@ -954,96 +1002,6 @@ impl Store {
                 .into_iter()
                 .map(|product| (product.id.clone(), product)),
         );
-    }
-
-    fn replace_base_products_map_with_order(
-        &mut self,
-        products: BTreeMap<String, ProductRecord>,
-        order: Vec<String>,
-    ) {
-        self.base.products.replace_with_order(products, order);
-    }
-
-    fn replace_base_product_variants_map_with_order(
-        &mut self,
-        variants: BTreeMap<String, ProductVariantRecord>,
-        order: Vec<String>,
-    ) {
-        self.base
-            .product_variants
-            .replace_with_order(variants, order);
-    }
-
-    fn replace_staged_products_map_with_order(
-        &mut self,
-        products: BTreeMap<String, ProductRecord>,
-        order: Vec<String>,
-    ) {
-        self.staged.products.replace_with_order(products, order);
-    }
-
-    fn replace_staged_product_variants_map_with_order(
-        &mut self,
-        variants: BTreeMap<String, ProductVariantRecord>,
-        order: Vec<String>,
-    ) {
-        self.staged
-            .product_variants
-            .replace_with_order(variants, order);
-    }
-
-    fn replace_base_saved_searches_map_with_order(
-        &mut self,
-        saved_searches: BTreeMap<String, SavedSearchRecord>,
-        order: Vec<String>,
-    ) {
-        self.base
-            .saved_searches
-            .replace_with_order(saved_searches, order);
-    }
-
-    fn replace_base_shop_policies_map_with_order(
-        &mut self,
-        policies: BTreeMap<String, ShopPolicyRecord>,
-        order: Vec<String>,
-    ) {
-        self.base.shop_policies.replace_with_order(policies, order);
-    }
-
-    fn replace_staged_saved_searches_map_with_order(
-        &mut self,
-        saved_searches: BTreeMap<String, SavedSearchRecord>,
-        order: Vec<String>,
-    ) {
-        self.staged
-            .saved_searches
-            .replace_with_order(saved_searches, order);
-    }
-
-    fn replace_staged_shop_policies_map_with_order(
-        &mut self,
-        policies: BTreeMap<String, ShopPolicyRecord>,
-        order: Vec<String>,
-    ) {
-        self.staged
-            .shop_policies
-            .replace_with_order(policies, order);
-    }
-
-    fn replace_product_tombstones(&mut self, ids: BTreeSet<String>) {
-        self.staged.products.tombstones = ids;
-    }
-
-    fn replace_product_variant_tombstones(&mut self, ids: BTreeSet<String>) {
-        self.staged.product_variants.tombstones = ids;
-    }
-
-    fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
-        self.staged.saved_searches.tombstones = ids;
-    }
-
-    fn replace_shop_policy_tombstones(&mut self, ids: BTreeSet<String>) {
-        self.staged.shop_policies.tombstones = ids;
     }
 
     fn stage_created_publication_id(&mut self, id: String) {
@@ -1170,9 +1128,7 @@ impl Store {
     }
 
     fn has_collection_state(&self) -> bool {
-        !self.staged.collections.is_empty()
-            || !self.staged.deleted_collection_ids.is_empty()
-            || !self.staged.collection_jobs.is_empty()
+        !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
     }
 
     fn has_product(&self, id: &str) -> bool {
@@ -1219,8 +1175,6 @@ impl Store {
         else {
             return;
         };
-        self.staged.deleted_collection_ids.remove(&collection_id);
-
         let mut normalized_products = Vec::new();
         for mut product in products {
             upsert_minimal_collection(&mut product.collections, &collection);
@@ -1279,9 +1233,6 @@ impl Store {
     }
 
     fn collection_by_id(&self, id: &str) -> Option<&Value> {
-        if self.staged.deleted_collection_ids.contains(id) {
-            return None;
-        }
         self.staged.collections.get(id)
     }
 
@@ -1289,21 +1240,17 @@ impl Store {
     /// never-seen collection, a tombstoned one must be served from local state
     /// (collection: null) for read-after-delete rather than forwarded upstream.
     fn collection_is_deleted(&self, id: &str) -> bool {
-        self.staged.deleted_collection_ids.contains(id)
+        self.staged.collections.is_tombstoned(id)
     }
 
     fn stage_collection(&mut self, collection: Value) {
         if let Some(id) = collection.get("id").and_then(Value::as_str) {
-            self.staged.deleted_collection_ids.remove(id);
             self.staged.collections.insert(id.to_string(), collection);
         }
     }
 
     fn delete_collection(&mut self, id: &str) -> bool {
-        let existed = self.staged.collections.remove(id).is_some();
-        if existed {
-            self.staged.deleted_collection_ids.insert(id.to_string());
-        }
+        let existed = self.staged.collections.tombstone_staged(id);
         for product in self.products() {
             if product
                 .collections
@@ -1335,6 +1282,10 @@ impl Store {
             &self.staged.product_variants,
             id,
         )
+    }
+
+    fn product_variants(&self) -> Vec<ProductVariantRecord> {
+        effective_records(&self.base.product_variants, &self.staged.product_variants)
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the
@@ -1740,6 +1691,7 @@ mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
+mod money;
 mod online_store_content;
 mod online_store_orders_payments;
 mod privacy;
@@ -1786,6 +1738,8 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metaobjects::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::money::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_content::*;
 #[allow(unused_imports)]
@@ -1930,7 +1884,7 @@ mod store_tests {
     #[test]
     fn store_saved_searches_overlay_defaults_base_and_tombstones_in_order() {
         let mut store = Store::default();
-        store.replace_base_saved_searches_map_with_order(
+        store.base.saved_searches.replace_with_order(
             BTreeMap::from([(
                 "gid://shopify/SavedSearch/base".to_string(),
                 saved_search("gid://shopify/SavedSearch/base", "Base products", "PRODUCT"),
@@ -2013,6 +1967,58 @@ mod store_tests {
             "New products",
             "PRODUCT",
         ));
+        proxy.store.staged.locations.insert(
+            "gid://shopify/Location/live".to_string(),
+            json!({"id": "gid://shopify/Location/live", "name": "Live location"}),
+        );
+        proxy.store.staged.locations.insert(
+            "gid://shopify/Location/deleted".to_string(),
+            json!({"id": "gid://shopify/Location/deleted", "name": "Deleted location"}),
+        );
+        proxy
+            .store
+            .staged
+            .locations
+            .tombstone_staged("gid://shopify/Location/deleted");
+        proxy.store.staged.delivery_profiles.insert(
+            "gid://shopify/DeliveryProfile/live".to_string(),
+            json!({"id": "gid://shopify/DeliveryProfile/live", "name": "Live profile"}),
+        );
+        proxy.store.staged.delivery_profiles.insert(
+            "gid://shopify/DeliveryProfile/deleted".to_string(),
+            json!({"id": "gid://shopify/DeliveryProfile/deleted", "name": "Deleted profile"}),
+        );
+        proxy
+            .store
+            .staged
+            .delivery_profiles
+            .tombstone_staged("gid://shopify/DeliveryProfile/deleted");
+        proxy.store.staged.store_credit_accounts.insert(
+            "gid://shopify/StoreCreditAccount/1".to_string(),
+            json!({"id": "gid://shopify/StoreCreditAccount/1"}),
+        );
+        proxy.store.staged.b2b_locations.insert(
+            "gid://shopify/CompanyLocation/1".to_string(),
+            json!({"id": "gid://shopify/CompanyLocation/1"}),
+        );
+        proxy.store.staged.customers.insert(
+            "gid://shopify/Customer/deleted".to_string(),
+            json!({"id": "gid://shopify/Customer/deleted"}),
+        );
+        proxy
+            .store
+            .staged
+            .customers
+            .tombstone_staged("gid://shopify/Customer/deleted");
+        proxy.store.staged.collections.insert(
+            "gid://shopify/Collection/deleted".to_string(),
+            json!({"id": "gid://shopify/Collection/deleted"}),
+        );
+        proxy
+            .store
+            .staged
+            .collections
+            .tombstone_staged("gid://shopify/Collection/deleted");
 
         let dump = proxy.process_request(request(
             "POST",
@@ -2034,6 +2040,38 @@ mod store_tests {
             dump.body["state"]["stagedState"]["deletedProductIds"],
             json!(["gid://shopify/Product/base-2"])
         );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["locationOrder"],
+            json!(["gid://shopify/Location/live"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deletedLocationIds"],
+            json!(["gid://shopify/Location/deleted"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deliveryProfileOrder"],
+            json!(["gid://shopify/DeliveryProfile/live"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deletedDeliveryProfileIds"],
+            json!(["gid://shopify/DeliveryProfile/deleted"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["storeCreditAccountOrder"],
+            json!(["gid://shopify/StoreCreditAccount/1"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["b2bLocationOrder"],
+            json!(["gid://shopify/CompanyLocation/1"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deletedCustomerIds"],
+            json!(["gid://shopify/Customer/deleted"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deletedCollectionIds"],
+            json!(["gid://shopify/Collection/deleted"])
+        );
 
         let mut restored = snapshot_proxy();
         let restore =
@@ -2051,6 +2089,42 @@ mod store_tests {
         assert_eq!(
             restored.store.saved_searches_for_resource("PRODUCT")[0].id,
             "gid://shopify/SavedSearch/new"
+        );
+        assert_eq!(
+            restored
+                .store
+                .staged
+                .locations
+                .get("gid://shopify/Location/live"),
+            Some(&json!({"id": "gid://shopify/Location/live", "name": "Live location"}))
+        );
+        assert!(restored
+            .store
+            .staged
+            .locations
+            .is_tombstoned("gid://shopify/Location/deleted"));
+        assert!(restored
+            .store
+            .staged
+            .delivery_profiles
+            .is_tombstoned("gid://shopify/DeliveryProfile/deleted"));
+        assert!(restored
+            .store
+            .staged
+            .customers
+            .is_tombstoned("gid://shopify/Customer/deleted"));
+        assert!(restored
+            .store
+            .staged
+            .collections
+            .is_tombstoned("gid://shopify/Collection/deleted"));
+        assert_eq!(
+            restored.store.staged.store_credit_accounts.order,
+            vec!["gid://shopify/StoreCreditAccount/1"]
+        );
+        assert_eq!(
+            restored.store.staged.b2b_locations.order,
+            vec!["gid://shopify/CompanyLocation/1"]
         );
     }
 

@@ -1145,6 +1145,265 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
 }
 
 #[test]
+fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
+    let mut proxy = snapshot_proxy();
+    let create_order_query = r#"
+        mutation CreateRestorableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) { nodes { id title quantity } }
+              transactions { id kind status gateway }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_order = proxy.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": {
+                "order": {
+                    "email": "restore-counters-first@example.test",
+                    "currency": "CAD",
+                    "lineItems": [{
+                        "title": "Restore counter item",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                    }],
+                    "transactions": [{
+                        "kind": "SALE",
+                        "status": "SUCCESS",
+                        "gateway": "manual",
+                        "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                    }]
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(first_order.status, 200);
+    assert_eq!(
+        first_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let first_line_item_id =
+        first_order.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
+    let parent_transaction_id =
+        first_order.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let refund_query = r#"
+        mutation RefundRestoredOrder($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+              refundLineItems(first: 5) { nodes { id quantity } }
+              transactions(first: 5) { nodes { id kind status } }
+            }
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_refund = proxy.process_request(graphql_request(
+        &json!({
+            "query": refund_query,
+            "variables": {
+                "input": {
+                    "orderId": first_order_id,
+                    "refundLineItems": [{
+                        "lineItemId": first_line_item_id,
+                        "quantity": 1,
+                        "restockType": "RETURN"
+                    }],
+                    "transactions": [{
+                        "parentId": parent_transaction_id,
+                        "kind": "REFUND",
+                        "amount": "10.00"
+                    }]
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(first_refund.status, 200);
+    assert_eq!(
+        first_refund.body["data"]["refundCreate"]["refund"]["id"],
+        json!("gid://shopify/Refund/1")
+    );
+    assert_eq!(
+        first_refund.body["data"]["refundCreate"]["refund"]["refundLineItems"]["nodes"][0]["id"],
+        json!("gid://shopify/RefundLineItem/1")
+    );
+    assert_eq!(
+        first_refund.body["data"]["refundCreate"]["refund"]["transactions"]["nodes"][0]["id"],
+        json!("gid://shopify/OrderTransaction/4")
+    );
+
+    let create_draft = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation CreateTaggedDraft {
+                  draftOrderCreate(input: { email: "restore-bulk-tags@example.test", tags: ["one"] }) {
+                    draftOrder { id tags }
+                    userErrors { field message }
+                  }
+                }
+            "#
+        })
+        .to_string(),
+    ));
+    assert_eq!(create_draft.status, 200);
+    let draft_order_id = create_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let first_bulk_job = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation AddDraftTags($ids: [ID!]!, $tags: [String!]!) {
+                  draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+                    job { id done }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "ids": [draft_order_id], "tags": ["two"] }
+        })
+        .to_string(),
+    ));
+    assert_eq!(first_bulk_job.status, 200);
+    assert_eq!(
+        first_bulk_job.body["data"]["draftOrderBulkAddTags"]["job"]["id"],
+        json!("gid://shopify/Job/1")
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-21T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["nextDraftOrderBulkTagJobId"],
+        json!(2)
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let second_order = restored.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": {
+                "order": {
+                    "email": "restore-counters-second@example.test",
+                    "currency": "CAD",
+                    "financialStatus": "PENDING",
+                    "lineItems": [{
+                        "title": "Second restore counter item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "7.00", "currencyCode": "CAD" } }
+                    }]
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(second_order.status, 200);
+    assert_eq!(
+        second_order.body["data"]["orderCreate"]["order"]["id"],
+        json!("gid://shopify/Order/2")
+    );
+    assert!(restored.get_state_snapshot()["stagedState"]["orders"]
+        .as_object()
+        .unwrap()
+        .contains_key(first_order_id.as_str().unwrap()));
+    let second_order_id = second_order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let mark_paid = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation MarkRestoredOrderPaid($input: OrderMarkAsPaidInput!) {
+                  orderMarkAsPaid(input: $input) {
+                    order { id transactions { id kind status } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "input": { "id": second_order_id } }
+        })
+        .to_string(),
+    ));
+    assert_eq!(mark_paid.status, 200);
+    assert_eq!(
+        mark_paid.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["id"],
+        json!("gid://shopify/OrderTransaction/5")
+    );
+
+    let second_refund = restored.process_request(graphql_request(
+        &json!({
+            "query": refund_query,
+            "variables": {
+                "input": {
+                    "orderId": first_order_id,
+                    "refundLineItems": [{
+                        "lineItemId": first_line_item_id,
+                        "quantity": 1,
+                        "restockType": "RETURN"
+                    }],
+                    "transactions": [{
+                        "parentId": parent_transaction_id,
+                        "kind": "REFUND",
+                        "amount": "10.00"
+                    }]
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(second_refund.status, 200);
+    assert_eq!(
+        second_refund.body["data"]["refundCreate"]["refund"]["id"],
+        json!("gid://shopify/Refund/2")
+    );
+    assert_eq!(
+        second_refund.body["data"]["refundCreate"]["refund"]["refundLineItems"]["nodes"][0]["id"],
+        json!("gid://shopify/RefundLineItem/2")
+    );
+    assert_eq!(
+        second_refund.body["data"]["refundCreate"]["refund"]["transactions"]["nodes"][0]["id"],
+        json!("gid://shopify/OrderTransaction/6")
+    );
+
+    let second_bulk_job = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation RemoveDraftTags($ids: [ID!]!, $tags: [String!]!) {
+                  draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+                    job { id done }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": {
+                "ids": [create_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone()],
+                "tags": ["one"]
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(second_bulk_job.status, 200);
+    assert_eq!(
+        second_bulk_job.body["data"]["draftOrderBulkRemoveTags"]["job"]["id"],
+        json!("gid://shopify/Job/2")
+    );
+}
+
+#[test]
 fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(

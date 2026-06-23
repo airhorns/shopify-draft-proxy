@@ -3,6 +3,32 @@ use crate::graphql::RawArgumentValue;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 
+// The batched node-hydrate query the proxy forwards to observe pre-existing
+// products / variants / collections in LiveHybrid. Shared verbatim with the
+// conformance capture scripts so re-recorded cassettes match byte-for-byte.
+pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
+);
+
+// The generic observation query above does not select product `options`, which the
+// productOptionsReorder graph needs. This options-aware node hydrate selects the
+// option/optionValue graph (and variants) and is forwarded only by the reorder
+// owner-hydrate path. Kept as a shared `.graphql` doc so re-recorded cassettes match
+// the emitted forward byte-for-byte.
+pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
+    include_str!("../../config/parity-requests/products/product-options-hydrate-nodes.graphql");
+
+// Publication-membership hydrate forwarded the first time the local publication
+// engine publishes a publishable resource (product / collection) it has never
+// seen. It reads the resource's title/status and the set of publications it is
+// already published on (e.g. the default Online Store), so a pre-existing
+// resource's membership is discovered by reading upstream rather than injected
+// via `/__meta/seed`. Shared verbatim with the cassette so the forward matches
+// byte-for-byte.
+pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/publication-resource-hydrate-nodes.graphql"
+);
+
 struct ProductStatusInputContext<'a> {
     argument_name: &'a str,
     input_object_type: &'a str,
@@ -675,6 +701,95 @@ impl DraftProxy {
         !self.store.staged.publications.is_empty()
     }
 
+    /// Every Shopify store has a default "Online Store" publication
+    /// (`Publication/1` / `Channel/1`) that the proxy already treats as the
+    /// reserved, un-deletable default (`next_publication_id`,
+    /// `is_default_publication`, `publicationDelete` guard). Materialize it into
+    /// local publication state when the engine activates so `channels` /
+    /// `channel` / `publicationsCount` reflect it without a `/__meta/seed`
+    /// precondition — the production proxy was never told the Online Store
+    /// exists; it always does.
+    pub(in crate::proxy) fn ensure_default_publication(&mut self) {
+        let id = "gid://shopify/Publication/1";
+        if !self.store.staged.publications.contains_key(id) {
+            self.store.staged.publications.insert(
+                id.to_string(),
+                publication_record_json(id, "Online Store", false),
+            );
+        }
+    }
+
+    /// Discover a publishable resource's pre-existing publication membership by
+    /// reading it upstream, the first time the local publication engine
+    /// publishes a resource it has never seen. Stages the resource's
+    /// title/status and the set of publications it is already published on (e.g.
+    /// the default Online Store) into local state, so `resourcePublicationsCount`
+    /// / `publicationCount` / the publication's `products` reflect the real
+    /// baseline instead of one injected via `/__meta/seed`. No-op once the
+    /// resource is known to the engine, outside LiveHybrid, or for an empty id.
+    pub(in crate::proxy) fn hydrate_publishable_resource(
+        &mut self,
+        resource_id: &str,
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid || resource_id.is_empty() {
+            return;
+        }
+        if self
+            .store
+            .staged
+            .resource_publications
+            .contains_key(resource_id)
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PUBLICATION_RESOURCE_HYDRATE_QUERY,
+                "operationName": "PublicationResourceHydrate",
+                "variables": { "ids": [resource_id] },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let nodes = response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for node in &nodes {
+            let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                continue;
+            };
+            if id.starts_with("gid://shopify/Product/") {
+                self.store.stage_observed_product_json(node);
+            } else if id.starts_with("gid://shopify/Collection/") {
+                self.stage_collection_from_observed_json(node);
+            }
+            // Mark the resource as known to the engine (so re-hydration does not
+            // re-fire) and fold in its observed publication membership.
+            let set = self
+                .store
+                .staged
+                .resource_publications
+                .entry(id)
+                .or_default();
+            for entry in node
+                .pointer("/resourcePublications/nodes")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(pid) = entry.pointer("/publication/id").and_then(Value::as_str) {
+                    set.insert(pid.to_string());
+                }
+            }
+        }
+    }
+
     /// Render a multi-root publication read operation
     /// (`publication`/`channel`/`channels`/`publicationsCount`/
     /// `publishedProductsCount` plus any `product`/`collection` publication
@@ -961,6 +1076,10 @@ impl DraftProxy {
             let user_errors =
                 publishable_publication_input_errors(field.arguments.get("input"), to_current);
             if user_errors.is_empty() {
+                // Discover the resource's pre-existing publication membership
+                // (e.g. the default Online Store) by reading upstream before
+                // applying this publish, so counts reflect the real baseline.
+                self.hydrate_publishable_resource(&resource_id, request);
                 let publication_ids = publishable_input_publication_ids(&field.arguments);
                 let set = self
                     .store
@@ -1065,9 +1184,40 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+                "query": PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY,
                 "operationName": "ProductsHydrateNodes",
                 "variables": { "ids": ids }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
+    /// Forward the options-aware product hydrate (selecting the option/optionValue
+    /// graph that the generic observation query omits) and observe it, so a cold
+    /// productOptionsReorder resolves the real owning product + option graph from
+    /// upstream instead of relying on seeded state.
+    pub(in crate::proxy) fn hydrate_product_options_owner(&mut self, product_id: &str) {
+        if product_id.is_empty() {
+            return;
+        }
+        let path = self
+            .log_entries
+            .last()
+            .and_then(|entry| entry.get("path"))
+            .and_then(Value::as_str)
+            .unwrap_or("/admin/api/2025-01/graphql.json")
+            .to_string();
+        let response = self.upstream_post(
+            &Request {
+                method: "POST".to_string(),
+                path,
+                headers: BTreeMap::new(),
+                body: String::new(),
+            },
+            json!({
+                "query": PRODUCT_OPTIONS_HYDRATE_NODES_QUERY,
+                "operationName": "ProductOptionsHydrateNodes",
+                "variables": { "ids": [product_id] }
             }),
         );
         self.observe_nodes_response(&response);
@@ -2249,7 +2399,7 @@ fn product_media_ready_url() -> &'static str {
 }
 
 fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
-    let errors = json!([{ "field": field, "message": message }]);
+    let errors = json!([user_error_omit_code(field, message, None)]);
     json!({
         "userErrors": errors.clone(),
         "mediaUserErrors": errors
@@ -2270,11 +2420,11 @@ fn media_nodes_contain(media: &[Value], id: &str) -> bool {
 }
 
 fn product_does_not_exist_error(field: &str) -> Value {
-    json!({ "field": [field], "message": "Product does not exist" })
+    user_error_omit_code([field], "Product does not exist", None)
 }
 
 fn media_missing_error(field: &str, id: &str) -> Value {
-    json!({ "field": [field], "message": format!("Media id {id} does not exist") })
+    user_error_omit_code([field], &format!("Media id {id} does not exist"), None)
 }
 
 fn collection_input(
@@ -2473,11 +2623,7 @@ fn collection_invalid_sort_order_response(
 }
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
-    let field = field.into_iter().collect::<Vec<_>>();
-    json!({
-        "field": field,
-        "message": message
-    })
+    user_error_omit_code(field, message, None)
 }
 
 fn strip_numeric_suffix(handle: &str) -> String {
@@ -4206,10 +4352,7 @@ pub(in crate::proxy) fn invalid_variable_required_field_error(
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
-    json!({
-        "field": ["input", "name"],
-        "message": "Name has already been taken"
-    })
+    user_error_omit_code(["input", "name"], "Name has already been taken", None)
 }
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(
@@ -4678,73 +4821,73 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if input.get("price") == Some(&ResolvedValue::Null) {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["price"]),
-            "message": "Price can't be blank",
-            "code": "INVALID"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["price"]),
+            "Price can't be blank",
+            Some("INVALID"),
+        ));
     } else if let Some(price) = resolved_variant_decimal(input, "price") {
         if price < 0.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["price"]),
-                "message": "Price must be greater than or equal to 0",
-                "code": "GREATER_THAN_OR_EQUAL_TO"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["price"]),
+                "Price must be greater than or equal to 0",
+                Some("GREATER_THAN_OR_EQUAL_TO"),
+            ));
         } else if price >= 1_000_000_000_000_000_000.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["price"]),
-                "message": "Price must be less than 1000000000000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["price"]),
+                "Price must be less than 1000000000000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
 
     if let Some(compare_at_price) = resolved_variant_decimal(input, "compareAtPrice") {
         if compare_at_price >= 1_000_000_000_000_000_000.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["compareAtPrice"]),
-                "message": "must be less than 1000000000000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["compareAtPrice"]),
+                "must be less than 1000000000000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
 
     if let Some(quantity) = resolved_int_field(input, "inventoryQuantity") {
         if quantity > 1_000_000_000 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["inventoryQuantity"]),
-                "message": "Inventory quantity must be less than or equal to 1000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["inventoryQuantity"]),
+                "Inventory quantity must be less than or equal to 1000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
     for quantity in resolved_object_list_field(input, "inventoryQuantities") {
         if let Some(available_quantity) = resolved_int_field(&quantity, "availableQuantity") {
             if available_quantity > 1_000_000_000 {
-                errors.push(json!({
-                    "field": prefixed_error_field(field_prefix, &["inventoryQuantities"]),
-                    "message": "Inventory quantity must be less than or equal to 1000000000",
-                    "code": "INVALID_INPUT"
-                }));
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryQuantities"]),
+                    "Inventory quantity must be less than or equal to 1000000000",
+                    Some("INVALID_INPUT"),
+                ));
                 break;
             }
         }
     }
 
     if resolved_string_field(input, "sku").is_some_and(|sku| sku.chars().count() > 255) {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["sku"]),
-            "message": "SKU is too long (maximum is 255 characters)",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["sku"]),
+            "SKU is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+        ));
     }
     if resolved_string_field(input, "barcode").is_some_and(|barcode| barcode.chars().count() > 255)
     {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["barcode"]),
-            "message": "Barcode is too long (maximum is 255 characters)",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["barcode"]),
+            "Barcode is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+        ));
     }
 
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
@@ -4752,21 +4895,21 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
             .is_some_and(|sku| sku.chars().count() > 255)
         {
             let bulk_field = !field_prefix.is_empty();
-            errors.push(json!({
-                "field": if bulk_field {
+            errors.push(user_error(
+                if bulk_field {
                     prefixed_error_field(field_prefix, &[])
                 } else {
                     prefixed_error_field(field_prefix, &["inventoryItem", "sku"])
                 },
-                "message": "SKU is too long (maximum is 255 characters)",
-                "code": "INVALID_INPUT"
-            }));
+                "SKU is too long (maximum is 255 characters)",
+                Some("INVALID_INPUT"),
+            ));
             if bulk_field {
-                errors.push(json!({
-                    "field": prefixed_error_field(field_prefix, &[]),
-                    "message": "is too long (maximum is 255 characters)",
-                    "code": Value::Null
-                }));
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &[]),
+                    "is too long (maximum is 255 characters)",
+                    None,
+                ));
             }
         }
     }
@@ -4776,8 +4919,8 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
         .enumerate()
     {
         if option.value.chars().count() > 255 {
-            errors.push(json!({
-                "field": if input.contains_key("optionValues") {
+            errors.push(user_error(
+                if input.contains_key("optionValues") {
                     prefixed_error_field(
                         field_prefix,
                         &["optionValues", &option_index.to_string(), "name"],
@@ -4785,9 +4928,9 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
                 } else {
                     prefixed_error_field(field_prefix, &["options"])
                 },
-                "message": "Option value name is too long",
-                "code": "INVALID_INPUT"
-            }));
+                "Option value name is too long",
+                Some("INVALID_INPUT"),
+            ));
             break;
         }
     }
@@ -4797,26 +4940,26 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
             if let Some(weight) = resolved_object_field(&measurement, "weight") {
                 if let Some(value) = resolved_variant_decimal(&weight, "value") {
                     if value < 0.0 {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": "Weight must be greater than or equal to 0",
-                            "code": "GREATER_THAN_OR_EQUAL_TO"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight must be greater than or equal to 0",
+                            Some("GREATER_THAN_OR_EQUAL_TO"),
+                        ));
                     } else if value >= 2_000_000_000.0 {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": "Weight must be less than 2000000000",
-                            "code": "INVALID_INPUT"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight must be less than 2000000000",
+                            Some("INVALID_INPUT"),
+                        ));
                     }
                 }
                 if let Some(unit) = resolved_string_field(&weight, "unit") {
                     if !matches!(unit.as_str(), "KILOGRAMS" | "GRAMS" | "POUNDS" | "OUNCES") {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": format!("Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES"),
-                            "code": "INVALID_INPUT"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES",
+                            Some("INVALID_INPUT"),
+                        ));
                     }
                 }
             }
@@ -5372,8 +5515,6 @@ fn root_argument_value_location(
     field: &RootFieldSelection,
     argument_name: &str,
 ) -> Option<SourceLocation> {
-    let mut line = field.location.line;
-    let mut column = field.location.column;
     let start = byte_offset_for_location(query, field.location)?;
     let haystack = &query[start..];
     let argument_start = haystack.find(argument_name)?;
@@ -5382,33 +5523,7 @@ fn root_argument_value_location(
     let value_offset = query[after_colon..]
         .char_indices()
         .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-
-    for ch in query[start..value_offset].chars() {
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    Some(SourceLocation { line, column })
-}
-
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut line = 1;
-    let mut column = 1;
-    for (offset, ch) in query.char_indices() {
-        if line == location.line && column == location.column {
-            return Some(offset);
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (line == location.line && column == location.column).then_some(query.len())
+    source_location_for_byte_offset(query, value_offset)
 }
 
 fn invalid_product_status_variable_error(
@@ -5549,11 +5664,7 @@ pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response 
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
-        &json!({
-            "field": ["id"],
-            "message": "Product does not exist",
-            "code": "NOT_FOUND"
-        }),
+        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
         &error_selection,
     );
     ok_json(json!({
@@ -5570,11 +5681,7 @@ pub(in crate::proxy) fn product_delete_missing_product(query: &str) -> Response 
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
-        &json!({
-            "field": ["id"],
-            "message": "Product does not exist",
-            "code": "NOT_FOUND"
-        }),
+        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
         &error_selection,
     );
     ok_json(json!({
@@ -5640,11 +5747,7 @@ pub(in crate::proxy) fn product_variant_media_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String> {
