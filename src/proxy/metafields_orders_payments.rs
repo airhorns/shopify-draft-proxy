@@ -5163,12 +5163,19 @@ impl DraftProxy {
         }
         if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
             let money = payment_terms_extract_owner_money(&owner);
-            let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-                &mut self.store.staged.draft_orders
+            if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                self.store
+                    .staged
+                    .draft_orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
             } else {
-                &mut self.store.staged.orders
-            };
-            target.entry(owner_id.to_string()).or_insert(owner);
+                self.store
+                    .staged
+                    .orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
+            }
             if let Some(money) = money {
                 return money;
             }
@@ -5301,17 +5308,29 @@ impl DraftProxy {
     }
 
     fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
-        let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-            &mut self.store.staged.draft_orders
+        let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            self.store
+                .staged
+                .draft_orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#DRAFT"
+                    })
+                })
         } else {
-            &mut self.store.staged.orders
+            self.store
+                .staged
+                .orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#1"
+                    })
+                })
         };
-        let entry = target.entry(owner_id.to_string()).or_insert_with(|| {
-            json!({
-                "id": owner_id,
-                "name": if owner_id.starts_with("gid://shopify/DraftOrder/") { "#DRAFT" } else { "#1" }
-            })
-        });
         entry["paymentTerms"] = terms.unwrap_or(Value::Null);
     }
 
@@ -6227,10 +6246,14 @@ impl DraftProxy {
 
             let disposition_type =
                 resolved_string_field(input, "dispositionType").unwrap_or_default();
-            let has_product_variant = line_item
+            let explicitly_custom_line = line_item
                 .pointer("/fulfillmentLineItem/lineItem/variant")
-                .is_some_and(|variant| !variant.is_null());
-            if disposition_type == "RESTOCKED" && !has_product_variant {
+                .is_some_and(Value::is_null)
+                || line_item
+                    .pointer("/fulfillmentLineItem/lineItem/custom")
+                    .and_then(Value::as_bool)
+                    == Some(true);
+            if disposition_type == "RESTOCKED" && explicitly_custom_line {
                 user_errors.push(return_user_error_owned(
                     vec![
                         "dispositionInputs".to_string(),

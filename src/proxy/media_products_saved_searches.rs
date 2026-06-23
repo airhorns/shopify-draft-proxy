@@ -1102,8 +1102,7 @@ impl DraftProxy {
             })));
         }
         for id in &ids {
-            self.store.staged.deleted_media_file_ids.insert(id.clone());
-            self.store.staged.media_files.remove(id);
+            self.store.staged.media_files.tombstone_staged(id);
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
@@ -1449,7 +1448,7 @@ impl DraftProxy {
             // Stage the file record itself so the existence check passes.
             if let Some(record) = media_file_record_from_node(&node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1486,7 +1485,7 @@ impl DraftProxy {
         {
             if let Some(record) = media_file_record_from_node(media_node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1598,7 +1597,7 @@ impl DraftProxy {
                         .staged
                         .media_files
                         .iter()
-                        .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
+                        .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
                     // Order by sortKey: ID (the numeric resource id), then honor
@@ -1657,11 +1656,18 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
-        if inputs.len() <= 25 {
-            self.hydrate_metafield_reference_ids(request, metafields_set_reference_values(&inputs));
-        }
-        let mut user_errors =
-            metafields_set_input_errors(&inputs, |id| self.metafield_reference_exists(id));
+        let fallback_reference_ids = if inputs.len() <= 25 {
+            self.hydrate_metafield_reference_ids(
+                request,
+                metafields_set_reference_values(&inputs),
+                metafields_set_product_owner_ids(&inputs),
+            )
+        } else {
+            BTreeSet::new()
+        };
+        let mut user_errors = metafields_set_input_errors(&inputs, |id| {
+            self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
+        });
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
@@ -1996,9 +2002,14 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_metafield_reference_ids(&mut self, request: &Request, ids: Vec<String>) {
+    fn hydrate_metafield_reference_ids(
+        &mut self,
+        request: &Request,
+        ids: Vec<String>,
+        product_owner_ids: BTreeSet<String>,
+    ) -> BTreeSet<String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
+            return BTreeSet::new();
         }
         let mut ids = ids
             .into_iter()
@@ -2007,7 +2018,7 @@ impl DraftProxy {
         ids.sort();
         ids.dedup();
         if ids.is_empty() {
-            return;
+            return BTreeSet::new();
         }
 
         let mut product_domain_ids = Vec::new();
@@ -2018,11 +2029,26 @@ impl DraftProxy {
                 _ => generic_ids.push(id),
             }
         }
+        let mut fallback_reference_ids = BTreeSet::new();
         if !product_domain_ids.is_empty() {
-            self.hydrate_product_nodes_for_observation_with_request(request, product_domain_ids);
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY,
+                    "operationName": "ProductsHydrateNodes",
+                    "variables": { "ids": product_domain_ids.clone() }
+                }),
+            );
+            if response.status >= 400 {
+                fallback_reference_ids.extend(product_domain_ids.iter().filter_map(|id| {
+                    metafield_product_domain_reference_fallback(id, &product_owner_ids)
+                }));
+            } else {
+                self.observe_nodes_response(&response);
+            }
         }
         if generic_ids.is_empty() {
-            return;
+            return fallback_reference_ids;
         }
         let response = self.upstream_post(
             request,
@@ -2033,13 +2059,14 @@ impl DraftProxy {
             }),
         );
         if response.status >= 400 {
-            return;
+            return fallback_reference_ids;
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
             for node in nodes {
                 self.stage_metafield_reference_node(node);
             }
         }
+        fallback_reference_ids
     }
 
     fn stage_metafield_reference_node(&mut self, node: &Value) {
@@ -2088,7 +2115,7 @@ impl DraftProxy {
                     .or_insert_with(|| node.clone());
             }
             Some("Metaobject") => {
-                if !self.store.staged.deleted_metaobject_ids.contains(&id) {
+                if !self.store.staged.metaobjects.is_tombstoned(&id) {
                     self.store
                         .staged
                         .metaobjects
@@ -2115,20 +2142,20 @@ impl DraftProxy {
             Some("Collection") => self.store.collection_by_id(id).is_some(),
             Some("Customer") => {
                 self.store.staged.customers.contains_key(id)
-                    && !self.store.staged.deleted_customer_ids.contains(id)
+                    && !self.store.staged.customers.is_tombstoned(id)
             }
             Some("Order") => {
                 self.store.staged.orders.contains_key(id)
-                    && !self.store.staged.deleted_order_ids.contains(id)
+                    && !self.store.staged.orders.is_tombstoned(id)
             }
             Some("Company") => self.store.staged.b2b_companies.contains_key(id),
             Some("Metaobject") => {
                 self.store.staged.metaobjects.contains_key(id)
-                    && !self.store.staged.deleted_metaobject_ids.contains(id)
+                    && !self.store.staged.metaobjects.is_tombstoned(id)
             }
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
                 self.store.staged.media_files.contains_key(id)
-                    && !self.store.staged.deleted_media_file_ids.contains(id)
+                    && !self.store.staged.media_files.is_tombstoned(id)
             }
             _ => false,
         }
@@ -6661,6 +6688,32 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
         "__typename": owner_typename_from_gid(owner_id),
         "id": owner_id
     })
+}
+
+fn metafields_set_product_owner_ids(
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) -> BTreeSet<String> {
+    inputs
+        .iter()
+        .filter_map(|input| resolved_string_field(input, "ownerId"))
+        .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
+        .collect()
+}
+
+fn metafield_product_domain_reference_fallback(
+    id: &str,
+    product_owner_ids: &BTreeSet<String>,
+) -> Option<String> {
+    if resource_id_tail(id).parse::<u64>().is_err() {
+        return None;
+    }
+    match shopify_gid_resource_type(id) {
+        Some("Product") if product_owner_ids.contains(id) => Some(id.to_string()),
+        Some("ProductVariant" | "Collection") if !product_owner_ids.is_empty() => {
+            Some(id.to_string())
+        }
+        _ => None,
+    }
 }
 
 fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<ProductVariantRecord> {

@@ -5204,11 +5204,11 @@ impl DraftProxy {
             let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
                 "order" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
                     self.store.staged.orders.contains_key(&id)
-                        || self.store.staged.deleted_order_ids.contains(&id)
+                        || self.store.staged.orders.is_tombstoned(&id)
                 }),
                 "orders" | "ordersCount" => {
                     !self.store.staged.orders.is_empty()
-                        || !self.store.staged.deleted_order_ids.is_empty()
+                        || !self.store.staged.orders.tombstones.is_empty()
                 }
                 _ => false,
             });
@@ -8901,7 +8901,7 @@ impl DraftProxy {
             let order_arg = field.arguments.get("order")?;
             if let ResolvedValue::Object(order_input) = order_arg {
                 let email = resolved_string_field(order_input, "email").unwrap_or_default();
-                if !email.is_empty() && !email.starts_with("order-customer-") {
+                if !email.starts_with("order-customer-") {
                     return None;
                 }
             }
@@ -9966,10 +9966,7 @@ impl DraftProxy {
 
     fn delete_staged_order(&mut self, order_id: &str) {
         self.store.staged.orders.remove(order_id);
-        self.store
-            .staged
-            .deleted_order_ids
-            .insert(order_id.to_string());
+        self.store.staged.orders.tombstone(order_id.to_string());
 
         for orders in self.store.staged.customer_orders.values_mut() {
             orders.retain(|order| order["id"].as_str() != Some(order_id));

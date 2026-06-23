@@ -878,7 +878,7 @@ impl DraftProxy {
             let external_id_errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 None,
             );
             if !external_id_errors.is_empty() {
@@ -978,7 +978,7 @@ impl DraftProxy {
             let errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 Some(&location_id),
             );
             if !errors.is_empty() {
@@ -2107,7 +2107,7 @@ impl DraftProxy {
     /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
     pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
-        let location_ids = self.store.staged.b2b_location_order.clone();
+        let location_ids = self.store.staged.b2b_locations.order.clone();
         for location_id in location_ids {
             let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned()
             else {
@@ -2815,7 +2815,8 @@ impl DraftProxy {
     fn b2b_ordered_locations(&self) -> Vec<Value> {
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .iter()
             .filter_map(|id| self.store.staged.b2b_locations.get(id).cloned())
             .collect()
@@ -2891,18 +2892,6 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.to_string(), location);
-        if !self
-            .store
-            .staged
-            .b2b_location_order
-            .iter()
-            .any(|id| id == location_id)
-        {
-            self.store
-                .staged
-                .b2b_location_order
-                .push(location_id.to_string());
-        }
         self.store
             .staged
             .b2b_companies
@@ -2915,7 +2904,8 @@ impl DraftProxy {
         };
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .retain(|id| id != location_id);
         if let Some(company_id) = location["companyId"].as_str() {
             if let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() {
@@ -3614,14 +3604,6 @@ impl DraftProxy {
             return None;
         }
 
-        for field in &fields {
-            if field.name == "productFullSync" {
-                if let Some(error) = product_full_sync_payload_selection_error(field) {
-                    return Some(ok_json(json!({ "errors": [error] })));
-                }
-            }
-        }
-
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -4166,10 +4148,11 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": Value::Null
+                        "code": "NOT_FOUND"
                     }]
                 }),
                 Vec::new(),
@@ -4183,6 +4166,7 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["updatedAtSince"],
                         "message": "updatedAtSince must be before beforeUpdatedAt",
@@ -4194,13 +4178,27 @@ impl DraftProxy {
             )
         } else {
             let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
+            let job_id = self.next_synthetic_gid("Job");
+            let job = json!({
+                "__typename": "Job",
+                "id": job_id.clone(),
+                "done": false,
+                "query": { "__typename": "QueryRoot" },
+            });
+            if let Some(job_id) = job.get("id").and_then(Value::as_str) {
+                self.store
+                    .staged
+                    .collection_jobs
+                    .insert(job_id.to_string(), job.clone());
+            }
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
-                    "id": operation_id,
+                    "id": id,
+                    "job": job,
                     "userErrors": []
                 }),
-                vec![id, operation_id],
+                vec![id, operation_id, job_id],
                 "staged",
             )
         };
@@ -4387,7 +4385,8 @@ impl DraftProxy {
         for field_name in ["customerOneId", "customerTwoId"] {
             if let Some(id) = resolved_string_field(&arguments, field_name) {
                 if id != resulting_id {
-                    self.store.staged.deleted_customer_ids.insert(id);
+                    self.store.staged.customers.remove(&id);
+                    self.store.staged.customers.tombstone(id);
                 }
             }
         }
@@ -4401,7 +4400,7 @@ impl DraftProxy {
             "customer" => match field.arguments.get("id") {
                 Some(ResolvedValue::String(id)) => {
                     self.store.staged.customers.contains_key(id)
-                        || self.store.staged.deleted_customer_ids.contains(id)
+                        || self.store.staged.customers.is_tombstoned(id)
                         || self.store_credit_owner_has_accounts(id)
                 }
                 _ => false,
@@ -4453,7 +4452,7 @@ impl DraftProxy {
             .staged
             .customers_count_base
             .unwrap_or(177)
-            .saturating_sub(self.store.staged.deleted_customer_ids.len() as u64)
+            .saturating_sub(self.store.staged.customers.tombstones.len() as u64)
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -4508,7 +4507,7 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return Value::Null;
         };
-        if self.store.staged.deleted_customer_ids.contains(id) {
+        if self.store.staged.customers.is_tombstoned(id) {
             return Value::Null;
         }
         self.store
@@ -4873,10 +4872,6 @@ impl DraftProxy {
         });
         self.store
             .staged
-            .store_credit_account_order
-            .push(account_id.clone());
-        self.store
-            .staged
             .store_credit_accounts
             .insert(account_id.clone(), account);
         account_id
@@ -4965,7 +4960,8 @@ impl DraftProxy {
         let accounts = self
             .store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
@@ -4981,7 +4977,8 @@ impl DraftProxy {
     ) -> Option<String> {
         self.store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .find(|account| {
@@ -5003,10 +5000,10 @@ impl DraftProxy {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
                 self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.deleted_customer_ids.contains(owner_id)
+                    && !self.store.staged.customers.is_tombstoned(owner_id)
             }
             Some("CompanyLocation") => {
-                b2b_company_location_exists(&self.store.staged.b2b_locations, owner_id)
+                b2b_company_location_exists(&self.store.staged.b2b_locations.records, owner_id)
             }
             _ => false,
         }
@@ -5062,7 +5059,7 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                !self.store.staged.deleted_customer_ids.contains(id)
+                !self.store.staged.customers.is_tombstoned(id)
             })
             .filter(|customer| customer_matches_query(customer, query.as_deref()))
             .cloned()
@@ -5098,7 +5095,7 @@ impl DraftProxy {
             customer
                 .get("id")
                 .and_then(Value::as_str)
-                .map(|id| !self.store.staged.deleted_customer_ids.contains(id))
+                .map(|id| !self.store.staged.customers.is_tombstoned(id))
                 .unwrap_or(true)
         };
         let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
@@ -5124,7 +5121,7 @@ impl DraftProxy {
                 .staged
                 .customers
                 .get(&id)
-                .filter(|_| !self.store.staged.deleted_customer_ids.contains(&id))
+                .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
         } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
             .or_else(|| resolved_string_field(identifier, "phoneNumber"))
         {
@@ -5821,7 +5818,7 @@ impl DraftProxy {
             })
         } else {
             self.store.staged.customers.remove(&id);
-            self.store.staged.deleted_customer_ids.insert(id.clone());
+            self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
@@ -5954,7 +5951,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(id) = find(&self.store.staged.customers, identifier_value) {
+        if let Some(id) = find(&self.store.staged.customers.records, identifier_value) {
             let Some(existing) = self.customer_existing_for_update(request, &id) else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
@@ -6054,7 +6051,6 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        self.store.staged.deleted_customer_ids.remove(id);
         self.store
             .staged
             .customers
@@ -6067,7 +6063,7 @@ impl DraftProxy {
     }
 
     fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
-        if id.is_empty() || self.store.staged.deleted_customer_ids.contains(id) {
+        if id.is_empty() || self.store.staged.customers.is_tombstoned(id) {
             return None;
         }
         self.store
@@ -6090,13 +6086,13 @@ impl DraftProxy {
     /// has been deleted/merged away.
     fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
         if id.is_empty()
-            || self.store.staged.customers.contains_key(id)
-            || self.store.staged.deleted_customer_ids.contains(id)
+            || self.store.staged.customers.contains_staged(id)
+            || self.store.staged.customers.is_tombstoned(id)
         {
             return;
         }
         if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
-            self.store.staged.customers.insert(id.to_string(), customer);
+            self.store.staged.customers.stage(id.to_string(), customer);
         }
     }
 
@@ -6518,13 +6514,7 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
-        if customer_id.is_empty()
-            || self
-                .store
-                .staged
-                .deleted_customer_ids
-                .contains(&customer_id)
-        {
+        if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(&customer_id) {
             return (
                 customer_tax_exemptions_payload(
                     Value::Null,
@@ -8813,25 +8803,6 @@ fn publication_default_state_invalid_response(
     ok_json(json!({ "errors": [Value::Object(error)] }))
 }
 
-fn product_full_sync_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {
-    let selected = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "job")?;
-    Some(json!({
-        "message": "Field 'job' doesn't exist on type 'ProductFullSyncPayload'",
-        "path": [
-            field.response_key.clone(),
-            selected.response_key.clone()
-        ],
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": "ProductFullSyncPayload",
-            "fieldName": "job"
-        }
-    }))
-}
-
 fn product_full_sync_updated_at_range_invalid(
     before_updated_at: Option<&str>,
     updated_at_since: Option<&str>,
@@ -10073,10 +10044,7 @@ impl DraftProxy {
             .customers
             .insert(result_id.clone(), result);
         self.store.staged.customers.remove(&source_id);
-        self.store
-            .staged
-            .deleted_customer_ids
-            .insert(source_id.clone());
+        self.store.staged.customers.tombstone(source_id.clone());
         self.store
             .staged
             .merged_customer_ids
@@ -10123,7 +10091,7 @@ impl DraftProxy {
     fn customer_exists(&self, id: &str) -> bool {
         !id.is_empty()
             && self.store.staged.customers.contains_key(id)
-            && !self.store.staged.deleted_customer_ids.contains(id)
+            && !self.store.staged.customers.is_tombstoned(id)
     }
 
     fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {

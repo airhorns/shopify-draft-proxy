@@ -2142,7 +2142,7 @@ pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
 impl DraftProxy {
     pub(in crate::proxy) fn has_local_metaobject_entry_state(&self) -> bool {
         !self.store.staged.metaobjects.is_empty()
-            || !self.store.staged.deleted_metaobject_ids.is_empty()
+            || !self.store.staged.metaobjects.tombstones.is_empty()
     }
 
     /// Decides whether a metaobject mutation request should be staged locally or
@@ -2333,7 +2333,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.deleted_metaobject_ids.contains(id) {
+        if self.store.staged.metaobjects.is_tombstoned(id) {
             return None;
         }
         if let Some(record) = self.store.staged.metaobjects.get(id) {
@@ -2406,7 +2406,8 @@ impl DraftProxy {
             if let Some(definition_id) = definition.get("id").and_then(Value::as_str) {
                 self.store
                     .staged
-                    .deleted_metaobject_definition_ids
+                    .metaobject_definitions
+                    .tombstones
                     .remove(definition_id);
                 self.store
                     .staged
@@ -2425,7 +2426,6 @@ impl DraftProxy {
         if id.is_empty() {
             return Some(record);
         }
-        self.store.staged.deleted_metaobject_ids.remove(id.as_str());
         self.store.staged.metaobjects.insert(id, record.clone());
         Some(record)
     }
@@ -2534,7 +2534,8 @@ impl DraftProxy {
             if let Some(id) = definition.get("id").and_then(Value::as_str) {
                 self.store
                     .staged
-                    .deleted_metaobject_definition_ids
+                    .metaobject_definitions
+                    .tombstones
                     .remove(id);
                 self.store
                     .staged
@@ -2551,7 +2552,6 @@ impl DraftProxy {
             .unwrap_or_default();
         for record in &nodes {
             if let Some(id) = record.get("id").and_then(Value::as_str) {
-                self.store.staged.deleted_metaobject_ids.remove(id);
                 self.store
                     .staged
                     .metaobjects
@@ -2590,32 +2590,30 @@ impl DraftProxy {
                     && !self
                         .store
                         .staged
-                        .deleted_metaobject_ids
-                        .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
+                        .metaobjects
+                        .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
             })
             .cloned()
     }
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
         let meta_type = resolved_string_arg(&field.arguments, "type").unwrap_or_default();
-        let mut records: Vec<Value> = self
-            .store
-            .staged
-            .metaobjects
-            .values()
-            .filter(|record| {
-                record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_ids
-                        .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
-            })
-            .map(|record| self.project_metaobject_against_definition(record))
-            // A row whose required display field has no value is not yet surfaced
-            // by the Admin search index that backs `metaobjects(type:)`.
-            .filter(|record| self.metaobject_visible_in_catalog(record))
-            .collect();
+        let mut records: Vec<Value> =
+            self.store
+                .staged
+                .metaobjects
+                .values()
+                .filter(|record| {
+                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                        && !self.store.staged.metaobjects.is_tombstoned(
+                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                        )
+                })
+                .map(|record| self.project_metaobject_against_definition(record))
+                // A row whose required display field has no value is not yet surfaced
+                // by the Admin search index that backs `metaobjects(type:)`.
+                .filter(|record| self.metaobject_visible_in_catalog(record))
+                .collect();
         // Shopify's default `metaobjects(type:)` ordering is ascending by
         // creation, which corresponds to ascending numeric id. A lexicographic
         // sort on the full gid is wrong once ids cross a digit boundary
@@ -2806,7 +2804,6 @@ impl DraftProxy {
             &publishable_status,
             "2026-01-01T00:00:00Z",
         );
-        self.store.staged.deleted_metaobject_ids.remove(&id);
         self.store
             .staged
             .metaobjects
@@ -3202,7 +3199,7 @@ impl DraftProxy {
         }
         let record = self.metaobject_by_id(&id).unwrap_or(Value::Null);
         self.store.staged.metaobjects.remove(&id);
-        self.store.staged.deleted_metaobject_ids.insert(id.clone());
+        self.store.staged.metaobjects.tombstone(id.clone());
         if let Some(meta_type) = record.get("type").and_then(Value::as_str) {
             self.increment_metaobject_definition_count(meta_type, -1);
         }
@@ -3252,7 +3249,7 @@ impl DraftProxy {
                     .or_else(|| self.hydrate_metaobject_by_id(request, &id));
                 if let Some(record) = record {
                     self.store.staged.metaobjects.remove(&id);
-                    self.store.staged.deleted_metaobject_ids.insert(id.clone());
+                    self.store.staged.metaobjects.tombstone(id.clone());
                     if let Some(meta_type) = record.get("type").and_then(Value::as_str) {
                         self.increment_metaobject_definition_count(meta_type, -1);
                     }
@@ -3293,17 +3290,15 @@ impl DraftProxy {
                 .values()
                 .filter(|record| {
                     record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
-                        && !self
-                            .store
-                            .staged
-                            .deleted_metaobject_ids
-                            .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
+                        && !self.store.staged.metaobjects.is_tombstoned(
+                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                        )
                 })
                 .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
                 .collect::<Vec<_>>();
             for id in ids_to_delete {
                 self.store.staged.metaobjects.remove(&id);
-                self.store.staged.deleted_metaobject_ids.insert(id.clone());
+                self.store.staged.metaobjects.tombstone(id.clone());
                 touched_ids.push(id);
             }
             self.increment_metaobject_definition_count(&meta_type, -(touched_ids.len() as i64));
@@ -3521,13 +3516,7 @@ impl DraftProxy {
             .staged
             .metaobject_definitions
             .iter()
-            .filter(|(id, _)| {
-                !self
-                    .store
-                    .staged
-                    .deleted_metaobject_definition_ids
-                    .contains(*id)
-            })
+            .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
             .count();
         let validation_errors = metaobject_definition_create_validation_errors(
             definition_input,
@@ -3557,7 +3546,8 @@ impl DraftProxy {
             .insert(id.clone(), definition.clone());
         self.store
             .staged
-            .deleted_metaobject_definition_ids
+            .metaobject_definitions
+            .tombstones
             .remove(&id);
         staged_ids.push(id);
         selected_json(
@@ -3679,16 +3669,13 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         for metaobject_id in ids_to_delete {
             self.store.staged.metaobjects.remove(&metaobject_id);
-            self.store
-                .staged
-                .deleted_metaobject_ids
-                .insert(metaobject_id);
+            self.store.staged.metaobjects.tombstone(metaobject_id);
         }
         self.store.staged.metaobject_definitions.remove(&id);
         self.store
             .staged
-            .deleted_metaobject_definition_ids
-            .insert(id.clone());
+            .metaobject_definitions
+            .tombstone(id.clone());
         staged_ids.push(id.clone());
         selected_json(
             &json!({"deletedId": id, "userErrors": []}),
@@ -3697,12 +3684,7 @@ impl DraftProxy {
     }
 
     fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        if self
-            .store
-            .staged
-            .deleted_metaobject_definition_ids
-            .contains(id)
-        {
+        if self.store.staged.metaobject_definitions.is_tombstoned(id) {
             return None;
         }
         self.store.staged.metaobject_definitions.get(id).cloned()
@@ -3715,16 +3697,12 @@ impl DraftProxy {
             .values()
             .find(|definition| {
                 definition.get("type").and_then(Value::as_str) == Some(meta_type)
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_definition_ids
-                        .contains(
-                            definition
-                                .get("id")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default(),
-                        )
+                    && !self.store.staged.metaobject_definitions.is_tombstoned(
+                        definition
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default(),
+                    )
             })
             .cloned()
     }
@@ -3762,7 +3740,8 @@ impl DraftProxy {
         }
         self.store
             .staged
-            .deleted_metaobject_definition_ids
+            .metaobject_definitions
+            .tombstones
             .remove(&id);
         self.store
             .staged
@@ -3778,16 +3757,12 @@ impl DraftProxy {
             .metaobject_definitions
             .values()
             .filter(|definition| {
-                !self
-                    .store
-                    .staged
-                    .deleted_metaobject_definition_ids
-                    .contains(
-                        definition
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
+                !self.store.staged.metaobject_definitions.is_tombstoned(
+                    definition
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                )
             })
             .cloned()
             .collect::<Vec<_>>();

@@ -1021,7 +1021,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     let staged_non_feed = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncStagedNonFeed($id: ID!) {
-          productFullSync(id: $id) { id userErrors { field message code } }
+          productFullSync(id: $id) { id job { id } userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/Publication/2" }),
@@ -1031,10 +1031,11 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         staged_non_feed.body["data"]["productFullSync"],
         json!({
             "id": Value::Null,
+            "job": Value::Null,
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": Value::Null
+                "code": "NOT_FOUND"
             }]
         })
     );
@@ -1042,7 +1043,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     let unknown_feed = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncUnknown($id: ID!) {
-          productFullSync(id: $id) { id userErrors { field message code } }
+          productFullSync(id: $id) { id job { id } userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/ProductFeed/999999999" }),
@@ -1054,10 +1055,11 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "data": {
                 "productFullSync": {
                     "id": Value::Null,
+                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": Value::Null
+                        "code": "NOT_FOUND"
                     }]
                 }
             }
@@ -1074,18 +1076,17 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     ));
     assert_eq!(job_selection.status, 200);
     assert_eq!(
-        job_selection.body["errors"][0]["message"],
-        json!("Field 'job' doesn't exist on type 'ProductFullSyncPayload'")
-    );
-    assert_eq!(
-        job_selection.body["errors"][0]["extensions"],
+        job_selection.body["data"]["productFullSync"],
         json!({
-            "code": "undefinedField",
-            "typeName": "ProductFullSyncPayload",
-            "fieldName": "job"
+            "id": Value::Null,
+            "job": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": "NOT_FOUND"
+            }]
         })
     );
-    assert!(job_selection.body.get("data").is_none());
 
     let feed_create = proxy.process_request(json_graphql_request(
         r#"
@@ -1107,7 +1108,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     let sync_before_create = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncBeforeCreate($id: ID!) {
-          productFullSync(id: $id) { id userErrors { field message code } }
+          productFullSync(id: $id) { id job { id } userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/ProductFeed/CA-FR" }),
@@ -1117,10 +1118,11 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         sync_before_create.body["data"]["productFullSync"],
         json!({
             "id": Value::Null,
+            "job": Value::Null,
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": Value::Null
+                "code": "NOT_FOUND"
             }]
         })
     );
@@ -1148,6 +1150,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
           productFullSync(id: $id) {
             __typename
             id
+            job { __typename id done query { __typename } }
             userErrors { field message code }
           }
         }
@@ -1156,17 +1159,19 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     ));
     assert_eq!(sync.status, 200);
     let sync_payload = &sync.body["data"]["productFullSync"];
-    let sync_id = sync_payload["id"].as_str().expect("sync operation id");
-    assert!(
-        sync_id.starts_with("gid://shopify/ProductFullSyncOperation/"),
-        "expected a synthetic full-sync operation id, got {sync_id}"
-    );
-    assert_ne!(sync_id, "gid://shopify/ProductFeed/CA-FR");
+    let job_id = sync_payload["job"]["id"].as_str().expect("sync job id");
+    assert_eq!(job_id, "gid://shopify/Job/2");
     assert_eq!(
         sync_payload,
         &json!({
             "__typename": "ProductFullSyncPayload",
-            "id": sync_id,
+            "id": "gid://shopify/ProductFeed/CA-FR",
+            "job": {
+                "__typename": "Job",
+                "id": job_id,
+                "done": false,
+                "query": { "__typename": "QueryRoot" }
+            },
             "userErrors": []
         })
     );
@@ -1182,7 +1187,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             id: $id,
             updatedAtSince: $updatedAtSince,
             beforeUpdatedAt: $beforeUpdatedAt
-          ) { id userErrors { field message code } }
+          ) { id job { id } userErrors { field message code } }
         }
         "#,
         json!({
@@ -1194,6 +1199,10 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     assert_eq!(invalid_range.status, 200);
     assert_eq!(
         invalid_range.body["data"]["productFullSync"]["id"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_range.body["data"]["productFullSync"]["job"],
         Value::Null
     );
     assert_eq!(
@@ -1216,13 +1225,20 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
           job(id: $id) { __typename id done query { __typename } }
         }
         "#,
-        json!({ "id": "gid://shopify/Job/2" }),
+        json!({ "id": job_id }),
     ));
     assert_eq!(job.status, 200);
     assert_eq!(
         job.body,
         json!({
-            "data": { "job": Value::Null }
+            "data": {
+                "job": {
+                    "__typename": "Job",
+                    "id": job_id,
+                    "done": false,
+                    "query": { "__typename": "QueryRoot" }
+                }
+            }
         })
     );
 
@@ -1251,7 +1267,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedbackInput", "0", "messages"],
+                "field": ["feedback", "0", "messages"],
                 "message": "Messages can't be blank",
                 "code": "BLANK"
             }]
@@ -1262,7 +1278,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedbackInput", "0", "feedbackGeneratedAt"],
+                "field": ["feedback", "0", "feedbackGeneratedAt"],
                 "message": "Feedback generated at must not be in the future",
                 "code": "INVALID"
             }]
@@ -1273,7 +1289,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedbackInput", "0", "messages", "0"],
+                "field": ["feedback", "0", "messages", "0"],
                 "message": "Message is too long (maximum is 100 characters)",
                 "code": "TOO_LONG"
             }]
@@ -1284,9 +1300,9 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": Value::Null,
-                "message": "The operation was attempted on too many feedback objects. The maximum number of feedback objects that you can operate on is 50.",
-                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
             }]
         })
     );
@@ -1363,17 +1379,16 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         entries
             .iter()
             .any(|entry| entry["status"] == json!("staged")
-                && entry["stagedResourceIds"]
-                    .as_array()
-                    .is_some_and(|ids| {
-                        ids.iter().any(|id| id == "gid://shopify/ProductFeed/CA-FR")
-                            && ids.iter().any(|id| id
-                                .as_str()
-                                .is_some_and(|id| id
-                                    .starts_with("gid://shopify/ProductFullSyncOperation/")))
-                            && ids.iter().all(|id| id != "gid://shopify/Job/2")
-                    })),
-        "successful full sync should stage the ProductFeed and operation IDs without a Job ID: {log}"
+                && entry["stagedResourceIds"].as_array().is_some_and(|ids| {
+                    ids.iter().any(|id| id == "gid://shopify/ProductFeed/CA-FR")
+                        && ids.iter().any(|id| {
+                            id.as_str().is_some_and(|id| {
+                                id.starts_with("gid://shopify/ProductFullSyncOperation/")
+                            })
+                        })
+                        && ids.iter().any(|id| id == "gid://shopify/Job/2")
+                })),
+        "successful full sync should stage the ProductFeed, operation, and Job IDs: {log}"
     );
 }
 
@@ -1449,12 +1464,12 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
             }],
             "userErrors": [
                 {
-                    "field": ["feedbackInput", "1", "feedbackGeneratedAt"],
+                    "field": ["feedback", "1", "feedbackGeneratedAt"],
                     "message": "Feedback generated at must not be in the future",
                     "code": "INVALID"
                 },
                 {
-                    "field": ["feedbackInput", "2", "messages"],
+                    "field": ["feedback", "2", "messages"],
                     "message": "Messages can't be blank",
                     "code": "BLANK"
                 }
@@ -1543,14 +1558,14 @@ fn product_resource_feedback_reports_unavailable_products_as_product_not_found()
             "feedback": [],
             "userErrors": [
                 {
-                    "field": ["feedbackInput", "0"],
-                    "message": "The product wasn't found or isn't available to the channel.",
-                    "code": "PRODUCT_NOT_FOUND"
+                    "field": ["feedback", "0", "productId"],
+                    "message": "Product does not exist",
+                    "code": Value::Null
                 },
                 {
-                    "field": ["feedbackInput", "1"],
-                    "message": "The product wasn't found or isn't available to the channel.",
-                    "code": "PRODUCT_NOT_FOUND"
+                    "field": ["feedback", "1", "productId"],
+                    "message": "Product does not exist",
+                    "code": Value::Null
                 }
             ]
         })
