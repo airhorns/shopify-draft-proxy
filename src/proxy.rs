@@ -1365,6 +1365,75 @@ impl Store {
             .stage(variant.id.clone(), variant);
     }
 
+    fn compact_product_variant_positions(&mut self, product_id: &str) {
+        let variants = self.product_variants_for_product(product_id);
+        let mut positioned_variants = variants
+            .into_iter()
+            .enumerate()
+            .map(|(index, variant)| {
+                let position = variant
+                    .extra_fields
+                    .get("position")
+                    .and_then(|value| value.as_i64().or_else(|| value.as_u64().map(|v| v as i64)))
+                    .unwrap_or((index + 1) as i64);
+                (position, index, variant)
+            })
+            .collect::<Vec<_>>();
+        positioned_variants.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+
+        let ordered_ids = positioned_variants
+            .iter()
+            .map(|(_, _, variant)| variant.id.clone())
+            .collect::<Vec<_>>();
+        let mut positions_by_id = BTreeMap::new();
+        for (index, (_, _, mut variant)) in positioned_variants.into_iter().enumerate() {
+            let position = index + 1;
+            variant
+                .extra_fields
+                .insert("position".to_string(), json!(position));
+            positions_by_id.insert(variant.id.clone(), position);
+            self.stage_product_variant(variant);
+        }
+
+        let ordered_id_set = ordered_ids.iter().cloned().collect::<BTreeSet<_>>();
+        let mut reordered = Vec::new();
+        let mut inserted_product_block = false;
+        for id in self.staged.product_variants.order.iter() {
+            if ordered_id_set.contains(id) {
+                if !inserted_product_block {
+                    reordered.extend(ordered_ids.iter().cloned());
+                    inserted_product_block = true;
+                }
+            } else {
+                reordered.push(id.clone());
+            }
+        }
+        if !inserted_product_block {
+            reordered.extend(ordered_ids.iter().cloned());
+        }
+        self.staged.product_variants.order =
+            normalized_order(self.staged.product_variants.records.keys(), reordered);
+
+        if let Some(mut product) = self.product_by_id(product_id).cloned() {
+            let mut changed = false;
+            for variant in &mut product.variants {
+                let Some(id) = variant.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(position) = positions_by_id.get(id) else {
+                    continue;
+                };
+                if variant.get("position").and_then(Value::as_u64) != Some(*position as u64) {
+                    variant["position"] = json!(position);
+                    changed = true;
+                }
+            }
+            if changed {
+                self.stage_product(product);
+            }
+        }
+    }
+
     /// Detach the given media ids from product/variant owner state. Removes the
     /// ids from each product's `media` nodes and from each variant's `media_ids`.
     /// When `only_products` is `Some`, the removal is scoped to those product ids
@@ -1431,6 +1500,7 @@ impl Store {
                     self.stage_product(product);
                 }
             }
+            self.compact_product_variant_positions(&product_id);
         }
         existed
     }

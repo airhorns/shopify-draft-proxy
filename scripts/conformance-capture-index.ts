@@ -1665,6 +1665,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variant-delete-position-compaction',
+    scriptPath: 'scripts/capture-product-variant-delete-position-compaction-conformance.mts',
+    purpose:
+      'Post-delete product variant position compaction for single-root compatibility and multi-id bulk delete readbacks.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-delete-position-compaction.json`,
+      'config/parity-specs/products/product-variant-delete-position-compaction.json',
+      'config/parity-requests/products/product-variant-position-compaction-create.graphql',
+      'config/parity-requests/products/product-variant-position-compaction-bulk-create.graphql',
+      'config/parity-requests/products/product-variant-position-compaction-single-delete.graphql',
+      'config/parity-requests/products/product-variant-position-compaction-bulk-delete.graphql',
+      'config/parity-requests/products/product-variant-position-compaction-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable products/options/variants and deletes products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current live 2025-01 schema does not expose productVariantDelete, so the single-root proxy target is compared against equivalent one-id productVariantsBulkDelete janitor evidence.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
     purpose: 'Bulk variant validation atomicity for create/update/delete.',

@@ -20,6 +20,44 @@ fn seed_product(id: &str) -> ProductRecord {
     }
 }
 
+fn create_bulk_positioned_variants(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    skus: &[&str],
+) -> Vec<Value> {
+    let variants = skus
+        .iter()
+        .enumerate()
+        .map(|(index, sku)| {
+            json!({
+                "price": format!("{}.00", index + 10),
+                "optionValues": [{ "optionName": "Color", "name": *sku }],
+                "inventoryItem": { "sku": *sku }
+            })
+        })
+        .collect::<Vec<_>>();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantCreateForPositionTest($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id sku position }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variants": variants }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["productVariantsBulkCreate"]["productVariants"]
+        .as_array()
+        .expect("bulk variant create should return variants")
+        .clone()
+}
+
 #[test]
 fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
     let mut proxy = snapshot_proxy();
@@ -684,6 +722,113 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
             "domain": "products",
             "execution": "stage-locally"
         })
+    );
+}
+
+#[test]
+fn product_variant_delete_compacts_surviving_variant_positions() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let variants =
+        create_bulk_positioned_variants(&mut proxy, product_id, &["RED", "BLUE", "GREEN"]);
+    let red_id = variants[0]["id"].as_str().unwrap().to_string();
+    let blue_id = variants[1]["id"].as_str().unwrap().to_string();
+    let green_id = variants[2]["id"].as_str().unwrap().to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMiddleVariant($id: ID!) {
+          productVariantDelete(id: $id) {
+            deletedProductVariantId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": blue_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
+        json!(blue_id)
+    );
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantPositionsAfterSingleDelete($productId: ID!) {
+          product(id: $productId) {
+            variants(first: 10) { nodes { id sku position } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"],
+        json!([
+            { "id": red_id, "sku": "RED", "position": 1 },
+            { "id": green_id, "sku": "GREEN", "position": 2 }
+        ])
+    );
+}
+
+#[test]
+fn product_variants_bulk_delete_compacts_surviving_variant_positions() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let variants = create_bulk_positioned_variants(
+        &mut proxy,
+        product_id,
+        &["RED", "BLUE", "GREEN", "YELLOW"],
+    );
+    let red_id = variants[0]["id"].as_str().unwrap().to_string();
+    let blue_id = variants[1]["id"].as_str().unwrap().to_string();
+    let green_id = variants[2]["id"].as_str().unwrap().to_string();
+    let yellow_id = variants[3]["id"].as_str().unwrap().to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteMiddleVariants($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product { variants(first: 10) { nodes { id sku position } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantsIds": [blue_id, green_id] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["product"]["variants"]["nodes"],
+        json!([
+            { "id": red_id, "sku": "RED", "position": 1 },
+            { "id": yellow_id, "sku": "YELLOW", "position": 2 }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantPositionsAfterBulkDelete($productId: ID!) {
+          product(id: $productId) {
+            variants(first: 10) { nodes { id sku position } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"],
+        json!([
+            { "id": red_id, "sku": "RED", "position": 1 },
+            { "id": yellow_id, "sku": "YELLOW", "position": 2 }
+        ])
     );
 }
 

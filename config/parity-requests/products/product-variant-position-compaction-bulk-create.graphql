@@ -1,0 +1,27 @@
+mutation ProductVariantPositionCompactionBulkCreate(
+  $productId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    product {
+      id
+      variants(first: 10) {
+        nodes {
+          id
+          sku
+          position
+        }
+      }
+    }
+    productVariants {
+      id
+      sku
+      position
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
