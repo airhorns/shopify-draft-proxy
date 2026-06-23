@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -192,13 +192,14 @@ const existingConflictReadDocument = `#graphql
   }
 `;
 
-const uniquenessCheckDocument = `#graphql
-  query DiscountUniquenessCheck($code: String!) {
-    codeDiscountNodeByCode(code: $code) {
-      id
-    }
-  }
-`;
+// The shop-wide uniqueness probe the proxy forwards while validating
+// `discountRedeemCodeBulkAdd` codes. Sharing the exact `.graphql` document the
+// runtime emits (`DISCOUNT_UNIQUENESS_QUERY`) keeps the recorded cassette entry
+// byte-identical to the proxy's forwarded query so it matches during parity.
+const uniquenessCheckDocument = await readFile(
+  'config/parity-requests/discounts/discount-uniqueness-check.graphql',
+  'utf8',
+);
 
 const createVariables = {
   input: {
@@ -398,25 +399,18 @@ try {
     },
     crossCleanup,
     cleanup,
+    // The proxy resolves shop-wide code uniqueness during bulk-add validation by
+    // forwarding a `codeDiscountNodeByCode` lookup per candidate code. The cross
+    // discount's code resolves to its node (TAKEN); a fresh code resolves to null
+    // (importable). Both responses are captured live above; the query text is the
+    // shared document the runtime forwards so the cassette matches byte-for-byte.
+    // The base code and the in-batch/format-invalid codes are decided locally and
+    // never forwarded, so no other uniqueness entries are recorded.
     upstreamCalls: [
-      {
-        operationName: 'DiscountHydrate',
-        variables: { id: unknownDiscountId },
-        query: 'sha:DiscountHydrate',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              codeNode: null,
-              automaticNode: null,
-            },
-          },
-        },
-      },
       {
         operationName: 'DiscountUniquenessCheck',
         variables: { code: crossDiscountCode },
-        query: 'sha:DiscountUniquenessCheck',
+        query: uniquenessCheckDocument,
         response: {
           status: 200,
           body: crossCodeUniquenessCheck.payload,
@@ -425,7 +419,7 @@ try {
       {
         operationName: 'DiscountUniquenessCheck',
         variables: { code: existingFreshCode },
-        query: 'sha:DiscountUniquenessCheck',
+        query: uniquenessCheckDocument,
         response: {
           status: 200,
           body: freshCodeUniquenessCheck.payload,

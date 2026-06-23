@@ -46,6 +46,37 @@
         "proxyPath": "$.data"
       },
       {
+        "name": "precondition-bulk-targets",
+        "capturePath": "$.preconditions.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-local-runtime-preconditions.graphql",
+          "variablesCapturePath": "$.preconditions.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.bulkTarget.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The bulk-lifecycle target discount is self-created via discountCodeBasicCreate instead of seeded, so the proxy mints a synthetic node id whose counter value depends on prior staged mutations."
+          },
+          {
+            "path": "$.bulkTarget.codeDiscountNode.codeDiscount.codes.nodes[0].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "The auto-created redeem code carries a synthetic proxy id."
+          },
+          {
+            "path": "$.redeemTarget.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The redeem target discount is self-created via discountCodeBasicCreate instead of seeded, so the proxy mints a synthetic node id whose counter value depends on prior staged mutations."
+          },
+          {
+            "path": "$.redeemTarget.codeDiscountNode.codeDiscount.codes.nodes[0].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "The auto-created redeem code carries a synthetic proxy id."
+          }
+        ]
+      },
+      {
         "name": "app-discount-update-payloads",
         "capturePath": "$.update.response.data",
         "proxyPath": "$.data",
@@ -104,9 +135,50 @@
         "name": "discount-bulk-job-payloads",
         "capturePath": "$.bulkJobs.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.activate.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy mints synthetic IDs for locally staged async jobs; with self-created (rather than seeded) preconditions the counter value shifts."
+          },
+          {
+            "path": "$.deactivate.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy mints synthetic IDs for locally staged async jobs; with self-created (rather than seeded) preconditions the counter value shifts."
+          },
+          {
+            "path": "$.deleteCode.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy mints synthetic IDs for locally staged async jobs; with self-created (rather than seeded) preconditions the counter value shifts."
+          },
+          {
+            "path": "$.deleteAutomatic.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy mints synthetic IDs for locally staged async jobs; with self-created (rather than seeded) preconditions the counter value shifts."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bulk-local-runtime-jobs.graphql",
-          "variablesCapturePath": "$.bulkJobs.variables"
+          "variables": {
+            "activateIds": [
+              {
+                "fromProxyResponse": "precondition-bulk-targets",
+                "path": "$.data.bulkTarget.codeDiscountNode.id"
+              }
+            ],
+            "deactivateIds": [
+              {
+                "fromProxyResponse": "precondition-bulk-targets",
+                "path": "$.data.bulkTarget.codeDiscountNode.id"
+              }
+            ],
+            "deleteCodeIds": {
+              "fromCapturePath": "$.bulkJobs.variables.deleteCodeIds"
+            },
+            "deleteAutomaticIds": {
+              "fromCapturePath": "$.bulkJobs.variables.deleteAutomaticIds"
+            }
+          }
         }
       },
       {
@@ -127,7 +199,21 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-local-runtime.graphql",
-          "variablesCapturePath": "$.redeemCodeBulk.variables"
+          "variables": {
+            "discountId": {
+              "fromProxyResponse": "precondition-bulk-targets",
+              "path": "$.data.redeemTarget.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.redeemCodeBulk.variables.codes"
+            },
+            "ids": [
+              {
+                "fromProxyResponse": "precondition-bulk-targets",
+                "path": "$.data.redeemTarget.codeDiscountNode.codeDiscount.codes.nodes[0].id"
+              }
+            ]
+          }
         }
       },
       {
@@ -145,7 +231,10 @@
             },
             "deletedCodeId": "gid://shopify/DiscountCodeNode/366002",
             "deletedAutomaticId": "gid://shopify/DiscountAutomaticNode/366003",
-            "redeemDiscountId": "gid://shopify/DiscountCodeNode/366004",
+            "redeemDiscountId": {
+              "fromProxyResponse": "precondition-bulk-targets",
+              "path": "$.data.redeemTarget.codeDiscountNode.id"
+            },
             "removedCode": "HAR366REDEEM"
           }
         }

@@ -1,18 +1,19 @@
 {
-  "capturedAt": "2026-04-28T03:28:00.494Z",
+  "capturedAt": "2026-06-23T03:56:20.873Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "customerId": "gid://shopify/Customer/10548596015410",
-    "segmentId": "gid://shopify/Segment/647746715954",
-    "codeDiscountId": "gid://shopify/DiscountCodeNode/1638894633266",
-    "automaticDiscountId": "gid://shopify/DiscountAutomaticNode/1638894666034",
-    "initialCode": "HAR390CTX1777346878525",
-    "updatedCode": "HAR390SEG1777346878525"
+    "customerId": "gid://shopify/Customer/10821851709746",
+    "segmentId": "gid://shopify/Segment/652063146290",
+    "codeDiscountId": "gid://shopify/DiscountCodeNode/1656080367922",
+    "automaticDiscountId": "gid://shopify/DiscountAutomaticNode/1656080400690",
+    "initialCode": "HAR390CTX1782186977896",
+    "updatedCode": "HAR390SEG1782186977896"
   },
   "scopeProbe": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
       "read_cash_tracking",
       "read_content",
       "read_customer_data_erasure",
@@ -37,10 +38,12 @@
       "read_merchant_managed_fulfillment_orders",
       "read_metaobject_definitions",
       "read_metaobjects",
+      "read_online_store_navigation",
       "read_order_edits",
       "read_orders",
       "read_payment_customizations",
       "read_payment_terms",
+      "read_privacy_settings",
       "read_product_listings",
       "read_products",
       "read_publications",
@@ -54,7 +57,9 @@
       "read_themes",
       "read_third_party_fulfillment_orders",
       "read_translations",
+      "read_validations",
       "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
       "write_cash_tracking",
       "write_content",
       "write_customer_data_erasure",
@@ -79,10 +84,12 @@
       "write_merchant_managed_fulfillment_orders",
       "write_metaobject_definitions",
       "write_metaobjects",
+      "write_online_store_navigation",
       "write_order_edits",
       "write_orders",
       "write_payment_customizations",
       "write_payment_terms",
+      "write_privacy_settings",
       "write_products",
       "write_publications",
       "write_purchase_options",
@@ -90,7 +97,8 @@
       "write_shipping",
       "write_store_credit_account_transactions",
       "write_third_party_fulfillment_orders",
-      "write_translations"
+      "write_translations",
+      "write_validations"
     ],
     "requiredScopes": [
       {
@@ -105,6 +113,118 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10821851709746"
+      },
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10821851709746",
+              "firstName": "HAR390",
+              "lastName": "Buyer Context",
+              "displayName": "HAR390 Buyer Context",
+              "email": "har390-buyer-context-1782186977896@example.com",
+              "phone": null,
+              "locale": "en",
+              "note": null,
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "state": "DISABLED",
+              "tags": ["har390-buyer-1782186977896"],
+              "createdAt": "2026-06-23T03:56:18Z",
+              "updatedAt": "2026-06-23T03:56:18Z",
+              "defaultEmailAddress": {
+                "emailAddress": "har390-buyer-context-1782186977896@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "defaultAddress": null,
+              "addressesV2": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountContextSegmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Segment/652063146290"
+      },
+      "query": "query DiscountContextSegmentHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/652063146290",
+              "name": "HAR-390 buyer context 1782186977896",
+              "query": "customer_tags CONTAINS 'har390-buyer-1782186977896'",
+              "creationDate": "2026-06-23T03:56:18Z",
+              "lastEditDate": "2026-06-23T03:56:18Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR390CTX1782186977896"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "setup": {
     "customerCreate": {
       "query": "#graphql\n  mutation DiscountBuyerContextCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        id\n        firstName\n        lastName\n        displayName\n        email\n        tags\n        createdAt\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
@@ -112,8 +232,8 @@
         "input": {
           "firstName": "HAR390",
           "lastName": "Buyer Context",
-          "email": "har390-buyer-context-1777346878525@example.com",
-          "tags": ["har390-buyer-1777346878525"]
+          "email": "har390-buyer-context-1782186977896@example.com",
+          "tags": ["har390-buyer-1782186977896"]
         }
       },
       "response": {
@@ -122,14 +242,14 @@
           "data": {
             "customerCreate": {
               "customer": {
-                "id": "gid://shopify/Customer/10548596015410",
+                "id": "gid://shopify/Customer/10821851709746",
                 "firstName": "HAR390",
                 "lastName": "Buyer Context",
                 "displayName": "HAR390 Buyer Context",
-                "email": "har390-buyer-context-1777346878525@example.com",
-                "tags": ["har390-buyer-1777346878525"],
-                "createdAt": "2026-04-28T03:27:58Z",
-                "updatedAt": "2026-04-28T03:27:58Z"
+                "email": "har390-buyer-context-1782186977896@example.com",
+                "tags": ["har390-buyer-1782186977896"],
+                "createdAt": "2026-06-23T03:56:18Z",
+                "updatedAt": "2026-06-23T03:56:18Z"
               },
               "userErrors": []
             }
@@ -151,8 +271,8 @@
     "segmentCreate": {
       "query": "#graphql\n  mutation DiscountBuyerContextSegmentCreate($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "name": "HAR-390 buyer context 1777346878525",
-        "query": "customer_tags CONTAINS 'har390-buyer-1777346878525'"
+        "name": "HAR-390 buyer context 1782186977896",
+        "query": "customer_tags CONTAINS 'har390-buyer-1782186977896'"
       },
       "response": {
         "status": 200,
@@ -160,11 +280,11 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/647746715954",
-                "name": "HAR-390 buyer context 1777346878525",
-                "query": "customer_tags CONTAINS 'har390-buyer-1777346878525'",
-                "creationDate": "2026-04-28T03:27:58Z",
-                "lastEditDate": "2026-04-28T03:27:58Z"
+                "id": "gid://shopify/Segment/652063146290",
+                "name": "HAR-390 buyer context 1782186977896",
+                "query": "customer_tags CONTAINS 'har390-buyer-1782186977896'",
+                "creationDate": "2026-06-23T03:56:18Z",
+                "lastEditDate": "2026-06-23T03:56:18Z"
               },
               "userErrors": []
             }
@@ -189,8 +309,8 @@
       "query": "#graphql\n  mutation DiscountCodeBasicBuyerContextCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 1) {\n          nodes {\n            code\n            asyncUsageCount\n          }\n        }\n        context {\n          __typename\n          ... on DiscountCustomers {\n            customers {\n              __typename\n              id\n              displayName\n            }\n          }\n          ... on DiscountCustomerSegments {\n            segments {\n              __typename\n              id\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-390 code customer context 1777346878525",
-          "code": "HAR390CTX1777346878525",
+          "title": "HAR-390 code customer context 1782186977896",
+          "code": "HAR390CTX1782186977896",
           "startsAt": "2023-01-01T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -199,7 +319,7 @@
           },
           "context": {
             "customers": {
-              "add": ["gid://shopify/Customer/10548596015410"]
+              "add": ["gid://shopify/Customer/10821851709746"]
             }
           },
           "customerGets": {
@@ -216,10 +336,10 @@
     "codeUpdate": {
       "query": "#graphql\n  mutation DiscountCodeBasicBuyerContextUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 1) {\n          nodes {\n            code\n            asyncUsageCount\n          }\n        }\n        context {\n          __typename\n          ... on DiscountCustomers {\n            customers {\n              __typename\n              id\n              displayName\n            }\n          }\n          ... on DiscountCustomerSegments {\n            segments {\n              __typename\n              id\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1638894633266",
+        "id": "gid://shopify/DiscountCodeNode/1656080367922",
         "input": {
-          "title": "HAR-390 code segment context 1777346878525",
-          "code": "HAR390SEG1777346878525",
+          "title": "HAR-390 code segment context 1782186977896",
+          "code": "HAR390SEG1782186977896",
           "startsAt": "2023-01-01T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -228,7 +348,7 @@
           },
           "context": {
             "customerSegments": {
-              "add": ["gid://shopify/Segment/647746715954"]
+              "add": ["gid://shopify/Segment/652063146290"]
             }
           },
           "customerGets": {
@@ -255,7 +375,7 @@
       "query": "#graphql\n  mutation DiscountAutomaticBasicBuyerContextCreate($input: DiscountAutomaticBasicInput!) {\n    discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n        context {\n          __typename\n          ... on DiscountCustomers {\n            customers {\n              __typename\n              id\n              displayName\n            }\n          }\n          ... on DiscountCustomerSegments {\n            segments {\n              __typename\n              id\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-390 automatic customer context 1777346878525",
+          "title": "HAR-390 automatic customer context 1782186977896",
           "startsAt": "2023-01-01T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -264,7 +384,7 @@
           },
           "context": {
             "customers": {
-              "add": ["gid://shopify/Customer/10548596015410"]
+              "add": ["gid://shopify/Customer/10821851709746"]
             }
           },
           "customerGets": {
@@ -281,9 +401,9 @@
     "automaticUpdate": {
       "query": "#graphql\n  mutation DiscountAutomaticBasicBuyerContextUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {\n    discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n        context {\n          __typename\n          ... on DiscountCustomers {\n            customers {\n              __typename\n              id\n              displayName\n            }\n          }\n          ... on DiscountCustomerSegments {\n            segments {\n              __typename\n              id\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1638894666034",
+        "id": "gid://shopify/DiscountAutomaticNode/1656080400690",
         "input": {
-          "title": "HAR-390 automatic segment context 1777346878525",
+          "title": "HAR-390 automatic segment context 1782186977896",
           "startsAt": "2023-01-01T00:00:00Z",
           "combinesWith": {
             "productDiscounts": true,
@@ -292,7 +412,7 @@
           },
           "context": {
             "customerSegments": {
-              "add": ["gid://shopify/Segment/647746715954"]
+              "add": ["gid://shopify/Segment/652063146290"]
             }
           },
           "customerGets": {
@@ -322,15 +442,15 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638894633266",
+            "id": "gid://shopify/DiscountCodeNode/1656080367922",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-390 code customer context 1777346878525",
+              "title": "HAR-390 code customer context 1782186977896",
               "status": "ACTIVE",
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR390CTX1777346878525",
+                    "code": "HAR390CTX1782186977896",
                     "asyncUsageCount": 0
                   }
                 ]
@@ -340,7 +460,7 @@
                 "customers": [
                   {
                     "__typename": "Customer",
-                    "id": "gid://shopify/Customer/10548596015410",
+                    "id": "gid://shopify/Customer/10821851709746",
                     "displayName": "HAR390 Buyer Context"
                   }
                 ]
@@ -369,15 +489,15 @@
       "data": {
         "discountCodeBasicUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638894633266",
+            "id": "gid://shopify/DiscountCodeNode/1656080367922",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-390 code segment context 1777346878525",
+              "title": "HAR-390 code segment context 1782186977896",
               "status": "ACTIVE",
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR390SEG1777346878525",
+                    "code": "HAR390SEG1782186977896",
                     "asyncUsageCount": 0
                   }
                 ]
@@ -387,8 +507,8 @@
                 "segments": [
                   {
                     "__typename": "Segment",
-                    "id": "gid://shopify/Segment/647746715954",
-                    "name": "HAR-390 buyer context 1777346878525"
+                    "id": "gid://shopify/Segment/652063146290",
+                    "name": "HAR-390 buyer context 1782186977896"
                   }
                 ]
               }
@@ -415,17 +535,17 @@
     "payload": {
       "data": {
         "discountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1638894633266",
+          "id": "gid://shopify/DiscountCodeNode/1656080367922",
           "discount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-390 code segment context 1777346878525",
+            "title": "HAR-390 code segment context 1782186977896",
             "context": {
               "__typename": "DiscountCustomerSegments",
               "segments": [
                 {
                   "__typename": "Segment",
-                  "id": "gid://shopify/Segment/647746715954",
-                  "name": "HAR-390 buyer context 1777346878525"
+                  "id": "gid://shopify/Segment/652063146290",
+                  "name": "HAR-390 buyer context 1782186977896"
                 }
               ]
             }
@@ -434,14 +554,14 @@
         "codeDiscountNodeByCode": {
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-390 code segment context 1777346878525",
+            "title": "HAR-390 code segment context 1782186977896",
             "context": {
               "__typename": "DiscountCustomerSegments",
               "segments": [
                 {
                   "__typename": "Segment",
-                  "id": "gid://shopify/Segment/647746715954",
-                  "name": "HAR-390 buyer context 1777346878525"
+                  "id": "gid://shopify/Segment/652063146290",
+                  "name": "HAR-390 buyer context 1782186977896"
                 }
               ]
             }
@@ -467,17 +587,17 @@
       "data": {
         "discountAutomaticBasicCreate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638894666034",
+            "id": "gid://shopify/DiscountAutomaticNode/1656080400690",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR-390 automatic customer context 1777346878525",
+              "title": "HAR-390 automatic customer context 1782186977896",
               "status": "ACTIVE",
               "context": {
                 "__typename": "DiscountCustomers",
                 "customers": [
                   {
                     "__typename": "Customer",
-                    "id": "gid://shopify/Customer/10548596015410",
+                    "id": "gid://shopify/Customer/10821851709746",
                     "displayName": "HAR390 Buyer Context"
                   }
                 ]
@@ -506,18 +626,18 @@
       "data": {
         "discountAutomaticBasicUpdate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638894666034",
+            "id": "gid://shopify/DiscountAutomaticNode/1656080400690",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR-390 automatic segment context 1777346878525",
+              "title": "HAR-390 automatic segment context 1782186977896",
               "status": "ACTIVE",
               "context": {
                 "__typename": "DiscountCustomerSegments",
                 "segments": [
                   {
                     "__typename": "Segment",
-                    "id": "gid://shopify/Segment/647746715954",
-                    "name": "HAR-390 buyer context 1777346878525"
+                    "id": "gid://shopify/Segment/652063146290",
+                    "name": "HAR-390 buyer context 1782186977896"
                   }
                 ]
               }
@@ -544,17 +664,17 @@
     "payload": {
       "data": {
         "automaticDiscountNode": {
-          "id": "gid://shopify/DiscountAutomaticNode/1638894666034",
+          "id": "gid://shopify/DiscountAutomaticNode/1656080400690",
           "automaticDiscount": {
             "__typename": "DiscountAutomaticBasic",
-            "title": "HAR-390 automatic segment context 1777346878525",
+            "title": "HAR-390 automatic segment context 1782186977896",
             "context": {
               "__typename": "DiscountCustomerSegments",
               "segments": [
                 {
                   "__typename": "Segment",
-                  "id": "gid://shopify/Segment/647746715954",
-                  "name": "HAR-390 buyer context 1777346878525"
+                  "id": "gid://shopify/Segment/652063146290",
+                  "name": "HAR-390 buyer context 1782186977896"
                 }
               ]
             }
@@ -580,7 +700,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638894633266",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1656080367922",
             "userErrors": []
           }
         },
@@ -602,7 +722,7 @@
       "payload": {
         "data": {
           "discountAutomaticDelete": {
-            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1638894666034",
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1656080400690",
             "userErrors": []
           }
         },
@@ -624,7 +744,7 @@
       "payload": {
         "data": {
           "segmentDelete": {
-            "deletedSegmentId": "gid://shopify/Segment/647746715954",
+            "deletedSegmentId": "gid://shopify/Segment/652063146290",
             "userErrors": []
           }
         },
@@ -646,7 +766,7 @@
       "payload": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10548596015410",
+            "deletedCustomerId": "gid://shopify/Customer/10821851709746",
             "userErrors": []
           }
         },
@@ -664,29 +784,9 @@
       }
     }
   },
-  "seedCustomers": [
-    {
-      "__typename": "Customer",
-      "id": "gid://shopify/Customer/10548596015410",
-      "firstName": "HAR390",
-      "lastName": "Buyer Context",
-      "displayName": "HAR390 Buyer Context",
-      "email": "har390-buyer-context-1777346878525@example.com"
-    }
-  ],
-  "seedSegments": [
-    {
-      "__typename": "Segment",
-      "id": "gid://shopify/Segment/647746715954",
-      "name": "HAR-390 buyer context 1777346878525",
-      "query": "customer_tags CONTAINS 'har390-buyer-1777346878525'",
-      "creationDate": "2026-04-28T03:27:58Z",
-      "lastEditDate": "2026-04-28T03:27:58Z"
-    }
-  ],
   "notes": [
     "Live Shopify 2026-04 capture for code-basic and automatic-basic discount buyer context transitions from explicit customer selection to customer-segment selection.",
-    "The disposable discount, customer, and segment records are deleted in cleanup after capture."
-  ],
-  "upstreamCalls": []
+    "The disposable discount, customer, and segment records are deleted in cleanup after capture.",
+    "De-seeded: buyer-context member names are resolved by forwarding the customer / segment hydrate reads recorded in upstreamCalls, not by seedCustomers / seedSegments preconditions."
+  ]
 }

@@ -17,9 +17,6 @@ mutation FulfillmentTrackingInfoUpdateMultiTracking(
         company
       }
     }
-    userErrors {
-      field
-      message
-    }
+    userErrors { field message }
   }
 }

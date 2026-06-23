@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -20,6 +20,17 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+// The consent mutations resolve the pre-existing customer the real way: on an overlay
+// miss `customer_marketing_consent_update_field` forwards TAGGABLE_CUSTOMER_HYDRATE_QUERY
+// upstream (via `taggable_resource_staged_or_hydrated`) and observes the result. This is
+// the same constant the runtime emits (include_str! of the file below), so the recorded
+// cassette entries byte-match what the proxy forwards. No seeding required.
+const taggableHydrateDocument = await readFile(
+  'config/parity-requests/customers/taggable-customer-hydrate.graphql',
+  'utf8',
+);
+const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
 
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
@@ -137,19 +148,21 @@ async function runCaptureCase(name, query, variables) {
   };
 }
 
-function customerHydrateCall(customer) {
+// Forward the TAGGABLE_CUSTOMER_HYDRATE_QUERY upstream and capture the live response
+// for the customer at its current state. A null customer (the unknown gid) is a valid
+// hydrate result, not an error.
+async function captureHydrate(id, context) {
+  const result = await runGraphql(taggableHydrateDocument, { id });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function hydrateUpstreamCall(id, payload) {
   return {
     operationName: 'CustomerHydrate',
-    variables: { id: customer.id },
-    query: 'hand-synthesized from checked-in customer parity capture',
-    response: {
-      status: 200,
-      body: {
-        data: {
-          customer,
-        },
-      },
-    },
+    variables: { id },
+    query: taggableHydrateDocument,
+    response: { status: 200, body: payload },
   };
 }
 
@@ -179,6 +192,13 @@ async function main() {
   if (typeof customerId !== 'string' || !customerId) {
     throw new Error(`customerCreate did not return a customer id: ${JSON.stringify(createResult.payload, null, 2)}`);
   }
+
+  // Email fixture: the customerEmailMarketingConsentUpdate primary forwards a
+  // CustomerHydrate for the precondition customer at its freshly-created (NOT_SUBSCRIBED)
+  // state, before applying the SUBSCRIBED transition.
+  const emailHydratePayload = await captureHydrate(customerId, 'main customer hydrate (pre-email-consent)');
+  // The unknown-customer validation branch forwards a hydrate that resolves to null.
+  const unknownHydratePayload = await captureHydrate(UNKNOWN_CUSTOMER_GID, 'unknown customer hydrate');
 
   const transitionCreateResult = await runGraphql(createMutation, {
     input: {
@@ -241,6 +261,11 @@ async function main() {
   };
   const emailConsentResult = await runGraphql(emailConsentMutation, emailConsentVariables);
   assertNoTopLevelErrors(emailConsentResult, 'customerEmailMarketingConsentUpdate');
+
+  // SMS fixture: its precondition is the post-email-consent customer, so the
+  // customerSmsMarketingConsentUpdate primary forwards a CustomerHydrate for the customer
+  // at that state (email SUBSCRIBED, sms still NOT_SUBSCRIBED) before applying SMS consent.
+  const smsHydratePayload = await captureHydrate(customerId, 'main customer hydrate (post-email, pre-sms-consent)');
 
   const emailDownstreamReadVariables = {
     id: customerId,
@@ -623,7 +648,10 @@ async function main() {
       },
       matrix: emailValidationMatrix,
     },
-    upstreamCalls: [customerHydrateCall(createResult.payload.data.customerCreate.customer)],
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, emailHydratePayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   const smsCapture = {
@@ -655,7 +683,10 @@ async function main() {
       emailOnlyCustomerResponse: emailOnlyDeleteResult.payload,
       phoneOnlyCustomerResponse: phoneOnlyDeleteResult.payload,
     },
-    upstreamCalls: [customerHydrateCall(emailConsentResult.payload.data.customerEmailMarketingConsentUpdate.customer)],
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, smsHydratePayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   await writeFile(

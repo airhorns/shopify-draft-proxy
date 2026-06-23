@@ -51,6 +51,10 @@ const inlineNullInputDocument = await readFile(
   'config/parity-requests/discounts/discountCodeBasicCreate-inline-null-input.graphql',
   'utf8',
 );
+// Shared verbatim with the runtime's DISCOUNT_UNIQUENESS_QUERY constant
+// (`src/proxy/discounts.rs`) so the request the proxy forwards during create
+// validation matches this recorded cassette call byte-for-byte.
+const uniquenessDocument = await readFile('config/parity-requests/discounts/discount-uniqueness-check.graphql', 'utf8');
 
 const userErrorsSelection = `#graphql
   userErrors {
@@ -209,6 +213,10 @@ const duplicateCode = `HAR198DUP${stamp}`;
 const duplicateSeedInput = basicInput(duplicateCode);
 const duplicateSeedCreate = await runGraphqlRaw(seedCreateDocument, { input: duplicateSeedInput });
 const duplicateSeedId = readCreatedSeedId(duplicateSeedCreate);
+// Live-record the uniqueness lookup the proxy forwards during create validation,
+// while the duplicate discount exists upstream. This is the real recorded answer
+// behind the `TAKEN` userError — no locally injected discount state.
+const uniquenessProbe = await runGraphqlRaw(uniquenessDocument, { code: duplicateCode });
 const productProbe = await runGraphqlRaw(discountProductProbeDocument, {});
 const productId = readProductId(productProbe);
 const tooLongCode = 'X'.repeat(256);
@@ -393,31 +401,6 @@ const fixture = {
   storeDomain,
   apiVersion,
   accessScopes: scopeProbe,
-  seedDiscounts: [
-    {
-      id: duplicateSeedId,
-      discount: {
-        __typename: 'DiscountCodeBasic',
-        title: duplicateSeedInput['title'],
-        status: 'ACTIVE',
-        summary: '10% off entire order',
-        startsAt: duplicateSeedInput['startsAt'],
-        endsAt: null,
-        asyncUsageCount: 0,
-        discountClasses: ['ORDER'],
-        combinesWith: duplicateSeedInput['combinesWith'],
-        codes: {
-          nodes: [
-            {
-              id: `gid://shopify/DiscountRedeemCode/${duplicateSeedId.split('/').at(-1)}`,
-              code: duplicateCode,
-              asyncUsageCount: 0,
-            },
-          ],
-        },
-      },
-    },
-  ],
   validation: {
     missingInput: {
       query: missingInputDocument,
@@ -442,16 +425,10 @@ const fixture = {
       variables: {
         code: duplicateCode,
       },
-      query: 'sha:DiscountUniquenessCheck',
+      query: uniquenessDocument,
       response: {
-        status: 200,
-        body: {
-          data: {
-            codeDiscountNodeByCode: {
-              id: duplicateSeedId,
-            },
-          },
-        },
+        status: uniquenessProbe.status,
+        body: uniquenessProbe.payload,
       },
     },
   ],

@@ -141,17 +141,10 @@ const discountUniquenessQuery = `#graphql
 `;
 
 async function readProductsHydrateNodesQuery(): Promise<string> {
-  const source = await readFile('src/shopify_draft_proxy/proxy/products/products_core.gleam', 'utf8');
-  const match = source.match(/pub const product_hydrate_nodes_query: String = "\n([\s\S]*?)\n"\n\n@internal/);
-  if (!match) {
-    throw new Error('Unable to read product_hydrate_nodes_query from products_core.gleam');
-  }
-  const query = match[1];
-  if (query === undefined) {
-    throw new Error('Unable to read product_hydrate_nodes_query body from products_core.gleam');
-  }
-
-  return query.replace(/\\"/g, '"');
+  // Shared verbatim with the Rust proxy's DISCOUNT_ITEM_REFS_HYDRATE_QUERY
+  // (src/proxy/discounts.rs include_str!) so the recorded ProductsHydrateNodes
+  // cassette matches the request the proxy forwards byte-for-byte.
+  return readFile('config/parity-requests/discounts/discount-item-refs-hydrate.graphql', 'utf8');
 }
 
 function assertNoUserErrors(label: string, userErrors: unknown): void {

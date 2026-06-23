@@ -1,0 +1,105 @@
+{
+  "scenarioId": "orderClose-noop-on-already-closed",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-22T15:14:14.997Z",
+  "source": "live-shopify-admin-graphql",
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/8837411242290"
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderClose": {
+          "order": {
+            "id": "gid://shopify/Order/8837411242290",
+            "closed": true,
+            "closedAt": "2026-06-22T15:14:14Z",
+            "updatedAt": "2026-06-22T15:14:14Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrderManagementDownstreamRead",
+      "variables": {
+        "id": "gid://shopify/Order/8837411242290"
+      },
+      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8837411242290",
+              "name": "#1478",
+              "closed": true,
+              "closedAt": "2026-06-22T15:14:14Z",
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": "PAID",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10820861362482",
+                "email": "har-588-already-closed-20260622151413@example.com",
+                "displayName": "har-588-already-closed-20260622151413@example.com"
+              },
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "1.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

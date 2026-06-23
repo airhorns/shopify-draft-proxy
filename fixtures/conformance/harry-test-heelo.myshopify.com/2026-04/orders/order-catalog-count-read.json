@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-04-25T01:13:25.747Z",
-  "storeDomain": "very-big-test-store.myshopify.com",
+  "capturedAt": "2026-06-22T23:17:33.328Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
     "tagQuery": "tag:merchant-realistic",
-    "nameQuery": "name:1331",
+    "nameQuery": "name:1494",
     "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
     "pageSize": 1,
     "seedSize": 2,
@@ -16,33 +16,33 @@
       "seedCatalog": {
         "nodes": [
           {
-            "id": "gid://shopify/Order/6834565087465",
-            "name": "#1331",
-            "createdAt": "2026-04-25T00:27:41Z",
-            "updatedAt": "2026-04-25T01:08:36Z",
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "createdAt": "2026-06-22T22:34:00Z",
+            "updatedAt": "2026-06-22T22:34:02Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-            "email": "hermes-draft-order-probe-1777076856718@example.com",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com",
             "currentTotalPriceSet": {
               "shopMoney": {
-                "amount": "38.25",
+                "amount": "55.0",
                 "currencyCode": "CAD"
               }
             }
           },
           {
-            "id": "gid://shopify/Order/6834528944361",
-            "name": "#1330",
-            "createdAt": "2026-04-24T23:51:30Z",
-            "updatedAt": "2026-04-25T00:06:32Z",
+            "id": "gid://shopify/Order/8837986943282",
+            "name": "#1492",
+            "createdAt": "2026-06-22T22:29:28Z",
+            "updatedAt": "2026-06-22T22:29:29Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-            "email": "hermes-draft-order-probe-1777074686016@example.com",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622222925@example.com",
             "currentTotalPriceSet": {
               "shopMoney": {
-                "amount": "38.25",
+                "amount": "55.0",
                 "currencyCode": "CAD"
               }
             }
@@ -52,75 +52,75 @@
       "recent": {
         "nodes": [
           {
-            "id": "gid://shopify/Order/6834565087465",
-            "name": "#1331",
-            "createdAt": "2026-04-25T00:27:41Z",
-            "updatedAt": "2026-04-25T01:08:36Z",
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "createdAt": "2026-06-22T22:34:00Z",
+            "updatedAt": "2026-06-22T22:34:02Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-            "email": "hermes-draft-order-probe-1777076856718@example.com"
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com"
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
         }
       },
       "oldest": {
         "nodes": [
           {
-            "id": "gid://shopify/Order/6834528944361",
-            "name": "#1330",
-            "createdAt": "2026-04-24T23:51:30Z",
-            "updatedAt": "2026-04-25T00:06:32Z",
+            "id": "gid://shopify/Order/8837986943282",
+            "name": "#1492",
+            "createdAt": "2026-06-22T22:29:28Z",
+            "updatedAt": "2026-06-22T22:29:29Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-            "email": "hermes-draft-order-probe-1777074686016@example.com"
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622222925@example.com"
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
-          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
         }
       },
       "byName": {
         "nodes": [
           {
-            "id": "gid://shopify/Order/6834565087465",
-            "name": "#1331",
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"]
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"]
           }
         ],
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
         }
       },
       "byStatus": {
         "nodes": [
           {
-            "id": "gid://shopify/Order/6834565087465",
-            "name": "#1331",
+            "id": "gid://shopify/Order/8838031900978",
+            "name": "#1501",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED"
           },
           {
-            "id": "gid://shopify/Order/6834528944361",
-            "name": "#1330",
+            "id": "gid://shopify/Order/8838022168882",
+            "name": "#1497",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED"
           },
           {
-            "id": "gid://shopify/Order/6830647771369",
-            "name": "#1329",
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED"
           }
@@ -128,8 +128,8 @@
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-          "endCursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQzMDAwfQ=="
+          "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
         }
       },
       "limitedTaggedCount": {
@@ -157,28 +157,28 @@
     "variables": {
       "tagQuery": "tag:merchant-realistic",
       "pageSize": 1,
-      "after": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+      "after": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
     },
     "response": {
       "data": {
         "nextPage": {
           "nodes": [
             {
-              "id": "gid://shopify/Order/6834528944361",
-              "name": "#1330",
-              "createdAt": "2026-04-24T23:51:30Z",
-              "updatedAt": "2026-04-25T00:06:32Z",
+              "id": "gid://shopify/Order/8837986943282",
+              "name": "#1492",
+              "createdAt": "2026-06-22T22:29:28Z",
+              "updatedAt": "2026-06-22T22:29:29Z",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "email": "hermes-draft-order-probe-1777074686016@example.com"
+              "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+              "email": "hermes-draft-order-complete-20260622222925@example.com"
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
-            "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+            "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+            "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
           }
         }
       },
@@ -195,13 +195,12 @@
       }
     }
   },
-  "seedOrderCatalogFromCapture": true,
   "upstreamCalls": [
     {
       "operationName": "OrderCatalogCountRead",
       "variables": {
         "tagQuery": "tag:merchant-realistic",
-        "nameQuery": "name:1331",
+        "nameQuery": "name:1494",
         "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
         "pageSize": 1,
         "seedSize": 2,
@@ -216,33 +215,33 @@
             "seedCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834565087465",
-                  "name": "#1331",
-                  "createdAt": "2026-04-25T00:27:41Z",
-                  "updatedAt": "2026-04-25T01:08:36Z",
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "createdAt": "2026-06-22T22:34:00Z",
+                  "updatedAt": "2026-06-22T22:34:02Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-                  "email": "hermes-draft-order-probe-1777076856718@example.com",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com",
                   "currentTotalPriceSet": {
                     "shopMoney": {
-                      "amount": "38.25",
+                      "amount": "55.0",
                       "currencyCode": "CAD"
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Order/6834528944361",
-                  "name": "#1330",
-                  "createdAt": "2026-04-24T23:51:30Z",
-                  "updatedAt": "2026-04-25T00:06:32Z",
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-                  "email": "hermes-draft-order-probe-1777074686016@example.com",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com",
                   "currentTotalPriceSet": {
                     "shopMoney": {
-                      "amount": "38.25",
+                      "amount": "55.0",
                       "currencyCode": "CAD"
                     }
                   }
@@ -252,75 +251,75 @@
             "recent": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834565087465",
-                  "name": "#1331",
-                  "createdAt": "2026-04-25T00:27:41Z",
-                  "updatedAt": "2026-04-25T01:08:36Z",
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "createdAt": "2026-06-22T22:34:00Z",
+                  "updatedAt": "2026-06-22T22:34:02Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-                  "email": "hermes-draft-order-probe-1777076856718@example.com"
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com"
                 }
               ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
               }
             },
             "oldest": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834528944361",
-                  "name": "#1330",
-                  "createdAt": "2026-04-24T23:51:30Z",
-                  "updatedAt": "2026-04-25T00:06:32Z",
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-                  "email": "hermes-draft-order-probe-1777074686016@example.com"
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com"
                 }
               ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
               }
             },
             "byName": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834565087465",
-                  "name": "#1331",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"]
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"]
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
               }
             },
             "byStatus": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834565087465",
-                  "name": "#1331",
+                  "id": "gid://shopify/Order/8838031900978",
+                  "name": "#1501",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED"
                 },
                 {
-                  "id": "gid://shopify/Order/6834528944361",
-                  "name": "#1330",
+                  "id": "gid://shopify/Order/8838022168882",
+                  "name": "#1497",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED"
                 },
                 {
-                  "id": "gid://shopify/Order/6830647771369",
-                  "name": "#1329",
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED"
                 }
@@ -328,8 +327,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQzMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
               }
             },
             "limitedTaggedCount": {
@@ -360,9 +359,9 @@
       "variables": {
         "tagQuery": "tag:merchant-realistic",
         "pageSize": 1,
-        "after": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+        "after": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
       },
-      "query": "hand-synthesized from checked-in nextPage capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query OrderCatalogNextPage($tagQuery: String!, $pageSize: Int!, $after: String) {\n  nextPage: orders(first: $pageSize, after: $after, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -370,21 +369,21 @@
             "nextPage": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Order/6834528944361",
-                  "name": "#1330",
-                  "createdAt": "2026-04-24T23:51:30Z",
-                  "updatedAt": "2026-04-25T00:06:32Z",
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-                  "email": "hermes-draft-order-probe-1777074686016@example.com"
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com"
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
               }
             }
           },

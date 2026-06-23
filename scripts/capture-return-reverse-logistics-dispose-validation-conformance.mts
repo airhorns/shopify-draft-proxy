@@ -291,6 +291,9 @@ const returnRequestMutation = await readRequest('return-request-recorded.graphql
 const returnApproveRequestMutation = await readRequest('return-approve-request-recorded.graphql');
 const disposeValidationMutation = await readRequest('reverse-fulfillment-order-dispose-validation.graphql');
 const downstreamReadQuery = await readRequest('return-reverse-logistics-dispose-validation-read.graphql');
+// The exact document the proxy forwards to hydrate a return's order on a cold
+// miss; recording its live response is what replaces the seeded order.
+const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -371,10 +374,19 @@ const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
 requireEmptyUserErrors(fulfillmentCreate, 'fulfillmentCreate');
 
 const orderReadAfterFulfillment = await capture(orderReadQuery, { id: orderId });
-const seedOrder = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
+const orderAfterFulfillment = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
 const fulfillmentLineItems = readNodes(
-  readRecord(readArray(readRecord(seedOrder)?.['fulfillments'])[0])?.['fulfillmentLineItems'],
+  readRecord(readArray(readRecord(orderAfterFulfillment)?.['fulfillments'])[0])?.['fulfillmentLineItems'],
 );
+
+// Record the proxy's cold-miss order hydrate (byte-identical document) against the
+// freshly fulfilled order — before any return exists — so replay forwards+observes
+// real store state instead of relying on a seeded order. The custom (variant-less)
+// line item is exactly why dispose RESTOCKED is rejected downstream.
+const returnOrderHydrate = await runGraphqlRequest(returnOrderHydrateQuery, { id: orderId });
+if (returnOrderHydrate.payload['errors']) {
+  throw new Error(`return-order hydrate returned errors: ${JSON.stringify(returnOrderHydrate.payload)}`);
+}
 const customFulfillmentLineItem = fulfillmentLineItems.find((line) => {
   const lineItem = readRecord(line['lineItem']);
   return typeof lineItem?.['title'] === 'string' && lineItem['title'].includes('Return dispose custom line');
@@ -505,7 +517,6 @@ await writeJson(fixturePath, {
     fulfillmentCreate,
     orderReadAfterFulfillment,
   },
-  seedOrder,
   firstReturnRequest,
   firstReturnApproveRequest,
   secondReturnRequest,
@@ -519,6 +530,17 @@ await writeJson(fixturePath, {
   },
   downstreamRead,
   cleanup,
+  upstreamCalls: [
+    {
+      operationName: 'OrdersReturnOrderHydrate',
+      variables: { id: orderId },
+      query: returnOrderHydrateQuery,
+      response: {
+        status: returnOrderHydrate.status,
+        body: returnOrderHydrate.payload,
+      },
+    },
+  ],
 });
 
 console.log(

@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -27,6 +27,25 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 const fixturePath = path.join(fixtureDir, 'refund-create-transactions-validation.json');
+
+// The proxy hydrates an order it has not yet staged by forwarding this exact query
+// (`REFUND_ORDER_HYDRATE_QUERY`, kept byte-identical via include_str! on the Rust side).
+// Forward the real query here so the recorded cassette matches the proxy's emitted
+// hydrate verbatim — replacing the previous hand-synthesized placeholder strings that
+// never byte-matched and only worked because the order was seeded.
+const refundOrderHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'orders', 'refund-order-hydrate.graphql'),
+  'utf8',
+);
+
+function refundHydrateUpstreamCall(orderId: string, hydrate: GraphqlResult): JsonRecord {
+  return {
+    operationName: 'OrdersOrderHydrate',
+    variables: { id: orderId },
+    query: refundOrderHydrateQuery,
+    response: { status: hydrate.status, body: hydrate.payload },
+  };
+}
 
 const orderCreateMutation = `#graphql
   mutation RefundTransactionsValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
@@ -267,6 +286,10 @@ const validationSaleTransactionId = requireString(
   asRecord(readArray(validationOrder['transactions'])[0])['id'],
   'validation sale transaction.id',
 );
+// Forward the real hydrate against the freshly-created order, before any refund, so the
+// cassette reflects the pristine pre-refund state the proxy reads on first refundCreate.
+const validationHydrate = await runGraphqlRequest(refundOrderHydrateQuery, { id: validationOrderId });
+assertNoGraphqlErrors('validation order hydrate', validationHydrate);
 
 const happyOrderVariables = buildOrderVariables(stamp, 'happy');
 const happyOrderCreate = await runGraphqlRequest(orderCreateMutation, happyOrderVariables);
@@ -277,6 +300,8 @@ const happySaleTransactionId = requireString(
   asRecord(readArray(happyOrder['transactions'])[0])['id'],
   'happy sale transaction.id',
 );
+const happyHydrate = await runGraphqlRequest(refundOrderHydrateQuery, { id: happyOrderId });
+assertNoGraphqlErrors('happy order hydrate', happyHydrate);
 
 const invalidKindVariables = refundVariables(
   validationOrderId,
@@ -338,18 +363,6 @@ try {
 await writeJson(fixturePath, {
   storeDomain,
   apiVersion,
-  setup: {
-    validationOrderCreate: {
-      query: orderCreateMutation,
-      variables: validationOrderVariables,
-      response: validationOrderCreate.payload,
-    },
-    happyOrderCreate: {
-      query: orderCreateMutation,
-      variables: happyOrderVariables,
-      response: happyOrderCreate.payload,
-    },
-  },
   invalidKind: {
     query: refundCreateTransactionsValidationMutation,
     variables: invalidKindVariables,
@@ -375,34 +388,8 @@ await writeJson(fixturePath, {
     happyOrderCancel: happyCleanup,
   },
   upstreamCalls: [
-    {
-      operationName: 'OrdersOrderHydrate',
-      variables: { id: validationOrderId },
-      query:
-        'hand-synthesized from checked-in setup orderCreate response for refundCreate transaction validation branch hydration',
-      response: {
-        status: 200,
-        body: {
-          data: {
-            order: validationOrder,
-          },
-        },
-      },
-    },
-    {
-      operationName: 'OrdersOrderHydrate',
-      variables: { id: happyOrderId },
-      query:
-        'hand-synthesized from checked-in setup orderCreate response for refundCreate transaction happy path hydration',
-      response: {
-        status: 200,
-        body: {
-          data: {
-            order: happyOrder,
-          },
-        },
-      },
-    },
+    refundHydrateUpstreamCall(validationOrderId, validationHydrate),
+    refundHydrateUpstreamCall(happyOrderId, happyHydrate),
   ],
 });
 

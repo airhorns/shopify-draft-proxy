@@ -1,0 +1,727 @@
+{
+  "data": {
+    "collections": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967390514",
+            "legacyResourceId": "494967390514",
+            "title": "Home page",
+            "handle": "frontpage",
+            "updatedAt": "2026-06-13T22:01:02Z",
+            "description": "",
+            "descriptionHtml": "",
+            "image": null,
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": null,
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9801098789170",
+                    "title": "The Inventory Not Tracked Snowboard",
+                    "handle": "the-inventory-not-tracked-snowboard",
+                    "vendor": "harry-test-heelo"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ=="
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967423282",
+            "legacyResourceId": "494967423282",
+            "title": "Automated Collection",
+            "handle": "automated-collection",
+            "updatedAt": "2026-06-13T22:01:02Z",
+            "description": "",
+            "descriptionHtml": "",
+            "image": null,
+            "productsCount": {
+              "count": 61,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "VARIANT_PRICE",
+                  "relation": "LESS_THAN",
+                  "condition": "800.00"
+                },
+                {
+                  "column": "VARIANT_PRICE",
+                  "relation": "GREATER_THAN",
+                  "condition": "200.00"
+                }
+              ]
+            },
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/9885517119794",
+                    "title": "Charlie",
+                    "handle": "charlie",
+                    "vendor": "Pure Fix Cycles"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/9885516923186",
+                    "title": "Golf",
+                    "handle": "golf-orange-bicycle",
+                    "vendor": "Pure Fix Cycles"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0NTYwNTAsImxhc3RfdmFsdWUiOiI0OTQ5Njc0NTYwNTAifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967456050",
+            "legacyResourceId": "494967456050",
+            "title": "Hydrogen",
+            "handle": "hydrogen",
+            "updatedAt": "2026-06-13T22:01:02Z",
+            "description": "",
+            "descriptionHtml": "",
+            "image": null,
+            "productsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": null,
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODAxMDk5MzEzNDU4LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/9801099313458",
+                    "title": "The Collection Snowboard: Liquid30",
+                    "handle": "the-collection-snowboard-liquid",
+                    "vendor": "Hydrogen Vendor"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODAxMDk5MTgyMzg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/9801099182386",
+                    "title": "The Collection Snowboard: Oxygen",
+                    "handle": "the-collection-snowboard-oxygen",
+                    "vendor": "Hydrogen Vendor"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk5MzEzNDU4LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk5MTgyMzg2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/512421003570",
+            "legacyResourceId": "512421003570",
+            "title": "Frontpage",
+            "handle": "frontpage-1",
+            "updatedAt": "2026-05-05T11:42:09Z",
+            "description": "",
+            "descriptionHtml": "",
+            "image": null,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": null,
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ=="
+      }
+    },
+    "titleWildcard": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9",
+          "node": {
+            "id": "gid://shopify/Collection/494967423282",
+            "title": "Automated Collection",
+            "handle": "automated-collection",
+            "updatedAt": "2026-06-13T22:01:02Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9",
+        "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9"
+      }
+    },
+    "customCollections": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967390514",
+            "title": "Home page",
+            "handle": "frontpage",
+            "ruleSet": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0NTYwNTAsImxhc3RfdmFsdWUiOiI0OTQ5Njc0NTYwNTAifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967456050",
+            "title": "Hydrogen",
+            "handle": "hydrogen",
+            "ruleSet": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/512421003570",
+            "title": "Frontpage",
+            "handle": "frontpage-1",
+            "ruleSet": null
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ=="
+      }
+    },
+    "smartCollections": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9",
+          "node": {
+            "id": "gid://shopify/Collection/494967423282",
+            "title": "Automated Collection",
+            "handle": "automated-collection",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "VARIANT_PRICE",
+                  "relation": "LESS_THAN",
+                  "condition": "800.00"
+                },
+                {
+                  "column": "VARIANT_PRICE",
+                  "relation": "GREATER_THAN",
+                  "condition": "200.00"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9",
+        "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9"
+      }
+    },
+    "updatedNewest": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9",
+          "node": {
+            "id": "gid://shopify/Collection/494967423282",
+            "title": "Automated Collection",
+            "handle": "automated-collection",
+            "updatedAt": "2026-06-13T22:01:02Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9",
+        "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9"
+      }
+    },
+    "productMembership": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/494967423282",
+            "title": "Automated Collection",
+            "handle": "automated-collection"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ=="
+      }
+    },
+    "emptyUnmatched": {
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 61,
+      "actualQueryCost": 26,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1974,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CollectionsCatalogRead",
+      "variables": {
+        "catalogFirst": 20,
+        "first": 3,
+        "titleWildcardQuery": "title:Aut*",
+        "customTypeQuery": "collection_type:custom",
+        "smartTypeQuery": "collection_type:smart",
+        "updatedSortQuery": "collection_type:smart",
+        "emptyQuery": "title:No collection should match this 157*",
+        "productMembershipQuery": "product_id:9885517119794"
+      },
+      "query": "query CollectionsCatalogRead(\n  $catalogFirst: Int!\n  $first: Int!\n  $titleWildcardQuery: String!\n  $customTypeQuery: String!\n  $smartTypeQuery: String!\n  $updatedSortQuery: String!\n  $emptyQuery: String!\n  $productMembershipQuery: String!\n) {\n  collections(first: $catalogFirst) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        updatedAt\n        description\n        descriptionHtml\n        image {\n          id\n          url\n          altText\n          width\n          height\n        }\n        productsCount {\n          count\n          precision\n        }\n        sortOrder\n        templateSuffix\n        seo {\n          title\n          description\n        }\n        ruleSet {\n          appliedDisjunctively\n          rules {\n            column\n            relation\n            condition\n          }\n        }\n        products(first: 2) {\n          edges {\n            cursor\n            node {\n              id\n              title\n              handle\n              vendor\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  titleWildcard: collections(first: $first, query: $titleWildcardQuery, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  customCollections: collections(first: $first, query: $customTypeQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        ruleSet {\n          appliedDisjunctively\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  smartCollections: collections(first: $first, query: $smartTypeQuery, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        ruleSet {\n          appliedDisjunctively\n          rules {\n            column\n            relation\n            condition\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  updatedNewest: collections(first: $first, query: $updatedSortQuery, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productMembership: collections(first: $first, query: $productMembershipQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  emptyUnmatched: collections(first: $first, query: $emptyQuery) {\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967390514",
+                    "legacyResourceId": "494967390514",
+                    "title": "Home page",
+                    "handle": "frontpage",
+                    "updatedAt": "2026-06-13T22:01:02Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                          "node": {
+                            "id": "gid://shopify/Product/9801098789170",
+                            "title": "The Inventory Not Tracked Snowboard",
+                            "handle": "the-inventory-not-tracked-snowboard",
+                            "vendor": "harry-test-heelo"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                        "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ=="
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967423282",
+                    "legacyResourceId": "494967423282",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection",
+                    "updatedAt": "2026-06-13T22:01:02Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 61,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "VARIANT_PRICE",
+                          "relation": "LESS_THAN",
+                          "condition": "800.00"
+                        },
+                        {
+                          "column": "VARIANT_PRICE",
+                          "relation": "GREATER_THAN",
+                          "condition": "200.00"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9885517119794",
+                            "title": "Charlie",
+                            "handle": "charlie",
+                            "vendor": "Pure Fix Cycles"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9885516923186",
+                            "title": "Golf",
+                            "handle": "golf-orange-bicycle",
+                            "vendor": "Pure Fix Cycles"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0NTYwNTAsImxhc3RfdmFsdWUiOiI0OTQ5Njc0NTYwNTAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967456050",
+                    "legacyResourceId": "494967456050",
+                    "title": "Hydrogen",
+                    "handle": "hydrogen",
+                    "updatedAt": "2026-06-13T22:01:02Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 3,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5ODAxMDk5MzEzNDU4LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9801099313458",
+                            "title": "The Collection Snowboard: Liquid30",
+                            "handle": "the-collection-snowboard-liquid",
+                            "vendor": "Hydrogen Vendor"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5ODAxMDk5MTgyMzg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9801099182386",
+                            "title": "The Collection Snowboard: Oxygen",
+                            "handle": "the-collection-snowboard-oxygen",
+                            "vendor": "Hydrogen Vendor"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk5MzEzNDU4LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk5MTgyMzg2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/512421003570",
+                    "legacyResourceId": "512421003570",
+                    "title": "Frontpage",
+                    "handle": "frontpage-1",
+                    "updatedAt": "2026-05-05T11:42:09Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 0,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ=="
+              }
+            },
+            "titleWildcard": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967423282",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection",
+                    "updatedAt": "2026-06-13T22:01:02Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJhdXRvbWF0ZWQgY29sbGVjdGlvbiJ9"
+              }
+            },
+            "customCollections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967390514",
+                    "title": "Home page",
+                    "handle": "frontpage",
+                    "ruleSet": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0NTYwNTAsImxhc3RfdmFsdWUiOiI0OTQ5Njc0NTYwNTAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967456050",
+                    "title": "Hydrogen",
+                    "handle": "hydrogen",
+                    "ruleSet": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/512421003570",
+                    "title": "Frontpage",
+                    "handle": "frontpage-1",
+                    "ruleSet": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5NjczOTA1MTQsImxhc3RfdmFsdWUiOiI0OTQ5NjczOTA1MTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo1MTI0MjEwMDM1NzAsImxhc3RfdmFsdWUiOiI1MTI0MjEwMDM1NzAifQ=="
+              }
+            },
+            "smartCollections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967423282",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection",
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "VARIANT_PRICE",
+                          "relation": "LESS_THAN",
+                          "condition": "800.00"
+                        },
+                        {
+                          "column": "VARIANT_PRICE",
+                          "relation": "GREATER_THAN",
+                          "condition": "200.00"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiJBdXRvbWF0ZWQgQ29sbGVjdGlvbiJ9"
+              }
+            },
+            "updatedNewest": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967423282",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection",
+                    "updatedAt": "2026-06-13T22:01:02Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiIyMDI2LTA2LTEzIDIyOjAxOjAyLjAwMDAwMCJ9"
+              }
+            },
+            "productMembership": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/494967423282",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo0OTQ5Njc0MjMyODIsImxhc3RfdmFsdWUiOiI0OTQ5Njc0MjMyODIifQ=="
+              }
+            },
+            "emptyUnmatched": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 61,
+              "actualQueryCost": 26,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

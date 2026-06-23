@@ -92,6 +92,36 @@ const publicationCreateMutation = await readFile(publicationCreateDocumentPath, 
 const publicationUpdateMutation = await readFile(publicationUpdateDocumentPath, 'utf8');
 const publicationDeleteMutation = await readFile(publicationDeleteDocumentPath, 'utf8');
 
+// The node-hydrate query the proxy forwards in live-hybrid to prove a publishable
+// product/variant exists before staging a publicationUpdate. Shared verbatim with
+// PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY (src/proxy/product_helpers.rs) so the
+// recorded cassettes match the proxy's emitted forward byte-for-byte.
+const observationHydrateDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'products-hydrate-nodes-observation.graphql',
+);
+const observationHydrateQuery = await readFile(observationHydrateDocumentPath, 'utf8');
+
+type UpstreamCall = {
+  operationName: string;
+  variables: JsonObject;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
+async function recordObservationHydrate(ids: string[]): Promise<UpstreamCall> {
+  const variables = { ids } satisfies JsonObject;
+  const result = await runGraphqlRaw(observationHydrateQuery, variables);
+  return {
+    operationName: 'ProductsHydrateNodes',
+    variables,
+    query: observationHydrateQuery,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
 const createProductMutation = `#graphql
   mutation PublicationContractProductCreate($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -154,6 +184,7 @@ let productCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let publicationCleanup: ConformanceGraphqlResult<PublicationDeleteData> | null = null;
 let deleteCreated: CaptureCase | null = null;
 const cases: Record<string, CaptureCase> = {};
+const upstreamCalls: UpstreamCall[] = [];
 
 try {
   const productCreate = await runGraphqlRaw<ProductCreateData>(createProductMutation, {
@@ -178,6 +209,12 @@ try {
     },
     response: productCreate,
   };
+
+  // Record the proxy's live read-through forwards: the real created product
+  // resolves to a hydrated node (so publicationUpdate stages it), while the
+  // sentinel id resolves to a null node (so it is reported "not found").
+  upstreamCalls.push(await recordObservationHydrate([product.id]));
+  upstreamCalls.push(await recordObservationHydrate(['gid://shopify/Product/999999999999']));
 
   const createOmittedCatalog = await captureCase(publicationCreateMutation, { input: {} });
   cases['createOmittedCatalog'] = createOmittedCatalog;
@@ -297,7 +334,6 @@ await writeFile(
       setup: {
         product,
       },
-      seedProducts: [product],
       cases,
       cleanup: {
         publicationDelete: publicationCleanup,
@@ -310,7 +346,7 @@ await writeFile(
         'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for variants on this store, so this fixture does not assert the local ProductVariant guardrail.',
         'publicationDelete payload exposes deletedId and userErrors only.',
       ],
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,
