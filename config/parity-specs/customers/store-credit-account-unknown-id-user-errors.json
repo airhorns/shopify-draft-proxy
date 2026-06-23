@@ -1,0 +1,83 @@
+{
+  "scenarioId": "store-credit-account-unknown-id-user-errors",
+  "operationNames": ["storeCreditAccountCredit", "storeCreditAccountDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["error-shape", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/store-credit-account-unknown-id-user-errors.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+    "variablesCapturePath": "$.creditUnknownCustomer.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "credit-unknown-customer-owner-not-found",
+        "capturePath": "$.creditUnknownCustomer.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"]
+      },
+      {
+        "name": "credit-unknown-account-account-not-found",
+        "capturePath": "$.creditUnknownStoreCreditAccount.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variablesCapturePath": "$.creditUnknownStoreCreditAccount.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "credit-unknown-company-location-owner-not-found",
+        "capturePath": "$.creditUnknownCompanyLocation.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variablesCapturePath": "$.creditUnknownCompanyLocation.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "debit-unknown-customer-account-not-found",
+        "capturePath": "$.debitUnknownCustomer.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.debitUnknownCustomer.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "debit-unknown-account-account-not-found",
+        "capturePath": "$.debitUnknownStoreCreditAccount.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.debitUnknownStoreCreditAccount.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "debit-unknown-company-location-account-not-found",
+        "capturePath": "$.debitUnknownCompanyLocation.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.debitUnknownCompanyLocation.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured directly from Shopify for well-formed but nonexistent StoreCreditAccount, Customer, and CompanyLocation GIDs. Contrary to the original ticket hypothesis, Shopify returns payload userErrors for these mutation roots: OWNER_NOT_FOUND for credit by missing owner and ACCOUNT_NOT_FOUND for missing account/debit branches. Shopify cost metadata is excluded from replay comparison."
+}

@@ -4044,15 +4044,7 @@ impl DraftProxy {
                 &field.selection,
                 &field.name,
                 None,
-                vec![store_credit_user_error(
-                    &["id"],
-                    if shopify_gid_resource_type(&id) == Some("StoreCreditAccount") {
-                        "Store credit account does not exist"
-                    } else {
-                        "Owner does not exist"
-                    },
-                    "NOT_FOUND",
-                )],
+                vec![store_credit_missing_id_user_error(&id, is_credit)],
             ));
         };
 
@@ -4070,7 +4062,7 @@ impl DraftProxy {
                 vec![store_credit_user_error(
                     &["id"],
                     "Store credit account does not exist",
-                    "NOT_FOUND",
+                    "ACCOUNT_NOT_FOUND",
                 )],
             ));
         };
@@ -9599,6 +9591,23 @@ const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
 fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
+}
+
+fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
+    if is_credit
+        && matches!(
+            shopify_gid_resource_type(id),
+            Some("Customer" | "CompanyLocation")
+        )
+    {
+        store_credit_user_error(&["id"], "Owner does not exist", "OWNER_NOT_FOUND")
+    } else {
+        store_credit_user_error(
+            &["id"],
+            "Store credit account does not exist",
+            "ACCOUNT_NOT_FOUND",
+        )
+    }
 }
 
 /// Read a money `amount` field from a resolved input map, accepting either the
