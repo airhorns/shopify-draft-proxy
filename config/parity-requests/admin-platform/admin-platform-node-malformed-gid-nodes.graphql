@@ -1,0 +1,6 @@
+query AdminPlatformNodesMalformedGid {
+  nodes(ids: ["gid://shopify/Product/0", "gid://shopify/Product", "gid://shopify/UnknownType/123"]) {
+    __typename
+    id
+  }
+}

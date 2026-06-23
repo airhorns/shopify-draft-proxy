@@ -288,11 +288,11 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     let Some(document) = parsed_document(query, variables) else {
         return Vec::new();
     };
+    let mut errors = admin_platform_node_global_id_errors(query, raw_body, &document);
     if document.operation_type != OperationType::Mutation {
-        return Vec::new();
+        return errors;
     }
     let schema = public_admin_input_schema();
-    let mut errors = Vec::new();
     for field in &document.root_fields {
         let Some(arguments) = schema.mutation_fields.get(&field.name) else {
             continue;
@@ -338,6 +338,169 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
     errors
+}
+
+fn admin_platform_node_global_id_errors(
+    query: &str,
+    raw_body: &str,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    if document.operation_type != OperationType::Query {
+        return Vec::new();
+    }
+
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        let Some(argument_name) = (match field.name.as_str() {
+            "node" => Some("id"),
+            "nodes" => Some("ids"),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let context = ValidationContext {
+            query,
+            operation_path: &document.operation_path,
+            response_key: &field.response_key,
+            field_location: field.location,
+            raw_body,
+        };
+        if let Some(error) = invalid_node_global_id_argument_error(
+            document,
+            field,
+            argument_name,
+            field.raw_arguments.get(argument_name),
+            context,
+        ) {
+            errors.push(error);
+        }
+    }
+    errors
+}
+
+fn invalid_node_global_id_argument_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    argument_name: &str,
+    argument_value: Option<&RawArgumentValue>,
+    context: ValidationContext<'_>,
+) -> Option<Value> {
+    match argument_value? {
+        RawArgumentValue::String(raw) if shopify_gid_resource_type(raw).is_none() => Some(
+            invalid_global_id_literal_error(field, argument_name, raw, context),
+        ),
+        RawArgumentValue::List(values) => values.iter().find_map(|value| {
+            invalid_node_global_id_argument_error(
+                document,
+                field,
+                argument_name,
+                Some(value),
+                context,
+            )
+        }),
+        RawArgumentValue::Variable { name, value } => invalid_global_id_variable_error(
+            document,
+            name,
+            value.as_ref()?,
+            first_invalid_variable_global_id_path(value.as_ref()?)?,
+        ),
+        _ => None,
+    }
+}
+
+fn first_invalid_variable_global_id_path(value: &ResolvedValue) -> Option<(Vec<Value>, String)> {
+    match value {
+        ResolvedValue::String(raw) if shopify_gid_resource_type(raw).is_none() => {
+            Some((Vec::new(), raw.clone()))
+        }
+        ResolvedValue::List(values) => values.iter().enumerate().find_map(|(index, value)| {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (shopify_gid_resource_type(raw).is_none()).then(|| (vec![json!(index)], raw.clone()))
+        }),
+        _ => None,
+    }
+}
+
+fn invalid_global_id_literal_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+    invalid_id: &str,
+    context: ValidationContext<'_>,
+) -> Value {
+    json!({
+        "message": format!("Invalid global id '{invalid_id}'"),
+        "locations": [{
+            "line": context.field_location.line,
+            "column": context.field_location.column,
+        }],
+        "path": [context.operation_path, field.response_key.as_str(), argument_name],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError",
+        },
+    })
+}
+
+fn invalid_global_id_variable_error(
+    document: &ParsedDocument,
+    variable_name: &str,
+    variable_value: &ResolvedValue,
+    (problem_path, invalid_id): (Vec<Value>, String),
+) -> Option<Value> {
+    let variable_definition = document.variable_definitions.get(variable_name)?;
+    let explanation = format!("Invalid global id '{invalid_id}'");
+    let path_display = variable_problem_path_display(&problem_path);
+    let problem = json!({
+        "path": problem_path,
+        "explanation": explanation,
+        "message": explanation,
+    });
+    let message = path_display.map_or_else(
+        || {
+            format!(
+                "Variable ${variable_name} of type {} was provided invalid value",
+                variable_definition.type_display
+            )
+        },
+        |path_display| {
+            format!(
+                "Variable ${variable_name} of type {} was provided invalid value for {path_display} ({explanation})",
+                variable_definition.type_display
+            )
+        },
+    );
+    Some(json!({
+        "message": message,
+        "locations": [{
+            "line": variable_definition.location.line,
+            "column": variable_definition.location.column,
+        }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(variable_value),
+            "problems": [problem],
+        },
+    }))
+}
+
+fn variable_problem_path_display(path: &[Value]) -> Option<String> {
+    if path.is_empty() {
+        return None;
+    }
+    Some(
+        path.iter()
+            .map(|segment| {
+                segment
+                    .as_u64()
+                    .map(|index| index.to_string())
+                    .or_else(|| segment.as_str().map(str::to_string))
+                    .unwrap_or_else(|| segment.to_string())
+            })
+            .collect::<Vec<_>>()
+            .join("."),
+    )
 }
 
 /// The product media mutations are not modelled in the declarative input

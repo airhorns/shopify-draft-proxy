@@ -121,6 +121,24 @@ const nodeNoDataQuery = `#graphql
   }
 `;
 
+const nodeMalformedMissingIdQuery = `#graphql
+  query AdminPlatformNodeMalformedGid {
+    node(id: "gid://shopify/Product") {
+      __typename
+      id
+    }
+  }
+`;
+
+const nodesMalformedMixedQuery = `#graphql
+  query AdminPlatformNodesMalformedGid {
+    nodes(ids: ["gid://shopify/Product/0", "gid://shopify/Product", "gid://shopify/UnknownType/123"]) {
+      __typename
+      id
+    }
+  }
+`;
+
 const jobDomainNoDataQuery = `#graphql
   query JobDomainNoDataRead($domainId: ID!, $jobId: ID!) {
     domain(id: $domainId) {
@@ -826,6 +844,14 @@ const captures = {
     result: await runGraphqlCapture(nodeNoDataQuery, {
       ids: ['gid://shopify/Product/0', 'gid://shopify/Job/0', 'gid://shopify/Domain/0'],
     }),
+  },
+  nodeMalformedMissingId: {
+    query: nodeMalformedMissingIdQuery,
+    result: await runGraphqlCapture(nodeMalformedMissingIdQuery),
+  },
+  nodesMalformedMixed: {
+    query: nodesMalformedMixedQuery,
+    result: await runGraphqlCapture(nodesMalformedMixedQuery),
   },
   jobDomainNoData: {
     query: jobDomainNoDataQuery,

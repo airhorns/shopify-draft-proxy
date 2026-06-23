@@ -1,0 +1,35 @@
+{
+  "scenarioId": "admin-platform-node-malformed-gid",
+  "operationNames": ["node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation-parity", "payload-shape", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-node-malformed-gid-node.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 generic Relay node/nodes malformed global ID coercion. Complete but absent or unknown-type Shopify GIDs remain null no-data behavior; malformed ID literals are rejected before execution with top-level errors and no data payload.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "node malformed missing-id error envelope",
+        "capturePath": "$.captures.nodeMalformedMissingId.result.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.errors[0].locations"]
+      },
+      {
+        "name": "nodes mixed malformed missing-id error envelope",
+        "capturePath": "$.captures.nodesMalformedMixed.result.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-node-malformed-gid-nodes.graphql"
+        },
+        "excludedPaths": ["$.errors[0].locations"]
+      }
+    ]
+  }
+}
