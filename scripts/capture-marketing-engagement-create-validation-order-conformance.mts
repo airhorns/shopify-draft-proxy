@@ -118,6 +118,27 @@ const unknownChannelCurrencyDocument = `#graphql
   }
 `;
 
+const invalidChannelHandleDocument = `#graphql
+  mutation MarketingEngagementCreateInvalidChannelHandle(
+    $channelHandle: String!
+    $engagement: MarketingEngagementInput!
+  ) {
+    marketingEngagementCreate(
+      channelHandle: $channelHandle
+      marketingEngagement: $engagement
+    ) {
+      marketingEngagement {
+        occurredOn
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const unknownRemoteCurrencyDocument = `#graphql
   mutation MarketingEngagementCreateValidationOrderUnknownRemoteCurrency(
     $remoteId: String!
@@ -280,6 +301,7 @@ let createActivityPayload: unknown = null;
 let multipleActivitySelectorsPayload: unknown = null;
 let multipleChannelSelectorsPayload: unknown = null;
 let unknownChannelCurrencyPayload: unknown = null;
+let invalidChannelHandlePayload: unknown = null;
 let unknownRemoteCurrencyPayload: unknown = null;
 let unknownRemotePayload: unknown = null;
 let cleanupPayload: unknown = null;
@@ -320,6 +342,13 @@ try {
   });
   await assertHttpOk('Marketing engagement unknown channel currency capture', unknownChannelCurrencyResult);
   unknownChannelCurrencyPayload = unknownChannelCurrencyResult.payload;
+
+  const invalidChannelHandleResult = await runGraphqlRequest(invalidChannelHandleDocument, {
+    channelHandle: unknownChannelHandle,
+    engagement: validCurrencyEngagement,
+  });
+  await assertHttpOk('Marketing engagement invalid channel handle capture', invalidChannelHandleResult);
+  invalidChannelHandlePayload = invalidChannelHandleResult.payload;
 
   const unknownRemoteCurrencyResult = await runGraphqlRequest(unknownRemoteCurrencyDocument, {
     remoteId: unknownRemoteId,
@@ -394,6 +423,16 @@ const fixture = {
       },
       response: unknownChannelCurrencyPayload,
     },
+    invalidChannelHandle: {
+      request: {
+        query: invalidChannelHandleDocument,
+        variables: {
+          channelHandle: unknownChannelHandle,
+          engagement: validCurrencyEngagement,
+        },
+      },
+      response: invalidChannelHandlePayload,
+    },
     unknownRemoteCurrencyMismatch: {
       request: {
         query: unknownRemoteCurrencyDocument,
@@ -436,6 +475,7 @@ const fixture = {
     'Captured validation-order branches against a disposable external marketing activity and cleaned it up afterward.',
     'Multiple-selector branches intentionally combine mismatched adSpend/sales currencies to prove selector-count validation wins first.',
     'The unknown channel branch proves channel validation wins before input currency validation on the channel-handle path.',
+    "The invalid channel handle branch uses a valid-currency engagement input to isolate Shopify's current INVALID_CHANNEL_HANDLE message.",
     'The unknown remote branch pair proves input currency validation wins before activity lookup for single remote-id selectors, and a valid-currency unknown remote ID returns MARKETING_ACTIVITY_DOES_NOT_EXIST.',
   ],
   upstreamCalls: [],
