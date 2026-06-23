@@ -2,14 +2,14 @@
   "scenarioId": "comment-delete-true-destroy",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-06T20:47:54.635Z",
+  "capturedAt": "2026-06-21T23:46:21.371Z",
   "setup": {
     "blogCreate": {
       "request": {
         "query": "#graphql\n  mutation CommentDeleteTrueDestroyBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "blog": {
-            "title": "Comment Delete True Destroy Blog 20260506204747",
+            "title": "Comment Delete True Destroy Blog 20260621234614",
             "commentPolicy": "MODERATED"
           }
         }
@@ -19,9 +19,9 @@
         "data": {
           "blogCreate": {
             "blog": {
-              "id": "gid://shopify/Blog/120991121714",
-              "title": "Comment Delete True Destroy Blog 20260506204747",
-              "handle": "comment-delete-true-destroy-blog-20260506204747"
+              "id": "gid://shopify/Blog/121560629554",
+              "title": "Comment Delete True Destroy Blog 20260621234614",
+              "handle": "comment-delete-true-destroy-blog-20260621234614"
             },
             "userErrors": []
           }
@@ -44,9 +44,9 @@
         "query": "#graphql\n  mutation CommentDeleteTrueDestroyArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "article": {
-            "title": "Comment Delete True Destroy 20260506204747",
-            "body": "<p>Comment Delete True Destroy 20260506204747</p>",
-            "blogId": "gid://shopify/Blog/120991121714",
+            "title": "Comment Delete True Destroy 20260621234614",
+            "body": "<p>Comment Delete True Destroy 20260621234614</p>",
+            "blogId": "gid://shopify/Blog/121560629554",
             "author": {
               "name": "Comment Delete Author"
             },
@@ -59,9 +59,9 @@
         "data": {
           "articleCreate": {
             "article": {
-              "id": "gid://shopify/Article/683155980594",
-              "title": "Comment Delete True Destroy 20260506204747",
-              "handle": "comment-delete-true-destroy-20260506204747"
+              "id": "gid://shopify/Article/684248138034",
+              "title": "Comment Delete True Destroy 20260621234614",
+              "handle": "comment-delete-true-destroy-20260621234614"
             },
             "userErrors": []
           }
@@ -81,16 +81,16 @@
     },
     "restComments": [
       {
-        "id": 134990463282,
-        "body": "comment delete true destroy 20260506204747",
-        "body_html": "<p>comment delete true destroy 20260506204747</p>",
+        "id": 135015465266,
+        "body": "comment delete true destroy 20260621234614",
+        "body_html": "<p>comment delete true destroy 20260621234614</p>",
         "author": "Comment Delete Fixture",
         "email": "comment-delete@example.com",
         "status": "pending",
-        "article_id": 683155980594,
-        "blog_id": 120991121714,
-        "created_at": "2026-05-06T16:47:48-04:00",
-        "updated_at": "2026-05-06T16:47:48-04:00",
+        "article_id": 684248138034,
+        "blog_id": 121560629554,
+        "created_at": "2026-06-21T19:46:15-04:00",
+        "updated_at": "2026-06-21T19:46:15-04:00",
         "ip": "127.0.0.1",
         "user_agent": null,
         "published_at": null
@@ -101,7 +101,7 @@
     "request": {
       "query": "#graphql\n  mutation CommentDeleteTrueDestroyApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment { id status }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/134990463282"
+        "id": "gid://shopify/Comment/135015465266"
       }
     },
     "status": 200,
@@ -109,7 +109,7 @@
       "data": {
         "commentApprove": {
           "comment": {
-            "id": "gid://shopify/Comment/134990463282",
+            "id": "gid://shopify/Comment/135015465266",
             "status": "PUBLISHED"
           },
           "userErrors": []
@@ -131,9 +131,9 @@
   "hydrate": {
     "comment": {
       "request": {
-        "query": "#graphql\n  query OnlineStoreCommentHydrate($id: ID!) {\n    comment(id: $id) {\n      __typename\n      id\n      status\n      body\n      bodyHtml\n      isPublished\n      publishedAt\n      createdAt\n      updatedAt\n      article { id }\n    }\n  }\n",
+        "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
         "variables": {
-          "id": "gid://shopify/Comment/134990463282"
+          "id": "gid://shopify/Comment/135015465266"
         }
       },
       "status": 200,
@@ -141,16 +141,16 @@
         "data": {
           "comment": {
             "__typename": "Comment",
-            "id": "gid://shopify/Comment/134990463282",
+            "id": "gid://shopify/Comment/135015465266",
             "status": "PUBLISHED",
-            "body": "comment delete true destroy 20260506204747",
-            "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+            "body": "comment delete true destroy 20260621234614",
+            "bodyHtml": "<p>comment delete true destroy 20260621234614</p>",
             "isPublished": true,
-            "publishedAt": "2026-05-06T20:47:48Z",
-            "createdAt": "2026-05-06T20:47:48Z",
-            "updatedAt": "2026-05-06T20:47:48Z",
+            "publishedAt": "2026-06-21T23:46:15Z",
+            "createdAt": "2026-06-21T23:46:15Z",
+            "updatedAt": "2026-06-21T23:46:15Z",
             "article": {
-              "id": "gid://shopify/Article/683155980594"
+              "id": "gid://shopify/Article/684248138034"
             }
           }
         },
@@ -169,9 +169,9 @@
     },
     "article": {
       "request": {
-        "query": "#graphql\n  query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) {\n    article(id: $id) {\n      __typename\n      id\n      title\n      handle\n      createdAt\n      updatedAt\n      blog { id }\n      comments(first: 50) {\n        nodes {\n          __typename\n          id\n          status\n          body\n          bodyHtml\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          article { id }\n        }\n      }\n    }\n  }\n",
+        "query": "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }",
         "variables": {
-          "id": "gid://shopify/Article/683155980594"
+          "id": "gid://shopify/Article/684248138034"
         }
       },
       "status": 200,
@@ -179,28 +179,28 @@
         "data": {
           "article": {
             "__typename": "Article",
-            "id": "gid://shopify/Article/683155980594",
-            "title": "Comment Delete True Destroy 20260506204747",
-            "handle": "comment-delete-true-destroy-20260506204747",
-            "createdAt": "2026-05-06T20:47:48Z",
-            "updatedAt": "2026-05-06T20:47:48Z",
+            "id": "gid://shopify/Article/684248138034",
+            "title": "Comment Delete True Destroy 20260621234614",
+            "handle": "comment-delete-true-destroy-20260621234614",
+            "createdAt": "2026-06-21T23:46:15Z",
+            "updatedAt": "2026-06-21T23:46:15Z",
             "blog": {
-              "id": "gid://shopify/Blog/120991121714"
+              "id": "gid://shopify/Blog/121560629554"
             },
             "comments": {
               "nodes": [
                 {
                   "__typename": "Comment",
-                  "id": "gid://shopify/Comment/134990463282",
+                  "id": "gid://shopify/Comment/135015465266",
                   "status": "PUBLISHED",
-                  "body": "comment delete true destroy 20260506204747",
-                  "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+                  "body": "comment delete true destroy 20260621234614",
+                  "bodyHtml": "<p>comment delete true destroy 20260621234614</p>",
                   "isPublished": true,
-                  "publishedAt": "2026-05-06T20:47:48Z",
-                  "createdAt": "2026-05-06T20:47:48Z",
-                  "updatedAt": "2026-05-06T20:47:48Z",
+                  "publishedAt": "2026-06-21T23:46:15Z",
+                  "createdAt": "2026-06-21T23:46:15Z",
+                  "updatedAt": "2026-06-21T23:46:15Z",
                   "article": {
-                    "id": "gid://shopify/Article/683155980594"
+                    "id": "gid://shopify/Article/684248138034"
                   }
                 }
               ]
@@ -225,8 +225,8 @@
     "request": {
       "query": "#graphql\n  query CommentDeleteTrueDestroyRead($articleId: ID!, $commentQuery: String!) {\n    comments(first: 10, query: $commentQuery) { nodes { id } }\n    article(id: $articleId) {\n      comments(first: 10) { nodes { id } }\n      commentsCount { count precision }\n    }\n  }\n",
       "variables": {
-        "articleId": "gid://shopify/Article/683155980594",
-        "commentQuery": "\"comment delete true destroy 20260506204747\""
+        "articleId": "gid://shopify/Article/684248138034",
+        "commentQuery": "\"comment delete true destroy 20260621234614\""
       }
     },
     "status": 200,
@@ -235,7 +235,7 @@
         "comments": {
           "nodes": [
             {
-              "id": "gid://shopify/Comment/134990463282"
+              "id": "gid://shopify/Comment/135015465266"
             }
           ]
         },
@@ -243,7 +243,7 @@
           "comments": {
             "nodes": [
               {
-                "id": "gid://shopify/Comment/134990463282"
+                "id": "gid://shopify/Comment/135015465266"
               }
             ]
           },
@@ -270,14 +270,14 @@
     "request": {
       "query": "#graphql\n  mutation CommentDeleteTrueDestroyDelete($id: ID!) {\n    commentDelete(id: $id) {\n      deletedCommentId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/134990463282"
+        "id": "gid://shopify/Comment/135015465266"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "commentDelete": {
-          "deletedCommentId": "gid://shopify/Comment/134990463282",
+          "deletedCommentId": "gid://shopify/Comment/135015465266",
           "userErrors": []
         }
       },
@@ -298,8 +298,8 @@
     "request": {
       "query": "#graphql\n  query CommentDeleteTrueDestroyRead($articleId: ID!, $commentQuery: String!) {\n    comments(first: 10, query: $commentQuery) { nodes { id } }\n    article(id: $articleId) {\n      comments(first: 10) { nodes { id } }\n      commentsCount { count precision }\n    }\n  }\n",
       "variables": {
-        "articleId": "gid://shopify/Article/683155980594",
-        "commentQuery": "\"comment delete true destroy 20260506204747\""
+        "articleId": "gid://shopify/Article/684248138034",
+        "commentQuery": "\"comment delete true destroy 20260621234614\""
       }
     },
     "status": 200,
@@ -324,7 +324,7 @@
           "actualQueryCost": 23,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1974,
             "restoreRate": 100
           }
         }
@@ -335,16 +335,16 @@
     "request": {
       "query": "#graphql\n  query CommentDeleteTrueDestroyDirectCommentRead($id: ID!) {\n    comment(id: $id) { id status }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/134990463282"
+        "id": "gid://shopify/Comment/135015465266"
       }
     },
     "status": 200,
     "response": {
       "errors": [
         {
-          "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 98d1bdf0-2ff1-4f2d-b811-5fc81384594b-1778100474 (include this in support requests).",
+          "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 65a6c3a3-4cbf-4f3f-9eef-e2a95594ad00-1782085581 (include this in support requests).",
           "extensions": {
-            "requestId": "98d1bdf0-2ff1-4f2d-b811-5fc81384594b-1778100474",
+            "requestId": "65a6c3a3-4cbf-4f3f-9eef-e2a95594ad00-1782085581",
             "code": "INTERNAL_SERVER_ERROR"
           }
         }
@@ -357,14 +357,14 @@
       "request": {
         "query": "#graphql\n          mutation CommentDeleteTrueDestroyArticleCleanup($id: ID!) {\n            articleDelete(id: $id) {\n              deletedArticleId\n              userErrors { field message code }\n            }\n          }\n        ",
         "variables": {
-          "id": "gid://shopify/Article/683155980594"
+          "id": "gid://shopify/Article/684248138034"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "articleDelete": {
-            "deletedArticleId": "gid://shopify/Article/683155980594",
+            "deletedArticleId": "gid://shopify/Article/684248138034",
             "userErrors": []
           }
         },
@@ -374,7 +374,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -385,14 +385,14 @@
       "request": {
         "query": "#graphql\n          mutation CommentDeleteTrueDestroyBlogCleanup($id: ID!) {\n            blogDelete(id: $id) {\n              deletedBlogId\n              userErrors { field message code }\n            }\n          }\n        ",
         "variables": {
-          "id": "gid://shopify/Blog/120991121714"
+          "id": "gid://shopify/Blog/121560629554"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "blogDelete": {
-            "deletedBlogId": "gid://shopify/Blog/120991121714",
+            "deletedBlogId": "gid://shopify/Blog/121560629554",
             "userErrors": []
           }
         },
@@ -414,24 +414,25 @@
     {
       "operationName": "OnlineStoreCommentHydrate",
       "variables": {
-        "id": "gid://shopify/Comment/134990463282"
+        "id": "gid://shopify/Comment/135015465266"
       },
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "comment": {
               "__typename": "Comment",
-              "id": "gid://shopify/Comment/134990463282",
+              "id": "gid://shopify/Comment/135015465266",
               "status": "PUBLISHED",
-              "body": "comment delete true destroy 20260506204747",
-              "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+              "body": "comment delete true destroy 20260621234614",
+              "bodyHtml": "<p>comment delete true destroy 20260621234614</p>",
               "isPublished": true,
-              "publishedAt": "2026-05-06T20:47:48Z",
-              "createdAt": "2026-05-06T20:47:48Z",
-              "updatedAt": "2026-05-06T20:47:48Z",
+              "publishedAt": "2026-06-21T23:46:15Z",
+              "createdAt": "2026-06-21T23:46:15Z",
+              "updatedAt": "2026-06-21T23:46:15Z",
               "article": {
-                "id": "gid://shopify/Article/683155980594"
+                "id": "gid://shopify/Article/684248138034"
               }
             }
           },
@@ -452,36 +453,37 @@
     {
       "operationName": "OnlineStoreArticleDeleteCascadeHydrate",
       "variables": {
-        "id": "gid://shopify/Article/683155980594"
+        "id": "gid://shopify/Article/684248138034"
       },
+      "query": "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "article": {
               "__typename": "Article",
-              "id": "gid://shopify/Article/683155980594",
-              "title": "Comment Delete True Destroy 20260506204747",
-              "handle": "comment-delete-true-destroy-20260506204747",
-              "createdAt": "2026-05-06T20:47:48Z",
-              "updatedAt": "2026-05-06T20:47:48Z",
+              "id": "gid://shopify/Article/684248138034",
+              "title": "Comment Delete True Destroy 20260621234614",
+              "handle": "comment-delete-true-destroy-20260621234614",
+              "createdAt": "2026-06-21T23:46:15Z",
+              "updatedAt": "2026-06-21T23:46:15Z",
               "blog": {
-                "id": "gid://shopify/Blog/120991121714"
+                "id": "gid://shopify/Blog/121560629554"
               },
               "comments": {
                 "nodes": [
                   {
                     "__typename": "Comment",
-                    "id": "gid://shopify/Comment/134990463282",
+                    "id": "gid://shopify/Comment/135015465266",
                     "status": "PUBLISHED",
-                    "body": "comment delete true destroy 20260506204747",
-                    "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+                    "body": "comment delete true destroy 20260621234614",
+                    "bodyHtml": "<p>comment delete true destroy 20260621234614</p>",
                     "isPublished": true,
-                    "publishedAt": "2026-05-06T20:47:48Z",
-                    "createdAt": "2026-05-06T20:47:48Z",
-                    "updatedAt": "2026-05-06T20:47:48Z",
+                    "publishedAt": "2026-06-21T23:46:15Z",
+                    "createdAt": "2026-06-21T23:46:15Z",
+                    "updatedAt": "2026-06-21T23:46:15Z",
                     "article": {
-                      "id": "gid://shopify/Article/683155980594"
+                      "id": "gid://shopify/Article/684248138034"
                     }
                   }
                 ]

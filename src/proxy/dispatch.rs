@@ -435,6 +435,9 @@ impl DraftProxy {
         if let Some(b2b) = self.b2b_node_value_by_id(id, selection) {
             return Some(b2b);
         }
+        if let Some(value) = self.online_store_content_node_value(id, selection) {
+            return Some(value);
+        }
         None
     }
 
@@ -1112,7 +1115,7 @@ impl DraftProxy {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
-                ok_json(json!({ "data": self.online_store_query_data(&fields) }))
+                self.online_store_query_response(request, &fields)
             }
             (CapabilityDomain::OnlineStore, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

@@ -88,6 +88,14 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
 const defaultAdminApiVersion = '2026-04';
+const productsHydrateNodesObservationPath = path.join(
+  repoRoot,
+  'config',
+  'parity-requests',
+  'products',
+  'products-hydrate-nodes-observation.graphql',
+);
+const productDomainGidPattern = /gid:\/\/shopify\/(?:Product|ProductVariant|Collection)\/[A-Za-z0-9?=._:-]+/gu;
 
 function log(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -196,6 +204,93 @@ function selectPaths(value: unknown, paths: string[] | undefined): unknown {
 
 function deepClone<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
+}
+
+function productDomainResourceType(id: string): 'Product' | 'ProductVariant' | 'Collection' | null {
+  if (id.startsWith('gid://shopify/ProductVariant/')) return 'ProductVariant';
+  if (id.startsWith('gid://shopify/Product/')) return 'Product';
+  if (id.startsWith('gid://shopify/Collection/')) return 'Collection';
+  return null;
+}
+
+function collectProductDomainGids(value: unknown, ids = new Set<string>()): Set<string> {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(productDomainGidPattern)) ids.add(match[0] ?? '');
+    ids.delete('');
+    return ids;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) collectProductDomainGids(entry, ids);
+    return ids;
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const entry of Object.values(value)) collectProductDomainGids(entry, ids);
+  }
+  return ids;
+}
+
+function productSummaryForVariant(product: Record<string, unknown>): Record<string, unknown> | null {
+  const id = product['id'];
+  if (typeof id !== 'string') return null;
+  const summary: Record<string, unknown> = { id };
+  for (const key of ['title', 'handle', 'status', 'totalInventory', 'tracksInventory', 'createdAt', 'updatedAt']) {
+    if (product[key] !== undefined) summary[key] = product[key];
+  }
+  return summary;
+}
+
+function collectProductDomainSetupNodes(
+  value: unknown,
+  nodes: Map<string, Record<string, unknown>>,
+  parentProduct: Record<string, unknown> | null = null,
+): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectProductDomainSetupNodes(entry, nodes, parentProduct);
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+
+  const object = value as Record<string, unknown>;
+  const id = typeof object['id'] === 'string' ? object['id'] : null;
+  const resourceType = id ? productDomainResourceType(id) : null;
+  let nestedProduct = parentProduct;
+  if (id && resourceType) {
+    const node = deepClone(object);
+    if (resourceType === 'Product') nestedProduct = productSummaryForVariant(node) ?? parentProduct;
+    if (resourceType === 'ProductVariant' && node['product'] === undefined && parentProduct) {
+      node['product'] = parentProduct;
+    }
+    nodes.set(id, node);
+  }
+
+  for (const entry of Object.values(object)) collectProductDomainSetupNodes(entry, nodes, nestedProduct);
+}
+
+function capturedSetupProductDomainNodes(capture: Record<string, unknown>): Map<string, Record<string, unknown>> {
+  const nodes = new Map<string, Record<string, unknown>>();
+  const setup = capture['setup'];
+  const setupEntries = Array.isArray(setup)
+    ? setup
+    : typeof setup === 'object' && setup !== null
+      ? Object.values(setup)
+      : [];
+  for (const entry of setupEntries) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const payload = normalizedCapturePayload((entry as Record<string, unknown>)['response'] ?? entry);
+    collectProductDomainSetupNodes(payload, nodes);
+  }
+  return nodes;
+}
+
+function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest): boolean {
+  if (!/\bmetafieldsSet\b/u.test(request.query)) return false;
+  const metafields = request.variables['metafields'];
+  if (!Array.isArray(metafields)) return false;
+  return metafields.some((metafield) => {
+    if (typeof metafield !== 'object' || metafield === null) return false;
+    const type = (metafield as Record<string, unknown>)['type'];
+    return typeof type === 'string' && type.includes('reference') && collectProductDomainGids(metafield).size > 0;
+  });
 }
 
 function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
@@ -318,6 +413,41 @@ async function hydrateInventoryNodes(
       'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }',
     variables: { ids },
   });
+}
+
+async function hydrateCapturedProductDomainNodes(
+  proxy: DraftProxy,
+  cassette: CassetteServer,
+  capture: Record<string, unknown>,
+  request: LoadedProxyRequest,
+): Promise<void> {
+  if (!requestNeedsCapturedProductDomainHydration(request)) return;
+  const setupNodes = capturedSetupProductDomainNodes(capture);
+  if (setupNodes.size === 0) return;
+  const ids = [...collectProductDomainGids(request.variables)]
+    .filter((id) => setupNodes.has(id))
+    .filter((id, index, all) => all.indexOf(id) === index)
+    .sort();
+  if (ids.length === 0) return;
+  const query = await readFile(productsHydrateNodesObservationPath, 'utf8');
+  const hydrateRequest: LoadedProxyRequest = {
+    path: request.path,
+    headers: request.headers,
+    query,
+    variables: { ids },
+  };
+  cassette.setFallbackResponse(
+    {
+      status: 200,
+      body: {
+        data: {
+          nodes: ids.map((id) => setupNodes.get(id) ?? null),
+        },
+      },
+    },
+    hydrateRequest,
+  );
+  await sendProxyRequest(proxy, hydrateRequest);
 }
 
 async function loadRequest(
@@ -729,6 +859,7 @@ async function runSpec(
       const primaryFallbackResponse =
         captureResponseForRequest(capture, primaryRequest) ??
         (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
+      await hydrateCapturedProductDomainNodes(proxy, cassette, capture, primaryRequest);
       cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
       await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
@@ -768,6 +899,7 @@ async function runSpec(
           namedResponses,
         );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
+        await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request);
         cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
         await hydrateInventoryNodes(proxy, request);
         const targetResponse = await sendProxyRequest(proxy, request);

@@ -1103,6 +1103,171 @@ fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
 }
 
 #[test]
+fn generic_node_reads_reject_malformed_global_id_literals() {
+    let cases = [
+        (
+            "query NodeMissingScheme { node(id: \"not-a-gid\") { __typename id } }",
+            "not-a-gid",
+            json!(["query NodeMissingScheme", "node", "id"]),
+        ),
+        (
+            "query NodeMissingTypeAndId { node(id: \"gid://shopify/\") { __typename id } }",
+            "gid://shopify/",
+            json!(["query NodeMissingTypeAndId", "node", "id"]),
+        ),
+        (
+            "query NodeEmptyType { node(id: \"gid://shopify//123\") { __typename id } }",
+            "gid://shopify//123",
+            json!(["query NodeEmptyType", "node", "id"]),
+        ),
+        (
+            "query NodeMissingId { node(id: \"gid://shopify/Product\") { __typename id } }",
+            "gid://shopify/Product",
+            json!(["query NodeMissingId", "node", "id"]),
+        ),
+    ];
+
+    for (query, invalid_id, path) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+
+        assert_eq!(response.status, 200);
+        assert!(response.body.get("data").is_none());
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!("Invalid global id '{invalid_id}'"))
+        );
+        assert_eq!(response.body["errors"][0]["path"], path);
+        assert_eq!(
+            response.body["errors"][0]["extensions"],
+            json!({
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+            })
+        );
+    }
+
+    let mut proxy = snapshot_proxy();
+    let mixed_nodes = proxy.process_request(json_graphql_request(
+        r#"query NodesMixed { nodes(ids: ["gid://shopify/Product/0", "gid://shopify/Product", "gid://shopify/UnknownType/123"]) { __typename id } }"#,
+        json!({}),
+    ));
+    assert_eq!(mixed_nodes.status, 200);
+    assert!(mixed_nodes.body.get("data").is_none());
+    assert_eq!(
+        mixed_nodes.body["errors"][0]["message"],
+        json!("Invalid global id 'gid://shopify/Product'")
+    );
+    assert_eq!(
+        mixed_nodes.body["errors"][0]["path"],
+        json!(["query NodesMixed", "nodes", "ids"])
+    );
+    assert_eq!(
+        mixed_nodes.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        })
+    );
+}
+
+#[test]
+fn generic_node_reads_reject_malformed_global_id_variables() {
+    let mut proxy = snapshot_proxy();
+    let node = proxy.process_request(json_graphql_request(
+        r#"query VariableNodeMissingId($id: ID!) { node(id: $id) { __typename id } }"#,
+        json!({ "id": "gid://shopify/Product" }),
+    ));
+
+    assert_eq!(node.status, 200);
+    assert!(node.body.get("data").is_none());
+    assert_eq!(
+        node.body["errors"][0]["message"],
+        json!("Variable $id of type ID! was provided invalid value")
+    );
+    assert_eq!(
+        node.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": "gid://shopify/Product",
+            "problems": [{
+                "path": [],
+                "explanation": "Invalid global id 'gid://shopify/Product'",
+                "message": "Invalid global id 'gid://shopify/Product'"
+            }]
+        })
+    );
+
+    let mut proxy = snapshot_proxy();
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"query VariableNodesMixed($ids: [ID!]!) { nodes(ids: $ids) { __typename id } }"#,
+        json!({
+            "ids": [
+                "gid://shopify/Product/0",
+                "gid://shopify/Product",
+                "gid://shopify/UnknownType/123"
+            ]
+        }),
+    ));
+
+    assert_eq!(nodes.status, 200);
+    assert!(nodes.body.get("data").is_none());
+    assert_eq!(
+        nodes.body["errors"][0]["message"],
+        json!(
+            "Variable $ids of type [ID!]! was provided invalid value for 1 (Invalid global id 'gid://shopify/Product')"
+        )
+    );
+    assert_eq!(
+        nodes.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": [
+                "gid://shopify/Product/0",
+                "gid://shopify/Product",
+                "gid://shopify/UnknownType/123"
+            ],
+            "problems": [{
+                "path": [1],
+                "explanation": "Invalid global id 'gid://shopify/Product'",
+                "message": "Invalid global id 'gid://shopify/Product'"
+            }]
+        })
+    );
+}
+
+#[test]
+fn generic_node_reads_keep_well_formed_absent_and_unknown_ids_null() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query WellFormedUnknownNodeReads($ids: [ID!]!) {
+          absentProduct: node(id: "gid://shopify/Product/0") { __typename id }
+          unknownType: node(id: "gid://shopify/UnknownType/123") { __typename id }
+          nodes(ids: $ids) { __typename id }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/Product/0",
+                "gid://shopify/UnknownType/123"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("errors").is_none());
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "absentProduct": null,
+            "unknownType": null,
+            "nodes": [null, null]
+        })
+    );
+}
+
+#[test]
 fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
     let response = proxy.process_request(json_graphql_request(
