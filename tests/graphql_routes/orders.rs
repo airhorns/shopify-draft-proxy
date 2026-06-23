@@ -3782,8 +3782,16 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         cascade_fixture["order"]["missingDelete"]["variables"].clone(),
     ));
     assert_eq!(
+        missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["field"],
+        Value::Null
+    );
+    assert_eq!(
         missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["message"],
-        json!("Payment terms do not exist")
+        json!("Could not find payment terms.")
+    );
+    assert_eq!(
+        missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_DELETE_UNSUCCESSFUL")
     );
     assert_eq!(
         missing_delete.body["data"]["paymentTermsDelete"]["deletedId"],
