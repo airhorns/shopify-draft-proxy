@@ -233,6 +233,7 @@ impl DraftProxy {
                         | "companyRevokeMainContact"
                         | "companyContactAssignRole"
                         | "companyContactAssignRoles"
+                        | "companyContactRevokeRole"
                         | "companyContactRevokeRoles"
                         | "companyLocationCreate"
                         | "companyLocationUpdate"
@@ -295,6 +296,9 @@ impl DraftProxy {
                         }
                         "companyContactAssignRoles" => {
                             self.b2b_company_contact_assign_roles_payload(&field)
+                        }
+                        "companyContactRevokeRole" => {
+                            self.b2b_company_contact_revoke_role_payload(&field)
                         }
                         "companyContactRevokeRoles" => {
                             self.b2b_company_contact_revoke_roles_payload(&field)
@@ -1625,6 +1629,58 @@ impl DraftProxy {
         )
     }
 
+    /// Revokes one contact role assignment by id, scoped to the supplied contact.
+    pub(in crate::proxy) fn b2b_company_contact_revoke_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_id = resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
+            .unwrap_or_default();
+        let assignment_matches_contact = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .get(&assignment_id)
+            .and_then(|assignment| assignment["companyContactId"].as_str())
+            == Some(contact_id.as_str());
+
+        if !assignment_matches_contact {
+            return (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "companyContact": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactRoleAssignmentId"],
+                        "message": "The role assignment doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let company_contact = self
+            .store
+            .staged
+            .b2b_contacts
+            .get(&contact_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let _ = self.b2b_remove_role_assignment(&assignment_id);
+        (
+            json!({
+                "revokedCompanyContactRoleAssignmentId": assignment_id,
+                "companyContact": company_contact,
+                "userErrors": []
+            }),
+            "staged",
+            vec![assignment_id],
+        )
+    }
+
     /// Revokes contact role assignments by id, reporting a per-index
     /// RESOURCE_NOT_FOUND for any unknown assignment id.
     pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
@@ -1636,14 +1692,7 @@ impl DraftProxy {
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-                if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                    self.b2b_remove_location_assignment_id(
-                        location_id,
-                        "roleAssignmentIds",
-                        assignment_id,
-                    );
-                }
+            if self.b2b_remove_role_assignment(assignment_id).is_some() {
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -3460,7 +3509,7 @@ impl DraftProxy {
         );
 
         for assignment_id in b2b_passthrough_deleted_request_ids(&response, &assignment_ids) {
-            self.b2b_remove_role_assignment(&assignment_id);
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
         }
         response
     }
@@ -3469,16 +3518,16 @@ impl DraftProxy {
     /// location's `roleAssignmentIds` list. A contact's roleAssignments connection
     /// is resolved by filtering the assignment map, so dropping the entry here is
     /// enough to clear it from the contact view too.
-    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) {
-        if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-            if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                self.b2b_remove_location_assignment_id(
-                    location_id,
-                    "roleAssignmentIds",
-                    assignment_id,
-                );
-            }
+    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) -> Option<Value> {
+        let assignment = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .remove(assignment_id)?;
+        if let Some(location_id) = assignment["companyLocationId"].as_str() {
+            self.b2b_remove_location_assignment_id(location_id, "roleAssignmentIds", assignment_id);
         }
+        Some(assignment)
     }
 
     /// Points a company's main contact at `main_contact_id` (or clears it when
