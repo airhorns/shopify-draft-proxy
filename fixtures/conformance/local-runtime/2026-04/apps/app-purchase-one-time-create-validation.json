@@ -86,7 +86,7 @@
                 "id": "gid://shopify/AppPurchaseOneTime/expected",
                 "name": "HAR-646 valid test",
                 "price": {
-                  "amount": "5.00",
+                  "amount": "5.0",
                   "currencyCode": "USD"
                 },
                 "status": "ACTIVE",
