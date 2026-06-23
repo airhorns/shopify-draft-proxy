@@ -99,10 +99,10 @@ App/test harness
 
 - typed registry of operation capability metadata
 - classifies roots by domain and execution kind
-- the `implemented` flag marks roots the proxy handles locally (instead of 501-ing) and is kept aligned with `LOCAL_DISPATCH_ROOTS`, the single local-routing inventory. It is a "we answer this locally" fact, not a fidelity claim
-- capability routing resolves a non-passthrough capability only when a matching `LOCAL_DISPATCH_ROOT` exists; anything else falls through to passthrough rather than a table-dispatch 501
-- keeps passthrough/unknown roots explicit so metadata alone does not imply runtime support
-- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
+- the `implemented` flag marks roots the proxy handles locally (instead of 501-ing). Canonical implemented registry entries are the local-routing inventory. It is a "we answer this locally" fact, not a fidelity claim
+- capability routing resolves a non-passthrough capability only when the root field matches an implemented registry entry's canonical name; anything else falls through to passthrough
+- keeps passthrough/unknown roots explicit so non-implemented metadata does not imply runtime support
+- exposes one registry source used by runtime gates and tests so executable handlers, registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
 
 ### `src/upstream.rs`
 

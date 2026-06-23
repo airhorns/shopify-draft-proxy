@@ -1,0 +1,44 @@
+mutation ThemeFilesUpsertJob {
+  themeCreate(source: "https://example.com/theme-files-job.zip", name: "Theme files job local runtime") {
+    theme {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inline: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "assets/inline-job.js", body: { type: TEXT, value: "console.log('inline')" } }]
+  ) {
+    job {
+      id
+    }
+    upsertedThemeFiles {
+      filename
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  remote: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "assets/remote-job.js", body: { type: URL, value: "https://cdn.example.com/remote-job.js" } }]
+  ) {
+    job {
+      id
+    }
+    upsertedThemeFiles {
+      filename
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

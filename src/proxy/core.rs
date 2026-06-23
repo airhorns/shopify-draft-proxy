@@ -68,6 +68,9 @@ impl DraftProxy {
             Route::MetaDump => self.dump_state(&request),
             Route::MetaRestore => self.restore_state(&request),
             Route::MetaCommit => self.commit_staged_mutations(&request),
+            Route::BulkOperationResult { artifact_id } => {
+                self.bulk_operation_result_jsonl(&artifact_id)
+            }
             Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
@@ -230,6 +233,22 @@ impl DraftProxy {
         if !self.store.staged.product_operations.is_empty() {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
+        }
+        if !self.store.staged.bulk_operations.is_empty() {
+            snapshot["stagedState"]["bulkOperations"] =
+                json!(self.store.staged.bulk_operations.clone());
+        }
+        if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
+            snapshot["stagedState"]["bulkOperationStagedUploads"] =
+                json!(self.store.staged.bulk_operation_staged_uploads.clone());
+        }
+        if !self.store.staged.bulk_operation_results.is_empty() {
+            snapshot["stagedState"]["bulkOperationResults"] =
+                json!(self.store.staged.bulk_operation_results.clone());
+        }
+        if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
+            snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
+                json!(self.store.staged.next_draft_order_bulk_tag_job_id);
         }
         if self.has_staged_b2b_state() {
             snapshot["stagedState"]["b2bCompanies"] =
@@ -605,6 +624,40 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.bulk_operations = state["stagedState"]
+            .get("bulkOperations")
+            .and_then(Value::as_object)
+            .map(|operations| {
+                operations
+                    .iter()
+                    .map(|(id, operation)| (id.clone(), operation.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operation_staged_uploads = state["stagedState"]
+            .get("bulkOperationStagedUploads")
+            .and_then(Value::as_object)
+            .map(|uploads| {
+                uploads
+                    .iter()
+                    .map(|(path, size)| (path.clone(), size.as_u64()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operation_results = state["stagedState"]
+            .get("bulkOperationResults")
+            .and_then(Value::as_object)
+            .map(|results| {
+                results
+                    .iter()
+                    .filter_map(|(id, result)| {
+                        result
+                            .as_str()
+                            .map(|result| (id.clone(), result.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.replace_base_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
@@ -901,6 +954,24 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        // These customer-payment-method and order-customer sentinel maps are not
+        // part of the dump schema yet. Reset the maps and their local counters
+        // together so restoring a dump onto a previously-used proxy cannot leak
+        // stale in-memory records or counters from outside the restored state.
+        self.store.staged.customer_payment_methods.clear();
+        self.store
+            .staged
+            .customer_payment_method_customer_index
+            .clear();
+        self.store.staged.next_customer_payment_method_id = 1;
+        self.store.staged.order_customer_orders.clear();
+        self.store.staged.order_customer_cancelled_ids.clear();
+        self.store.staged.order_customer_b2b_order_ids.clear();
+        self.store
+            .staged
+            .order_customer_contact_customer_ids
+            .clear();
+        self.store.staged.next_order_customer_order_id = 1;
         self.store.staged.orders = state["stagedState"]["orders"]
             .as_object()
             .map(|orders| {
@@ -910,6 +981,27 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.next_order_id = state["stagedState"]
+            .get("nextOrderId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_refund_id = state["stagedState"]
+            .get("nextRefundId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_refund_line_item_id = state["stagedState"]
+            .get("nextRefundLineItemId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.order_payment_next_transaction_id = state["stagedState"]
+            .get("orderPaymentNextTransactionId")
+            .and_then(Value::as_u64)
+            .unwrap_or(3)
+            .max(3);
+        self.advance_order_counters_from_staged_orders();
         self.store.staged.deleted_order_ids = state["stagedState"]["deletedOrderIds"]
             .as_array()
             .into_iter()
@@ -936,9 +1028,17 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.next_draft_order_id = state["stagedState"]["nextDraftOrderId"]
-            .as_u64()
-            .unwrap_or(1);
+        self.store.staged.next_draft_order_id = state["stagedState"]
+            .get("nextDraftOrderId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.advance_draft_order_counter_from_staged_draft_orders();
+        self.store.staged.next_draft_order_bulk_tag_job_id = state["stagedState"]
+            .get("nextDraftOrderBulkTagJobId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
         self.store.staged.draft_order_tags = state["stagedState"]["draftOrderTags"]
             .as_object()
             .map(|tags| {
@@ -1516,6 +1616,48 @@ impl DraftProxy {
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }
+
+    fn advance_order_counters_from_staged_orders(&mut self) {
+        let mut next_order_id = self.store.staged.next_order_id.max(1);
+        let mut next_refund_id = self.store.staged.next_refund_id.max(1);
+        let mut next_refund_line_item_id = self.store.staged.next_refund_line_item_id.max(1);
+        let mut next_transaction_id = self.store.staged.order_payment_next_transaction_id.max(3);
+
+        for (order_id, order) in &self.store.staged.orders {
+            advance_counter_past_gid_tail(&mut next_order_id, order_id);
+            if let Some(record_id) = order.get("id").and_then(Value::as_str) {
+                advance_counter_past_gid_tail(&mut next_order_id, record_id);
+            }
+            for transaction in json_records(&order["transactions"]) {
+                advance_counter_past_value_id(&mut next_transaction_id, transaction);
+            }
+            for refund in json_records(&order["refunds"]) {
+                advance_counter_past_value_id(&mut next_refund_id, refund);
+                for refund_line_item in json_records(&refund["refundLineItems"]) {
+                    advance_counter_past_value_id(&mut next_refund_line_item_id, refund_line_item);
+                }
+                for transaction in json_records(&refund["transactions"]) {
+                    advance_counter_past_value_id(&mut next_transaction_id, transaction);
+                }
+            }
+        }
+
+        self.store.staged.next_order_id = next_order_id;
+        self.store.staged.next_refund_id = next_refund_id;
+        self.store.staged.next_refund_line_item_id = next_refund_line_item_id;
+        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
+    }
+
+    fn advance_draft_order_counter_from_staged_draft_orders(&mut self) {
+        let mut next_draft_order_id = self.store.staged.next_draft_order_id.max(1);
+        for (draft_order_id, draft_order) in &self.store.staged.draft_orders {
+            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
+            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
+                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
+            }
+        }
+        self.store.staged.next_draft_order_id = next_draft_order_id;
+    }
 }
 
 fn string_array_from_json(value: &Value) -> Vec<String> {
@@ -1525,6 +1667,35 @@ fn string_array_from_json(value: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|value| value.as_str().map(str::to_string))
         .collect()
+}
+
+fn advance_counter_past_value_id(counter: &mut u64, value: &Value) {
+    if let Some(id) = value.get("id").and_then(Value::as_str) {
+        advance_counter_past_gid_tail(counter, id);
+    }
+}
+
+fn advance_counter_past_gid_tail(counter: &mut u64, id: &str) {
+    if let Ok(numeric) = resource_id_tail(id).parse::<u64>() {
+        *counter = (*counter).max(numeric.saturating_add(1));
+    }
+}
+
+fn json_records(value: &Value) -> Vec<&Value> {
+    let mut records = Vec::new();
+    if let Some(array) = value.as_array() {
+        records.extend(array.iter());
+    }
+    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+        records.extend(nodes.iter());
+    }
+    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
+        records.extend(edges.iter().filter_map(|edge| edge.get("node")));
+    }
+    if records.is_empty() && value.get("id").and_then(Value::as_str).is_some() {
+        records.push(value);
+    }
+    records
 }
 
 fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {

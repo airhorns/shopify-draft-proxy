@@ -4,7 +4,12 @@ import { existsSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
+import {
+  createDraftProxy,
+  type DraftProxy,
+  type DraftProxyRequest,
+  type DraftProxyStateDump,
+} from '../js/src/index.js';
 import {
   type RecordedUpstreamCall,
   recordedCallMatchesBody,
@@ -37,6 +42,13 @@ type ProxyUploadSpec = {
   headers?: Record<string, string>;
 };
 
+type ProxyHttpRequestSpec = {
+  method?: string;
+  path: unknown;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
 type ComparisonTarget = {
   name: string;
   capturePath: string;
@@ -45,6 +57,7 @@ type ComparisonTarget = {
   proxyLogPath?: string;
   proxyRequest?: ProxyRequestSpec;
   proxyUpload?: ProxyUploadSpec;
+  proxyHttpRequest?: ProxyHttpRequestSpec;
   isolatedProxy?: boolean;
   selectedPaths?: string[];
   excludedPaths?: string[];
@@ -451,6 +464,46 @@ async function sendProxyRequest(
   });
 }
 
+function localProxyPath(requestPath: unknown, targetName: string): string {
+  if (typeof requestPath !== 'string') {
+    throw new Error(`${targetName}: proxyHttpRequest path did not resolve to a string`);
+  }
+  if (!requestPath.startsWith('http://') && !requestPath.startsWith('https://')) return requestPath;
+  return new URL(requestPath).pathname;
+}
+
+async function sendProxyHttpRequest(
+  proxy: DraftProxy,
+  targetName: string,
+  request: ProxyHttpRequestSpec,
+  capture: unknown,
+  primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
+  namedResponses: Map<string, ProxyResponse>,
+): Promise<ProxyResponse> {
+  const resolvedPath = resolveSpecialVariables(
+    request.path,
+    capture,
+    primaryResponse,
+    previousResponse,
+    namedResponses,
+  );
+  const resolvedBody = resolveSpecialVariables(
+    request.body ?? '',
+    capture,
+    primaryResponse,
+    previousResponse,
+    namedResponses,
+  );
+  const proxyRequest: DraftProxyRequest = {
+    method: request.method ?? 'GET',
+    path: localProxyPath(resolvedPath, targetName),
+    body: resolvedBody,
+  };
+  if (request.headers !== undefined) proxyRequest.headers = request.headers;
+  return await proxy.processRequest(proxyRequest);
+}
+
 function localUploadPath(uploadPath: unknown, targetName: string): string {
   if (typeof uploadPath !== 'string') throw new Error(`${targetName}: proxyUpload path did not resolve to a string`);
   if (!uploadPath.startsWith('http://') && !uploadPath.startsWith('https://')) return uploadPath;
@@ -578,6 +631,19 @@ function isIsoTimestamp(value: unknown): boolean {
   );
 }
 
+function isJsonlString(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const lines = value.split('\n').filter((line) => line.length > 0);
+  return lines.every((line) => {
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+    } catch {
+      return false;
+    }
+  });
+}
+
 function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (rule.ignore) return true;
   const matcher = rule.matcher ?? '';
@@ -585,6 +651,7 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
   if (matcher === 'any-number') return typeof value === 'number';
   if (matcher === 'iso-timestamp') return isIsoTimestamp(value);
+  if (matcher === 'jsonl-string') return isJsonlString(value);
   if (matcher === 'storefront-access-token') return typeof value === 'string' && value.length > 0;
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);
   if (gidMatch) return typeof value === 'string' && value.startsWith(`gid://shopify/${gidMatch[1]}/`);
@@ -713,6 +780,23 @@ async function runSpec(
         if (debug)
           log(
             `[parity-debug] ${relativeSpecPath} [${target.name}] proxy response ${JSON.stringify(proxySource).slice(0, 1000)}`,
+          );
+      } else if (target.proxyHttpRequest) {
+        const targetResponse = await sendProxyHttpRequest(
+          proxy,
+          target.name,
+          target.proxyHttpRequest,
+          capture,
+          primaryResponse,
+          previousResponse,
+          namedResponses,
+        );
+        namedResponses.set(target.name, targetResponse);
+        previousResponse = targetResponse;
+        proxySource = targetResponse;
+        if (debug)
+          log(
+            `[parity-debug] ${relativeSpecPath} [${target.name}] proxy HTTP response ${JSON.stringify(proxySource).slice(0, 1000)}`,
           );
       } else if (target.proxyStatePath) {
         proxySource = await proxy.getState();

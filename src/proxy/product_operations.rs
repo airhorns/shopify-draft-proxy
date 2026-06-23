@@ -50,11 +50,11 @@ impl DraftProxy {
                 &payload_selection,
                 &product_selection,
                 None,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "The id field is not allowed if identifier is provided.",
-                    "code": "ID_NOT_ALLOWED"
-                })],
+                vec![user_error(
+                    ["input"],
+                    "The id field is not allowed if identifier is provided.",
+                    Some("ID_NOT_ALLOWED"),
+                )],
             ));
         }
 
@@ -94,11 +94,11 @@ impl DraftProxy {
                 &payload_selection,
                 &product_selection,
                 None,
-                vec![json!({
-                    "field": ["input", "id"],
-                    "message": "Product does not exist",
-                    "code": "PRODUCT_DOES_NOT_EXIST"
-                })],
+                vec![user_error(
+                    ["input", "id"],
+                    "Product does not exist",
+                    Some("PRODUCT_DOES_NOT_EXIST"),
+                )],
             ));
         }
 
@@ -286,10 +286,11 @@ impl DraftProxy {
                 "product" => Some(if operation.is_some() {
                     Value::Null
                 } else {
-                    product_json_with_variants(
+                    product_json_with_variants_and_currency(
                         &product,
                         &self.store.product_variants_for_product(&product_id),
                         &product_selection,
+                        &self.store.shop_currency_code(),
                     )
                 }),
                 "productSetOperation" => Some(
@@ -493,7 +494,11 @@ impl DraftProxy {
                 return MutationOutcome::response(self.product_bundle_error_response(
                     &response_key,
                     &payload_selection,
-                    vec![json!({ "field": null, "message": "Product does not exist" })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Product does not exist",
+                        None,
+                    )],
                 ));
             };
             if let Some(errors) = self.product_bundle_user_errors(&input) {
@@ -579,7 +584,13 @@ impl DraftProxy {
             match selection.name.as_str() {
                 "product" => Some(
                     product
-                        .map(|product| product_json(product, product_selection))
+                        .map(|product| {
+                            product_json_with_currency(
+                                product,
+                                product_selection,
+                                &self.store.shop_currency_code(),
+                            )
+                        })
                         .unwrap_or(Value::Null),
                 ),
                 "productSetOperation" => Some(Value::Null),
@@ -813,10 +824,11 @@ impl DraftProxy {
                 } else {
                     duplicate
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 new_product_selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null)
@@ -985,10 +997,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1023,10 +1036,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1037,10 +1051,11 @@ impl DraftProxy {
                         .as_deref()
                         .and_then(|id| self.store.product_by_id(id))
                         .map(|product| {
-                            product_json_with_variants(
+                            product_json_with_variants_and_currency(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 &selection.selection,
+                                &self.store.shop_currency_code(),
                             )
                         })
                         .unwrap_or(Value::Null),
@@ -1112,34 +1127,35 @@ fn product_set_shape_error_response(
     let mut errors = Vec::new();
     let product_options = resolved_object_list_field(input, "productOptions");
     if product_options.len() > 3 {
-        errors.push(json!({
-            "field": ["input", "productOptions"],
-            "message": "Options are limited to 3 per product",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            ["input", "productOptions"],
+            "Options are limited to 3 per product",
+            Some("INVALID_INPUT"),
+        ));
     }
     if product_options
         .iter()
         .any(product_set_option_values_over_limit)
     {
-        errors.push(json!({
-            "field": ["input", "productOptions"],
-            "message": "Option values are limited to 100 per option",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            ["input", "productOptions"],
+            "Option values are limited to 100 per option",
+            Some("INVALID_INPUT"),
+        ));
     }
     if input.contains_key("productOptions") && !input.contains_key("variants") {
-        errors.push(json!({
-            "field": ["input", "variants"],
-            "message": "Variants input is required when updating product options"
-        }));
+        errors.push(user_error_omit_code(
+            ["input", "variants"],
+            "Variants input is required when updating product options",
+            None,
+        ));
     }
     if resolved_object_list_field(input, "files").len() > 250 {
-        errors.push(json!({
-            "field": ["input", "files"],
-            "message": "Files are limited to 250 per product",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            ["input", "files"],
+            "Files are limited to 250 per product",
+            Some("INVALID_INPUT"),
+        ));
     }
     if errors.is_empty() {
         None
@@ -1304,12 +1320,17 @@ fn product_set_duplicate_variant_errors(input: &BTreeMap<String, ResolvedValue>)
         }
         if !seen.insert(signature) {
             let title = product_set_variant_option_title(variant);
-            errors.push(json!({
-                "field": ["input", "variants", index.to_string()],
-                "message": format!(
+            errors.push(user_error_omit_code(
+                vec![
+                    "input".to_string(),
+                    "variants".to_string(),
+                    index.to_string(),
+                ],
+                &format!(
                     "The variant '{title}' already exists. Please change at least one option value."
-                )
-            }));
+                ),
+                None,
+            ));
         }
     }
     errors

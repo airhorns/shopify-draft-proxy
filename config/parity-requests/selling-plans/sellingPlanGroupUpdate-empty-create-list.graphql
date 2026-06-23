@@ -1,0 +1,18 @@
+mutation SellingPlanGroupUpdateEmptyCreateList($id: ID!, $input: SellingPlanGroupInput!) {
+  sellingPlanGroupUpdate(id: $id, input: $input) {
+    deletedSellingPlanIds
+    sellingPlanGroup {
+      id
+      sellingPlans(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

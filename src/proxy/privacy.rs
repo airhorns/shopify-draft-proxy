@@ -156,11 +156,11 @@ fn data_sale_opt_out_response(
 }
 
 fn data_sale_opt_out_failed_user_errors() -> Vec<Value> {
-    vec![json!({
-        "field": Value::Null,
-        "message": "Data sale opt out failed.",
-        "code": "FAILED",
-    })]
+    vec![user_error(
+        Value::Null,
+        "Data sale opt out failed.",
+        Some("FAILED"),
+    )]
 }
 
 fn data_sale_opt_out_sanitized_email(email: &str) -> Option<String> {

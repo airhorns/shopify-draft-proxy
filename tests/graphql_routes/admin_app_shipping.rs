@@ -179,6 +179,137 @@ fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
 }
 
 #[test]
+fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductForBulkArtifact {
+          productCreate(input: { title: "Bulk Artifact Snowboard" }) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let variant = create_legacy_variant(&mut proxy, &product_id, "BULK-ARTIFACT-SKU", "12.34");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunProductBulkArtifact($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status url partialDataUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}" }),
+    ));
+    assert_eq!(run.status, 200);
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["url"],
+        Value::Null
+    );
+    let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadProductBulkArtifact($id: ID!) {
+          bulkOperation(id: $id) { id status url partialDataUrl }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
+    let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
+    assert_eq!(parsed_url.scheme(), "https");
+    assert_eq!(parsed_url.host_str(), Some("localhost"));
+
+    let artifact = proxy.process_request(request_with_body("GET", parsed_url.path(), ""));
+    assert_eq!(artifact.status, 200);
+    assert_eq!(
+        artifact.headers.get("content-type").map(String::as_str),
+        Some("application/jsonl; charset=utf-8")
+    );
+    let rows = artifact
+        .body
+        .as_str()
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("artifact line is JSON"))
+        .collect::<Vec<_>>();
+    assert!(rows.iter().any(|row| {
+        row["id"] == json!(product_id) && row["title"] == json!("Bulk Artifact Snowboard")
+    }));
+    assert!(rows.iter().any(|row| {
+        row["id"] == json!(variant_id)
+            && row["sku"] == json!("BULK-ARTIFACT-SKU")
+            && row["__parentId"] == json!(product_id)
+    }));
+
+    let variants_run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunVariantBulkArtifact($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  productVariants {\n    edges {\n      node {\n        id\n        sku\n        price\n      }\n    }\n  }\n}" }),
+    ));
+    let variants_operation_id = variants_run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let variants_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadVariantBulkArtifact($id: ID!) {
+          bulkOperation(id: $id) { url }
+        }
+        "#,
+        json!({ "id": variants_operation_id }),
+    ));
+    let variants_url = variants_read.body["data"]["bulkOperation"]["url"]
+        .as_str()
+        .unwrap();
+    let variants_path = url::Url::parse(variants_url).unwrap().path().to_string();
+    let variants_artifact = proxy.process_request(request_with_body("GET", &variants_path, ""));
+    assert_eq!(variants_artifact.status, 200);
+    assert!(variants_artifact
+        .body
+        .as_str()
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .any(|row| {
+            row["id"] == json!(variant_id)
+                && row["sku"] == json!("BULK-ARTIFACT-SKU")
+                && row["price"] == json!("12.34")
+        }));
+}
+
+#[test]
 fn bulk_operation_run_query_validates_admin_query_branches() {
     let cases = [
         (

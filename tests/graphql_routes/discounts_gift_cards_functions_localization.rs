@@ -3569,12 +3569,15 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!) {
+        r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!, $futureDebitInput: GiftCardDebitInput!, $preEpochDebitInput: GiftCardDebitInput!) {
           expiredCredit: giftCardCredit(id: $expiredId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          expiredDebit: giftCardDebit(id: $expiredId, debitInput: $validDebitInput) { giftCardDebitTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           deactivatedCredit: giftCardCredit(id: $deactivatedId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           mismatchCredit: giftCardCredit(id: $activeId, creditInput: $mismatchCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           futureCredit: giftCardCredit(id: $activeId, creditInput: $futureCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           preEpochCredit: giftCardCredit(id: $activeId, creditInput: $preEpochCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          futureDebit: giftCardDebit(id: $activeId, debitInput: $futureDebitInput) { giftCardDebitTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          preEpochDebit: giftCardDebit(id: $activeId, debitInput: $preEpochDebitInput) { giftCardDebitTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           deactivatedDebit: giftCardDebit(id: $deactivatedId, debitInput: $validDebitInput) { giftCardDebitTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
           successCredit: giftCardCredit(id: $activeId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
         }"#,
@@ -3584,9 +3587,11 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "deactivatedId": "gid://shopify/GiftCard/654808318258",
             "validCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
             "mismatchCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "EUR" } },
-            "futureCreditInput": { "processedAt": "2099-01-01T00:00:00Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
-            "preEpochCreditInput": { "processedAt": "1969-12-31T23:59:59Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
-            "validDebitInput": { "debitAmount": { "amount": "5.00", "currencyCode": "CAD" } }
+            "futureCreditInput": { "processedAt": "2030-01-01T00:00:00Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "preEpochCreditInput": { "processedAt": "1960-01-01T00:00:00Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "validDebitInput": { "debitAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "futureDebitInput": { "processedAt": "2030-01-01T00:00:00Z", "debitAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "preEpochDebitInput": { "processedAt": "1960-01-01T00:00:00Z", "debitAmount": { "amount": "5.00", "currencyCode": "CAD" } }
         }),
     ));
 
@@ -3594,12 +3599,39 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
         response.body["data"],
         json!({
             "expiredCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card has expired." }] },
+            "expiredDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card has expired." }] },
             "deactivatedCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
             "mismatchCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "creditAmount", "currencyCode"], "code": "MISMATCHING_CURRENCY", "message": "The currency provided does not match the currency of the gift card." }] },
             "futureCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
             "preEpochCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
+            "futureDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
+            "preEpochDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
             "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
             "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-04-29T09:31:02Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionValidationRead($id: ID!) {
+          giftCard(id: $id) {
+            balance { amount currencyCode }
+            transactions(first: 5) {
+              nodes { processedAt amount { amount currencyCode } }
+            }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/654808252722" }),
+    ));
+    assert_eq!(
+        read.body["data"]["giftCard"],
+        json!({
+            "balance": { "amount": "10.0", "currencyCode": "CAD" },
+            "transactions": {
+                "nodes": [{
+                    "processedAt": "2026-04-29T09:31:02Z",
+                    "amount": { "amount": "5.0", "currencyCode": "CAD" }
+                }]
+            }
         })
     );
 }
@@ -3617,18 +3649,23 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
           $htmlPreferredName: String!,
           $htmlMessage: String!,
           $futureSendAt: DateTime!,
-          $pastSendAt: DateTime!
+          $pastSendAt: DateTime!,
+          $validSendAt: DateTime!
         ) {
           createLongPreferredName: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }) { giftCard { id recipientAttributes { preferredName } } giftCardCode userErrors { field code message } }
           createLongMessage: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $tooLongMessage } }) { giftCard { id recipientAttributes { message } } giftCardCode userErrors { field code message } }
           createHtmlPreferredName: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }) { giftCard { id recipientAttributes { preferredName } } giftCardCode userErrors { field code message } }
           createHtmlMessage: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $htmlMessage } }) { giftCard { id recipientAttributes { message } } giftCardCode userErrors { field code message } }
           createFutureSendAt: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } giftCardCode userErrors { field code message } }
+          createPastSendAt: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } giftCardCode userErrors { field code message } }
+          createValidSendAt: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } giftCardCode userErrors { field code message } }
           updateLongPreferredName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }) { giftCard { id recipientAttributes { preferredName } } userErrors { field code message } }
           updateLongMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }) { giftCard { id recipientAttributes { message } } userErrors { field code message } }
           updateHtmlPreferredName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }) { giftCard { id recipientAttributes { preferredName } } userErrors { field code message } }
           updateHtmlMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: $htmlMessage } }) { giftCard { id recipientAttributes { message } } userErrors { field code message } }
           updatePastSendAt: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } userErrors { field code message } }
+          updateFutureSendAt: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } userErrors { field code message } }
+          updateValidSendAt: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } userErrors { field code message } }
         }"#,
         json!({
             "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
@@ -3637,8 +3674,9 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
             "tooLongMessage": "x".repeat(201),
             "htmlPreferredName": "<b>Recipient</b>",
             "htmlMessage": "<script>alert(1)</script>",
-            "futureSendAt": "2099-01-01T00:00:00Z",
-            "pastSendAt": "1990-01-01T00:00:00Z"
+            "futureSendAt": "2026-10-01T00:00:00Z",
+            "pastSendAt": "2026-04-28T09:31:02Z",
+            "validSendAt": "2026-07-01T00:00:00Z"
         }),
     ));
 
@@ -3650,11 +3688,15 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
             "createHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }], "giftCardCode": null },
             "createHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }], "giftCardCode": null },
             "createFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
+            "createPastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
+            "createValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "giftCardCode": "giftcard00000001", "userErrors": [] },
             "updateLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
             "updateLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
             "updateHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }] },
             "updateHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }] },
-            "updatePastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }] }
+            "updatePastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }] },
+            "updateFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }] },
+            "updateValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "userErrors": [] }
         })
     );
 }
@@ -4267,6 +4309,57 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
     let mut proxy = snapshot_proxy();
 
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        r#"{"createdAt":"2026-04-29T09:31:02Z"}"#,
+    ));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
+    restored["state"]["baseState"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryShopTimezoneSetup {
+          creditCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          debitCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: "gid://shopify/Customer/10552623464754" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          recipientNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", recipientAttributes: { id: "gid://shopify/Customer/timezone-recipient" } }) { giftCard { id } giftCardCode userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.body["data"]["creditCard"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["debitCard"]["userErrors"], json!([]));
+    assert_eq!(
+        setup.body["data"]["customerNotificationCard"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        setup.body["data"]["recipientNotificationCard"]["userErrors"],
+        json!([])
+    );
+    let credit_id = json_string(
+        &setup.body["data"]["creditCard"]["giftCard"]["id"],
+        "credit card id",
+    );
+    let debit_id = json_string(
+        &setup.body["data"]["debitCard"]["giftCard"]["id"],
+        "debit card id",
+    );
+    let customer_notification_id = json_string(
+        &setup.body["data"]["customerNotificationCard"]["giftCard"]["id"],
+        "customer notification card id",
+    );
+    let recipient_notification_id = json_string(
+        &setup.body["data"]["recipientNotificationCard"]["giftCard"]["id"],
+        "recipient notification card id",
+    );
+
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardExpiryShopTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
           credit: giftCardCredit(id: $creditId, creditInput: $creditInput) { giftCardCreditTransaction { __typename } userErrors { field code message } }
@@ -4275,10 +4368,10 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
           recipientNotification: giftCardSendNotificationToRecipient(id: $recipientNotificationId) { giftCard { id } userErrors { field code message } }
         }"#,
         json!({
-            "creditId": "gid://shopify/GiftCard/timezone-credit",
-            "debitId": "gid://shopify/GiftCard/timezone-debit",
-            "customerNotificationId": "gid://shopify/GiftCard/timezone-customer-notification",
-            "recipientNotificationId": "gid://shopify/GiftCard/timezone-recipient-notification",
+            "creditId": credit_id,
+            "debitId": debit_id,
+            "customerNotificationId": customer_notification_id,
+            "recipientNotificationId": recipient_notification_id,
             "creditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
             "debitInput": { "debitAmount": { "amount": "2.00", "currencyCode": "CAD" } }
         }),
@@ -4289,8 +4382,68 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
         json!({
             "credit": { "giftCardCreditTransaction": { "__typename": "GiftCardCreditTransaction" }, "userErrors": [] },
             "debit": { "giftCardDebitTransaction": { "__typename": "GiftCardDebitTransaction" }, "userErrors": [] },
-            "customerNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-customer-notification" }, "userErrors": [] },
-            "recipientNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-recipient-notification" }, "userErrors": [] }
+            "customerNotification": { "giftCard": { "id": customer_notification_id }, "userErrors": [] },
+            "recipientNotification": { "giftCard": { "id": recipient_notification_id }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryUtcFallbackSetup {
+          expired: giftCardCreate(input: { initialValue: "10", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          active: giftCardCreate(input: { initialValue: "10", expiresOn: "2026-04-30" }) { giftCard { id } giftCardCode userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.body["data"]["expired"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["active"]["userErrors"], json!([]));
+    let expired_id = json_string(
+        &setup.body["data"]["expired"]["giftCard"]["id"],
+        "expired card id",
+    );
+    let active_id = json_string(
+        &setup.body["data"]["active"]["giftCard"]["id"],
+        "active card id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryUtcFallback($expiredId: ID!, $activeId: ID!) {
+          expiredCredit: giftCardCredit(id: $expiredId, creditInput: { creditAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardCreditTransaction { id giftCard { balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+          activeCredit: giftCardCredit(id: $activeId, creditInput: { creditAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardCreditTransaction { id giftCard { balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "expiredId": expired_id, "activeId": active_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "expiredCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card has expired." }] },
+            "activeCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/3", "giftCard": { "balance": { "amount": "11.0", "currencyCode": "CAD" } } }, "userErrors": [] }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardExpiryUtcFallbackRead($expiredId: ID!, $activeId: ID!) {
+          expired: giftCard(id: $expiredId) { balance { amount currencyCode } transactions(first: 5) { nodes { id } } }
+          active: giftCard(id: $activeId) { balance { amount currencyCode } transactions(first: 5) { nodes { id } } }
+        }"#,
+        json!({ "expiredId": expired_id, "activeId": active_id }),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "expired": { "balance": { "amount": "10.0", "currencyCode": "CAD" }, "transactions": { "nodes": [] } },
+            "active": { "balance": { "amount": "11.0", "currencyCode": "CAD" }, "transactions": { "nodes": [{ "id": "gid://shopify/GiftCardCreditTransaction/3" }] } }
         })
     );
 }

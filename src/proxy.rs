@@ -12,8 +12,8 @@ use crate::graphql::{
     SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -337,6 +337,7 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    bulk_operation_results: BTreeMap<String, String>,
     discounts: BTreeMap<String, Value>,
     discount_code_index: BTreeMap<String, String>,
     deleted_discount_ids: BTreeSet<String>,
@@ -694,6 +695,7 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            bulk_operation_results: BTreeMap::new(),
             discounts: BTreeMap::new(),
             discount_code_index: BTreeMap::new(),
             deleted_discount_ids: BTreeSet::new(),
@@ -1057,6 +1059,16 @@ impl Store {
         shop
     }
 
+    fn shop_currency_code(&self) -> String {
+        self.base
+            .shop
+            .get("currencyCode")
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .unwrap_or("USD")
+            .to_string()
+    }
+
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
         effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
     }
@@ -1297,6 +1309,10 @@ impl Store {
             &self.staged.product_variants,
             id,
         )
+    }
+
+    fn product_variants(&self) -> Vec<ProductVariantRecord> {
+        effective_records(&self.base.product_variants, &self.staged.product_variants)
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the
@@ -1702,6 +1718,7 @@ mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
+mod money;
 mod online_store_orders_payments;
 mod privacy;
 mod product_helpers;
@@ -1747,6 +1764,8 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metaobjects::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::money::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]

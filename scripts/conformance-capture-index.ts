@@ -32,6 +32,7 @@ const domainSchema = z.enum([
   'saved-searches',
   'segments',
   'shipping-fulfillments',
+  'selling-plans',
   'store-properties',
   'webhooks',
 ]);
@@ -2570,6 +2571,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'selling-plans',
+    captureId: 'selling-plan-group-create-active-model-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts',
+    purpose:
+      'Selling-plan group create model-backed validation for blank names, create-only plan count bounds, missing plan policies, and update empty-create-list carve-out.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-create-active-model-validation.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql',
+      'config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable selling-plan group, verifies empty create-list update, then deletes the group.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
@@ -3867,6 +3886,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-update-scalars',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-update-scalars-conformance.mts',
+    purpose:
+      'marketUpdate scalar name/status lifecycle, enabled coupling, and downstream market(id:) read-after-write for a disposable market.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-update-scalars.json`,
+      'config/parity-specs/markets/market-update-scalars.json',
+      'config/parity-requests/markets/market-update-scalars-create.graphql',
+      'config/parity-requests/markets/market-update-scalars-update.graphql',
+      'config/parity-requests/markets/market-update-scalars-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active market, updates name/status to DRAFT, records payload plus readback, then deletes the market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
@@ -5115,6 +5153,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Local-runtime only; all theme records are staged locally and no Shopify store state is modified.',
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-theme-files-upsert-job-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-theme-files-upsert-job-local-runtime.ts',
+    purpose: 'themeFilesUpsert returns job: null for inline writes and a synthetic Job payload for URL-body writes.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}theme-files-upsert-job.json`,
+      'config/parity-specs/online-store/theme-files-upsert-job.json',
+      'config/parity-requests/online-store/theme-files-upsert-job.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; theme and theme file records are staged locally and no Shopify store state is modified.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'The current proxy has no deterministic theme-limited-plan entitlement state, so this scenario covers the unconditionally emittable job payload branch while endpoint docs keep plan gating explicit as out of scope.',
   },
   {
     domain: 'collections',
@@ -8657,6 +8713,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-status-catalog-cancel.json`,
       'config/parity-specs/bulk-operations/bulk-operation-cancel-status-branches.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-created-status.json',
       'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json',
       'config/parity-specs/bulk-operations/bulk-operation-read-after-write-consumer-poll.json',
       'config/parity-requests/bulk-operations/bulk-operation-consumer-poll.graphql',
@@ -9392,6 +9449,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}gift-card-notification-validation.json`,
       'config/parity-specs/gift-cards/gift-card-notification-validation.json',
       'config/parity-specs/gift-cards/gift-card-notification-error-messages.json',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-customer-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-notification-validation-deactivate.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
@@ -9427,6 +9487,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-transaction-validation.json`,
       'config/parity-specs/gift-cards/gift-card-transaction-validation.json',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation-deactivate.graphql',
       'config/parity-requests/gift-cards/gift-card-transaction-validation.graphql',
     ],
     cleanupBehavior:

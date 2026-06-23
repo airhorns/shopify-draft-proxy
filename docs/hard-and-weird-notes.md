@@ -281,6 +281,20 @@ local-runtime parity fixture as the current internal guardrail contract, and
 re-capture against a target that reproduces the internal package behavior before
 changing those codes/messages or replacing the fixture with live evidence.
 
+## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` applies the
+`SELLING_PLAN_COUNT_LOWER_BOUND` model validation to `sellingPlanGroupCreate`
+when `sellingPlansToCreate` is absent or empty. The same live capture confirms
+`sellingPlanGroupUpdate` accepts an empty `sellingPlansToCreate: []` list, so
+the create lower-bound should not be treated as a blanket update-input guard.
+
+That carve-out is narrower than "updates may leave zero plans." A live probe
+that attempted to delete the only existing plan on update returned
+`SELLING_PLAN_COUNT_LOWER_BOUND` at `["input", "sellingPlansToDelete"]`.
+Model update behavior should therefore distinguish an empty create list from an
+actual delete-to-zero transition.
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:

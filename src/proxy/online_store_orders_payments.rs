@@ -42,11 +42,7 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
 ];
 
 fn theme_file_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn theme_file_limit_error() -> Value {
@@ -533,7 +529,7 @@ fn order_money_set_with_presentment_fallback(money_set: &Value, order: &Value) -
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &shop_amount,
         &shop_currency,
         &presentment_amount,
@@ -569,7 +565,7 @@ fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
+    money_set_pair(
         &format_order_amount(left_shop + right_shop),
         &shop_currency,
         &format_order_amount(left_presentment + right_presentment),
@@ -588,7 +584,7 @@ fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
                 .map(ToString::to_string)
         })
         .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
+    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
 }
 
 fn order_customer_id(order: &Value) -> Option<String> {
@@ -733,22 +729,11 @@ fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
 }
 
 fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 fn fulfillment_order_user_error(field: Value, message: &str, code: Option<&str>) -> Value {
-    let mut error = serde_json::Map::new();
-    error.insert("field".to_string(), field);
-    error.insert("message".to_string(), json!(message));
-    error.insert(
-        "code".to_string(),
-        code.map_or(Value::Null, |code| json!(code)),
-    );
-    Value::Object(error)
+    user_error(field, message, code)
 }
 
 fn fulfillment_order_supported_actions(include_split: bool) -> Value {
@@ -987,7 +972,7 @@ fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
 }
 
 fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    order_money_set(&format_order_amount(amount), currency_code)
+    money_set(&format_order_amount(amount), currency_code)
 }
 
 fn order_create_money_bag(
@@ -996,16 +981,7 @@ fn order_create_money_bag(
     presentment_currency_code: &str,
 ) -> Value {
     let amount = format_order_amount(amount);
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": presentment_currency_code
-        }
-    })
+    money_set_pair(&amount, currency_code, &amount, presentment_currency_code)
 }
 
 fn format_order_amount(amount: f64) -> String {
@@ -1468,7 +1444,7 @@ fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": order_money_set(&format_order_amount(amount), &currency)
+        "amountSet": money_set(&format_order_amount(amount), &currency)
     })
 }
 
@@ -1548,11 +1524,8 @@ const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/refund-order-hydrate.graphql");
 
 fn refund_user_error(field: Value, message: impl Into<String>, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message.into(),
-        "code": code
-    })
+    let message = message.into();
+    user_error(field, &message, Some(code))
 }
 
 fn order_money_bag_from_amount(
@@ -2395,11 +2368,7 @@ fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Option<i64> {
 
 /// A single order-edit `userError`, optionally carrying a `code`.
 fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-    let mut error = json!({ "field": field, "message": message });
-    if let Some(code) = code {
-        error["code"] = json!(code);
-    }
-    error
+    user_error_omit_code(field, message, code)
 }
 
 /// A failed order-edit mutation payload: every resource field is null and the
@@ -2551,33 +2520,6 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
     )
 }
 
-fn order_money_set(amount: &str, currency_code: &str) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": currency_code
-        }
-    })
-}
-
-fn order_money_set_pair(
-    shop_amount: &str,
-    shop_currency: &str,
-    presentment_amount: &str,
-    presentment_currency: &str,
-) -> Value {
-    json!({
-        "shopMoney": {
-            "amount": shop_amount,
-            "currencyCode": shop_currency
-        },
-        "presentmentMoney": {
-            "amount": presentment_amount,
-            "currencyCode": presentment_currency
-        }
-    })
-}
-
 fn payment_money_amount(money_set: &Value, money_key: &str) -> Option<String> {
     money_set
         .get(money_key)
@@ -2608,14 +2550,14 @@ fn payment_money_set_from_input(input: &BTreeMap<String, ResolvedValue>) -> Opti
             .unwrap_or_else(|| {
                 resolved_string_field(input, "currency").unwrap_or_else(|| shop_currency.clone())
             });
-        Some(order_money_set_pair(
+        Some(money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         ))
     } else {
-        Some(order_money_set(&shop_amount, &shop_currency))
+        Some(money_set(&shop_amount, &shop_currency))
     }
 }
 
@@ -2629,14 +2571,14 @@ fn payment_money_set_value(amount_set: Value) -> Value {
             .unwrap_or_else(|| shop_amount.clone());
         let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &presentment_amount,
             &presentment_currency,
         )
     } else {
-        order_money_set(&shop_amount, &shop_currency)
+        money_set(&shop_amount, &shop_currency)
     }
 }
 
@@ -2663,14 +2605,14 @@ fn payment_money_set_for_capture(
     };
     let shop_amount = format_order_amount(shop_amount);
     if parent_amount_set.get("presentmentMoney").is_some() || requested_currency != shop_currency {
-        order_money_set_pair(
+        money_set_pair(
             &shop_amount,
             &shop_currency,
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
     } else {
-        order_money_set(
+        money_set(
             &normalized_order_payment_amount(Some(requested_amount.to_string())),
             requested_currency,
         )
@@ -2688,14 +2630,14 @@ fn payment_money_set_for_order_totals(
         let presentment_currency = payment_money_currency(parent_amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
         (
-            order_money_set_pair(
+            money_set_pair(
                 &format_order_amount(remaining_amount),
                 &shop_currency,
                 &format_order_amount(remaining_amount),
                 &presentment_currency,
             ),
-            order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
-            order_money_set_pair(
+            money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            money_set_pair(
                 &format_order_amount(received_amount),
                 &shop_currency,
                 &format_order_amount(received_amount),
@@ -2704,9 +2646,9 @@ fn payment_money_set_for_order_totals(
         )
     } else {
         (
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(remaining_amount), &shop_currency),
-            order_money_set(&format_order_amount(received_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(remaining_amount), &shop_currency),
+            money_set(&format_order_amount(received_amount), &shop_currency),
         )
     }
 }
@@ -2762,13 +2704,7 @@ fn payment_transaction_matches_parent(transaction: &Value, parent_id: &str) -> b
 }
 
 fn payment_user_error(field: Value, message: &str, code: Option<&str>) -> Value {
-    let mut error = serde_json::Map::new();
-    error.insert("field".to_string(), field);
-    error.insert("message".to_string(), json!(message));
-    if let Some(code) = code {
-        error.insert("code".to_string(), json!(code));
-    }
-    Value::Object(error)
+    user_error_omit_code(field, message, code)
 }
 
 fn order_connection(nodes: Vec<Value>) -> Value {
@@ -3666,10 +3602,11 @@ fn draft_order_input_user_errors(
             } else {
                 json!(["tags", index.to_string()])
             };
-            json!({
-                "field": field,
-                "message": "Title Tag exceeds the maximum length of 40 characters"
-            })
+            user_error_omit_code(
+                field,
+                "Title Tag exceeds the maximum length of 40 characters",
+                None,
+            )
         })
         .collect::<Vec<_>>();
     if !long_tag_errors.is_empty() {
@@ -3679,61 +3616,78 @@ fn draft_order_input_user_errors(
     let line_items = resolved_object_list_field(input, "lineItems");
     if !update {
         if line_items.is_empty() {
-            return Some(vec![
-                json!({ "field": Value::Null, "message": "Add at least 1 product" }),
-            ]);
+            return Some(vec![user_error_omit_code(
+                Value::Null,
+                "Add at least 1 product",
+                None,
+            )]);
         }
         if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
-            return Some(vec![
-                json!({ "field": ["email"], "message": "Email is invalid" }),
-            ]);
+            return Some(vec![user_error_omit_code(
+                ["email"],
+                "Email is invalid",
+                None,
+            )]);
         }
     }
     for (index, line_item) in line_items.iter().enumerate() {
         if resolved_i64_field(line_item, "quantity").is_some_and(|quantity| quantity < 1) {
-            return Some(vec![json!({
-                "field": ["lineItems", index.to_string(), "quantity"],
-                "message": "Quantity must be greater than or equal to 1"
-            })]);
+            return Some(vec![user_error_omit_code(
+                vec![
+                    "lineItems".to_string(),
+                    index.to_string(),
+                    "quantity".to_string(),
+                ],
+                "Quantity must be greater than or equal to 1",
+                None,
+            )]);
         }
         if resolved_string_field(line_item, "variantId")
             .as_deref()
             .is_some_and(|id| id.contains("999999999999999999"))
         {
-            return Some(vec![json!({
-                "field": Value::Null,
-                "message": "Product with ID 999999999999999999 is no longer available."
-            })]);
+            return Some(vec![user_error_omit_code(
+                Value::Null,
+                "Product with ID 999999999999999999 is no longer available.",
+                None,
+            )]);
         }
         if resolved_string_field(line_item, "title").is_none()
             && resolved_string_field(line_item, "variantId").is_none()
         {
-            return Some(vec![
-                json!({ "field": Value::Null, "message": "Merchandise title is empty." }),
-            ]);
+            return Some(vec![user_error_omit_code(
+                Value::Null,
+                "Merchandise title is empty.",
+                None,
+            )]);
         }
         if draft_order_line_unit_amount(line_item).is_some_and(|amount| amount < 0.0) {
-            return Some(vec![
-                json!({ "field": Value::Null, "message": "Cannot send negative price for line_item" }),
-            ]);
+            return Some(vec![user_error_omit_code(
+                Value::Null,
+                "Cannot send negative price for line_item",
+                None,
+            )]);
         }
     }
     if resolved_object_field(input, "paymentTerms").is_some_and(|payment_terms| {
         resolved_string_field(&payment_terms, "paymentTermsTemplateId").is_none()
             && !resolved_object_list_field(&payment_terms, "paymentSchedules").is_empty()
     }) {
-        return Some(vec![json!({
-            "field": Value::Null,
-            "message": "Payment terms template id can not be empty."
-        })]);
+        return Some(vec![user_error_omit_code(
+            Value::Null,
+            "Payment terms template id can not be empty.",
+            None,
+        )]);
     }
     if resolved_string_field(input, "reserveInventoryUntil")
         .as_deref()
         .is_some_and(|value| value < "2024-01-01T00:00:00Z")
     {
-        return Some(vec![
-            json!({ "field": Value::Null, "message": "Reserve until can't be in the past" }),
-        ]);
+        return Some(vec![user_error_omit_code(
+            Value::Null,
+            "Reserve until can't be in the past",
+            None,
+        )]);
     }
     None
 }
@@ -3743,14 +3697,18 @@ fn draft_order_calculate_user_errors(
 ) -> Option<Vec<Value>> {
     let line_items = resolved_object_list_field(input, "lineItems");
     if line_items.is_empty() {
-        return Some(vec![
-            json!({ "field": Value::Null, "message": "Add at least 1 product" }),
-        ]);
+        return Some(vec![user_error_omit_code(
+            Value::Null,
+            "Add at least 1 product",
+            None,
+        )]);
     }
     if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
-        return Some(vec![
-            json!({ "field": ["email"], "message": "Email is invalid" }),
-        ]);
+        return Some(vec![user_error_omit_code(
+            ["email"],
+            "Email is invalid",
+            None,
+        )]);
     }
     None
 }
@@ -3821,10 +3779,10 @@ fn payment_order_record(
         "displayFinancialStatus": display_financial_status,
         "capturable": capturable_amount != "0.00",
         "totalCapturable": capturable_amount,
-        "totalCapturableSet": order_money_set(capturable_amount, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(capturable_amount, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["manual"],
         "transactions": transactions
     })
@@ -3865,17 +3823,17 @@ fn mandate_payment_order_record(
         "status": "SUCCESS",
         "gateway": "mandate",
         "paymentReferenceId": payment_reference_id,
-        "amountSet": order_money_set(amount, currency_code)
+        "amountSet": money_set(amount, currency_code)
     });
     json!({
         "id": order_id,
         "displayFinancialStatus": display_financial_status,
         "capturable": !auto_capture,
         "totalCapturable": total_capturable,
-        "totalCapturableSet": order_money_set(total_capturable, currency_code),
-        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": order_money_set(received_amount, currency_code),
-        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "totalCapturableSet": money_set(total_capturable, currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": money_set(received_amount, currency_code),
+        "netPaymentSet": money_set(received_amount, currency_code),
         "paymentGatewayNames": ["mandate"],
         "transactions": [transaction]
     })
@@ -4407,9 +4365,11 @@ impl DraftProxy {
             return script_tag_payload(
                 &field.selection,
                 None,
-                vec![
-                    json!({"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}),
-                ],
+                vec![user_error(
+                    ["displayScope"],
+                    "Display scope is not included in the list",
+                    Some("INCLUSION"),
+                )],
             );
         }
         let mut record = self.store.staged.online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
@@ -4515,13 +4475,13 @@ impl DraftProxy {
             .unwrap_or("UNPUBLISHED");
         if role == "DEVELOPMENT" {
             return selected_json(
-                &json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]}),
+                &json!({"theme": null, "userErrors": [user_error(["base"], "You cannot publish a development theme.", None)]}),
                 &field.selection,
             );
         }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
             return selected_json(
-                &json!({"theme": null, "userErrors": [{"field": ["id"], "message": format!("Theme cannot be published from role {role}")}]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(["id"], &format!("Theme cannot be published from role {role}"), None)]}),
                 &field.selection,
             );
         }
@@ -4639,8 +4599,7 @@ impl DraftProxy {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
-            let payload =
-                json!({"upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
+            let payload = json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
             return selected_json(&payload, &field.selection);
         }
         let mut errors = Vec::new();
@@ -4682,10 +4641,20 @@ impl DraftProxy {
         }
         if !errors.is_empty() {
             return selected_json(
-                &json!({"upsertedThemeFiles": [], "userErrors": errors}),
+                &json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": errors}),
                 &field.selection,
             );
         }
+        let job = if files.iter().any(theme_file_input_uses_url_body) {
+            json!({
+                "__typename": "Job",
+                "id": self.next_proxy_synthetic_gid("Job"),
+                "done": false,
+                "query": Value::Null
+            })
+        } else {
+            Value::Null
+        };
         let mut upserted = Vec::new();
         let mut staged = false;
         for file in files {
@@ -4700,7 +4669,7 @@ impl DraftProxy {
             staged_ids.push(theme_id);
         }
         selected_json(
-            &json!({"upsertedThemeFiles": upserted, "userErrors": []}),
+            &json!({"job": job, "upsertedThemeFiles": upserted, "userErrors": []}),
             &field.selection,
         )
     }
@@ -4738,7 +4707,15 @@ impl DraftProxy {
             let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
             let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
             let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
-                errors.push(json!({"field": ["files", index.to_string(), "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}));
+                errors.push(user_error(
+                    vec![
+                        "files".to_string(),
+                        index.to_string(),
+                        "srcFilename".to_string(),
+                    ],
+                    "File not found",
+                    Some("NOT_FOUND"),
+                ));
                 continue;
             };
             let content = source_file["body"]["content"].as_str().unwrap_or_default();
@@ -4887,7 +4864,7 @@ impl DraftProxy {
             .any(is_web_pixel_record)
         {
             return selected_json(
-                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]}),
+                &json!({"webPixel": null, "userErrors": [user_error_typed("WebPixelUserError", Value::Null, "Web pixel is taken.", Some("TAKEN"))]}),
                 &field.selection,
             );
         }
@@ -4935,7 +4912,7 @@ impl DraftProxy {
                 .is_some_and(is_web_pixel_record)
         {
             return selected_json(
-                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Pixel not found"}]}),
+                &json!({"webPixel": null, "userErrors": [user_error_typed("WebPixelUserError", ["id"], "Pixel not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         }
@@ -4951,7 +4928,7 @@ impl DraftProxy {
         let settings_raw = resolved_string_field(input, "settings").unwrap_or_default();
         let Ok(settings) = serde_json::from_str::<Value>(&settings_raw) else {
             return selected_json(
-                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "INVALID_CONFIGURATION_JSON", "field": ["settings"], "message": "Settings must be valid JSON"}]}),
+                &json!({"webPixel": null, "userErrors": [user_error_typed("WebPixelUserError", ["settings"], "Settings must be valid JSON", Some("INVALID_CONFIGURATION_JSON"))]}),
                 &field.selection,
             );
         };
@@ -5005,7 +4982,7 @@ impl DraftProxy {
             .map(|(id, _)| id.clone())
         else {
             return selected_json(
-                &json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]}),
+                &json!({"serverPixel": null, "userErrors": [user_error_typed("ServerPixelUserError", ["id"], "Server pixel not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -5013,7 +4990,7 @@ impl DraftProxy {
             let arn = resolved_string_arg(&field.arguments, "arn").unwrap_or_default();
             if !arn.starts_with("arn:aws:events:") || arn.trim().is_empty() {
                 return selected_json(
-                    &json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["arn"], "message": format!("Invalid ARN '{arn}'")}]}),
+                    &json!({"serverPixel": null, "userErrors": [user_error_typed("ServerPixelUserError", ["arn"], &format!("Invalid ARN '{arn}'"), Some("INVALID_FIELD_ARGUMENTS"))]}),
                     &field.selection,
                 );
             }
@@ -5024,10 +5001,20 @@ impl DraftProxy {
             let topic = resolved_string_arg(&field.arguments, "pubSubTopic").unwrap_or_default();
             let mut errors = Vec::new();
             if project.trim().is_empty() {
-                errors.push(json!({"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubProject"], "message": "pubSubProject can't be blank"}));
+                errors.push(user_error_typed(
+                    "ServerPixelUserError",
+                    ["pubSubProject"],
+                    "pubSubProject can't be blank",
+                    Some("INVALID_FIELD_ARGUMENTS"),
+                ));
             }
             if topic.trim().is_empty() {
-                errors.push(json!({"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubTopic"], "message": "pubSubTopic can't be blank"}));
+                errors.push(user_error_typed(
+                    "ServerPixelUserError",
+                    ["pubSubTopic"],
+                    "pubSubTopic can't be blank",
+                    Some("INVALID_FIELD_ARGUMENTS"),
+                ));
             }
             if !errors.is_empty() {
                 return selected_json(
@@ -5064,7 +5051,7 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]}),
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input", "title"], "Title can't be blank", Some("BLANK"))]}),
                 &field.selection,
             );
         }
@@ -5077,7 +5064,7 @@ impl DraftProxy {
             .count();
         if token_count >= 100 {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]}),
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
                 &field.selection,
             );
         }
@@ -7725,7 +7712,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -7786,7 +7773,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -7849,7 +7836,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -7887,11 +7874,11 @@ impl DraftProxy {
                 self.store.staged.draft_order_tags.remove(id);
                 deleted_ids.push(id.clone());
             } else {
-                user_errors.push(json!({
-                    "field": ["input", "ids", index.to_string()],
-                    "message": "Draft order does not exist",
-                    "code": "NOT_FOUND"
-                }));
+                user_errors.push(user_error(
+                    vec!["input".to_string(), "ids".to_string(), index.to_string()],
+                    "Draft order does not exist",
+                    Some("NOT_FOUND"),
+                ));
             }
         }
         if !deleted_ids.is_empty() {
@@ -7926,7 +7913,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -8406,7 +8393,7 @@ impl DraftProxy {
             "status": "OPEN",
             "__draftProxyFinancialStatus": financial_status,
             "__draftProxyLineItems": [line_item],
-            "totalPriceSet": order_money_set(&amount, currency_code)
+            "totalPriceSet": money_set(&amount, currency_code)
         });
         self.store
             .staged
@@ -8457,7 +8444,7 @@ impl DraftProxy {
             "__draftProxyFinancialStatus": "PENDING",
             "__draftProxyLineItems": [line_item],
             "__draftProxyPurchasingEntity": purchasing_entity,
-            "totalPriceSet": order_money_set(&amount, "CAD")
+            "totalPriceSet": money_set(&amount, "CAD")
         });
         self.store
             .staged
@@ -8570,7 +8557,7 @@ impl DraftProxy {
                 "kind": "SALE",
                 "status": "SUCCESS",
                 "gateway": "manual",
-                "amountSet": order_money_set(&amount, &currency_code)
+                "amountSet": money_set(&amount, &currency_code)
             })]
         };
         let mut order = json!({
@@ -8583,7 +8570,7 @@ impl DraftProxy {
             "transactions": order_transactions,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
-            "currentTotalPriceSet": order_money_set(&amount, &currency_code),
+            "currentTotalPriceSet": money_set(&amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items
             }
@@ -8704,10 +8691,10 @@ impl DraftProxy {
             "shippingLine": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "subtotalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
-            "totalDiscountsSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalShippingPriceSet": draft_order_invoice_money_set("0.0", "CAD"),
-            "totalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "subtotalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
+            "totalDiscountsSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalShippingPriceSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
+            "totalPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
             "totalQuantityOfLineItems": 1,
             "lineItems": { "nodes": [draft_order_invoice_line_item()] }
         });
@@ -8777,7 +8764,7 @@ impl DraftProxy {
             let mut user_errors = Vec::new();
             let mut invoice_errors = Vec::new();
             if recipient_missing {
-                user_errors.push(json!({ "field": Value::Null, "message": "To can't be blank" }));
+                user_errors.push(user_error_omit_code(Value::Null, "To can't be blank", None));
                 invoice_errors.push(json!({
                     "code": "CUSTOMER_NO_EMAIL",
                     "message": "Customer email can't be blank"
@@ -10282,7 +10269,7 @@ impl DraftProxy {
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
         let amount_set = payment_money_set_from_input(&first_transaction)
-            .unwrap_or_else(|| order_money_set("25.0", &currency));
+            .unwrap_or_else(|| money_set("25.0", &currency));
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());
@@ -10709,17 +10696,17 @@ impl DraftProxy {
                 let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
                     .unwrap_or_else(|| shop_currency.clone());
                 order["totalCapturableSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["totalOutstandingSet"] = amount_set.clone();
                 order["totalReceivedSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
                 order["netPaymentSet"] =
-                    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
+                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
             } else {
-                order["totalCapturableSet"] = order_money_set("0.0", &shop_currency);
+                order["totalCapturableSet"] = money_set("0.0", &shop_currency);
                 order["totalOutstandingSet"] = amount_set;
-                order["totalReceivedSet"] = order_money_set("0.0", &shop_currency);
-                order["netPaymentSet"] = order_money_set("0.0", &shop_currency);
+                order["totalReceivedSet"] = money_set("0.0", &shop_currency);
+                order["netPaymentSet"] = money_set("0.0", &shop_currency);
             }
             if let Some(transactions) = order["transactions"].as_array_mut() {
                 transactions.push(transaction.clone());
@@ -10918,11 +10905,12 @@ impl DraftProxy {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
         let error_payload = |field_name: &str, message: &str, code: &str| {
+            let error = user_error([field_name], message, Some(code));
             json!({
                 "order": Value::Null,
                 "job": Value::Null,
-                "orderCancelUserErrors": [{ "field": [field_name], "message": message, "code": code }],
-                "userErrors": [{ "field": [field_name], "message": message, "code": code }]
+                "orderCancelUserErrors": [error.clone()],
+                "userErrors": [error]
             })
         };
         if let Some(staff_note) = resolved_string_arg(&field.arguments, "staffNote") {
@@ -11157,7 +11145,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -11166,7 +11154,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["customerId"], "message": "Customer does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["customerId"], "Customer does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -11185,7 +11173,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["customerId"], "message": "no_customer_role_error", "code": "NOT_PERMITTED" }]
+                    "userErrors": [user_error(["customerId"], "no_customer_role_error", Some("NOT_PERMITTED"))]
                 }),
                 &field.selection,
             );
@@ -11261,7 +11249,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -11275,7 +11263,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["orderId"], "message": "customer_cannot_be_removed", "code": "INVALID" }]
+                    "userErrors": [user_error(["orderId"], "customer_cannot_be_removed", Some("INVALID"))]
                 }),
                 &field.selection,
             );

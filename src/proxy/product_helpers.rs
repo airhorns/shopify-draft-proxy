@@ -2399,7 +2399,7 @@ fn product_media_ready_url() -> &'static str {
 }
 
 fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
-    let errors = json!([{ "field": field, "message": message }]);
+    let errors = json!([user_error_omit_code(field, message, None)]);
     json!({
         "userErrors": errors.clone(),
         "mediaUserErrors": errors
@@ -2420,11 +2420,11 @@ fn media_nodes_contain(media: &[Value], id: &str) -> bool {
 }
 
 fn product_does_not_exist_error(field: &str) -> Value {
-    json!({ "field": [field], "message": "Product does not exist" })
+    user_error_omit_code([field], "Product does not exist", None)
 }
 
 fn media_missing_error(field: &str, id: &str) -> Value {
-    json!({ "field": [field], "message": format!("Media id {id} does not exist") })
+    user_error_omit_code([field], &format!("Media id {id} does not exist"), None)
 }
 
 fn collection_input(
@@ -2623,11 +2623,7 @@ fn collection_invalid_sort_order_response(
 }
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
-    let field = field.into_iter().collect::<Vec<_>>();
-    json!({
-        "field": field,
-        "message": message
-    })
+    user_error_omit_code(field, message, None)
 }
 
 fn strip_numeric_suffix(handle: &str) -> String {
@@ -2834,6 +2830,14 @@ pub(in crate::proxy) fn product_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
+    product_json_with_currency(product, selections, "USD")
+}
+
+pub(in crate::proxy) fn product_json_with_currency(
+    product: &ProductRecord,
+    selections: &[SelectedField],
+    currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -2849,6 +2853,20 @@ pub(in crate::proxy) fn product_json(
         "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
         "totalInventory" => Some(json!(product.total_inventory)),
         "tracksInventory" => Some(json!(product.tracks_inventory)),
+        "priceRangeV2" => Some(product_price_range_json(
+            product,
+            &[],
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        )),
+        "priceRange" => Some(product_price_range_json(
+            product,
+            &[],
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Legacy,
+        )),
         "templateSuffix" => Some(
             product
                 .extra_fields
@@ -2947,6 +2965,128 @@ pub(in crate::proxy) fn product_json(
     })
 }
 
+#[derive(Clone, Copy)]
+enum ProductPriceRangeKind {
+    Current,
+    Legacy,
+}
+
+fn product_price_range_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selection: &SelectedField,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+) -> Value {
+    if !variants.is_empty() {
+        if let Some((min_price, max_price)) = product_variant_price_bounds(variants) {
+            return computed_product_price_range_json(
+                min_price,
+                max_price,
+                currency_code,
+                kind,
+                &selection.selection,
+            );
+        }
+    }
+
+    if let Some(observed) = product.extra_fields.get(&selection.name) {
+        return nullable_selected_json(observed, &selection.selection);
+    }
+
+    if let Some((min_price, max_price)) = product_raw_variant_price_bounds(&product.variants) {
+        return computed_product_price_range_json(
+            min_price,
+            max_price,
+            currency_code,
+            kind,
+            &selection.selection,
+        );
+    }
+
+    computed_product_price_range_json(0.0, 0.0, currency_code, kind, &selection.selection)
+}
+
+fn product_variant_price_bounds(variants: &[ProductVariantRecord]) -> Option<(f64, f64)> {
+    price_bounds(
+        variants
+            .iter()
+            .filter_map(|variant| parse_product_price(&variant.price)),
+    )
+}
+
+fn product_raw_variant_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
+    price_bounds(variants.iter().filter_map(|variant| {
+        variant
+            .get("price")
+            .and_then(Value::as_str)
+            .and_then(parse_product_price)
+    }))
+}
+
+fn price_bounds<I>(prices: I) -> Option<(f64, f64)>
+where
+    I: IntoIterator<Item = f64>,
+{
+    let mut iter = prices.into_iter();
+    let first = iter.next()?;
+    let mut min_price = first;
+    let mut max_price = first;
+    for price in iter {
+        if price < min_price {
+            min_price = price;
+        }
+        if price > max_price {
+            max_price = price;
+        }
+    }
+    Some((min_price, max_price))
+}
+
+fn parse_product_price(price: impl AsRef<str>) -> Option<f64> {
+    price.as_ref().trim().parse::<f64>().ok()
+}
+
+fn computed_product_price_range_json(
+    min_price: f64,
+    max_price: f64,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!(match kind {
+            ProductPriceRangeKind::Current => "ProductPriceRangeV2",
+            ProductPriceRangeKind::Legacy => "ProductPriceRange",
+        })),
+        "minVariantPrice" => Some(selected_json(
+            &product_price_range_money(min_price, currency_code, kind),
+            &selection.selection,
+        )),
+        "maxVariantPrice" => Some(selected_json(
+            &product_price_range_money(max_price, currency_code, kind),
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn product_price_range_money(
+    price: f64,
+    currency_code: &str,
+    kind: ProductPriceRangeKind,
+) -> Value {
+    let amount = match kind {
+        ProductPriceRangeKind::Current => price,
+        ProductPriceRangeKind::Legacy => price * 100.0,
+    };
+    json!({
+        "__typename": "MoneyV2",
+        "amount": normalize_money_amount(&format!("{amount:.2}")),
+        "currencyCode": currency_code
+    })
+}
+
 fn product_collections_connection_json(
     product: &ProductRecord,
     selection: &SelectedField,
@@ -3009,6 +3149,15 @@ pub(in crate::proxy) fn product_json_with_variants(
     variants: &[ProductVariantRecord],
     selections: &[SelectedField],
 ) -> Value {
+    product_json_with_variants_and_currency(product, variants, selections, "USD")
+}
+
+pub(in crate::proxy) fn product_json_with_variants_and_currency(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selections: &[SelectedField],
+    currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -3065,6 +3214,20 @@ pub(in crate::proxy) fn product_json_with_variants(
         } else {
             json!(variants.len())
         }),
+        "priceRangeV2" => Some(product_price_range_json(
+            product,
+            variants,
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        )),
+        "priceRange" => Some(product_price_range_json(
+            product,
+            variants,
+            selection,
+            currency_code,
+            ProductPriceRangeKind::Legacy,
+        )),
         "templateSuffix" => Some(
             product
                 .extra_fields
@@ -4189,10 +4352,7 @@ pub(in crate::proxy) fn invalid_variable_required_field_error(
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
-    json!({
-        "field": ["input", "name"],
-        "message": "Name has already been taken"
-    })
+    user_error_omit_code(["input", "name"], "Name has already been taken", None)
 }
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(
@@ -4448,12 +4608,19 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
 
 pub(in crate::proxy) fn product_mutation_payload_json(
     product: &ProductRecord,
+    variants: &[ProductVariantRecord],
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
+    currency_code: &str,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json(product, product_selections)),
+            "product" => Some(product_json_with_variants_and_currency(
+                product,
+                variants,
+                product_selections,
+                currency_code,
+            )),
             "userErrors" => Some(json!([])),
             _ => None,
         }
@@ -4654,73 +4821,73 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if input.get("price") == Some(&ResolvedValue::Null) {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["price"]),
-            "message": "Price can't be blank",
-            "code": "INVALID"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["price"]),
+            "Price can't be blank",
+            Some("INVALID"),
+        ));
     } else if let Some(price) = resolved_variant_decimal(input, "price") {
         if price < 0.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["price"]),
-                "message": "Price must be greater than or equal to 0",
-                "code": "GREATER_THAN_OR_EQUAL_TO"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["price"]),
+                "Price must be greater than or equal to 0",
+                Some("GREATER_THAN_OR_EQUAL_TO"),
+            ));
         } else if price >= 1_000_000_000_000_000_000.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["price"]),
-                "message": "Price must be less than 1000000000000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["price"]),
+                "Price must be less than 1000000000000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
 
     if let Some(compare_at_price) = resolved_variant_decimal(input, "compareAtPrice") {
         if compare_at_price >= 1_000_000_000_000_000_000.0 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["compareAtPrice"]),
-                "message": "must be less than 1000000000000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["compareAtPrice"]),
+                "must be less than 1000000000000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
 
     if let Some(quantity) = resolved_int_field(input, "inventoryQuantity") {
         if quantity > 1_000_000_000 {
-            errors.push(json!({
-                "field": prefixed_error_field(field_prefix, &["inventoryQuantity"]),
-                "message": "Inventory quantity must be less than or equal to 1000000000",
-                "code": "INVALID_INPUT"
-            }));
+            errors.push(user_error(
+                prefixed_error_field(field_prefix, &["inventoryQuantity"]),
+                "Inventory quantity must be less than or equal to 1000000000",
+                Some("INVALID_INPUT"),
+            ));
         }
     }
     for quantity in resolved_object_list_field(input, "inventoryQuantities") {
         if let Some(available_quantity) = resolved_int_field(&quantity, "availableQuantity") {
             if available_quantity > 1_000_000_000 {
-                errors.push(json!({
-                    "field": prefixed_error_field(field_prefix, &["inventoryQuantities"]),
-                    "message": "Inventory quantity must be less than or equal to 1000000000",
-                    "code": "INVALID_INPUT"
-                }));
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryQuantities"]),
+                    "Inventory quantity must be less than or equal to 1000000000",
+                    Some("INVALID_INPUT"),
+                ));
                 break;
             }
         }
     }
 
     if resolved_string_field(input, "sku").is_some_and(|sku| sku.chars().count() > 255) {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["sku"]),
-            "message": "SKU is too long (maximum is 255 characters)",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["sku"]),
+            "SKU is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+        ));
     }
     if resolved_string_field(input, "barcode").is_some_and(|barcode| barcode.chars().count() > 255)
     {
-        errors.push(json!({
-            "field": prefixed_error_field(field_prefix, &["barcode"]),
-            "message": "Barcode is too long (maximum is 255 characters)",
-            "code": "INVALID_INPUT"
-        }));
+        errors.push(user_error(
+            prefixed_error_field(field_prefix, &["barcode"]),
+            "Barcode is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+        ));
     }
 
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
@@ -4728,21 +4895,21 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
             .is_some_and(|sku| sku.chars().count() > 255)
         {
             let bulk_field = !field_prefix.is_empty();
-            errors.push(json!({
-                "field": if bulk_field {
+            errors.push(user_error(
+                if bulk_field {
                     prefixed_error_field(field_prefix, &[])
                 } else {
                     prefixed_error_field(field_prefix, &["inventoryItem", "sku"])
                 },
-                "message": "SKU is too long (maximum is 255 characters)",
-                "code": "INVALID_INPUT"
-            }));
+                "SKU is too long (maximum is 255 characters)",
+                Some("INVALID_INPUT"),
+            ));
             if bulk_field {
-                errors.push(json!({
-                    "field": prefixed_error_field(field_prefix, &[]),
-                    "message": "is too long (maximum is 255 characters)",
-                    "code": Value::Null
-                }));
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &[]),
+                    "is too long (maximum is 255 characters)",
+                    None,
+                ));
             }
         }
     }
@@ -4752,8 +4919,8 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
         .enumerate()
     {
         if option.value.chars().count() > 255 {
-            errors.push(json!({
-                "field": if input.contains_key("optionValues") {
+            errors.push(user_error(
+                if input.contains_key("optionValues") {
                     prefixed_error_field(
                         field_prefix,
                         &["optionValues", &option_index.to_string(), "name"],
@@ -4761,9 +4928,9 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
                 } else {
                     prefixed_error_field(field_prefix, &["options"])
                 },
-                "message": "Option value name is too long",
-                "code": "INVALID_INPUT"
-            }));
+                "Option value name is too long",
+                Some("INVALID_INPUT"),
+            ));
             break;
         }
     }
@@ -4773,26 +4940,26 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
             if let Some(weight) = resolved_object_field(&measurement, "weight") {
                 if let Some(value) = resolved_variant_decimal(&weight, "value") {
                     if value < 0.0 {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": "Weight must be greater than or equal to 0",
-                            "code": "GREATER_THAN_OR_EQUAL_TO"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight must be greater than or equal to 0",
+                            Some("GREATER_THAN_OR_EQUAL_TO"),
+                        ));
                     } else if value >= 2_000_000_000.0 {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": "Weight must be less than 2000000000",
-                            "code": "INVALID_INPUT"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight must be less than 2000000000",
+                            Some("INVALID_INPUT"),
+                        ));
                     }
                 }
                 if let Some(unit) = resolved_string_field(&weight, "unit") {
                     if !matches!(unit.as_str(), "KILOGRAMS" | "GRAMS" | "POUNDS" | "OUNCES") {
-                        errors.push(json!({
-                            "field": variant_weight_error_field(field_prefix),
-                            "message": format!("Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES"),
-                            "code": "INVALID_INPUT"
-                        }));
+                        errors.push(user_error(
+                            variant_weight_error_field(field_prefix),
+                            "Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES",
+                            Some("INVALID_INPUT"),
+                        ));
                     }
                 }
             }
@@ -5525,11 +5692,7 @@ pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response 
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
-        &json!({
-            "field": ["id"],
-            "message": "Product does not exist",
-            "code": "NOT_FOUND"
-        }),
+        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
         &error_selection,
     );
     ok_json(json!({
@@ -5546,11 +5709,7 @@ pub(in crate::proxy) fn product_delete_missing_product(query: &str) -> Response 
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
-        &json!({
-            "field": ["id"],
-            "message": "Product does not exist",
-            "code": "NOT_FOUND"
-        }),
+        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
         &error_selection,
     );
     ok_json(json!({
@@ -5616,11 +5775,7 @@ pub(in crate::proxy) fn product_variant_media_user_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String> {

@@ -432,7 +432,7 @@ try {
       initialValue: '5.00',
       code: `HAR688E${String(stamp).slice(-8)}`,
       note: 'HAR-688 expired notification validation.',
-      expiresOn: '2000-01-01',
+      expiresOn: '2026-04-28',
       customerId: contactCustomerId,
       recipientAttributes: {
         id: contactCustomerId,
@@ -484,6 +484,7 @@ await writeFile(
       scenarioId: 'gift-card-notification-validation',
       notes: [
         'HAR-688 captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
+        'The expired notification branches use an ordinary recent-past expiresOn date instead of a fixture-coupled sentinel year.',
         'Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null; runtime tests keep the HAR-688 requested local field ["base"] contract for those branches.',
         'Public Admin GraphQL 2025-01 does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.',
       ],
