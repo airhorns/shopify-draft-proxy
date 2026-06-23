@@ -2039,8 +2039,8 @@ impl DraftProxy {
                     Err(response) => return response,
                 };
                 if matches!(root_field, "reverseDelivery" | "reverseFulfillmentOrder") {
-                    if let Some(data) =
-                        self.order_return_local_runtime_data(request, root_field, &query, &variables)
+                    if let Some(data) = self
+                        .order_return_local_runtime_data(request, root_field, &query, &variables)
                     {
                         ok_json(data)
                     } else {
