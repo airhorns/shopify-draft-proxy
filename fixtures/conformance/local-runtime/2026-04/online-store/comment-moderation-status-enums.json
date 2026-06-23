@@ -10,6 +10,7 @@
   "upstreamCalls": [
     {
       "operationName": "OnlineStoreCommentHydrate",
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
       "variables": {
         "id": "gid://shopify/Comment/local-moderation"
       },

@@ -6076,3 +6076,460 @@ fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
         ]})
     );
 }
+
+#[test]
+fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = upstream_calls.clone();
+        move |_request| {
+            *upstream_calls.lock().unwrap() += 1;
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "unexpected upstream call"}]}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliberatelyNotAnOnlineStoreOperation($blog: BlogCreateInput!, $page: PageCreateInput!) {
+          madeBlog: blogCreate(blog: $blog) {
+            blog { id title handle commentPolicy articlesCount { count precision } }
+            userErrors { field message code }
+          }
+          madePage: pageCreate(page: $page) {
+            page { id title handle body bodySummary isPublished publishedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blog": {"title": "CMS Lifecycle Blog", "commentPolicy": "MODERATED"},
+            "page": {"title": "CMS Lifecycle Page", "body": "<p>Hello <strong>page</strong></p>", "visible": false, "visibilityDate": "2099-01-01T00:00:00Z"}
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["madeBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["madePage"]["userErrors"], json!([]));
+    let blog_id = create.body["data"]["madeBlog"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let page_id = create.body["data"]["madePage"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["madePage"]["page"]["body"],
+        json!("<p>Hello <strong>page</strong></p>")
+    );
+    assert_eq!(
+        create.body["data"]["madePage"]["page"]["bodySummary"],
+        json!("Hello page")
+    );
+    assert_eq!(
+        create.body["data"]["madePage"]["page"]["isPublished"],
+        json!(false)
+    );
+
+    let article_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnotherUnrelatedOperationName($article: ArticleCreateInput!) {
+          madeArticle: articleCreate(article: $article) {
+            article { id title handle body summary tags isPublished author { name } blog { id title handle } commentsCount { count precision } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"article": {
+            "title": "CMS Lifecycle Article",
+            "body": "<p>Article body</p>",
+            "summary": "Article summary",
+            "tags": ["online-store", "cms"],
+            "blogId": blog_id,
+            "author": {"name": "CMS Author"},
+            "isPublished": true
+        }}),
+    ));
+    assert_eq!(article_create.status, 200);
+    assert_eq!(
+        article_create.body["data"]["madeArticle"]["userErrors"],
+        json!([])
+    );
+    let article_id = article_create.body["data"]["madeArticle"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStagedCms($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+          blog(id: $blogId) {
+            id
+            title
+            articlesCount { count precision }
+            articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } }
+          }
+          page(id: $pageId) { id title handle isPublished }
+          article(id: $articleId) { id title isPublished blog { id title } commentsCount { count precision } }
+          blogsCount { count precision }
+          pagesCount { count precision }
+        }
+        "#,
+        json!({"blogId": blog_id, "pageId": page_id, "articleId": article_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["blog"]["articlesCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read.body["data"]["blog"]["articles"]["nodes"][0]["id"],
+        json!(article_id)
+    );
+    assert_eq!(read.body["data"]["page"]["isPublished"], json!(false));
+    assert_eq!(
+        read.body["data"]["blogsCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read.body["data"]["pagesCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStagedCmsNode($articleId: ID!) {
+          articleNode: node(id: $articleId) { __typename ... on Article { id title blog { id title } } }
+        }
+        "#,
+        json!({"articleId": article_id}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["articleNode"]["__typename"],
+        json!("Article")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCms($articleId: ID!, $pageId: ID!, $blogId: ID!) {
+          articleDelete(id: $articleId) { deletedArticleId userErrors { field message code } }
+          pageDelete(id: $pageId) { deletedPageId userErrors { field message code } }
+          blogDelete(id: $blogId) { deletedBlogId userErrors { field message code } }
+        }
+        "#,
+        json!({"articleId": article_id, "pageId": page_id, "blogId": blog_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["articleDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["articleDelete"]["deletedArticleId"],
+        json!(article_id)
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDeletedCms($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+          blog(id: $blogId) { id }
+          page(id: $pageId) { id }
+          article(id: $articleId) { id }
+          node(id: $articleId) { id }
+          blogs(first: 10) { nodes { id } }
+          pages(first: 10) { nodes { id } }
+          articles(first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"blogId": blog_id, "pageId": page_id, "articleId": article_id}),
+    ));
+    assert_eq!(read_after_delete.body["data"]["blog"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["page"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["article"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["node"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["blogs"]["nodes"], json!([]));
+    assert_eq!(read_after_delete.body["data"]["pages"]["nodes"], json!([]));
+    assert_eq!(
+        read_after_delete.body["data"]["articles"]["nodes"],
+        json!([])
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_comment_moderation_state_machine_and_delete_are_local() {
+    let blog_id = "gid://shopify/Blog/9001";
+    let article_id = "gid://shopify/Article/9002";
+    let unapproved_id = "gid://shopify/Comment/9003";
+    let spam_id = "gid://shopify/Comment/9004";
+    let published_id = "gid://shopify/Comment/9005";
+    let still_unapproved_id = "gid://shopify/Comment/9006";
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let transport_hydrate_calls = Arc::clone(&hydrate_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            transport_hydrate_calls
+                .lock()
+                .unwrap()
+                .push(format!("{id}:{query}"));
+            let comment_node = |id: &str, status: &str, is_published: bool, published_at: Value| {
+                json!({
+                    "__typename": "Comment",
+                    "id": id,
+                    "status": status,
+                    "body": "Moderation body",
+                    "bodyHtml": "<p>Moderation body</p>",
+                    "isPublished": is_published,
+                    "publishedAt": published_at,
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "updatedAt": "2026-01-01T00:00:00Z",
+                    "article": { "id": article_id }
+                })
+            };
+            let response = if query.contains("OnlineStoreCommentHydrate") {
+                let comment = match id {
+                    id if id == unapproved_id => {
+                        comment_node(id, "UNAPPROVED", false, Value::Null)
+                    }
+                    id if id == spam_id => comment_node(id, "SPAM", false, Value::Null),
+                    id if id == published_id => {
+                        comment_node(id, "PUBLISHED", true, json!("2026-01-01T00:00:00Z"))
+                    }
+                    id if id == still_unapproved_id => {
+                        comment_node(id, "UNAPPROVED", false, Value::Null)
+                    }
+                    _ => Value::Null,
+                };
+                json!({ "comment": comment })
+            } else if query.contains("OnlineStoreArticleDeleteCascadeHydrate") {
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": article_id,
+                        "title": "Moderated Article",
+                        "handle": "moderated-article",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                        "blog": { "id": blog_id },
+                        "comments": { "nodes": [
+                            comment_node(unapproved_id, "UNAPPROVED", false, Value::Null),
+                            comment_node(spam_id, "SPAM", false, Value::Null),
+                            comment_node(published_id, "PUBLISHED", true, json!("2026-01-01T00:00:00Z")),
+                            comment_node(still_unapproved_id, "UNAPPROVED", false, Value::Null)
+                        ] }
+                    }
+                })
+            } else {
+                panic!("unexpected online-store hydrate query: {query}");
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": response }),
+            }
+        });
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownComment($id: ID!) {
+          commentApprove(id: $id) { comment { id } userErrors { field message code } }
+          commentSpam(id: $id) { comment { id } userErrors { field message code } }
+          commentNotSpam(id: $id) { comment { id } userErrors { field message code } }
+          commentDelete(id: $id) { deletedCommentId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Comment/9999999999"}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["commentApprove"]["userErrors"],
+        json!([{"field": ["id"], "message": "Comment does not exist", "code": "NOT_FOUND"}])
+    );
+    assert_eq!(
+        unknown.body["data"]["commentDelete"]["userErrors"],
+        json!([{"field": ["id"], "message": "Comment does not exist", "code": "NOT_FOUND"}])
+    );
+
+    let transitions = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommentTransitions($unapproved: ID!, $stillUnapproved: ID!, $spam: ID!, $published: ID!) {
+          approve: commentApprove(id: $unapproved) { comment { id status isPublished publishedAt } userErrors { field message code } }
+          approveSpam: commentApprove(id: $spam) { comment { id status } userErrors { field message code } }
+          notSpamUnapproved: commentNotSpam(id: $stillUnapproved) { comment { id status } userErrors { field message code } }
+          spamPublished: commentSpam(id: $published) { comment { id status isPublished publishedAt } userErrors { field message code } }
+        }
+        "#,
+        json!({"unapproved": unapproved_id, "stillUnapproved": still_unapproved_id, "spam": spam_id, "published": published_id}),
+    ));
+    assert_eq!(
+        transitions.body["data"]["approve"]["comment"]["status"],
+        json!("PUBLISHED")
+    );
+    assert_eq!(transitions.body["data"]["approve"]["userErrors"], json!([]));
+    assert_eq!(
+        transitions.body["data"]["approveSpam"]["userErrors"],
+        json!([{"field": ["id"], "message": "Status cannot transition via \"approve\"", "code": null}])
+    );
+    assert_eq!(
+        transitions.body["data"]["notSpamUnapproved"]["comment"],
+        Value::Null
+    );
+    assert_eq!(
+        transitions.body["data"]["spamPublished"]["comment"]["status"],
+        json!("SPAM")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteComment($id: ID!) {
+          commentDelete(id: $id) { deletedCommentId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": published_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["commentDelete"],
+        json!({"deletedCommentId": published_id, "userErrors": []})
+    );
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterCommentDelete($commentId: ID!, $articleId: ID!) {
+          comment(id: $commentId) { id status }
+          article(id: $articleId) {
+            commentsCount { count precision }
+            comments(first: 10) { nodes { id } }
+          }
+          comments(first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"commentId": published_id, "articleId": article_id}),
+    ));
+    assert_eq!(read_after_delete.body["data"]["comment"], Value::Null);
+    assert_eq!(
+        read_after_delete.body["data"]["article"]["comments"]["nodes"],
+        json!([
+            {"id": unapproved_id},
+            {"id": spam_id},
+            {"id": still_unapproved_id}
+        ])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["article"]["commentsCount"],
+        json!({"count": 3, "precision": "EXACT"})
+    );
+    let hydrate_calls = hydrate_calls.lock().unwrap();
+    assert!(hydrate_calls
+        .iter()
+        .any(|call| call.contains("OnlineStoreCommentHydrate")));
+    assert!(hydrate_calls
+        .iter()
+        .any(|call| call.contains("OnlineStoreArticleDeleteCascadeHydrate")));
+}
+
+#[test]
+fn online_store_content_validation_branches_do_not_stage() {
+    let mut proxy = snapshot_proxy();
+
+    let page_handles = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PageHandles($first: PageCreateInput!, $second: PageCreateInput!, $duplicate: PageCreateInput!) {
+          first: pageCreate(page: $first) { page { id handle } userErrors { field message code } }
+          second: pageCreate(page: $second) { page { id handle } userErrors { field message code } }
+          duplicate: pageCreate(page: $duplicate) { page { id handle } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "first": {"title": "About Us"},
+            "second": {"title": "About Us"},
+            "duplicate": {"title": "Explicit Duplicate", "handle": "about-us"}
+        }),
+    ));
+    assert_eq!(
+        page_handles.body["data"]["first"]["page"]["handle"],
+        json!("about-us")
+    );
+    assert_eq!(
+        page_handles.body["data"]["second"]["page"]["handle"],
+        json!("about-us-1")
+    );
+    assert_eq!(
+        page_handles.body["data"]["duplicate"],
+        json!({"page": null, "userErrors": [{"field": ["page", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidContent($futurePage: PageCreateInput!, $longBlog: BlogCreateInput!, $badArticle: ArticleCreateInput!) {
+          futurePage: pageCreate(page: $futurePage) { page { id } userErrors { field message code } }
+          longBlog: blogCreate(blog: $longBlog) { blog { id } userErrors { field message code } }
+          badArticle: articleCreate(article: $badArticle) { article { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "futurePage": {"title": "Future page", "isPublished": true, "publishDate": "2099-01-01T00:00:00Z"},
+            "longBlog": {"title": "x".repeat(256)},
+            "badArticle": {"title": "No blog", "author": {"name": "Author"}}
+        }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["futurePage"],
+        json!({"page": null, "userErrors": [{"field": ["page"], "message": "Can\u{2019}t set isPublished to true and also set a future publish date.", "code": "INVALID_PUBLISH_DATE"}]})
+    );
+    assert_eq!(
+        invalid.body["data"]["longBlog"],
+        json!({"blog": null, "userErrors": [{"field": ["blog", "title"], "message": "Title is too long (maximum is 255 characters)", "code": "TOO_LONG"}]})
+    );
+    assert_eq!(
+        invalid.body["data"]["badArticle"],
+        json!({"article": null, "userErrors": [{"field": ["article"], "message": "Must reference or create a blog when creating an article.", "code": "BLOG_REFERENCE_REQUIRED"}]})
+    );
+
+    let blog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogCommentableCreate($blog: BlogCreateInput!) {
+          create: blogCreate(blog: $blog) { blog { id title commentPolicy } userErrors { field message code } }
+        }
+        "#,
+        json!({"blog": {"title": "Commentable", "commentPolicy": "CLOSED"}}),
+    ));
+    let blog_id = blog.body["data"]["create"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let commentable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogCommentable($id: ID!, $valid: BlogUpdateInput!, $invalid: BlogUpdateInput!) {
+          valid: blogUpdate(id: $id, blog: $valid) { blog { id title commentPolicy } userErrors { field message code } }
+          invalid: blogUpdate(id: $id, blog: $invalid) { blog { id title commentPolicy } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "id": blog_id,
+            "valid": {"commentable": "MODERATE"},
+            "invalid": {"commentable": "INVALID_VALUE"}
+        }),
+    ));
+    assert_eq!(
+        commentable.body["data"]["valid"]["blog"]["commentPolicy"],
+        json!("MODERATED")
+    );
+    assert_eq!(
+        commentable.body["data"]["invalid"],
+        json!({"blog": null, "userErrors": [{"field": ["blog", "commentable"], "message": "Commentable is not included in the list", "code": "INCLUSION"}]})
+    );
+    let commentable_read = proxy.process_request(json_graphql_request(
+        r#"
+        query BlogCommentableRead($id: ID!) {
+          blog(id: $id) { id title commentPolicy }
+        }
+        "#,
+        json!({"id": blog_id}),
+    ));
+    assert_eq!(
+        commentable_read.body["data"]["blog"]["commentPolicy"],
+        json!("MODERATED")
+    );
+}

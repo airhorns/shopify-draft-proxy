@@ -235,6 +235,86 @@ impl DraftProxy {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
         }
+        if !self.store.staged.online_store_integrations.is_empty() {
+            snapshot["stagedState"]["onlineStoreIntegrations"] =
+                json!(self.store.staged.online_store_integrations.clone());
+        }
+        if !self.store.staged.online_store_blogs.is_empty() {
+            snapshot["stagedState"]["onlineStoreBlogs"] =
+                json!(self.store.staged.online_store_blogs.clone());
+            snapshot["stagedState"]["onlineStoreBlogOrder"] =
+                json!(self.store.staged.online_store_blog_order.clone());
+        }
+        if !self.store.staged.deleted_online_store_blog_ids.is_empty() {
+            snapshot["stagedState"]["deletedOnlineStoreBlogIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_blog_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if let Some(count) = self.store.staged.online_store_blogs_count_base {
+            snapshot["stagedState"]["onlineStoreBlogsCountBase"] = json!(count);
+        }
+        if !self.store.staged.online_store_pages.is_empty() {
+            snapshot["stagedState"]["onlineStorePages"] =
+                json!(self.store.staged.online_store_pages.clone());
+            snapshot["stagedState"]["onlineStorePageOrder"] =
+                json!(self.store.staged.online_store_page_order.clone());
+        }
+        if !self.store.staged.deleted_online_store_page_ids.is_empty() {
+            snapshot["stagedState"]["deletedOnlineStorePageIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_page_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if let Some(count) = self.store.staged.online_store_pages_count_base {
+            snapshot["stagedState"]["onlineStorePagesCountBase"] = json!(count);
+        }
+        if !self.store.staged.online_store_articles.is_empty() {
+            snapshot["stagedState"]["onlineStoreArticles"] =
+                json!(self.store.staged.online_store_articles.clone());
+            snapshot["stagedState"]["onlineStoreArticleOrder"] =
+                json!(self.store.staged.online_store_article_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_article_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreArticleIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_article_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.online_store_comments.is_empty() {
+            snapshot["stagedState"]["onlineStoreComments"] =
+                json!(self.store.staged.online_store_comments.clone());
+            snapshot["stagedState"]["onlineStoreCommentOrder"] =
+                json!(self.store.staged.online_store_comment_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreCommentIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_comment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.bulk_operations.is_empty() {
             snapshot["stagedState"]["bulkOperations"] =
                 json!(self.store.staged.bulk_operations.clone());
@@ -686,6 +766,64 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.online_store_integrations =
+            value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
+        self.store.staged.online_store_blogs =
+            value_map_from_json(state["stagedState"].get("onlineStoreBlogs"));
+        self.store.staged.online_store_blog_order = state["stagedState"]
+            .get("onlineStoreBlogOrder")
+            .map(string_array_from_json)
+            .unwrap_or_default();
+        self.store.staged.deleted_online_store_blog_ids = state["stagedState"]
+            .get("deletedOnlineStoreBlogIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.online_store_blogs_count_base = state["stagedState"]
+            .get("onlineStoreBlogsCountBase")
+            .and_then(Value::as_u64)
+            .map(|count| count as usize);
+        self.store.staged.online_store_pages =
+            value_map_from_json(state["stagedState"].get("onlineStorePages"));
+        self.store.staged.online_store_page_order = state["stagedState"]
+            .get("onlineStorePageOrder")
+            .map(string_array_from_json)
+            .unwrap_or_default();
+        self.store.staged.deleted_online_store_page_ids = state["stagedState"]
+            .get("deletedOnlineStorePageIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.online_store_pages_count_base = state["stagedState"]
+            .get("onlineStorePagesCountBase")
+            .and_then(Value::as_u64)
+            .map(|count| count as usize);
+        self.store.staged.online_store_articles =
+            value_map_from_json(state["stagedState"].get("onlineStoreArticles"));
+        self.store.staged.online_store_article_order = state["stagedState"]
+            .get("onlineStoreArticleOrder")
+            .map(string_array_from_json)
+            .unwrap_or_default();
+        self.store.staged.deleted_online_store_article_ids = state["stagedState"]
+            .get("deletedOnlineStoreArticleIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.online_store_comments =
+            value_map_from_json(state["stagedState"].get("onlineStoreComments"));
+        self.store.staged.online_store_comment_order = state["stagedState"]
+            .get("onlineStoreCommentOrder")
+            .map(string_array_from_json)
+            .unwrap_or_default();
+        self.store.staged.deleted_online_store_comment_ids = state["stagedState"]
+            .get("deletedOnlineStoreCommentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.bulk_operations = state["stagedState"]
             .get("bulkOperations")
             .and_then(Value::as_object)

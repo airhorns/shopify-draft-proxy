@@ -4974,6 +4974,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-comment-moderation-status-enums-local-runtime',
+    scriptPath: 'scripts/capture-online-store-comment-moderation-status-enums-local-runtime.ts',
+    purpose:
+      'Executable local-runtime evidence that commentSpam, commentNotSpam, and commentApprove persist Core comment status enum values from a cassette-hydrated comment.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}comment-moderation-status-enums.json`,
+      'config/parity-specs/online-store/comment-moderation-status-enums.json',
+      'config/parity-requests/online-store/comment-moderation-status-approve.graphql',
+      'config/parity-requests/online-store/comment-moderation-status-not-spam.graphql',
+      'config/parity-requests/online-store/comment-moderation-status-spam.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; the fixture replays a recorded comment hydrate response through the parity cassette and does not modify Shopify.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-comment-moderation-not-found-codes',
     scriptPath: 'scripts/capture-online-store-comment-moderation-not-found-codes-conformance.ts',
     purpose:
