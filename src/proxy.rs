@@ -1658,7 +1658,7 @@ mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
-mod markets_online_inventory;
+mod markets_catalog_helpers;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
@@ -1700,7 +1700,7 @@ pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
 #[allow(unused_imports)]
-pub(in crate::proxy) use self::markets_online_inventory::*;
+pub(in crate::proxy) use self::markets_catalog_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 #[allow(unused_imports)]

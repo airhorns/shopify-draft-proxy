@@ -2,6 +2,10 @@ use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
 use sha2::{Digest, Sha256};
 
+mod web_presence_helpers;
+
+pub(in crate::proxy) use self::web_presence_helpers::*;
+
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
 /// hydrate their baseline price-list/product/variant records from a recorded
 /// preflight keyed on this sentinel query plus the mutation's own variables. The
