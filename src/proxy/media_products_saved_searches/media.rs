@@ -5,7 +5,7 @@ use super::*;
 // records before staging local updates; in replay they match the recorded
 // cassette calls, and against a live backend they are ordinary GraphQL reads.
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
-const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
+pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
 // fileDelete / fileUpdate cascade clearing needs to know which products (and
 // their variants) a media file is attached to, so a delete or detach can remove
 // the file id from those owners. Shopify exposes no local reverse index, so in
@@ -774,7 +774,7 @@ impl DraftProxy {
     // node, and a `ProductVariantRecord` (with `media_ids`) for each variant.
     // Without the latter two, the cascade clear and downstream variant.media
     // reads would have nothing concrete to operate on.
-    fn observe_media_product_node(&mut self, product_node: &Value) {
+    pub(in crate::proxy) fn observe_media_product_node(&mut self, product_node: &Value) {
         let Some(product_id) = product_node
             .get("id")
             .and_then(Value::as_str)

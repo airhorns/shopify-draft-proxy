@@ -136,57 +136,68 @@ mutation FulfillmentMultiTrackingOrderCreate($order: OrderCreateOrderInput!, $op
 }
 `;
 
-const orderHydrateQuery = `#graphql
-query OrdersFulfillmentOrderHydrate($id: ID!) {
-  fulfillmentOrder(id: $id) {
-    id
-    order {
+// Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
+// (src/proxy/online_store_orders_payments.rs). On a cold fulfillmentCreate the
+// proxy forwards this document to resolve the owning order from the supplied
+// fulfillmentOrderId; recording its live response is what replaces the seeded
+// order. Kept flush-left so cleanGraphql leaves it identical to the constant.
+const fulfillmentOrderHydrateQuery = `query ShippingFulfillmentOrderHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
       id
-      name
-      email
-      phone
-      createdAt
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
       updatedAt
-      closed
-      closedAt
-      cancelledAt
-      cancelReason
-      displayFinancialStatus
-      displayFulfillmentStatus
-      note
-      tags
-      fulfillments(first: 5) {
-        id
-        status
-        displayStatus
-        createdAt
-        updatedAt
-        trackingInfo { number url company }
+      supportedActions {
+        action
       }
-      fulfillmentOrders(first: 10) {
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+        }
+      }
+      lineItems(first: 20) {
         nodes {
           id
-          status
-          requestStatus
-          lineItems(first: 10) {
-            nodes {
-              id
-              totalQuantity
-              remainingQuantity
-              lineItem {
-                id
-                title
-                quantity
-                fulfillableQuantity
-              }
-            }
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
           }
         }
       }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
     }
-  }
-}
-`;
+  }`;
 
 const fulfillmentCreateMutation = `#graphql
 mutation FulfillmentCreateMultiTracking($fulfillment: FulfillmentInput!, $message: String) {
@@ -342,7 +353,7 @@ try {
     requirePath(order['fulfillmentOrders']?.['nodes']?.[0]?.['id'], 'order.fulfillmentOrders.nodes[0].id'),
   );
 
-  const hydrateBeforeFulfillmentCreate = await capture('hydrateBeforeFulfillmentCreate', orderHydrateQuery, {
+  const hydrateBeforeFulfillmentCreate = await capture('hydrateBeforeFulfillmentCreate', fulfillmentOrderHydrateQuery, {
     id: fulfillmentOrderId,
   });
 
@@ -402,7 +413,7 @@ try {
     downstreamRead,
     upstreamCalls: [
       {
-        operationName: 'OrdersFulfillmentOrderHydrate',
+        operationName: 'ShippingFulfillmentOrderHydrate',
         variables: hydrateBeforeFulfillmentCreate.variables,
         query: hydrateBeforeFulfillmentCreate.query,
         response: {

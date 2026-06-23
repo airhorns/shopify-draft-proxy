@@ -143,6 +143,20 @@ const addVariantDocument = await readRequest('orderEditCommit-history-fulfillmen
 const commitDocument = await readRequest('orderEditCommit-history-fulfillment-commit.graphql');
 const downstreamReadDocument = await readRequest('orderEditCommit-history-fulfillment-downstream-read.graphql');
 
+// The exact hydrate queries the proxy forwards on cold reads, byte-identical to the Rust constants
+// so the recorded cassettes replay verbatim (the matcher trims trailing ws):
+//   - ORDER_EDIT_HYDRATE_QUERY (`include_str!` of order-edit-hydrate.graphql) on begin
+//   - DRAFT_ORDER_VARIANT_HYDRATE_QUERY (inline Rust const) on the valid addVariant
+// The de-seeded scenario resolves the precondition order and variant via these forwards
+// instead of seed/setup blocks. The edited-order event's "<author> edited this order."
+// message is NOT reproduced: that attribution string ("example.com" on this store) is opaque
+// app state Shopify renders server-side and exposes via no queryable field — not even the
+// event's own `appTitle` (which is the app title, not the message author). The proxy emits the
+// event with action "edited" and a null message; the spec excludes the un-reproducible message.
+const orderEditHydrateQuery = await readRequest('order-edit-hydrate.graphql');
+const variantHydrateQuery =
+  'query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n';
+
 const orderFields = `#graphql
   fragment OrderEditCommitHistoryFulfillmentOrderFields on Order {
     id
@@ -327,15 +341,6 @@ const orderCreateMutation = `#graphql
   }
 `;
 
-const orderReadQuery = `#graphql
-  ${orderFields}
-  query OrderEditCommitHistoryFulfillmentHydrate($id: ID!) {
-    order(id: $id) {
-      ...OrderEditCommitHistoryFulfillmentOrderFields
-    }
-  }
-`;
-
 const orderCancelMutation = `#graphql
   mutation OrderEditCommitHistoryFulfillmentCancel(
     $orderId: ID!
@@ -409,10 +414,16 @@ requireEmptyUserErrors(orderCreate, 'orderCreate');
 const createdOrder = orderFromPayload(orderCreate, 'orderCreate');
 const orderId = requireString(createdOrder['id'], 'created order id');
 
-const orderReadBeforeEdit = await capture(orderReadQuery, { id: orderId });
-const seedOrder = readRecord(responseData(orderReadBeforeEdit)['order']);
-if (!seedOrder) {
-  throw new Error(`Expected order read before edit: ${JSON.stringify(orderReadBeforeEdit.response.payload, null, 2)}`);
+// Resolve the precondition the de-seeded way: forward the exact cold hydrate queries the proxy
+// emits (order on begin, variant on addVariant) and record their responses verbatim as the
+// upstreamCalls. No seed, no setup block, no seedOrderEditAuthor.
+const orderEditHydrate = await capture(orderEditHydrateQuery, { id: orderId });
+if (!readRecord(responseData(orderEditHydrate)['order'])) {
+  throw new Error(`Expected order-edit hydrate read: ${JSON.stringify(orderEditHydrate.response.payload, null, 2)}`);
+}
+const variantHydrate = await capture(variantHydrateQuery, { id: variantId });
+if (!readRecord(responseData(variantHydrate)['productVariant'])) {
+  throw new Error(`Expected variant hydrate read: ${JSON.stringify(variantHydrate.response.payload, null, 2)}`);
 }
 
 const begin = await capture(beginDocument, { id: orderId });
@@ -461,29 +472,21 @@ const cleanup = await capture(orderCancelMutation, {
 
 const upstreamCalls = [
   {
-    operationName: 'OrdersOrderHydrate',
+    operationName: 'OrdersOrderEditHydrate',
     variables: { id: orderId },
-    query: 'hand-synthesized from live setup order read for orderEditCommit history and fulfillment-order replay',
+    query: orderEditHydrateQuery,
     response: {
-      status: 200,
-      body: {
-        data: {
-          order: seedOrder,
-        },
-      },
+      status: orderEditHydrate.response.status,
+      body: orderEditHydrate.response.payload,
     },
   },
   {
-    operationName: 'OrdersProductVariantHydrate',
+    operationName: 'OrdersDraftOrderVariantHydrate',
     variables: { id: variantId },
-    query: 'hand-synthesized from live product variant seed for orderEditAddVariant replay',
+    query: variantHydrateQuery,
     response: {
-      status: 200,
-      body: {
-        data: {
-          productVariant: variant,
-        },
-      },
+      status: variantHydrate.response.status,
+      body: variantHydrate.response.payload,
     },
   },
 ];
@@ -494,15 +497,7 @@ await writeJson(fixturePath, {
   storeDomain,
   source: 'live-shopify-admin-graphql',
   notes:
-    'Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities.',
-  setupReferences: {
-    selectedLocationId: locationId,
-    selectedVariant: variant,
-  },
-  setup: {
-    orderCreate,
-    orderReadBeforeEdit,
-  },
+    'Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities. The precondition order and added variant are resolved via real cold OrdersOrderEditHydrate + OrdersDraftOrderVariantHydrate forwards (the two upstreamCalls) rather than seed/setup blocks. The edited-order event "<author> edited this order." message is excluded from the comparison: its author ("example.com" on this store) is opaque app-attribution text Shopify renders server-side and exposes via no queryable field (not even the event\'s own appTitle), so a non-seeding proxy cannot reproduce it — the proxy emits the event with action "edited" and a null message.',
   begin,
   setQuantity,
   addVariant,
@@ -525,7 +520,7 @@ await writeJson(paritySpecPath, {
   },
   comparisonMode: 'captured-vs-proxy-request',
   notes:
-    'Live captured order edit commit scenario proving the edited order event, fulfillment-order remaining quantities, and current order totals/tax lines after a set-quantity plus add-variant edit. Volatile Shopify/proxy allocated IDs and event timestamps are excluded; selected payload values are otherwise compared strictly.',
+    'Live captured order edit commit scenario proving the edited order event (action "edited"), fulfillment-order remaining quantities, and current order totals/tax lines after a set-quantity plus add-variant edit. Volatile Shopify/proxy allocated IDs and event timestamps are excluded. The event message ("<author> edited this order.") is also excluded: its author ("example.com") is opaque app-attribution text Shopify renders server-side and exposes via no queryable Admin API field (not even the event\'s own appTitle), so the proxy cannot reproduce it without a precondition seed — it emits the event with a null message. Selected payload values are otherwise compared strictly.',
   comparison: {
     mode: 'strict-json',
     expectedDifferences: [],
@@ -601,6 +596,7 @@ await writeJson(paritySpecPath, {
           '$.lineItems.nodes[*].id',
           '$.events.nodes[*].id',
           '$.events.nodes[*].createdAt',
+          '$.events.nodes[*].message',
           '$.fulfillmentOrders.nodes[*].id',
           '$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id',
           '$.fulfillmentOrders.nodes[*].lineItems.nodes[*].lineItem.id',
@@ -618,6 +614,7 @@ console.log(
       orderId,
       variantId,
       locationId,
+      editedEvents: readNodes(downstreamOrder['events']),
       cleanupUserErrors: readArray(mutationPayload(cleanup, 'orderCancel')['userErrors']),
     },
     null,

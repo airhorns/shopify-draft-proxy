@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-safety"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-invoice-send-safety.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-invoice-send-safety.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-parity-plan.graphql",
@@ -50,5 +50,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 no-email safety evidence is now replayed by the generic parity runner as strict proxy-vs-recording comparison for unknown draft IDs, deleted drafts, open no-recipient drafts, and completed no-recipient drafts. The parity harness seeds only the captured disposable draft-order setup states and never executes a recipient-backed invoice send; the runtime test remains the no-upstream/log-retention guardrail proving local handling never sends customer-visible email and keeps the original raw mutation for explicit commit replay."
+  "notes": "Live-recorded (2025-01) no-email safety evidence replayed by the generic parity runner as strict proxy-vs-recording comparison for unknown draft IDs, deleted drafts, open no-recipient drafts, and completed no-recipient drafts. The proxy resolves each precondition by forwarding a cold draft-order hydrate (DRAFT_ORDER_HYDRATE_QUERY, recorded in upstreamCalls) — no /__meta/seed pre-stage — and never executes a recipient-backed invoice send; the runtime test remains the no-upstream/log-retention guardrail proving local handling never sends customer-visible email and keeps the original raw mutation for explicit commit replay."
 }

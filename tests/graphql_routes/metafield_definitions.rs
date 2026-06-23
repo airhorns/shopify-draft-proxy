@@ -1448,22 +1448,31 @@ fn metafield_definition_delete_keeps_type_guard_exceptions_without_associated_va
 fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_values() {
     let mut proxy = snapshot_proxy();
     let namespace = "delete_reference_guard";
-    let owner_id = "gid://shopify/Product/10173064872242";
 
-    let seed = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/seed",
-        &json!({
-            "products": [{
-                "id": owner_id,
-                "title": "Delete reference guard product",
-                "handle": "delete-reference-guard-product",
-                "status": "ACTIVE"
-            }]
-        })
-        .to_string(),
+    // Create a real product locally so the `product_reference` value resolves
+    // against staged resource state. The seeded reference target this previously
+    // relied on was removed with `/__meta/seed`; metafieldsSet validates reference
+    // values against staged/base/hydrated resources, so the target must genuinely
+    // exist rather than being injected.
+    let create_target = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceGuardTarget($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Delete guard reference target" } }),
     ));
-    assert_eq!(seed.status, 200);
+    assert_eq!(
+        create_target.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = create_target.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should stage a product id")
+        .to_string();
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -1500,11 +1509,11 @@ fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_
         "#,
         json!({
             "metafields": [{
-                "ownerId": owner_id,
+                "ownerId": owner_id.clone(),
                 "namespace": namespace,
                 "key": "target",
                 "type": "product_reference",
-                "value": owner_id
+                "value": owner_id.clone()
             }]
         }),
     ));

@@ -1,0 +1,181 @@
+{
+  "scenarioId": "order-edit-existing-order-validation",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-22T15:48:08.565Z",
+  "source": "live-shopify-admin-graphql",
+  "variables": {
+    "id": "gid://shopify/Order/8837456953650"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderEditBegin": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/112432644402",
+            "originalOrder": {
+              "id": "gid://shopify/Order/8837456953650",
+              "name": "#1485"
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CalculatedLineItem/19494085493042",
+                  "title": "The Draft Snowboard",
+                  "quantity": 1,
+                  "sku": null,
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/49875425460530"
+                  },
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "2629.95",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "addedLineItems": {
+              "nodes": []
+            }
+          },
+          "orderEditSession": {
+            "id": "gid://shopify/OrderEditSession/112432644402"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidVariant": {
+    "response": {
+      "data": {
+        "orderEditAddVariant": {
+          "calculatedOrder": null,
+          "calculatedLineItem": null,
+          "orderEditSession": null,
+          "userErrors": [
+            {
+              "field": ["variantId"],
+              "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateVariant": {
+    "variables": {
+      "variantId": "gid://shopify/ProductVariant/49875425460530",
+      "quantity": 1,
+      "locationId": "gid://shopify/Location/106318430514",
+      "allowDuplicates": false
+    },
+    "response": {
+      "data": {
+        "orderEditAddVariant": {
+          "calculatedOrder": null,
+          "calculatedLineItem": null,
+          "orderEditSession": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "The Draft Snowboard was not added because it's already on the order."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderEditHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8837456953650"
+      },
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8837456953650",
+              "name": "#1485",
+              "merchantEditable": true,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19494085493042",
+                    "title": "The Draft Snowboard",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": null,
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/49875425460530",
+                      "title": "Default Title",
+                      "sku": null
+                    },
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "2629.95",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

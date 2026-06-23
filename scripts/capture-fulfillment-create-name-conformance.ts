@@ -205,6 +205,69 @@ mutation FulfillmentCreateNameOrderDelete($orderId: ID!) {
 }
 `;
 
+// Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
+// (src/proxy/online_store_orders_payments.rs). On a cold fulfillmentCreate the
+// proxy forwards this document to resolve the owning order from the supplied
+// fulfillmentOrderId; recording its live response is what replaces the seeded
+// order. Kept flush-left so trimGraphql leaves it identical to the constant.
+const fulfillmentOrderHydrateQuery = `query ShippingFulfillmentOrderHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+        }
+      }
+      lineItems(first: 20) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
+    }
+  }`;
+
 function orderVariables(stamp: number): JsonRecord {
   return {
     order: {
@@ -302,6 +365,13 @@ try {
   const fulfillmentOrderId = String(requirePath(fulfillmentOrder['id'], 'fulfillmentOrder.id'));
   const fulfillmentOrderLineItemId = String(requirePath(fulfillmentOrderLineItem['id'], 'fulfillmentOrderLineItem.id'));
 
+  // Record the cold-miss order hydrate the proxy forwards for this fulfillment
+  // order in its full, unfulfilled state — before any fulfillmentCreate runs —
+  // so de-seeded replay forwards+observes real store state.
+  const fulfillmentOrderHydrate = await capture('setup.fulfillmentOrderHydrate', fulfillmentOrderHydrateQuery, {
+    id: fulfillmentOrderId,
+  });
+
   const firstFulfillmentCreate = await capture(
     'first.fulfillmentCreate',
     fulfillmentCreateMutation,
@@ -333,6 +403,17 @@ try {
     firstFulfillmentCreate,
     secondFulfillmentCreate,
     cleanup,
+    upstreamCalls: [
+      {
+        operationName: 'ShippingFulfillmentOrderHydrate',
+        variables: fulfillmentOrderHydrate.variables,
+        query: fulfillmentOrderHydrate.query,
+        response: {
+          status: fulfillmentOrderHydrate.status,
+          body: fulfillmentOrderHydrate.response,
+        },
+      },
+    ],
   };
 
   await writeJson(fixturePath, capturePayload);

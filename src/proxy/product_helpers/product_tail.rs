@@ -151,6 +151,10 @@ impl DraftProxy {
                         .publications
                         .insert(id.clone(), record.clone());
                 }
+                // Materialize the store's default Online Store publication now
+                // that the engine is active, so `channels`/`publicationsCount`
+                // reflect it without a seeded precondition.
+                self.ensure_default_publication();
                 if let Some(catalog_id) = catalog_id.as_deref() {
                     if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
                         set_catalog_publication_relation(catalog, Some(id));
@@ -190,6 +194,35 @@ impl DraftProxy {
         let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
         let publishables_to_remove =
             resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        // Resolve publishable (product / variant) existence against real store
+        // state rather than a seeded catalog: forward a `nodes(...)` hydrate for
+        // any referenced product/variant not already staged and observe it, so the
+        // "Publishable ID not found." check below reflects upstream truth (a null
+        // node leaves the id unstaged -> reported missing). Shopify enforces the
+        // batch-size cap before resolving any publishable, so an oversized batch is
+        // left untouched; the limit error fires regardless of existence.
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && publishables_to_add.len() + publishables_to_remove.len() <= PUBLICATION_UPDATE_LIMIT
+        {
+            let pending = publishables_to_add
+                .iter()
+                .chain(publishables_to_remove.iter())
+                .filter(|id| {
+                    matches!(
+                        shopify_gid_resource_type(id),
+                        Some("Product") | Some("ProductVariant")
+                    )
+                })
+                .filter(|id| !self.publication_update_publishable_exists(id))
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if !pending.is_empty() {
+                self.hydrate_product_nodes_for_observation_with_request(
+                    request,
+                    pending.into_iter().collect(),
+                );
+            }
+        }
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {

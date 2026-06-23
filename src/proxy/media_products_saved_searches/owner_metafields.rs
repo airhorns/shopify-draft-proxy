@@ -244,6 +244,21 @@ impl DraftProxy {
             if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
                 continue;
             }
+            if self.config.read_mode == ReadMode::LiveHybrid {
+                let owner_id = self.owner_field_id(&field, variables);
+                let cold = self.owner_needs_metafield_hydration(&field.name, &owner_id);
+                // A cold (unstaged) owner that also selects sub-resources the
+                // metafields overlay cannot synthesize (addresses, orders, events, ...)
+                // must forward the whole read upstream as a passthrough rather than be
+                // answered with a metafields-only projection that silently drops them.
+                if cold
+                    && !Self::owner_metafields_read_selection_is_metafields_only(
+                        &field.selection,
+                    )
+                {
+                    continue;
+                }
+            }
             match field.name.as_str() {
                 "collection" | "customer" | "order" | "company" => {
                     has_non_product_owner_read = true;
@@ -258,6 +273,19 @@ impl DraftProxy {
             }
         }
         has_non_product_owner_read || needs_live_product_hydration
+    }
+
+    /// True when an owner read selects only fields the metafields overlay can synthesize
+    /// for a cold (unstaged) owner: `id`, `__typename`, `metafield`, `metafields`. Any other
+    /// field (addresses, orders, events, ...) cannot be projected from an empty base, so the
+    /// read must instead forward upstream as a full passthrough.
+    fn owner_metafields_read_selection_is_metafields_only(selections: &[SelectedField]) -> bool {
+        selections.iter().all(|selection| {
+            matches!(
+                selection.name.as_str(),
+                "id" | "__typename" | "metafield" | "metafields"
+            )
+        })
     }
 
     pub(in crate::proxy) fn owner_metafields_read(

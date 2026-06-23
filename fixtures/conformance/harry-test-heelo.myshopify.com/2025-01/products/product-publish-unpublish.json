@@ -4,28 +4,6 @@
     "title": "Hermes Product Publication Conformance 1781587861405",
     "status": "ACTIVE"
   },
-  "seedPublications": [
-    {
-      "id": "gid://shopify/Publication/268039389490",
-      "name": "Online Store"
-    },
-    {
-      "id": "gid://shopify/Publication/268039455026",
-      "name": "Point of Sale"
-    },
-    {
-      "id": "gid://shopify/Publication/268039487794",
-      "name": "Shop"
-    },
-    {
-      "id": "gid://shopify/Publication/273897881906",
-      "name": "Shopify GraphiQL App"
-    },
-    {
-      "id": "gid://shopify/Publication/292074258738",
-      "name": "example.com"
-    }
-  ],
   "publish": {
     "variables": {
       "input": {

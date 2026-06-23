@@ -1994,6 +1994,78 @@ impl DraftProxy {
         Value::Object(fields)
     }
 
+    /// Fill `inventory_level_cursors` from real Shopify when a product/variant overlay
+    /// read selects `inventoryLevels` edge or pageInfo cursors and none have been
+    /// observed yet. The cursor is an opaque, server-assigned token that cannot be
+    /// synthesized; the only honest source is the upstream read itself. Forwards the
+    /// client's exact request once (LiveHybrid only) and observes the returned edge
+    /// cursors. A no-op in Snapshot mode, once cursors are staged, or when the query
+    /// does not select level cursors.
+    pub(in crate::proxy) fn hydrate_inventory_level_cursors_for_read(
+        &mut self,
+        request: &Request,
+        query: &str,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        if !self.store.staged.inventory_level_cursors.is_empty() {
+            return;
+        }
+        if !(query.contains("inventoryLevels") && query.contains("cursor")) {
+            return;
+        }
+        let response = (self.upstream_transport)(request.clone());
+        if response.status < 400 {
+            self.observe_inventory_level_cursors(&response.body);
+        }
+    }
+
+    /// Walk an upstream response for every `inventoryLevels { edges { cursor node { id } } }`
+    /// connection and stage each level's opaque cursor keyed by its level id, so a later
+    /// overlay read of the same connection reproduces the real pagination cursors.
+    pub(in crate::proxy) fn observe_inventory_level_cursors(&mut self, body: &Value) {
+        fn walk(value: &Value, sink: &mut Vec<(String, String)>) {
+            match value {
+                Value::Object(map) => {
+                    if let Some(edges) = map
+                        .get("inventoryLevels")
+                        .and_then(|connection| connection.get("edges"))
+                        .and_then(Value::as_array)
+                    {
+                        for edge in edges {
+                            let cursor = edge.get("cursor").and_then(Value::as_str);
+                            let id = edge
+                                .get("node")
+                                .and_then(|node| node.get("id"))
+                                .and_then(Value::as_str);
+                            if let (Some(cursor), Some(id)) = (cursor, id) {
+                                sink.push((id.to_string(), cursor.to_string()));
+                            }
+                        }
+                    }
+                    for child in map.values() {
+                        walk(child, sink);
+                    }
+                }
+                Value::Array(items) => {
+                    for item in items {
+                        walk(item, sink);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut pairs = Vec::new();
+        walk(body, &mut pairs);
+        for (level_id, cursor) in pairs {
+            self.store
+                .staged
+                .inventory_level_cursors
+                .insert(level_id, cursor);
+        }
+    }
+
     pub(in crate::proxy) fn observe_inventory_item_node(&mut self, node: &Value) {
         let Some(inventory_item_id) = node.get("id").and_then(Value::as_str) else {
             return;

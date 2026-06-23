@@ -334,15 +334,6 @@ const orderCreateMutation = `#graphql
   }
 `;
 
-const orderReadQuery = `#graphql
-  ${orderFields}
-  query OrderEditAddCustomItemValidationHydrate($id: ID!) {
-    order(id: $id) {
-      ...OrderEditAddCustomItemValidationOrderFields
-    }
-  }
-`;
-
 const orderCancelMutation = `#graphql
   mutation OrderEditAddCustomItemValidationCancel(
     $orderId: ID!
@@ -530,6 +521,10 @@ const caseDocument = await readRequest('orderEditAddCustomItem-validation-case.g
 const inlineMissingCurrencyDocument = await readRequest(
   'orderEditAddCustomItem-validation-inline-missing-currency.graphql',
 );
+// The exact order hydrate query the proxy forwards on a cold order-edit begin, byte-identical to
+// ORDER_EDIT_HYDRATE_QUERY (`include_str!` of order-edit-hydrate.graphql) so the recorded cassette
+// replays verbatim. The de-seeded begin resolves the precondition order this way instead of a seed.
+const orderEditHydrateQuery = await readRequest('order-edit-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -546,11 +541,14 @@ try {
   const createdOrder = orderFromCreate(orderCreate);
   createdOrderId = requireString(createdOrder['id'], 'created order id');
 
-  const orderReadBeforeEdit = await capture(orderReadQuery, { id: createdOrderId });
-  assertNoTopLevelErrors('pre-edit order read', orderReadBeforeEdit);
-  const seedOrder = readRecord(responseData(orderReadBeforeEdit)['order']);
-  if (!seedOrder) {
-    throw new Error(`Expected pre-edit order read: ${JSON.stringify(orderReadBeforeEdit.response.payload, null, 2)}`);
+  // Resolve the precondition order the way the de-seeded proxy does: forward the exact
+  // ORDER_EDIT_HYDRATE_QUERY the `orderEditBegin` handler emits on a cold order, and record that
+  // response verbatim as the single upstreamCall. No seed, no setup block.
+  const orderEditHydrate = await capture(orderEditHydrateQuery, { id: createdOrderId });
+  assertNoTopLevelErrors('order-edit hydrate', orderEditHydrate);
+  const hydratedOrder = readRecord(responseData(orderEditHydrate)['order']);
+  if (!hydratedOrder) {
+    throw new Error(`Expected order-edit hydrate read: ${JSON.stringify(orderEditHydrate.response.payload, null, 2)}`);
   }
 
   const begin = await capture(beginDocument, { id: createdOrderId });
@@ -626,11 +624,7 @@ try {
     storeDomain,
     source: 'live-shopify-admin-graphql',
     notes:
-      'Live orderEditAddCustomItem validation capture against one disposable CAD order-edit session. Invalid branches do not stage a line item; the happy path is captured last and the source order is cancelled in cleanup.',
-    setup: {
-      orderCreate,
-      orderReadBeforeEdit,
-    },
+      'Live orderEditAddCustomItem validation capture against one disposable CAD order-edit session. The precondition order is resolved via a real cold OrdersOrderEditHydrate forward (single upstreamCall) rather than a seed/setup block. Invalid branches do not stage a line item; the happy path is captured last and the source order is cancelled in cleanup.',
     begin,
     cases: {
       missingTitle,
@@ -652,16 +646,12 @@ try {
     cleanup,
     upstreamCalls: [
       {
-        operationName: 'OrdersOrderHydrate',
+        operationName: 'OrdersOrderEditHydrate',
         variables: { id: createdOrderId },
-        query: 'hand-synthesized from live setup order read for orderEditAddCustomItem validation replay',
+        query: orderEditHydrateQuery,
         response: {
-          status: 200,
-          body: {
-            data: {
-              order: seedOrder,
-            },
-          },
+          status: orderEditHydrate.response.status,
+          body: orderEditHydrate.response.payload,
         },
       },
     ],

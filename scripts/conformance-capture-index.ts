@@ -1090,6 +1090,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/publicationCreate-validation.graphql',
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
+      'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable draft product and one disposable publication, deletes the publication as the asserted delete case, then deletes the product in best-effort cleanup.',
@@ -1127,6 +1128,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/product-publish-unpublish-publish.graphql',
       'config/parity-requests/products/product-publish-unpublish-unpublish.graphql',
       'config/parity-requests/products/product-publish-unpublish-downstream-read.graphql',
+      'config/parity-requests/products/publication-resource-hydrate-nodes.graphql',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/publications-catalog.json',
     ],
     cleanupBehavior: 'Publishes/unpublishes disposable products only after publication target probes pass.',
@@ -2495,6 +2497,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}product-relationship-roots.json`,
       'config/parity-specs/products/product-relationship-roots-live-parity.json',
       'config/parity-specs/products/selling-plan-product-variant-associations.json',
+      'config/parity-requests/products/product-options-hydrate-nodes.graphql',
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
@@ -4531,10 +4534,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
-    purpose: 'Segment baseline read payloads for the checked-in segment parity request.',
-    requiredAuthScopes: ['read_customers', 'customer segment access'],
-    fixtureOutputs: [`${CAPTURE_ROOT}segments-baseline.json`],
-    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    purpose:
+      'Segment baseline read payloads for the checked-in segment parity request. The proxy forwards this read upstream (de-seeded), so the fixture carries the forwarded upstreamCalls instead of a seed precondition.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segments-baseline.json`,
+      'config/parity-specs/segments/segments-baseline-read.json',
+      'config/parity-requests/segments/segments-baseline-read.variables.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment so the knownSegment detail read resolves, then deletes it after the baseline read.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5188,7 +5197,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-update-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/store-properties/collection-publication-parity.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json',
+      `${CAPTURE_ROOT}collections-catalog.json`,
+      'config/parity-specs/products/collections-catalog-read.json',
+      'config/parity-requests/products/collections-catalog-read.variables.json',
     ],
     cleanupBehavior: 'Read-only capture against existing store collections; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -5605,6 +5616,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-whitespace-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-missing-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
+      'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
     ],
     cleanupBehavior: 'Creates/deletes disposable customer records for opt-out probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -5662,10 +5674,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-unknown-id.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-catalog-count-read.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-merchant-detail-read.json',
       'config/parity-specs/orders/fulfillment-lifecycle-create-update-cancel.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-catalog.json',
@@ -5686,6 +5694,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-catalog-count-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-catalog-count-read-conformance.mts',
+    purpose:
+      'Re-homed (from very-big-test-store) orders/ordersCount catalog read: forwards the multi-alias catalog query and the cursor-threaded next-page query against a live merchant-realistic order catalog on harry-test-heelo, recording both as cassettes so the proxy answers by forward-and-observe instead of a seeded catalog.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-catalog-count-read.json',
+      'config/parity-specs/orders/order-catalog-count-read.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable paid test orders tagged merchant-realistic only if fewer than two exist; leaves them in place as the durable read catalog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'orders',
@@ -5818,6 +5842,142 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-complete-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-complete-parity-conformance.ts',
+    purpose:
+      'De-seeded draftOrderComplete live parity (re-homed from very-big-test-store to harry-test-heelo): completes a disposable fully-ready draft and records the single cold OrdersDraftOrderHydrate forward the proxy uses to resolve the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-complete-parity.json`,
+      'config/parity-specs/orders/draftOrderComplete-parity-plan.json',
+      'config/parity-requests/orders/draft-order-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft with non-taxable custom line items, completes it, then cancels the resulting order (restock:false) in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-delete-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-delete-conformance.ts',
+    purpose:
+      'De-seeded draftOrderDelete live parity: deletes a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-delete-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft and deletes it as the scenario operation; no residual records remain.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-duplicate-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-duplicate-conformance.ts',
+    purpose:
+      'De-seeded draftOrderDuplicate live parity: duplicates a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-duplicate-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft, duplicates it, then deletes both the source and duplicate drafts in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-update-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-update-conformance.ts',
+    purpose:
+      'De-seeded draftOrderUpdate live parity: updates a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-update-parity.json',
+    ],
+    cleanupBehavior: 'Creates one disposable draft, applies the update, then deletes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-existing-order',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-existing-order-conformance.ts',
+    purpose:
+      'De-seeded order-edit existing-order happy-path and validation live parity (re-homed from very-big-test-store to harry-test-heelo): begins an edit on a disposable order and records the cold OrdersOrderEditHydrate (and variant hydrate) forwards the proxy uses instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-existing-order-happy-path.json`,
+      `${CAPTURE_ROOT}order-edit-existing-order-validation.json`,
+      'config/parity-specs/orders/orderEditExistingOrder-happy-path.json',
+      'config/parity-specs/orders/orderEditExistingOrder-validation.json',
+      'config/parity-specs/orders/orderEditBegin-parity-plan.json',
+      'config/parity-specs/orders/orderEditAddVariant-parity-plan.json',
+      'config/parity-specs/orders/orderEditCommit-parity-plan.json',
+      'config/parity-requests/orders/order-edit-hydrate.graphql',
+      'config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql',
+      'config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql',
+      'config/parity-requests/orders/orderEditExistingWorkflow-addVariant-payload.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders with custom line items, runs order-edit sessions, then cancels the orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-residual-calculated-edits',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-edit-residual-conformance.ts',
+    purpose:
+      'De-seeded order-edit residual calculated-edits live parity: runs begin/addCustomItem/discount/shipping-line edits on a disposable order and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-residual-calculated-edits.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with a non-taxable custom line, runs the residual edit workflow, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-zero-removal',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-zero-removal-conformance.ts',
+    purpose:
+      'De-seeded order-edit zero-removal live parity (re-homed from very-big-test-store to harry-test-heelo): zeroes a line on a disposable order edit, commits, and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-existing-order-zero-removal.json`,
+      'config/parity-specs/orders/orderEditExistingOrder-zero-removal.json',
+      'config/parity-specs/orders/orderEditSetQuantity-parity-plan.json',
+      'config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql',
+      'config/parity-requests/orders/orderEditExistingWorkflow-setQuantity-payload.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with custom line items, zeroes a line and commits the edit, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-lifecycle-noop-rehome',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.ts',
+    purpose:
+      'De-seeded orderClose/orderOpen no-op live parity (re-homed to harry-test-heelo): redundant close/open on disposable orders preserve timestamps and return silent-success payloads, recording the cold order hydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderClose-noop-on-already-closed.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderOpen-noop-on-already-open.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6098,7 +6258,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-inline-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-inline-null-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-missing-id.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-from-order-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-missing-input.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-null-input.json',
@@ -6211,7 +6370,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',
     purpose: 'Safety probes for draftOrderInvoiceSend side effects and validation branches.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
-    fixtureOutputs: [`${CAPTURE_ROOT}draft-order-invoice-send-safety.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-safety.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-parity-plan.json',
+    ],
     cleanupBehavior: 'Uses safety-first validation branches; review manually before any customer-visible send path.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -6436,7 +6598,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
     purpose: 'Code and automatic basic discount customer/segment buyer context lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-buyer-context-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-buyer-context-lifecycle.json`,
+      'config/parity-requests/discounts/discount-context-segment-hydrate.graphql',
+    ],
     cleanupBehavior: 'Deletes created discounts, customer, and segment during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -6489,7 +6654,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       'Discount customerGets/customerBuys product, variant, and collection reference validation guardrails and success branches.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-items-refs-validation.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-items-refs-validation.json`,
+      'config/parity-requests/discounts/discount-item-refs-hydrate.graphql',
+    ],
     cleanupBehavior: 'Deletes temporary discounts, products, and collection after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -6661,6 +6829,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-validation-branches.json`,
       `${CAPTURE_ROOT}discount-code-required-blank-validation.json`,
+      'config/parity-requests/discounts/discount-uniqueness-check.graphql',
     ],
     cleanupBehavior: 'Validation-oriented; deletes any created disposable discount artifacts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -6683,6 +6852,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}discount-app-function-validation.json`,
       'config/parity-specs/discounts/discount-app-function-validation.json',
       'config/parity-requests/discounts/discount-app-function-validation.graphql',
+      'config/parity-requests/discounts/discount-bulk-local-runtime-preconditions.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -7453,6 +7623,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
       'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
       'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
+      'config/parity-specs/payments/payment-terms-lifecycle-local-staging.json',
     ],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
@@ -7877,6 +8048,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-full-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-over-refund-user-errors.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-partial-shipping-restock-parity.json',
+      'config/parity-requests/orders/refund-order-hydrate.graphql',
     ],
     cleanupBehavior: 'Uses disposable orders and records cleanup/cancel evidence where possible.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
@@ -8066,6 +8238,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/return-cancel-state-precondition.graphql',
       'config/parity-requests/orders/return-close-state-precondition.graphql',
       'config/parity-requests/orders/return-reopen-state-precondition.graphql',
+      'config/parity-requests/orders/return-order-hydrate.graphql',
     ],
     cleanupBehavior:
       'Creates and fulfills disposable orders for requested, open/closed, cancelable, declined, and processed return states, records status precondition behavior, then cancels the orders.',
@@ -9481,9 +9654,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       'config/parity-specs/customers/customerCreate-parity-plan.json',
+      'config/parity-specs/customers/customerUpdate-parity-plan.json',
+      'config/parity-specs/customers/customerDelete-parity-plan.json',
       `${CAPTURE_ROOT}customer-create-parity.json`,
       `${CAPTURE_ROOT}customer-update-parity.json`,
       `${CAPTURE_ROOT}customer-delete-parity.json`,
+      'config/parity-requests/customers/customer-mutation-hydrate.graphql',
+      'config/parity-requests/customers/customer-count-hydrate.graphql',
+      'config/parity-requests/customers/customer-duplicate-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers and deletes them in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -9737,6 +9915,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-parity.json`,
       'config/parity-specs/customers/customerMerge-parity.json',
+      'config/parity-requests/customers/customer-merge-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; merge consumes source records and cleanup removes leftovers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -9812,6 +9991,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}customer-sms-marketing-consent-update-parity.json`,
       'config/parity-specs/customers/customerEmailMarketingConsentUpdate-disallowed-states-parity.json',
       'config/parity-specs/customers/customerSmsMarketingConsentUpdate-disallowed-states-parity.json',
+      'config/parity-requests/customers/taggable-customer-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates and deletes disposable customers for consent transitions.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -9839,6 +10019,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'read_orders', 'write_orders'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-order-summary-read-effects.json',
+      'config/parity-specs/customers/customer-order-summary-read-effects.json',
     ],
     cleanupBehavior: 'Creates disposable order/customer state and records cleanup/cancel result.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

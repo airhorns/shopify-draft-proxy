@@ -10,6 +10,32 @@ pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 
+// The batched node-hydrate query the proxy forwards to observe pre-existing
+// products / variants / collections in LiveHybrid. Shared verbatim with the
+// conformance capture scripts so re-recorded cassettes match byte-for-byte.
+pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
+);
+
+// The generic observation query above does not select product `options`, which the
+// productOptionsReorder graph needs. This options-aware node hydrate selects the
+// option/optionValue graph (and variants) and is forwarded only by the reorder
+// owner-hydrate path. Kept as a shared `.graphql` doc so re-recorded cassettes match
+// the emitted forward byte-for-byte.
+pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
+    include_str!("../../config/parity-requests/products/product-options-hydrate-nodes.graphql");
+
+// Publication-membership hydrate forwarded the first time the local publication
+// engine publishes a publishable resource (product / collection) it has never
+// seen. It reads the resource's title/status and the set of publications it is
+// already published on (e.g. the default Online Store), so a pre-existing
+// resource's membership is discovered by reading upstream rather than injected
+// via `/__meta/seed`. Shared verbatim with the cassette so the forward matches
+// byte-for-byte.
+pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/publication-resource-hydrate-nodes.graphql"
+);
+
 struct ProductStatusInputContext<'a> {
     argument_name: &'a str,
     input_object_type: &'a str,

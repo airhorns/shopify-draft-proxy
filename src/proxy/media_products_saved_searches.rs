@@ -9,7 +9,8 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
-const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
+const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
 impl DraftProxy {
@@ -959,7 +960,7 @@ impl DraftProxy {
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
             "productVariantAppendMedia" | "productVariantDetachMedia" => {
-                self.product_variant_media_mutation(root_field, query, variables)
+                self.product_variant_media_mutation(request, root_field, query, variables)
             }
             "productVariantsBulkCreate" => {
                 self.product_variants_bulk_create(request, query, variables)
@@ -982,6 +983,7 @@ impl DraftProxy {
 
     fn product_variant_media_mutation(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -990,7 +992,7 @@ impl DraftProxy {
             primary_root_response_selection(query, variables, || root_field.to_string());
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_media = resolved_object_list_field(variables, "variantMedia");
-        self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
+        self.hydrate_product_variant_media_owner_state(request, &product_id, &variant_media);
         let user_errors =
             self.product_variant_media_user_errors(root_field, &product_id, &variant_media);
 
@@ -1059,27 +1061,45 @@ impl DraftProxy {
 
     fn hydrate_product_variant_media_owner_state(
         &mut self,
+        request: &Request,
         product_id: &str,
         variant_media: &[BTreeMap<String, ResolvedValue>],
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let mut ids = Vec::new();
-        if !product_id.is_empty() && self.store.product_by_id(product_id).is_none() {
-            ids.push(product_id.to_string());
+        // The owning product (and its variants + media) must be in local state for
+        // the variant-existence and media-existence checks to resolve against real
+        // store data. The generic node-observation query does not select `media`, so
+        // forward the media-aware product hydrate (which also brings the product's
+        // variants) and observe it. Hydrate when the product is missing locally or
+        // when any referenced variant is not yet known.
+        if product_id.is_empty() {
+            return;
         }
-        for item in variant_media {
-            let Some(variant_id) = resolved_string_field(item, "variantId") else {
-                continue;
-            };
-            if self.store.product_variant_by_id(&variant_id).is_none() {
-                ids.push(variant_id);
-            }
+        let product_missing = self.store.product_by_id(product_id).is_none();
+        let any_variant_missing = variant_media.iter().any(|item| {
+            resolved_string_field(item, "variantId")
+                .is_some_and(|variant_id| self.store.product_variant_by_id(&variant_id).is_none())
+        });
+        if !product_missing && !any_variant_missing {
+            return;
         }
-        ids.sort();
-        ids.dedup();
-        self.hydrate_product_nodes_for_observation(ids);
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": self::media::MEDIA_PRODUCT_HYDRATE_QUERY,
+                "operationName": "MediaProductHydrate",
+                "variables": { "id": product_id },
+            }),
+        );
+        if response.status >= 400 {
+            return;
+        }
+        if response.body["data"]["product"].is_object() {
+            let product_node = response.body["data"]["product"].clone();
+            self.observe_media_product_node(&product_node);
+        }
     }
 
     fn product_variant_media_user_errors(

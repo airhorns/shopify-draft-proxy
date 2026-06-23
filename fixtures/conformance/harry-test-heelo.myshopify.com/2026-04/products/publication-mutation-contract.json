@@ -2,49 +2,31 @@
   "scenarioId": "publication-mutation-contract",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-21T16:38:21.492Z",
+  "capturedAt": "2026-06-23T01:53:55.440Z",
   "setup": {
     "product": {
-      "id": "gid://shopify/Product/10218121724210",
-      "title": "Publication mutation contract mqo0gaq7",
-      "handle": "publication-mutation-contract-mqo0gaq7",
+      "id": "gid://shopify/Product/10219581866290",
+      "title": "Publication mutation contract mqpzql52",
+      "handle": "publication-mutation-contract-mqpzql52",
       "status": "DRAFT",
-      "createdAt": "2026-06-21T16:38:19Z",
-      "updatedAt": "2026-06-21T16:38:19Z",
+      "createdAt": "2026-06-23T01:53:52Z",
+      "updatedAt": "2026-06-23T01:53:52Z",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51345493655858",
+            "id": "gid://shopify/ProductVariant/51353184338226",
             "title": "Default Title"
           }
         ]
       }
     }
   },
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/10218121724210",
-      "title": "Publication mutation contract mqo0gaq7",
-      "handle": "publication-mutation-contract-mqo0gaq7",
-      "status": "DRAFT",
-      "createdAt": "2026-06-21T16:38:19Z",
-      "updatedAt": "2026-06-21T16:38:19Z",
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/51345493655858",
-            "title": "Default Title"
-          }
-        ]
-      }
-    }
-  ],
   "cases": {
     "productCreate": {
       "query": "#graphql\n  mutation PublicationContractProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Publication mutation contract mqo0gaq7",
+          "title": "Publication mutation contract mqpzql52",
           "status": "DRAFT"
         }
       },
@@ -54,16 +36,16 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10218121724210",
-                "title": "Publication mutation contract mqo0gaq7",
-                "handle": "publication-mutation-contract-mqo0gaq7",
+                "id": "gid://shopify/Product/10219581866290",
+                "title": "Publication mutation contract mqpzql52",
+                "handle": "publication-mutation-contract-mqpzql52",
                 "status": "DRAFT",
-                "createdAt": "2026-06-21T16:38:19Z",
-                "updatedAt": "2026-06-21T16:38:19Z",
+                "createdAt": "2026-06-23T01:53:52Z",
+                "updatedAt": "2026-06-23T01:53:52Z",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51345493655858",
+                      "id": "gid://shopify/ProductVariant/51353184338226",
                       "title": "Default Title"
                     }
                   ]
@@ -97,7 +79,7 @@
           "data": {
             "publicationCreate": {
               "publication": {
-                "id": "gid://shopify/Publication/300611633458",
+                "id": "gid://shopify/Publication/300798673202",
                 "autoPublish": false,
                 "supportsFuturePublishing": false
               },
@@ -235,9 +217,9 @@
     "updateAddProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/300611633458",
+        "id": "gid://shopify/Publication/300798673202",
         "input": {
-          "publishablesToAdd": ["gid://shopify/Product/10218121724210"],
+          "publishablesToAdd": ["gid://shopify/Product/10219581866290"],
           "autoPublish": true
         }
       },
@@ -247,7 +229,7 @@
           "data": {
             "publicationUpdate": {
               "publication": {
-                "id": "gid://shopify/Publication/300611633458",
+                "id": "gid://shopify/Publication/300798673202",
                 "autoPublish": true,
                 "supportsFuturePublishing": false
               },
@@ -271,9 +253,9 @@
     "updateRemoveProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/300611633458",
+        "id": "gid://shopify/Publication/300798673202",
         "input": {
-          "publishablesToRemove": ["gid://shopify/Product/10218121724210"]
+          "publishablesToRemove": ["gid://shopify/Product/10219581866290"]
         }
       },
       "response": {
@@ -282,7 +264,7 @@
           "data": {
             "publicationUpdate": {
               "publication": {
-                "id": "gid://shopify/Publication/300611633458",
+                "id": "gid://shopify/Publication/300798673202",
                 "autoPublish": true,
                 "supportsFuturePublishing": false
               },
@@ -306,7 +288,7 @@
     "updateInvalidProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/300611633458",
+        "id": "gid://shopify/Publication/300798673202",
         "input": {
           "publishablesToAdd": ["gid://shopify/Product/999999999999"]
         }
@@ -343,7 +325,7 @@
     "updateTooManyProducts": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/300611633458",
+        "id": "gid://shopify/Publication/300798673202",
         "input": {
           "publishablesToAdd": [
             "gid://shopify/Product/900000000000",
@@ -458,7 +440,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -492,7 +474,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -503,14 +485,14 @@
     "deleteCreatedPublication": {
       "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/300611633458"
+        "id": "gid://shopify/Publication/300798673202"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "publicationDelete": {
-              "deletedId": "gid://shopify/Publication/300611633458",
+              "deletedId": "gid://shopify/Publication/300798673202",
               "userErrors": []
             }
           },
@@ -520,7 +502,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -536,7 +518,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10218121724210",
+            "deletedProductId": "gid://shopify/Product/10219581866290",
             "userErrors": []
           }
         },
@@ -546,7 +528,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -561,5 +543,100 @@
     "Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for variants on this store, so this fixture does not assert the local ProductVariant guardrail.",
     "publicationDelete payload exposes deletedId and userErrors only."
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10219581866290"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10219581866290",
+                "title": "Publication mutation contract mqpzql52",
+                "handle": "publication-mutation-contract-mqpzql52",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51353184338226",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53457990877490",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -253,6 +253,95 @@ impl DraftProxy {
         !self.store.staged.publications.is_empty()
     }
 
+    /// Every Shopify store has a default "Online Store" publication
+    /// (`Publication/1` / `Channel/1`) that the proxy already treats as the
+    /// reserved, un-deletable default (`next_publication_id`,
+    /// `is_default_publication`, `publicationDelete` guard). Materialize it into
+    /// local publication state when the engine activates so `channels` /
+    /// `channel` / `publicationsCount` reflect it without a `/__meta/seed`
+    /// precondition — the production proxy was never told the Online Store
+    /// exists; it always does.
+    pub(in crate::proxy) fn ensure_default_publication(&mut self) {
+        let id = "gid://shopify/Publication/1";
+        if !self.store.staged.publications.contains_key(id) {
+            self.store.staged.publications.insert(
+                id.to_string(),
+                publication_record_json(id, "Online Store", false),
+            );
+        }
+    }
+
+    /// Discover a publishable resource's pre-existing publication membership by
+    /// reading it upstream, the first time the local publication engine
+    /// publishes a resource it has never seen. Stages the resource's
+    /// title/status and the set of publications it is already published on (e.g.
+    /// the default Online Store) into local state, so `resourcePublicationsCount`
+    /// / `publicationCount` / the publication's `products` reflect the real
+    /// baseline instead of one injected via `/__meta/seed`. No-op once the
+    /// resource is known to the engine, outside LiveHybrid, or for an empty id.
+    pub(in crate::proxy) fn hydrate_publishable_resource(
+        &mut self,
+        resource_id: &str,
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid || resource_id.is_empty() {
+            return;
+        }
+        if self
+            .store
+            .staged
+            .resource_publications
+            .contains_key(resource_id)
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PUBLICATION_RESOURCE_HYDRATE_QUERY,
+                "operationName": "PublicationResourceHydrate",
+                "variables": { "ids": [resource_id] },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let nodes = response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for node in &nodes {
+            let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                continue;
+            };
+            if id.starts_with("gid://shopify/Product/") {
+                self.store.stage_observed_product_json(node);
+            } else if id.starts_with("gid://shopify/Collection/") {
+                self.stage_collection_from_observed_json(node);
+            }
+            // Mark the resource as known to the engine (so re-hydration does not
+            // re-fire) and fold in its observed publication membership.
+            let set = self
+                .store
+                .staged
+                .resource_publications
+                .entry(id)
+                .or_default();
+            for entry in node
+                .pointer("/resourcePublications/nodes")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(pid) = entry.pointer("/publication/id").and_then(Value::as_str) {
+                    set.insert(pid.to_string());
+                }
+            }
+        }
+    }
+
     /// Render a multi-root publication read operation
     /// (`publication`/`channel`/`channels`/`publicationsCount`/
     /// `publishedProductsCount` plus any `product`/`collection` publication
@@ -539,6 +628,10 @@ impl DraftProxy {
             let user_errors =
                 publishable_publication_input_errors(field.arguments.get("input"), to_current);
             if user_errors.is_empty() {
+                // Discover the resource's pre-existing publication membership
+                // (e.g. the default Online Store) by reading upstream before
+                // applying this publish, so counts reflect the real baseline.
+                self.hydrate_publishable_resource(&resource_id, request);
                 let publication_ids = publishable_input_publication_ids(&field.arguments);
                 let set = self
                     .store
@@ -643,9 +736,40 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+                "query": PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY,
                 "operationName": "ProductsHydrateNodes",
                 "variables": { "ids": ids }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
+    /// Forward the options-aware product hydrate (selecting the option/optionValue
+    /// graph that the generic observation query omits) and observe it, so a cold
+    /// productOptionsReorder resolves the real owning product + option graph from
+    /// upstream instead of relying on seeded state.
+    pub(in crate::proxy) fn hydrate_product_options_owner(&mut self, product_id: &str) {
+        if product_id.is_empty() {
+            return;
+        }
+        let path = self
+            .log_entries
+            .last()
+            .and_then(|entry| entry.get("path"))
+            .and_then(Value::as_str)
+            .unwrap_or("/admin/api/2025-01/graphql.json")
+            .to_string();
+        let response = self.upstream_post(
+            &Request {
+                method: "POST".to_string(),
+                path,
+                headers: BTreeMap::new(),
+                body: String::new(),
+            },
+            json!({
+                "query": PRODUCT_OPTIONS_HYDRATE_NODES_QUERY,
+                "operationName": "ProductOptionsHydrateNodes",
+                "variables": { "ids": [product_id] }
             }),
         );
         self.observe_nodes_response(&response);

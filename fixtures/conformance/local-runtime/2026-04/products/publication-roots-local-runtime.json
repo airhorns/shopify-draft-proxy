@@ -1,29 +1,6 @@
 {
   "fixtureKind": "local-runtime-publication-roots",
   "apiVersion": "2026-04",
-  "seedPublications": [
-    {
-      "id": "gid://shopify/Publication/1",
-      "name": "Online Store"
-    }
-  ],
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/1",
-      "title": "Published Product",
-      "handle": "published-product",
-      "status": "ACTIVE",
-      "publicationIds": ["gid://shopify/Publication/1"]
-    }
-  ],
-  "seedCollections": [
-    {
-      "id": "gid://shopify/Collection/1",
-      "title": "Published Collection",
-      "handle": "published-collection",
-      "publicationIds": ["gid://shopify/Publication/1"]
-    }
-  ],
   "create": {
     "variables": {
       "input": {
@@ -270,11 +247,11 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "PublicationResourceHydrate",
       "variables": {
         "ids": ["gid://shopify/Product/1"]
       },
-      "query": "hand-synthesized from local-runtime seedProducts for publication publish hydration",
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -285,7 +262,15 @@
                 "title": "Published Product",
                 "handle": "published-product",
                 "status": "ACTIVE",
-                "publicationIds": ["gid://shopify/Publication/1"]
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/1"
+                      }
+                    }
+                  ]
+                }
               }
             ]
           }
@@ -293,11 +278,11 @@
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "PublicationResourceHydrate",
       "variables": {
         "ids": ["gid://shopify/Collection/1"]
       },
-      "query": "hand-synthesized from local-runtime seedCollections for publication publish hydration",
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -307,7 +292,15 @@
                 "id": "gid://shopify/Collection/1",
                 "title": "Published Collection",
                 "handle": "published-collection",
-                "publicationIds": ["gid://shopify/Publication/1"]
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/1"
+                      }
+                    }
+                  ]
+                }
               }
             ]
           }
