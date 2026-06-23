@@ -1667,13 +1667,13 @@ pub(in crate::proxy) fn validate_script_src(
         json!(["src"])
     };
     if src.trim().is_empty() {
-        return Some(user_error(field, "Source can't be blank", Some("BLANK")));
+        return Some(presence_user_error(field, "Source"));
     }
     if src.len() > 255 {
-        return Some(user_error(
+        return Some(length_user_error(
             field,
-            "Source is too long (maximum is 255 characters)",
-            Some("TOO_LONG"),
+            "Source",
+            LengthUserErrorBound::TooLong { maximum: 255 },
         ));
     }
     if !(src.starts_with("https://") && src.contains('.')) {
