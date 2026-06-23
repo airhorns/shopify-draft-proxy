@@ -196,5 +196,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for paymentTermsDelete owner cleanup. DraftOrder owner state is cassette-hydrated before local staging; Order owner state is created locally. Both owner reads assert paymentTerms null after delete, and the missing-id branch asserts Shopify's lowercase deletion failure code."
+  "notes": "Executable local-runtime parity for paymentTermsDelete owner cleanup. DraftOrder owner state is cassette-hydrated before local staging; Order owner state is created locally. Both owner reads assert paymentTerms null after delete, and the missing-id branch asserts the captured field-null PAYMENT_TERMS_DELETE_UNSUCCESSFUL userError payload."
 }

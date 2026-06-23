@@ -1,0 +1,10 @@
+mutation PaymentTermsDeleteNotFound($input: PaymentTermsDeleteInput!) {
+  paymentTermsDelete(input: $input) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
