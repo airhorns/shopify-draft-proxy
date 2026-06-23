@@ -1,12 +1,12 @@
 {
   "variables": {
     "input": {
-      "orderId": "gid://shopify/Order/8728457019698",
+      "orderId": "gid://shopify/Order/8838022037810",
       "note": "partial line item and shipping refund",
       "notify": false,
       "refundLineItems": [
         {
-          "lineItemId": "gid://shopify/LineItem/19301562646834",
+          "lineItemId": "gid://shopify/LineItem/19495196164402",
           "quantity": 1,
           "restockType": "RETURN",
           "locationId": "gid://shopify/Location/112829759794"
@@ -20,255 +20,10 @@
           "amount": "15.00",
           "gateway": "manual",
           "kind": "REFUND",
-          "orderId": "gid://shopify/Order/8728457019698",
-          "parentId": "gid://shopify/OrderTransaction/10415451734322"
+          "orderId": "gid://shopify/Order/8838022037810",
+          "parentId": "gid://shopify/OrderTransaction/10572748128562"
         }
       ]
-    }
-  },
-  "setup": {
-    "orderCreate": {
-      "variables": {
-        "order": {
-          "email": "hermes-refund-partial-shipping-restock-1777939697278@example.com",
-          "note": "refundCreate partial-shipping-restock parity seed order",
-          "tags": ["parity-probe", "refund-create", "partial-shipping-restock"],
-          "test": true,
-          "customAttributes": [
-            {
-              "key": "source",
-              "value": "hermes-refund-parity"
-            },
-            {
-              "key": "scenario",
-              "value": "partial-shipping-restock"
-            }
-          ],
-          "billingAddress": {
-            "firstName": "Hermes",
-            "lastName": "Refund",
-            "address1": "123 Queen St W",
-            "city": "Toronto",
-            "provinceCode": "ON",
-            "countryCode": "CA",
-            "zip": "M5H 2M9",
-            "phone": "+14165550101"
-          },
-          "shippingAddress": {
-            "firstName": "Hermes",
-            "lastName": "Refund",
-            "address1": "123 Queen St W",
-            "city": "Toronto",
-            "provinceCode": "ON",
-            "countryCode": "CA",
-            "zip": "M5H 2M9",
-            "phone": "+14165550101"
-          },
-          "shippingLines": [
-            {
-              "title": "Standard",
-              "code": "STANDARD",
-              "source": "hermes-refund-parity",
-              "priceSet": {
-                "shopMoney": {
-                  "amount": "5.00",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
-          ],
-          "lineItems": [
-            {
-              "title": "Hermes refundable partial-shipping-restock item",
-              "quantity": 2,
-              "priceSet": {
-                "shopMoney": {
-                  "amount": "10.00",
-                  "currencyCode": "CAD"
-                }
-              },
-              "requiresShipping": true,
-              "taxable": false,
-              "sku": "hermes-refund-partial-shipping-restock-1777939697278"
-            }
-          ],
-          "transactions": [
-            {
-              "kind": "SALE",
-              "status": "SUCCESS",
-              "gateway": "manual",
-              "test": true,
-              "amountSet": {
-                "shopMoney": {
-                  "amount": "25.00",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
-          ]
-        },
-        "options": null
-      },
-      "response": {
-        "data": {
-          "orderCreate": {
-            "order": {
-              "id": "gid://shopify/Order/8728457019698",
-              "name": "#1068",
-              "createdAt": "2026-05-05T00:08:17Z",
-              "updatedAt": "2026-05-05T00:08:17Z",
-              "displayFinancialStatus": "PAID",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "note": "refundCreate partial-shipping-restock parity seed order",
-              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
-              "customAttributes": [
-                {
-                  "key": "source",
-                  "value": "hermes-refund-parity"
-                },
-                {
-                  "key": "scenario",
-                  "value": "partial-shipping-restock"
-                }
-              ],
-              "subtotalPriceSet": {
-                "shopMoney": {
-                  "amount": "20.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "25.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "25.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalReceivedSet": {
-                "shopMoney": {
-                  "amount": "25.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalRefundedSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "shippingLines": {
-                "nodes": [
-                  {
-                    "title": "Standard",
-                    "code": "STANDARD",
-                    "originalPriceSet": {
-                      "shopMoney": {
-                        "amount": "5.0",
-                        "currencyCode": "CAD"
-                      }
-                    }
-                  }
-                ]
-              },
-              "lineItems": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/LineItem/19301562646834",
-                    "title": "Hermes refundable partial-shipping-restock item",
-                    "quantity": 2,
-                    "currentQuantity": 2,
-                    "sku": "hermes-refund-partial-shipping-restock-1777939697278",
-                    "variantTitle": null,
-                    "originalUnitPriceSet": {
-                      "shopMoney": {
-                        "amount": "10.0",
-                        "currencyCode": "CAD"
-                      }
-                    }
-                  }
-                ]
-              },
-              "transactions": [
-                {
-                  "id": "gid://shopify/OrderTransaction/10415451734322",
-                  "kind": "SALE",
-                  "status": "SUCCESS",
-                  "gateway": "manual",
-                  "amountSet": {
-                    "shopMoney": {
-                      "amount": "25.0",
-                      "currencyCode": "CAD"
-                    }
-                  }
-                }
-              ],
-              "refunds": [],
-              "returns": {
-                "nodes": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
-              }
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 41,
-            "actualQueryCost": 24,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "locations": {
-      "response": {
-        "data": {
-          "locations": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Location/112829759794",
-                "isActive": true,
-                "fulfillsOnlineOrders": true
-              },
-              {
-                "id": "gid://shopify/Location/106318463282",
-                "isActive": true,
-                "fulfillsOnlineOrders": true
-              },
-              {
-                "id": "gid://shopify/Location/106318430514",
-                "isActive": true,
-                "fulfillsOnlineOrders": true
-              }
-            ]
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 5,
-            "actualQueryCost": 4,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1996,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
     }
   },
   "mutation": {
@@ -276,10 +31,10 @@
       "data": {
         "refundCreate": {
           "refund": {
-            "id": "gid://shopify/Refund/1023963562290",
+            "id": "gid://shopify/Refund/1028613341490",
             "note": "partial line item and shipping refund",
-            "createdAt": "2026-05-05T00:08:18Z",
-            "updatedAt": "2026-05-05T00:08:19Z",
+            "createdAt": "2026-06-22T23:01:16Z",
+            "updatedAt": "2026-06-22T23:01:16Z",
             "totalRefundedSet": {
               "shopMoney": {
                 "amount": "15.0",
@@ -289,12 +44,12 @@
             "refundLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/RefundLineItem/648919712050",
+                  "id": "gid://shopify/RefundLineItem/654574944562",
                   "quantity": 1,
                   "restockType": "RETURN",
                   "restocked": true,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19301562646834",
+                    "id": "gid://shopify/LineItem/19495196164402",
                     "title": "Hermes refundable partial-shipping-restock item"
                   },
                   "subtotalSet": {
@@ -309,7 +64,7 @@
             "transactions": {
               "nodes": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10415451767090",
+                  "id": "gid://shopify/OrderTransaction/10572748194098",
                   "kind": "REFUND",
                   "status": "SUCCESS",
                   "gateway": "manual",
@@ -324,7 +79,7 @@
             }
           },
           "order": {
-            "id": "gid://shopify/Order/8728457019698",
+            "id": "gid://shopify/Order/8838022037810",
             "displayFinancialStatus": "PARTIALLY_REFUNDED",
             "totalRefundedSet": {
               "shopMoney": {
@@ -351,18 +106,18 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Order/8728457019698"
+      "id": "gid://shopify/Order/8838022037810"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8728457019698",
-          "name": "#1068",
+          "id": "gid://shopify/Order/8838022037810",
+          "name": "#1495",
           "displayFinancialStatus": "PARTIALLY_REFUNDED",
           "displayFulfillmentStatus": "UNFULFILLED",
           "refunds": [
             {
-              "id": "gid://shopify/Refund/1023963562290",
+              "id": "gid://shopify/Refund/1028613341490",
               "note": "partial line item and shipping refund",
               "totalRefundedSet": {
                 "shopMoney": {
@@ -383,7 +138,7 @@
           },
           "transactions": [
             {
-              "id": "gid://shopify/OrderTransaction/10415451734322",
+              "id": "gid://shopify/OrderTransaction/10572748128562",
               "kind": "SALE",
               "status": "SUCCESS",
               "gateway": "manual",
@@ -395,7 +150,7 @@
               }
             },
             {
-              "id": "gid://shopify/OrderTransaction/10415451767090",
+              "id": "gid://shopify/OrderTransaction/10572748194098",
               "kind": "REFUND",
               "status": "SUCCESS",
               "gateway": "manual",
@@ -432,35 +187,25 @@
     {
       "operationName": "OrdersOrderHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8728457019698"
+        "id": "gid://shopify/Order/8838022037810"
       },
-      "query": "hand-synthesized from checked-in setup orderCreate response for refundCreate Pattern 2 hydration",
+      "query": "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    currentTotalPriceSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    totalReceivedSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    totalRefundedSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    shippingLines(first: 10) {\n      nodes {\n        originalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n    }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        originalUnitPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n    }\n    transactions {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n    refunds {\n      id\n      note\n      totalRefundedSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n    returns(first: 5) {\n      nodes { id status }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8728457019698",
-              "name": "#1068",
-              "createdAt": "2026-05-05T00:08:17Z",
-              "updatedAt": "2026-05-05T00:08:17Z",
+              "id": "gid://shopify/Order/8838022037810",
+              "name": "#1495",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
-              "note": "refundCreate partial-shipping-restock parity seed order",
-              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
-              "customAttributes": [
-                {
-                  "key": "source",
-                  "value": "hermes-refund-parity"
-                },
-                {
-                  "key": "scenario",
-                  "value": "partial-shipping-restock"
-                }
-              ],
-              "subtotalPriceSet": {
+              "totalPriceSet": {
                 "shopMoney": {
-                  "amount": "20.0",
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "25.0",
                   "currencyCode": "CAD"
                 }
               },
@@ -468,10 +213,8 @@
                 "shopMoney": {
                   "amount": "25.0",
                   "currencyCode": "CAD"
-                }
-              },
-              "totalPriceSet": {
-                "shopMoney": {
+                },
+                "presentmentMoney": {
                   "amount": "25.0",
                   "currencyCode": "CAD"
                 }
@@ -480,10 +223,18 @@
                 "shopMoney": {
                   "amount": "25.0",
                   "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
                 }
               },
               "totalRefundedSet": {
                 "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
                   "amount": "0.0",
                   "currencyCode": "CAD"
                 }
@@ -491,10 +242,12 @@
               "shippingLines": {
                 "nodes": [
                   {
-                    "title": "Standard",
-                    "code": "STANDARD",
                     "originalPriceSet": {
                       "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
                         "amount": "5.0",
                         "currencyCode": "CAD"
                       }
@@ -505,14 +258,16 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19301562646834",
+                    "id": "gid://shopify/LineItem/19495196164402",
                     "title": "Hermes refundable partial-shipping-restock item",
                     "quantity": 2,
                     "currentQuantity": 2,
-                    "sku": "hermes-refund-partial-shipping-restock-1777939697278",
-                    "variantTitle": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
                         "amount": "10.0",
                         "currencyCode": "CAD"
                       }
@@ -522,12 +277,16 @@
               },
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10415451734322",
+                  "id": "gid://shopify/OrderTransaction/10572748128562",
                   "kind": "SALE",
                   "status": "SUCCESS",
                   "gateway": "manual",
                   "amountSet": {
                     "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
                       "amount": "25.0",
                       "currencyCode": "CAD"
                     }
@@ -543,6 +302,17 @@
                   "startCursor": null,
                   "endCursor": null
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
               }
             }
           }

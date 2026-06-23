@@ -581,7 +581,10 @@ impl DraftProxy {
         {
             return;
         }
-        self.hydrate_product_nodes_for_observation(vec![product_id.to_string()]);
+        // The reorder graph is derived from the product's `options` field, which the
+        // generic node-observation query does not select. Forward the options-aware
+        // hydrate so the option/optionValue graph is observed into local state.
+        self.hydrate_product_options_owner(product_id);
     }
 
     fn record_product_option_linked_metaobject_definitions(

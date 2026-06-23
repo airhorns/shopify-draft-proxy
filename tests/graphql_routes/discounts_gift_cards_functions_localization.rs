@@ -27,12 +27,22 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
         ReadMode::LiveHybrid,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(move |_request| {
+    .with_upstream_transport(move |request| {
+        // The discount mutation itself must always stage locally and never
+        // passthrough. The one upstream request the create path is allowed to
+        // make is the duplicate-code uniqueness read (`codeDiscountNodeByCode`),
+        // which decides TAKEN from real store state now that the `/__meta/seed`
+        // discount index has been removed.
+        assert!(
+            request.body.contains("codeDiscountNodeByCode") && !request.body.contains("mutation"),
+            "only the duplicate-code uniqueness read may be forwarded, got: {}",
+            request.body
+        );
         *hit_counter.lock().unwrap() += 1;
         shopify_draft_proxy::proxy::Response {
-            status: 500,
+            status: 200,
             headers: Default::default(),
-            body: json!({ "errors": [{ "message": "discount mutation should not hit upstream" }] }),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
         }
     });
 
@@ -68,7 +78,9 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
     ));
 
     assert_eq!(create.status, 200);
-    assert_eq!(*hits.lock().unwrap(), 0);
+    // Exactly one upstream call: the duplicate-code uniqueness read-through. The
+    // create mutation stages locally (asserted in the transport above).
+    assert_eq!(*hits.lock().unwrap(), 1);
     let id = create.body["data"]["createdDiscount"]["codeDiscountNode"]["id"]
         .as_str()
         .expect("discount create should return a staged id")

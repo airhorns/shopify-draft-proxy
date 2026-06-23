@@ -4493,10 +4493,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
-    purpose: 'Segment baseline read payloads for the checked-in segment parity request.',
-    requiredAuthScopes: ['read_customers', 'customer segment access'],
+    purpose:
+      'Segment baseline read payloads for the checked-in segment parity request. The proxy forwards this read upstream (de-seeded), so the fixture carries the forwarded upstreamCalls instead of a seed precondition.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
     fixtureOutputs: [`${CAPTURE_ROOT}segments-baseline.json`],
-    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    cleanupBehavior:
+      'Creates one disposable segment so the knownSegment detail read resolves, then deletes it after the baseline read.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5132,7 +5134,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-update-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/store-properties/collection-publication-parity.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collections-catalog.json',
     ],
     cleanupBehavior: 'Read-only capture against existing store collections; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -5606,10 +5608,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-unknown-id.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-catalog-count-read.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-merchant-detail-read.json',
       'config/parity-specs/orders/fulfillment-lifecycle-create-update-cancel.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-catalog.json',
@@ -5630,6 +5628,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-catalog-count-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-catalog-count-read-conformance.mts',
+    purpose:
+      'Re-homed (from very-big-test-store) orders/ordersCount catalog read: forwards the multi-alias catalog query and the cursor-threaded next-page query against a live merchant-realistic order catalog on harry-test-heelo, recording both as cassettes so the proxy answers by forward-and-observe instead of a seeded catalog.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-catalog-count-read.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable paid test orders tagged merchant-realistic only if fewer than two exist; leaves them in place as the durable read catalog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'orders',
@@ -5762,6 +5775,129 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-complete-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-complete-parity-conformance.ts',
+    purpose:
+      'De-seeded draftOrderComplete live parity (re-homed from very-big-test-store to harry-test-heelo): completes a disposable fully-ready draft and records the single cold OrdersDraftOrderHydrate forward the proxy uses to resolve the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-complete-parity.json',
+      'config/parity-specs/orders/draftOrderComplete-parity-plan.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft with non-taxable custom line items, completes it, then cancels the resulting order (restock:false) in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-delete-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-delete-conformance.ts',
+    purpose:
+      'De-seeded draftOrderDelete live parity: deletes a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-delete-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft and deletes it as the scenario operation; no residual records remain.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-duplicate-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-duplicate-conformance.ts',
+    purpose:
+      'De-seeded draftOrderDuplicate live parity: duplicates a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-duplicate-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft, duplicates it, then deletes both the source and duplicate drafts in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-update-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-update-conformance.ts',
+    purpose:
+      'De-seeded draftOrderUpdate live parity: updates a disposable draft and records the cold OrdersDraftOrderHydrate forward that resolves the precondition draft instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-update-parity.json',
+    ],
+    cleanupBehavior: 'Creates one disposable draft, applies the update, then deletes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-existing-order',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-existing-order-conformance.ts',
+    purpose:
+      'De-seeded order-edit existing-order happy-path and validation live parity (re-homed from very-big-test-store to harry-test-heelo): begins an edit on a disposable order and records the cold OrdersOrderEditHydrate (and variant hydrate) forwards the proxy uses instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json',
+      'config/parity-specs/orders/orderEditExistingOrder-happy-path.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders with custom line items, runs order-edit sessions, then cancels the orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-residual-calculated-edits',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-edit-residual-conformance.ts',
+    purpose:
+      'De-seeded order-edit residual calculated-edits live parity: runs begin/addCustomItem/discount/shipping-line edits on a disposable order and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-residual-calculated-edits.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with a non-taxable custom line, runs the residual edit workflow, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-zero-removal',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-zero-removal-conformance.ts',
+    purpose:
+      'De-seeded order-edit zero-removal live parity (re-homed from very-big-test-store to harry-test-heelo): zeroes a line on a disposable order edit, commits, and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with custom line items, zeroes a line and commits the edit, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-lifecycle-noop-rehome',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.ts',
+    purpose:
+      'De-seeded orderClose/orderOpen no-op live parity (re-homed to harry-test-heelo): redundant close/open on disposable orders preserve timestamps and return silent-success payloads, recording the cold order hydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderClose-noop-on-already-closed.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderOpen-noop-on-already-open.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6042,7 +6178,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-inline-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-inline-null-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-missing-id.json',
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-from-order-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-missing-input.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-null-input.json',

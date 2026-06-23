@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -17,6 +17,21 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+// The proxy resolves the pre-existing customer (and customersCount) the real way:
+// on a mutation/overlay miss it forwards these exact documents upstream and observes
+// the result. They are the same constants the runtime emits
+// (TAGGABLE_CUSTOMER_HYDRATE_QUERY / CUSTOMER_COUNT_HYDRATE_QUERY, via include_str!),
+// so the recorded cassette entries below byte-match what the proxy forwards.
+const taggableHydrateDocument = await readFile(
+  'config/parity-requests/customers/taggable-customer-hydrate.graphql',
+  'utf8',
+);
+const customerCountHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-count-hydrate.graphql',
+  'utf8',
+);
+const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
 
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
@@ -156,6 +171,40 @@ async function runInvalidEnum(mutation, customerId, context) {
   return result;
 }
 
+// Forward the TAGGABLE_CUSTOMER_HYDRATE_QUERY upstream and capture the live response
+// for the customer at its current state. A null customer (e.g. the unknown gid) is a
+// valid hydrate result, not an error.
+async function captureHydrate(id, context) {
+  const result = await runGraphql(taggableHydrateDocument, { id });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function hydrateUpstreamCall(id, payload) {
+  return {
+    operationName: 'CustomerHydrate',
+    variables: { id },
+    query: taggableHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+// The proxy's customersCount overlay reads the live base via CUSTOMER_COUNT_HYDRATE_QUERY
+// and applies its local net delta (zero here — the customer is hydrated, not created
+// through the proxy). Build the cassette from the same live count the downstream read
+// observed so the base equals what the downstream-read assertion expects.
+function countUpstreamCall(downstreamPayload) {
+  return {
+    operationName: 'CustomerCountHydrate',
+    variables: {},
+    query: customerCountHydrateDocument,
+    response: {
+      status: 200,
+      body: { data: { customersCount: downstreamPayload?.data?.customersCount ?? null } },
+    },
+  };
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
 
@@ -185,9 +234,14 @@ async function main() {
   };
 
   const unknownVariables = {
-    customerId: 'gid://shopify/Customer/999999999999999',
+    customerId: UNKNOWN_CUSTOMER_GID,
     taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
   };
+
+  // Hydrate forwards the proxy will make when not seeded. The add path observes the
+  // freshly created customer (no exemptions yet); the unknown gid resolves to null.
+  const addHydratePayload = await captureHydrate(customerId, 'add precondition hydrate');
+  const unknownHydratePayload = await captureHydrate(UNKNOWN_CUSTOMER_GID, 'unknown customer hydrate');
 
   const addVariables = {
     customerId,
@@ -215,6 +269,10 @@ async function main() {
     customerId,
     'customerAddTaxExemptions invalid enum',
   );
+
+  // State now [CA_BC, US_CA] (add applied; empty-list and duplicate-input were no-ops).
+  // This is the precondition the remove spec's mutation will hydrate.
+  const removeHydratePayload = await captureHydrate(customerId, 'remove precondition hydrate');
 
   const removeVariables = {
     customerId,
@@ -246,6 +304,10 @@ async function main() {
     customerId,
     'customerRemoveTaxExemptions invalid enum',
   );
+
+  // State now [CA_BC] (remove dropped US_CA; empty-list and no-op remove changed nothing).
+  // This is the precondition the replace spec's mutation will hydrate.
+  const replaceHydratePayload = await captureHydrate(customerId, 'replace precondition hydrate');
 
   const replaceVariables = {
     customerId,
@@ -315,6 +377,11 @@ async function main() {
         response: addInvalidEnum.payload,
       },
     },
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, addHydratePayload),
+      countUpstreamCall(addDownstreamRead.payload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   const removeCapture = {
@@ -347,6 +414,11 @@ async function main() {
         response: removeInvalidEnum.payload,
       },
     },
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, removeHydratePayload),
+      countUpstreamCall(removeDownstreamRead.payload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   const replaceCapture = {
@@ -379,6 +451,11 @@ async function main() {
         response: replaceInvalidEnum.payload,
       },
     },
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, replaceHydratePayload),
+      countUpstreamCall(replaceDownstreamRead.payload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
     cleanup: {
       response: deleteResult.payload,
     },

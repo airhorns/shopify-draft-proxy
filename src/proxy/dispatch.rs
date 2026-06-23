@@ -165,7 +165,9 @@ impl DraftProxy {
         {
             return response;
         }
-        if let Some(data) = self.draft_order_complete_local_data(root_field, query, variables) {
+        if let Some(data) =
+            self.draft_order_complete_local_data(request, root_field, query, variables)
+        {
             return ok_json(data);
         }
         if let Some(data) = self.payment_terms_local_data(request, query, variables) {
@@ -174,7 +176,9 @@ impl DraftProxy {
         if let Some(data) = self.draft_order_bulk_tag_local_data(query, variables) {
             return ok_json(data);
         }
-        if let Some(data) = self.order_return_local_runtime_data(root_field, query, variables) {
+        if let Some(data) =
+            self.order_return_local_runtime_data(request, root_field, query, variables)
+        {
             return ok_json(data);
         }
         if let Some(data) = self.abandonment_read_data(query, variables) {
@@ -626,6 +630,15 @@ impl DraftProxy {
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
+                    // An overlay read reproduces staged inventory levels but not the
+                    // opaque pagination cursors Shopify assigns each level edge: the
+                    // node-hydrate warm path selects `inventoryLevels { nodes }`, never
+                    // `edges { cursor }`, so cursors are never observed. When the client
+                    // selects level edge/pageInfo cursors and none have been observed,
+                    // forward this exact read upstream once and observe the real cursors
+                    // before serving, so the overlay read can fill them in for real
+                    // instead of relying on seeded cursor state.
+                    self.hydrate_inventory_level_cursors_for_read(request, &query);
                     ok_json(json!({
                         "data": self.product_overlay_read_fields(&query, &variables)
                     }))
@@ -680,9 +693,12 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "collections" =>
             {
-                // Only a scenario that seeded the recorded collection-catalog
-                // connections is served locally; otherwise the top-level
-                // `collections` list forwards upstream as before.
+                // The catalog's opaque cursors and server-side query filtering
+                // cannot be reconstructed from local state, so a de-seeded
+                // scenario forwards the top-level `collections` list read upstream
+                // (the proxy reads it from real Shopify rather than replaying a
+                // `/__meta/seed` snapshot). A scenario that still seeds the
+                // recorded connections is served locally.
                 if self.store.staged.collection_catalog.is_empty() {
                     (self.upstream_transport)(request.clone())
                 } else if let Some(fields) = root_fields(&query, &variables) {
@@ -1316,7 +1332,7 @@ impl DraftProxy {
                 {
                     ok_json(data)
                 } else if let Some(data) =
-                    self.draft_order_complete_local_data(root_field, &query, &variables)
+                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else if let Some(data) =
@@ -1383,7 +1399,7 @@ impl DraftProxy {
                 {
                     response
                 } else if let Some(data) =
-                    self.draft_order_complete_local_data(root_field, &query, &variables)
+                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else if let Some(response) =
@@ -1408,7 +1424,7 @@ impl DraftProxy {
                     && root_field == "draftOrderComplete" =>
             {
                 if let Some(data) =
-                    self.draft_order_complete_local_data(root_field, &query, &variables)
+                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -1488,7 +1504,7 @@ impl DraftProxy {
                     ) =>
             {
                 if let Some(data) =
-                    self.order_return_local_runtime_data(root_field, &query, &variables)
+                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -2055,6 +2071,21 @@ impl DraftProxy {
                         ok_json(json!({
                             "data": self.customer_segment_members_query_read_data(&fields)
                         }))
+                    } else if self.store.staged.segments.is_empty()
+                        && self.store.staged.segment_catalog.is_empty()
+                    {
+                        // De-seeded cold read of pre-existing segment state. The
+                        // segment catalog's opaque cursors and server-side query
+                        // filtering, plus the filter / filter-suggestion /
+                        // value-suggestion / migration taxonomy, encode
+                        // Shopify-internal state that cannot be reconstructed from
+                        // local store state, so the proxy forwards the read upstream
+                        // and returns Shopify's response verbatim (it reads the real
+                        // segment catalog instead of replaying a `/__meta/seed`
+                        // snapshot). A scenario that has staged segments locally (via
+                        // `segmentCreate`) or still seeds the catalog is served
+                        // locally below.
+                        (self.upstream_transport)(request.clone())
                     } else {
                         let (data, errors) = self.segment_read_data(&fields);
                         if errors.is_empty() {
@@ -2084,9 +2115,9 @@ impl DraftProxy {
             {
                 if let Some(fields) = root_fields(&query, &variables) {
                     if matches!(root_field, "reverseDelivery" | "reverseFulfillmentOrder") {
-                        if let Some(data) =
-                            self.order_return_local_runtime_data(root_field, &query, &variables)
-                        {
+                        if let Some(data) = self.order_return_local_runtime_data(
+                            request, root_field, &query, &variables,
+                        ) {
                             ok_json(data)
                         } else {
                             ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
@@ -2141,7 +2172,7 @@ impl DraftProxy {
                     ) =>
             {
                 if let Some(data) =
-                    self.order_return_local_runtime_data(root_field, &query, &variables)
+                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
                 {
                     // Reverse-logistics mutations are recorded in the mutation log so
                     // the staged session can be introspected/replayed; the return*

@@ -5432,6 +5432,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_return_local_runtime_data(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -5450,11 +5451,11 @@ impl DraftProxy {
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
             "returnCreate" => {
-                let value = self.stage_return_from_input(field, "returnInput", "OPEN");
+                let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnRequest" => {
-                let value = self.stage_return_from_input(field, "input", "REQUESTED");
+                let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
                 Some(orders_payments_data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
@@ -5584,12 +5585,17 @@ impl DraftProxy {
     /// payload — `return` is null when validation fails.
     fn stage_return_from_input(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         input_name: &str,
         status: &str,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        // The order a return runs against is a precondition that may not have been
+        // created locally in this scenario; forward+observe it on a cold miss so
+        // line validation and quantity caps run against real store state.
+        self.hydrate_order_for_return(request, &order_id);
         let order = self
             .store
             .staged

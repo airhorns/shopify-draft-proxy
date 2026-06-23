@@ -2456,7 +2456,21 @@ impl DraftProxy {
         request: &Request,
     ) -> BTreeSet<String> {
         let mut missing = BTreeSet::new();
-        for input in resolved_object_list_field(&field.arguments, "feedbackInput").iter() {
+        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
+        // oversized batch returns TOO_LONG without ever looking up a product. Never
+        // forward an existence lookup the resolver itself would not perform.
+        if inputs.len() > 50 {
+            return missing;
+        }
+        for input in inputs.iter() {
+            // Per-entry message / generated-at / length guards run before the
+            // existence check, mirroring Shopify's resolver order: an entry that
+            // fails one of those reports only that error and never resolves (nor
+            // forwards a lookup for) its product.
+            if resource_feedback_validation_error(input, None).is_some() {
+                continue;
+            }
             let Some(id) = resolved_string_field(input, "productId") else {
                 continue;
             };

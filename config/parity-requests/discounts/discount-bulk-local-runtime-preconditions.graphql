@@ -1,0 +1,53 @@
+mutation DiscountBulkLocalRuntimePreconditions(
+  $bulkInput: DiscountCodeBasicInput!
+  $redeemInput: DiscountCodeBasicInput!
+) {
+  bulkTarget: discountCodeBasicCreate(basicCodeDiscount: $bulkInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 5) {
+            nodes {
+              id
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  redeemTarget: discountCodeBasicCreate(basicCodeDiscount: $redeemInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 5) {
+            nodes {
+              id
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

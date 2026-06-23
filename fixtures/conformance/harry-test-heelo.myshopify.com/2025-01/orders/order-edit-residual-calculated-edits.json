@@ -1,45 +1,22 @@
 {
   "scenarioId": "order-edit-residual-workflow-calculated-edits",
-  "recordedAt": "2026-04-28T02:36:29.684Z",
-  "sourceCapture": "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-residual-live-capture.json",
-  "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-22T12:56:10.161Z",
+  "source": "live-shopify-admin-graphql",
   "variables": {
-    "id": "gid://shopify/Order/8714456891698"
-  },
-  "seedOrder": {
-    "id": "gid://shopify/Order/8714456891698",
-    "name": "#1043",
-    "note": "HAR-369 residual full capture 1777343785533",
-    "lineItems": {
-      "nodes": [
-        {
-          "id": "gid://shopify/LineItem/19275276550450",
-          "title": "HAR-369 base custom line",
-          "quantity": 1,
-          "currentQuantity": 1,
-          "sku": "har-369-base-1777343785533",
-          "variant": null,
-          "originalUnitPriceSet": {
-            "shopMoney": {
-              "amount": "10.0",
-              "currencyCode": "CAD"
-            }
-          }
-        }
-      ]
-    },
-    "shippingLines": {
-      "nodes": []
-    }
+    "id": "gid://shopify/Order/8837237932338"
   },
   "steps": {
     "begin": {
+      "variables": {
+        "id": "gid://shopify/Order/8837237932338"
+      },
       "response": {
         "data": {
           "orderEditBegin": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "subtotalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
@@ -55,7 +32,7 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/19275276550450",
+                    "id": "gid://shopify/CalculatedLineItem/19493645254962",
                     "title": "HAR-369 base custom line",
                     "quantity": 1
                   }
@@ -65,15 +42,33 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "addCustomItem": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "price": {
+          "amount": "3.00",
+          "currencyCode": "CAD"
+        }
+      },
       "response": {
         "data": {
           "orderEditAddCustomItem": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "subtotalLineItemsQuantity": 3,
               "subtotalPriceSet": {
                 "shopMoney": {
@@ -89,7 +84,7 @@
               }
             },
             "calculatedLineItem": {
-              "id": "gid://shopify/CalculatedLineItem/df24dd6b-e287-471c-98ce-3ee012dbb734",
+              "id": "gid://shopify/CalculatedLineItem/a8f03d8c-96a6-4a2f-b284-d2d91f91548f",
               "title": "HAR-369 gift wrap",
               "quantity": 2,
               "originalUnitPriceSet": {
@@ -107,19 +102,41 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "addLineItemDiscount": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "lineItemId": "gid://shopify/CalculatedLineItem/a8f03d8c-96a6-4a2f-b284-d2d91f91548f",
+        "discount": {
+          "description": "HAR-369 line discount",
+          "fixedValue": {
+            "amount": "1.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
       "response": {
         "data": {
           "orderEditAddLineItemDiscount": {
             "addedDiscountStagedChange": {
-              "id": "gid://shopify/OrderStagedChangeAddLineItemDiscount/237242220850",
+              "id": "gid://shopify/OrderStagedChangeAddLineItemDiscount/246288220466",
               "description": "HAR-369 line discount"
             },
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "14.0",
@@ -128,7 +145,7 @@
               }
             },
             "calculatedLineItem": {
-              "id": "gid://shopify/CalculatedLineItem/df24dd6b-e287-471c-98ce-3ee012dbb734",
+              "id": "gid://shopify/CalculatedLineItem/a8f03d8c-96a6-4a2f-b284-d2d91f91548f",
               "hasStagedLineItemDiscount": true,
               "calculatedDiscountAllocations": [
                 {
@@ -139,7 +156,7 @@
                     }
                   },
                   "discountApplication": {
-                    "id": "gid://shopify/CalculatedManualDiscountApplication/9ea97537-1aeb-4b32-8291-02390a735187",
+                    "id": "gid://shopify/CalculatedManualDiscountApplication/349ec97f-0df6-49da-8b11-c396f06fccd9",
                     "description": "HAR-369 line discount"
                   }
                 }
@@ -153,15 +170,30 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "removeDiscount": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "discountApplicationId": "gid://shopify/CalculatedManualDiscountApplication/349ec97f-0df6-49da-8b11-c396f06fccd9"
+      },
       "response": {
         "data": {
           "orderEditRemoveDiscount": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "16.0",
@@ -171,15 +203,36 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "addShippingLine": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "shippingLine": {
+          "title": "HAR-369 Ground",
+          "price": {
+            "amount": "4.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
       "response": {
         "data": {
           "orderEditAddShippingLine": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "20.0",
@@ -188,7 +241,7 @@
               },
               "shippingLines": [
                 {
-                  "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+                  "id": "gid://shopify/CalculatedShippingLine/d53483e9-a9d6-4d34-a40f-2bb7e01f64d2",
                   "title": "HAR-369 Ground",
                   "stagedStatus": "ADDED",
                   "price": {
@@ -201,7 +254,7 @@
               ]
             },
             "calculatedShippingLine": {
-              "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+              "id": "gid://shopify/CalculatedShippingLine/d53483e9-a9d6-4d34-a40f-2bb7e01f64d2",
               "title": "HAR-369 Ground",
               "stagedStatus": "ADDED",
               "price": {
@@ -213,15 +266,37 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "updateShippingLine": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/d53483e9-a9d6-4d34-a40f-2bb7e01f64d2",
+        "shippingLine": {
+          "title": "HAR-369 Express",
+          "price": {
+            "amount": "6.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
       "response": {
         "data": {
           "orderEditUpdateShippingLine": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "22.0",
@@ -230,7 +305,7 @@
               },
               "shippingLines": [
                 {
-                  "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+                  "id": "gid://shopify/CalculatedShippingLine/d53483e9-a9d6-4d34-a40f-2bb7e01f64d2",
                   "title": "HAR-369 Express",
                   "stagedStatus": "ADDED",
                   "price": {
@@ -244,15 +319,30 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "removeShippingLine": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112415867186",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/d53483e9-a9d6-4d34-a40f-2bb7e01f64d2"
+      },
       "response": {
         "data": {
           "orderEditRemoveShippingLine": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "id": "gid://shopify/CalculatedOrder/112415867186",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "16.0",
@@ -263,33 +353,47 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrdersOrderEditHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8714456891698"
+        "id": "gid://shopify/Order/8837237932338"
       },
-      "query": "hand-synthesized from checked-in seedOrder for HAR-538 orderEditBegin Pattern 2 hydration",
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8714456891698",
-              "name": "#1043",
-              "note": "HAR-369 residual full capture 1777343785533",
+              "id": "gid://shopify/Order/8837237932338",
+              "name": "#1476",
+              "merchantEditable": true,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19275276550450",
+                    "id": "gid://shopify/LineItem/19493645254962",
                     "title": "HAR-369 base custom line",
                     "quantity": 1,
                     "currentQuantity": 1,
-                    "sku": "har-369-base-1777343785533",
+                    "sku": "har-369-base-20260622125605",
                     "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -299,9 +403,17 @@
                     }
                   }
                 ]
-              },
-              "shippingLines": {
-                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
               }
             }
           }

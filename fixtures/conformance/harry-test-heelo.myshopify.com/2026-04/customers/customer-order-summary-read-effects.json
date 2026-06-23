@@ -1,85 +1,16 @@
 {
   "metadata": {
-    "capturedAt": "2026-04-27T00:45:41.138Z",
+    "capturedAt": "2026-06-23T01:04:06.828Z",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
     "scenario": "customer order summary read effects after orderCustomerSet/orderCustomerRemove"
   },
   "variables": {
-    "orderId": "gid://shopify/Order/8710861881650",
-    "customerId": "gid://shopify/Customer/10544727228722",
-    "email": "har-288-customer-order-summary-1777250739747@example.com",
-    "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com",
-    "originalCustomerId": "gid://shopify/Customer/10541309362482"
-  },
-  "seedCustomersCount": 40,
-  "seedOrders": [
-    {
-      "id": "gid://shopify/Order/8710861881650",
-      "name": "#1030",
-      "displayFinancialStatus": "PAID",
-      "currentTotalPriceSet": {
-        "shopMoney": {
-          "amount": "10.0",
-          "currencyCode": "CAD"
-        }
-      },
-      "totalReceivedSet": {
-        "shopMoney": {
-          "amount": "10.0",
-          "currencyCode": "CAD"
-        }
-      },
-      "customer": {
-        "id": "gid://shopify/Customer/10541309362482",
-        "email": "har233-reject-cancellation-1777165605041@example.com",
-        "displayName": "har233-reject-cancellation-1777165605041@example.com"
-      }
-    }
-  ],
-  "seedOrder": {
-    "query": "#graphql\n  query CustomerOrderSummarySeedOrder {\n    orders(first: 1, sortKey: CREATED_AT, reverse: true) {\n      nodes {\n        id\n        name\n        displayFinancialStatus\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } }\n        customer { id email displayName }\n      }\n    }\n  }",
-    "response": {
-      "data": {
-        "orders": {
-          "nodes": [
-            {
-              "id": "gid://shopify/Order/8710861881650",
-              "name": "#1030",
-              "displayFinancialStatus": "PAID",
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalReceivedSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "customer": {
-                "id": "gid://shopify/Customer/10541309362482",
-                "email": "har233-reject-cancellation-1777165605041@example.com",
-                "displayName": "har233-reject-cancellation-1777165605041@example.com"
-              }
-            }
-          ]
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 4,
-          "actualQueryCost": 4,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1996,
-            "restoreRate": 100
-          }
-        }
-      }
-    }
+    "orderId": "gid://shopify/Order/8838113132850",
+    "customerId": "gid://shopify/Customer/10821646680370",
+    "email": "har-288-customer-order-summary-1782176643672@example.com",
+    "emailQuery": "email:har-288-customer-order-summary-1782176643672@example.com",
+    "originalCustomerId": "gid://shopify/Customer/10821602246962"
   },
   "setup": {
     "query": "#graphql\n  mutation CustomerOrderSummaryCreateCustomer($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        id\n        displayName\n        email\n        numberOfOrders\n        amountSpent { amount currencyCode }\n        lastOrder { id }\n        orders(first: 1) {\n          nodes { id }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n      userErrors { field message }\n    }\n  }",
@@ -87,9 +18,9 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10544727228722",
+            "id": "gid://shopify/Customer/10821646680370",
             "displayName": "HAR-288 Order Summary",
-            "email": "har-288-customer-order-summary-1777250739747@example.com",
+            "email": "har-288-customer-order-summary-1782176643672@example.com",
             "numberOfOrders": "0",
             "amountSpent": {
               "amount": "0.0",
@@ -127,9 +58,9 @@
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10544727228722",
+          "id": "gid://shopify/Customer/10821646680370",
           "displayName": "HAR-288 Order Summary",
-          "email": "har-288-customer-order-summary-1777250739747@example.com",
+          "email": "har-288-customer-order-summary-1782176643672@example.com",
           "numberOfOrders": "0",
           "amountSpent": {
             "amount": "0.0",
@@ -151,7 +82,7 @@
           "nodes": []
         },
         "customersCount": {
-          "count": 40,
+          "count": 996,
           "precision": "EXACT"
         }
       },
@@ -168,10 +99,10 @@
         "search": [
           {
             "path": ["customersCount"],
-            "query": "email:har-288-customer-order-summary-1777250739747@example.com",
+            "query": "email:har-288-customer-order-summary-1782176643672@example.com",
             "parsed": {
               "field": "email",
-              "match_all": "har-288-customer-order-summary-1777250739747@example.com"
+              "match_all": "har-288-customer-order-summary-1782176643672@example.com"
             },
             "warnings": [
               {
@@ -188,18 +119,18 @@
   "orderCustomerSet": {
     "query": "#graphql\n  mutation CustomerOrderSummarySet($orderId: ID!, $customerId: ID!) {\n    orderCustomerSet(orderId: $orderId, customerId: $customerId) {\n      order {\n        id\n        name\n        customer { id email displayName }\n      }\n      userErrors { field message }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8710861881650",
-      "customerId": "gid://shopify/Customer/10544727228722"
+      "orderId": "gid://shopify/Order/8838113132850",
+      "customerId": "gid://shopify/Customer/10821646680370"
     },
     "response": {
       "data": {
         "orderCustomerSet": {
           "order": {
-            "id": "gid://shopify/Order/8710861881650",
-            "name": "#1030",
+            "id": "gid://shopify/Order/8838113132850",
+            "name": "#1514",
             "customer": {
-              "id": "gid://shopify/Customer/10544727228722",
-              "email": "har-288-customer-order-summary-1777250739747@example.com",
+              "id": "gid://shopify/Customer/10821646680370",
+              "email": "har-288-customer-order-summary-1782176643672@example.com",
               "displayName": "HAR-288 Order Summary"
             }
           },
@@ -212,7 +143,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -224,9 +155,9 @@
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10544727228722",
+          "id": "gid://shopify/Customer/10821646680370",
           "displayName": "HAR-288 Order Summary",
-          "email": "har-288-customer-order-summary-1777250739747@example.com",
+          "email": "har-288-customer-order-summary-1782176643672@example.com",
           "numberOfOrders": "0",
           "amountSpent": {
             "amount": "0.0",
@@ -236,34 +167,34 @@
           "orders": {
             "nodes": [
               {
-                "id": "gid://shopify/Order/8710861881650",
-                "name": "#1030",
+                "id": "gid://shopify/Order/8838113132850",
+                "name": "#1514",
                 "currentTotalPriceSet": {
                   "shopMoney": {
-                    "amount": "10.0",
-                    "currencyCode": "CAD"
+                    "amount": "0.0",
+                    "currencyCode": "USD"
                   }
                 },
                 "customer": {
-                  "id": "gid://shopify/Customer/10544727228722",
-                  "email": "har-288-customer-order-summary-1777250739747@example.com",
+                  "id": "gid://shopify/Customer/10821646680370",
+                  "email": "har-288-customer-order-summary-1782176643672@example.com",
                   "displayName": "HAR-288 Order Summary"
                 }
               }
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjo4NzEwODYxODgxNjUwLCJsYXN0X3ZhbHVlIjoiODcxMDg2MTg4MTY1MCJ9",
+                "cursor": "eyJsYXN0X2lkIjo4ODM4MTEzMTMyODUwLCJsYXN0X3ZhbHVlIjoiODgzODExMzEzMjg1MCJ9",
                 "node": {
-                  "id": "gid://shopify/Order/8710861881650"
+                  "id": "gid://shopify/Order/8838113132850"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo4NzEwODYxODgxNjUwLCJsYXN0X3ZhbHVlIjoiODcxMDg2MTg4MTY1MCJ9",
-              "endCursor": "eyJsYXN0X2lkIjo4NzEwODYxODgxNjUwLCJsYXN0X3ZhbHVlIjoiODcxMDg2MTg4MTY1MCJ9"
+              "startCursor": "eyJsYXN0X2lkIjo4ODM4MTEzMTMyODUwLCJsYXN0X3ZhbHVlIjoiODgzODExMzEzMjg1MCJ9",
+              "endCursor": "eyJsYXN0X2lkIjo4ODM4MTEzMTMyODUwLCJsYXN0X3ZhbHVlIjoiODgzODExMzEzMjg1MCJ9"
             }
           }
         },
@@ -271,7 +202,7 @@
           "nodes": []
         },
         "customersCount": {
-          "count": 40,
+          "count": 996,
           "precision": "EXACT"
         }
       },
@@ -281,17 +212,17 @@
           "actualQueryCost": 22,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         },
         "search": [
           {
             "path": ["customersCount"],
-            "query": "email:har-288-customer-order-summary-1777250739747@example.com",
+            "query": "email:har-288-customer-order-summary-1782176643672@example.com",
             "parsed": {
               "field": "email",
-              "match_all": "har-288-customer-order-summary-1777250739747@example.com"
+              "match_all": "har-288-customer-order-summary-1782176643672@example.com"
             },
             "warnings": [
               {
@@ -308,14 +239,14 @@
   "orderCustomerRemove": {
     "query": "#graphql\n  mutation CustomerOrderSummaryRemove($orderId: ID!) {\n    orderCustomerRemove(orderId: $orderId) {\n      order {\n        id\n        name\n        customer { id email displayName }\n      }\n      userErrors { field message }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8710861881650"
+      "orderId": "gid://shopify/Order/8838113132850"
     },
     "response": {
       "data": {
         "orderCustomerRemove": {
           "order": {
-            "id": "gid://shopify/Order/8710861881650",
-            "name": "#1030",
+            "id": "gid://shopify/Order/8838113132850",
+            "name": "#1514",
             "customer": null
           },
           "userErrors": []
@@ -327,7 +258,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -339,9 +270,9 @@
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10544727228722",
+          "id": "gid://shopify/Customer/10821646680370",
           "displayName": "HAR-288 Order Summary",
-          "email": "har-288-customer-order-summary-1777250739747@example.com",
+          "email": "har-288-customer-order-summary-1782176643672@example.com",
           "numberOfOrders": "0",
           "amountSpent": {
             "amount": "0.0",
@@ -363,7 +294,7 @@
           "nodes": []
         },
         "customersCount": {
-          "count": 40,
+          "count": 996,
           "precision": "EXACT"
         }
       },
@@ -373,17 +304,17 @@
           "actualQueryCost": 22,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1973,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         },
         "search": [
           {
             "path": ["customersCount"],
-            "query": "email:har-288-customer-order-summary-1777250739747@example.com",
+            "query": "email:har-288-customer-order-summary-1782176643672@example.com",
             "parsed": {
               "field": "email",
-              "match_all": "har-288-customer-order-summary-1777250739747@example.com"
+              "match_all": "har-288-customer-order-summary-1782176643672@example.com"
             },
             "warnings": [
               {
@@ -397,17 +328,99 @@
       }
     }
   },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerCountHydrate",
+      "query": "query CustomerCountHydrate { customersCount { count precision } }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 996,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderManagementDownstreamRead",
+      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8838113132850"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8838113132850",
+              "name": "#1514",
+              "closed": true,
+              "closedAt": "2026-06-23T00:26:51Z",
+              "cancelledAt": "2026-06-23T00:26:51Z",
+              "cancelReason": "OTHER",
+              "displayFinancialStatus": null,
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10821602246962",
+                "email": "fulfillment-order-close-state-20260623002645@example.com",
+                "displayName": "Hermes Conformance"
+              },
+              "transactions": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "cleanup": {
     "restoreOriginalCustomer": {
       "data": {
         "orderCustomerSet": {
           "order": {
-            "id": "gid://shopify/Order/8710861881650",
-            "name": "#1030",
+            "id": "gid://shopify/Order/8838113132850",
+            "name": "#1514",
             "customer": {
-              "id": "gid://shopify/Customer/10541309362482",
-              "email": "har233-reject-cancellation-1777165605041@example.com",
-              "displayName": "har233-reject-cancellation-1777165605041@example.com"
+              "id": "gid://shopify/Customer/10821602246962",
+              "email": "fulfillment-order-close-state-20260623002645@example.com",
+              "displayName": "Hermes Conformance"
             }
           },
           "userErrors": []
@@ -419,7 +432,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1975,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -428,7 +441,7 @@
     "deleteCustomer": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10544727228722",
+          "deletedCustomerId": "gid://shopify/Customer/10821646680370",
           "userErrors": []
         }
       },
@@ -438,58 +451,11 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
       }
     }
-  },
-  "upstreamCalls": [
-    {
-      "operationName": "CustomerCountHydrate",
-      "variables": {
-        "query": "email:har-288-customer-order-summary-1777250739747@example.com"
-      },
-      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "customersCount": {
-              "count": 40,
-              "precision": "EXACT"
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "CustomerOrderSummaryHydrate",
-      "variables": {
-        "id": "gid://shopify/Order/8710861881650"
-      },
-      "query": "hand-synthesized from checked-in customer parity capture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "order": {
-              "id": "gid://shopify/Order/8710861881650",
-              "name": "#1030",
-              "email": null,
-              "createdAt": null,
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "customer": null
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }

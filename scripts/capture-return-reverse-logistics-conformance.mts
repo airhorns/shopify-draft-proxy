@@ -259,6 +259,9 @@ const reverseDeliveryUpdateMutation = await readRequest('reverse-delivery-shippi
 const reverseFulfillmentDisposeMutation = await readRequest('reverse-fulfillment-order-dispose-recorded.graphql');
 const returnProcessMutation = await readRequest('return-process-recorded.graphql');
 const downstreamReadQuery = await readRequest('return-reverse-logistics-read-recorded.graphql');
+// The exact document the proxy forwards to hydrate a return's order on a cold
+// miss; recording its live response is what replaces the seeded order.
+const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -343,9 +346,17 @@ const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
 requireEmptyUserErrors(fulfillmentCreate, 'fulfillmentCreate');
 
 const orderReadAfterFulfillment = await capture(orderReadQuery, { id: orderId });
-const seedOrder = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
-const fulfillmentLineItem = firstFulfillmentLineItem(readRecord(seedOrder) ?? {});
+const orderAfterFulfillment = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
+const fulfillmentLineItem = firstFulfillmentLineItem(readRecord(orderAfterFulfillment) ?? {});
 const fulfillmentLineItemId = requireString(fulfillmentLineItem['id'], 'fulfilled fulfillment line item id');
+
+// Record the proxy's cold-miss order hydrate (byte-identical document) against the
+// freshly fulfilled order — before any return exists — so replay forwards+observes
+// real store state instead of relying on a seeded order.
+const returnOrderHydrate = await runGraphqlRequest(returnOrderHydrateQuery, { id: orderId });
+if (returnOrderHydrate.payload['errors']) {
+  throw new Error(`return-order hydrate returned errors: ${JSON.stringify(returnOrderHydrate.payload)}`);
+}
 
 const returnRequest = await capture(returnRequestMutation, {
   input: {
@@ -465,7 +476,6 @@ await writeJson(fixturePath, {
     fulfillmentCreate,
     orderReadAfterFulfillment,
   },
-  seedOrder,
   returnRequest,
   returnApproveRequest,
   reverseLogistics: {
@@ -479,6 +489,17 @@ await writeJson(fixturePath, {
   returnProcess,
   downstreamRead,
   cleanup,
+  upstreamCalls: [
+    {
+      operationName: 'OrdersReturnOrderHydrate',
+      variables: { id: orderId },
+      query: returnOrderHydrateQuery,
+      response: {
+        status: returnOrderHydrate.status,
+        body: returnOrderHydrate.payload,
+      },
+    },
+  ],
 });
 
 console.log(

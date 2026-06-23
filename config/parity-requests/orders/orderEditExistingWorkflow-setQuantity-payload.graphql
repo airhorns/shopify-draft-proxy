@@ -3,7 +3,6 @@ mutation OrderEditExistingWorkflowSetQuantityPayload($id: ID!, $lineItemId: ID!,
     calculatedLineItem {
       title
       quantity
-      currentQuantity
       sku
       variant {
         id

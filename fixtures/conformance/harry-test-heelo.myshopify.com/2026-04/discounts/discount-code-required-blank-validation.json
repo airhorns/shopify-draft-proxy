@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-07T23:05:59.237Z",
+  "capturedAt": "2026-06-22T02:22:23.672Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -109,7 +109,7 @@
     "query": "mutation DiscountCodeRequiredBlankValidation(\n  $basicMissing: DiscountCodeBasicInput!\n  $basicEmpty: DiscountCodeBasicInput!\n  $basicNewline: DiscountCodeBasicInput!\n  $basicTooLong: DiscountCodeBasicInput!\n  $bxgyMissing: DiscountCodeBxgyInput!\n  $bxgyEmpty: DiscountCodeBxgyInput!\n  $bxgyNewline: DiscountCodeBxgyInput!\n  $freeShippingMissing: DiscountCodeFreeShippingInput!\n  $freeShippingEmpty: DiscountCodeFreeShippingInput!\n  $freeShippingNewline: DiscountCodeFreeShippingInput!\n) {\n  basicMissing: discountCodeBasicCreate(basicCodeDiscount: $basicMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicEmpty: discountCodeBasicCreate(basicCodeDiscount: $basicEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicNewline: discountCodeBasicCreate(basicCodeDiscount: $basicNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicTooLong: discountCodeBasicCreate(basicCodeDiscount: $basicTooLong) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyMissing: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyEmpty: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyNewline: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingMissing: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingEmpty: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingNewline: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "basicMissing": {
-        "title": "HAR-198 HAR596BASICMISSING1778195157915",
+        "title": "HAR-198 HAR596BASICMISSING1782094942210",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": false,
@@ -186,7 +186,7 @@
         }
       },
       "basicTooLong": {
-        "title": "HAR-596 basic too long 1778195157915",
+        "title": "HAR-596 basic too long 1782094942210",
         "code": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -212,7 +212,7 @@
         }
       },
       "bxgyMissing": {
-        "title": "HAR-596 BXGY HAR596BXGYMISSING1778195157915",
+        "title": "HAR-596 BXGY HAR596BXGYMISSING1782094942210",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -325,7 +325,7 @@
         }
       },
       "freeShippingMissing": {
-        "title": "HAR-596 free shipping HAR596FREEMISSING1778195157915",
+        "title": "HAR-596 free shipping HAR596FREEMISSING1782094942210",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": false,
@@ -491,7 +491,7 @@
           "actualQueryCost": 100,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1802,
+            "currentlyAvailable": 1801,
             "restoreRate": 100
           }
         }
