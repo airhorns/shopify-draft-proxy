@@ -6078,13 +6078,13 @@ impl DraftProxy {
     /// has been deleted/merged away.
     fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
         if id.is_empty()
-            || self.store.staged.customers.contains_key(id)
-            || self.store.staged.deleted_customer_ids.contains(id)
+            || self.store.staged.customers.contains_staged(id)
+            || self.store.staged.customers.is_tombstoned(id)
         {
             return;
         }
         if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
-            self.store.staged.customers.insert(id.to_string(), customer);
+            self.store.staged.customers.stage(id.to_string(), customer);
         }
     }
 
