@@ -1,6 +1,7 @@
 // @ts-nocheck
 import 'dotenv/config';
 
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -403,7 +404,14 @@ const collectionDetail = await runGraphql(collectionDetailQuery, {
 });
 const smartCollectionProductId = smartCollection.products.edges[0]?.node?.id ?? productId;
 const smartCollectionProductLegacyId = smartCollectionProductId.split('/').at(-1) ?? smartCollectionProductId;
-const collectionsCatalog = await runGraphql(collectionsCatalogQuery, {
+// Catalog reads are de-seeded: the proxy cannot reconstruct Shopify's opaque
+// pagination cursors or server-side query filtering, so it forwards the read
+// upstream and snapshots the result (read-through cache). The recorded fixture
+// therefore carries the forwarded `upstreamCalls` instead of a
+// `/__meta/seed`-style `seedCollectionCatalog` precondition, and the spec's
+// variables file is rewritten in lockstep so the cassette's variables match the
+// runner's outgoing request on this store.
+const collectionsCatalogVariables = {
   catalogFirst: 20,
   first: 3,
   titleWildcardQuery: `title:${smartCollection.title.slice(0, 3)}*`,
@@ -412,16 +420,45 @@ const collectionsCatalog = await runGraphql(collectionsCatalogQuery, {
   updatedSortQuery: 'collection_type:smart',
   emptyQuery: 'title:No collection should match this 157*',
   productMembershipQuery: `product_id:${smartCollectionProductLegacyId}`,
-});
+};
+const collectionsCatalog = await runGraphql(collectionsCatalogQuery, collectionsCatalogVariables);
+// The proxy forwards the canonical parity request document verbatim and the
+// cassette is matched byte-for-byte, so store that exact document (read from
+// disk) as the forwarded upstream call's query.
+const collectionsCatalogVariablesPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'collections-catalog-read.variables.json',
+);
+const collectionsCatalogDocument = readFileSync(
+  path.join('config', 'parity-requests', 'products', 'collections-catalog-read.graphql'),
+  'utf8',
+);
 
 const captures = {
   'collection-detail.json': collectionDetail,
-  'collections-catalog.json': collectionsCatalog,
+  'collections-catalog.json': {
+    data: collectionsCatalog.data,
+    ...(collectionsCatalog.extensions ? { extensions: collectionsCatalog.extensions } : {}),
+    upstreamCalls: [
+      {
+        operationName: 'CollectionsCatalogRead',
+        variables: collectionsCatalogVariables,
+        query: collectionsCatalogDocument,
+        response: { status: 200, body: collectionsCatalog },
+      },
+    ],
+  },
 };
 
 for (const [filename, payload] of Object.entries(captures)) {
   await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
+
+// Keep the parity spec's variables in lockstep with the freshly recorded
+// catalog read, so the runner's outgoing request matches the recorded cassette.
+await writeFile(collectionsCatalogVariablesPath, `${JSON.stringify(collectionsCatalogVariables, null, 2)}\n`, 'utf8');
 
 // oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
 console.log(

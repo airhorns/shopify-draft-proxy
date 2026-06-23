@@ -24,41 +24,27 @@ impl B2bCompanyLocationDeleteBlocker {
     }
 }
 
-const CUSTOMER_HYDRATE_QUERY: &str = r#"
-query CustomerHydrate($id: ID!) {
-  customer(id: $id) {
-    id
-    firstName
-    lastName
-    displayName
-    email
-    phone
-    locale
-    note
-    canDelete
-    verifiedEmail
-    dataSaleOptOut
-    taxExempt
-    taxExemptions
-    state
-    tags
-    createdAt
-    updatedAt
-    defaultEmailAddress { emailAddress }
-    defaultPhoneNumber { phoneNumber }
-    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
-  }
-}
-"#;
+// Shared with the parity capture scripts via include_str! so recorded `CustomerHydrate`
+// cassettes byte-match what `hydrate_customer_for_mutation` forwards upstream. The leading
+// newline is significant: the cassette matcher only trims trailing whitespace.
+const CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-mutation-hydrate.graphql");
 
-const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str = r#"
-query CustomerDuplicateHydrate($query: String!) {
-  customers(first: 1, query: $query) {
-    nodes { id }
-  }
-}
-"#;
+// Shared with the parity capture scripts via include_str! so recorded
+// `CustomerDuplicateHydrate` dedupe cassettes byte-match what the create path forwards
+// upstream. The leading newline is significant: the cassette matcher only trims trailing
+// whitespace.
+const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
+
+// `customerMerge` resolves both referenced customers the real way (forward + observe) and
+// must reconcile their *attached* resources — metafields, addresses, and orders — into the
+// resulting customer. The general `CustomerHydrate` mutation hydrate only carries scalars +
+// addresses, so the merge forwards this richer query instead and stages metafields/orders
+// from it. Shared with the merge capture scripts via include_str! so the recorded
+// `CustomerMergeHydrate` cassettes byte-match what `hydrate_customer_for_merge` forwards.
+const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-merge-hydrate.graphql");
 
 impl DraftProxy {
     pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
@@ -3744,6 +3730,10 @@ impl DraftProxy {
                         .publications
                         .insert(id.clone(), record.clone());
                 }
+                // Materialize the store's default Online Store publication now
+                // that the engine is active, so `channels`/`publicationsCount`
+                // reflect it without a seeded precondition.
+                self.ensure_default_publication();
                 if let Some(catalog_id) = catalog_id.as_deref() {
                     if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
                         set_catalog_publication_relation(catalog, Some(id));
@@ -3783,6 +3773,35 @@ impl DraftProxy {
         let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
         let publishables_to_remove =
             resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        // Resolve publishable (product / variant) existence against real store
+        // state rather than a seeded catalog: forward a `nodes(...)` hydrate for
+        // any referenced product/variant not already staged and observe it, so the
+        // "Publishable ID not found." check below reflects upstream truth (a null
+        // node leaves the id unstaged → reported missing). Shopify enforces the
+        // batch-size cap before resolving any publishable, so an oversized batch is
+        // left untouched — the limit error fires regardless of existence.
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && publishables_to_add.len() + publishables_to_remove.len() <= PUBLICATION_UPDATE_LIMIT
+        {
+            let pending = publishables_to_add
+                .iter()
+                .chain(publishables_to_remove.iter())
+                .filter(|id| {
+                    matches!(
+                        shopify_gid_resource_type(id),
+                        Some("Product") | Some("ProductVariant")
+                    )
+                })
+                .filter(|id| !self.publication_update_publishable_exists(id))
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if !pending.is_empty() {
+                self.hydrate_product_nodes_for_observation_with_request(
+                    request,
+                    pending.into_iter().collect(),
+                );
+            }
+        }
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
@@ -6051,6 +6070,67 @@ impl DraftProxy {
         self.customer_existing_for_update(request, id).is_some()
     }
 
+    /// Ensure a customer referenced by `customerMerge` is present in staged state
+    /// by forwarding a hydrate upstream and observing the result. Mirrors
+    /// `customer_existing_for_update`'s forward-on-miss, but *stages* the observed
+    /// record so both the existence validation (`customer_exists`) and the merge
+    /// body read the same customer. No-op when the customer is already staged or
+    /// has been deleted/merged away.
+    fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
+        if id.is_empty()
+            || self.store.staged.customers.contains_key(id)
+            || self.store.staged.deleted_customer_ids.contains(id)
+        {
+            return;
+        }
+        if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
+            self.store.staged.customers.insert(id.to_string(), customer);
+        }
+    }
+
+    /// Forward the richer `CustomerMergeHydrate` query and observe a customer the merge
+    /// references, so the merge body reads consistent state for the customer's attached
+    /// resources. Unlike `hydrate_customer_for_mutation`, this also lifts the customer's
+    /// `orders` connection into the staged `customer_orders` index (preserving each order's
+    /// opaque connection cursor) so the merge can transfer them to the resulting customer and
+    /// downstream order reads window/cursor them like locally-created orders. Returns the
+    /// staged customer record (metafields/addresses retained) or `None` for a missing
+    /// customer / snapshot mode.
+    fn hydrate_customer_for_merge(&mut self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_MERGE_HYDRATE_QUERY,
+                "operationName": "CustomerMergeHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let customer = response.body["data"]["customer"].clone();
+        if customer.is_null() {
+            return None;
+        }
+        let orders = customer_merge_extract_order_records(id, &customer["orders"]);
+        if !orders.is_empty() {
+            self.store
+                .staged
+                .customer_orders
+                .insert(id.to_string(), orders);
+        }
+        let mut record = normalize_hydrated_customer_record(customer);
+        // The orders connection is served from `customer_orders`; drop the raw hydrate edges
+        // so the stored record keeps the canonical staged-customer shape.
+        if let Some(object) = record.as_object_mut() {
+            object.remove("orders");
+        }
+        Some(record)
+    }
+
     fn customer_input_validation_errors(
         &self,
         request: &Request,
@@ -6268,7 +6348,11 @@ impl DraftProxy {
         }) || self.customer_upstream_contact_taken(request, current_id, "phone", phone)
     }
 
-    fn hydrate_customer_for_mutation(&mut self, request: &Request, id: &str) -> Option<Value> {
+    pub(in crate::proxy) fn hydrate_customer_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
@@ -6387,7 +6471,7 @@ impl DraftProxy {
 /// mode. Mirrors the per-resource hydrate queries; the count is cached into
 /// `customers_count_base` so subsequent reads track deletions generically.
 const CUSTOMER_COUNT_HYDRATE_QUERY: &str =
-    "query CustomerCountHydrate { customersCount { count precision } }";
+    include_str!("../../config/parity-requests/customers/customer-count-hydrate.graphql");
 
 impl DraftProxy {
     /// `customerAddTaxExemptions` / `customerRemoveTaxExemptions` /
@@ -8111,6 +8195,28 @@ fn normalize_hydrated_customer_record(mut customer: Value) -> Value {
             object.insert("taxExemptions".to_string(), json!([]));
         }
     }
+    // The hydrate query returns `addressesV2 { nodes }` with no edges/pageInfo, but a real
+    // connection read always reports them. Rebuild the connection into the full
+    // nodes/edges/pageInfo shape so reads that select `addressesV2.pageInfo` (e.g. the merge
+    // downstream read) match Shopify instead of observing an undefined pageInfo. Cursors are the
+    // deterministic per-node form, matched leniently as `any-string` downstream.
+    if customer.get("addressesV2").is_some() {
+        let nodes = connection_nodes(&customer["addressesV2"]);
+        let default_id = customer
+            .get("defaultAddress")
+            .and_then(|address| address.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        customer_rebuild_addresses(&mut customer, nodes, default_id.as_deref());
+    }
+    // The hydrate query likewise returns `metafields { nodes }` with no pageInfo, so rebuild it
+    // into the full nodes/pageInfo connection shape. Otherwise an (often empty) metafields
+    // connection reports an undefined pageInfo for reads that select it — e.g. the merge
+    // downstream read, which expects the empty-connection `{hasNextPage:false, …, endCursor:null}`.
+    if customer.get("metafields").is_some() {
+        let nodes = connection_nodes(&customer["metafields"]);
+        customer["metafields"] = nodes_connection(nodes);
+    }
     customer
 }
 
@@ -8157,6 +8263,8 @@ const TAX_EXEMPTION_VALUES: &[&str] = &[
     "CA_BC_RESELLER_EXEMPTION",
     "CA_MB_RESELLER_EXEMPTION",
     "CA_SK_RESELLER_EXEMPTION",
+    "CA_SK_VPT_RESELLER_EXEMPTION",
+    "CA_NL_VPT_RESELLER_EXEMPTION",
     "CA_DIPLOMAT_EXEMPTION",
     "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
     "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
@@ -9735,6 +9843,14 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(variables, "customerTwoId"))
             .unwrap_or_default();
 
+        // Pre-existing customers referenced by a merge are resolved the real way:
+        // forward a hydrate upstream and stage the observed record so both the
+        // existence checks and the merge body read consistent state. Already-staged
+        // or deleted/merged-away customers are left untouched (a deleted source must
+        // still surface DOES_NOT_EXIST rather than be re-hydrated).
+        self.ensure_customer_hydrated_for_merge(request, &one_id);
+        self.ensure_customer_hydrated_for_merge(request, &two_id);
+
         // Compute the payload generically from staged state. State only mutates on
         // the success branch; each early return mirrors a live customerMerge
         // userError branch (self-merge, unknown customer, merge blockers).
@@ -10357,6 +10473,36 @@ fn node_connection_cursor(node: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+/// Lift a customer's hydrated `orders` connection (an `edges { cursor node { … } }` page)
+/// into the per-customer order records the staged `customer_orders` index expects: each node
+/// carries its opaque connection `__cursor` (so downstream order reads reproduce Shopify's
+/// cursors verbatim) and a `customer { id }` back-reference (so a transferred order re-stamps
+/// the resulting customer's email like a locally-created order).
+fn customer_merge_extract_order_records(customer_id: &str, orders: &Value) -> Vec<Value> {
+    let Some(edges) = orders.get("edges").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    edges
+        .iter()
+        .filter_map(|edge| {
+            let node = edge.get("node")?;
+            if node.is_null() {
+                return None;
+            }
+            let mut record = node.clone();
+            if let Some(object) = record.as_object_mut() {
+                if let Some(cursor) = edge.get("cursor").and_then(Value::as_str) {
+                    object.insert("__cursor".to_string(), json!(cursor));
+                }
+                if !object.contains_key("customer") {
+                    object.insert("customer".to_string(), json!({ "id": customer_id }));
+                }
+            }
+            Some(record)
+        })
+        .collect()
 }
 
 /// Cursor for an order node within a customer's `orders` connection. Prefers a

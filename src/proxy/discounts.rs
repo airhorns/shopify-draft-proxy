@@ -15,11 +15,45 @@ const SHOP_SUBSCRIPTION_CAPABILITY_QUERY: &str =
 /// revoked function returns an empty `nodes` list and activation fails with a
 /// base-field INTERNAL_ERROR. Must match the recorded cassette call byte-for-byte.
 const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }";
+/// Shop-wide redeem-code uniqueness probe forwarded during code-discount create
+/// validation. A code already assigned to any discount in the shop is rejected
+/// with a `TAKEN` userError; rather than relying on locally injected state, the
+/// proxy learns this the way Shopify's own admin does — by looking the code up —
+/// and so resolves uniqueness against the real backend in `live-hybrid`. The
+/// query text is shared verbatim with the conformance capture script
+/// (`scripts/capture-discount-validation-conformance.ts`) so the request the
+/// proxy forwards matches the recorded `DiscountUniquenessCheck` cassette call
+/// byte-for-byte (the cassette matcher is strict on query text + variables).
+const DISCOUNT_UNIQUENESS_QUERY: &str =
+    include_str!("../../config/parity-requests/discounts/discount-uniqueness-check.graphql");
 /// Read query used to hydrate a discount that is not staged locally so an
 /// activate/deactivate transition can be applied against its real dates and
 /// status. Must match the recorded cassette `DiscountHydrate` upstream call
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
 const DISCOUNT_HYDRATE_QUERY: &str = "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n";
+/// Item-entitlement existence probe forwarded before a discount create is
+/// validated. Discounts that entitle products / variants / collections must
+/// reject references to entities that do not exist in the shop; rather than
+/// relying on locally injected state, the proxy resolves existence the way
+/// Shopify's own admin does — by looking the referenced nodes up — and observes
+/// the result so the per-field existence checks (see `discount_reference_*`)
+/// decide against real store state. The query text is shared verbatim with the
+/// conformance capture script so the request the proxy forwards matches the
+/// recorded `ProductsHydrateNodes` cassette call byte-for-byte (the cassette
+/// matcher is strict on query text + variables).
+const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
+/// Buyer-context segment existence/name probe forwarded before a discount's
+/// `context.customerSegments` selection is materialized. A discount scoped to a
+/// customer segment echoes back the segment's display name; rather than relying
+/// on locally injected segment state, the proxy resolves the name the way
+/// Shopify's own admin does — by reading the referenced segment — and stages the
+/// result so `resolve_discount_context_names` bakes the real name. The query text
+/// is shared verbatim with the conformance capture script so the request the
+/// proxy forwards matches the recorded `DiscountContextSegmentHydrate` cassette
+/// call byte-for-byte (the cassette matcher is strict on query text + variables).
+const DISCOUNT_CONTEXT_SEGMENT_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/discounts/discount-context-segment-hydrate.graphql");
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
@@ -113,6 +147,16 @@ impl DraftProxy {
         if let Some(response) = discount_document_level_error_response(&fields) {
             return MutationOutcome::response(response);
         }
+        // Resolve the existence of any product / variant / collection entitlement
+        // references up front by forwarding a single batched node lookup and
+        // observing the result, so the per-field create validation below decides
+        // INVALID references against real store state instead of seeded state.
+        self.hydrate_discount_item_refs(_request, &fields);
+        // Resolve any buyer-context customer / segment members the same way: forward
+        // a read for each referenced customer / segment that is not already staged and
+        // observe the result, so `resolve_discount_context_names` bakes the real
+        // display name / segment name from store state instead of a seeded precondition.
+        self.hydrate_discount_context_refs(_request, &fields);
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         let mut top_level_errors = Vec::new();
@@ -276,7 +320,7 @@ impl DraftProxy {
             | "discountAutomaticBulkActivate"
             | "discountAutomaticBulkDeactivate"
             | "discountAutomaticBulkDelete" => self.discount_bulk_action(field),
-            "discountRedeemCodeBulkAdd" => self.discount_redeem_code_bulk_add(field),
+            "discountRedeemCodeBulkAdd" => self.discount_redeem_code_bulk_add(request, field),
             "discountCodeRedeemCodeBulkDelete" => self.discount_redeem_code_bulk_delete(field),
             _ => MutationFieldOutcome::unlogged(discount_payload_for_root(
                 &field.name,
@@ -305,7 +349,7 @@ impl DraftProxy {
             user_errors.push(error);
         }
         if let Some(input_map) = input.as_ref() {
-            user_errors.extend(self.discount_reference_user_errors(input_map, input_arg));
+            user_errors.extend(self.discount_reference_user_errors(request, input_map, input_arg));
         }
         if !user_errors.is_empty() {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -396,29 +440,184 @@ impl DraftProxy {
         }
     }
 
-    /// Referential-integrity validation that depends on the proxy's current store
+    /// Forward a single batched `nodes(ids:)` lookup for every product / variant /
+    /// collection entitlement reference across all create fields in the mutation,
+    /// then observe the response into local product/collection/variant state. This
+    /// runs before any field is validated so the existence checks in
+    /// `discount_items_reference_errors` resolve against the references Shopify
+    /// actually recognizes, exactly mirroring how the live admin learns which ids
+    /// are valid. The ids are deduplicated and sorted (numeric tail ascending, ties
+    /// broken by gid string) so the forwarded request matches the recorded
+    /// `ProductsHydrateNodes` cassette byte-for-byte. Only forwarded in
+    /// `live-hybrid`; in `snapshot` the existence checks keep their permissive
+    /// default (no upstream to consult).
+    fn hydrate_discount_item_refs(&mut self, request: &Request, fields: &[RootFieldSelection]) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut ids: Vec<String> = Vec::new();
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        for field in fields {
+            let Some(input_arg) = discount_create_input_arg(&field.name) else {
+                continue;
+            };
+            let Some(input) = discount_input(field, input_arg) else {
+                continue;
+            };
+            for selection in ["customerBuys", "customerGets"] {
+                for path in [
+                    [selection, "items", "products", "productsToAdd"],
+                    [selection, "items", "products", "productVariantsToAdd"],
+                    [selection, "items", "collections", "add"],
+                ] {
+                    for id in resolved_string_list_path(&input, &path) {
+                        // The reference is already authoritative if it was staged
+                        // earlier in the scenario; only unknown ids need a lookup.
+                        if self.discount_reference_already_staged(&id) {
+                            continue;
+                        }
+                        if seen.insert(id.clone()) {
+                            ids.push(id);
+                        }
+                    }
+                }
+            }
+        }
+        if ids.is_empty() {
+            return;
+        }
+        ids.sort_by(|left, right| compare_resource_ids(left, right));
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DISCOUNT_ITEM_REFS_HYDRATE_QUERY,
+                "operationName": "ProductsHydrateNodes",
+                "variables": { "ids": ids }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
+    /// Forward a read for every buyer-context customer / segment member referenced
+    /// by a create / update field that is not already staged, and observe the result
+    /// into local customer / segment state. This runs before any field materializes
+    /// its `context` so `resolve_discount_context_names` resolves member display
+    /// names / segment names against the records Shopify actually recognizes — the
+    /// same way the live admin reads them — instead of a seeded precondition. Each
+    /// referenced id is looked up at most once per mutation; ids already staged
+    /// earlier in the scenario are skipped. Only forwarded in `live-hybrid`; in
+    /// `snapshot` mode there is no upstream to consult, so the names degrade to the
+    /// permissive "id only" default (mirroring `hydrate_discount_item_refs`).
+    fn hydrate_discount_context_refs(&mut self, request: &Request, fields: &[RootFieldSelection]) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut customer_ids: Vec<String> = Vec::new();
+        let mut segment_ids: Vec<String> = Vec::new();
+        let mut seen_customers: BTreeSet<String> = BTreeSet::new();
+        let mut seen_segments: BTreeSet<String> = BTreeSet::new();
+        for field in fields {
+            let Some(input_arg) = discount_mutation_input_arg(&field.name) else {
+                continue;
+            };
+            let Some(input) = discount_input(field, input_arg) else {
+                continue;
+            };
+            for id in resolved_string_list_path(&input, &["context", "customers", "add"]) {
+                if !self.store.staged.customers.contains_key(&id)
+                    && seen_customers.insert(id.clone())
+                {
+                    customer_ids.push(id);
+                }
+            }
+            for id in resolved_string_list_path(&input, &["context", "customerSegments", "add"]) {
+                if !self.store.staged.segments.contains_key(&id) && seen_segments.insert(id.clone())
+                {
+                    segment_ids.push(id);
+                }
+            }
+        }
+        for id in customer_ids {
+            if let Some(customer) = self.hydrate_customer_for_mutation(request, &id) {
+                self.store.staged.customers.insert(id, customer);
+            }
+        }
+        for id in segment_ids {
+            self.hydrate_discount_context_segment(request, &id);
+        }
+    }
+
+    /// Forward a `segment(id:)` read for a single buyer-context segment and stage the
+    /// normalized record so `resolve_discount_context_names` resolves its name from
+    /// real store state. No-op when the lookup misses (non-200 or a null segment) —
+    /// the permissive default that never fabricates a name — so a scenario that does
+    /// not record the read simply leaves the member id un-named, exactly as before.
+    fn hydrate_discount_context_segment(&mut self, request: &Request, id: &str) {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DISCOUNT_CONTEXT_SEGMENT_HYDRATE_QUERY,
+                "operationName": "DiscountContextSegmentHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let segment = response.body["data"]["segment"].clone();
+        if segment.is_null() {
+            return;
+        }
+        let field = |key: &str| segment.get(key).cloned().unwrap_or(Value::Null);
+        let record = json!({
+            "__typename": "Segment",
+            "id": id,
+            "name": field("name"),
+            "query": field("query"),
+            "creationDate": field("creationDate"),
+            "lastEditDate": field("lastEditDate"),
+            "tagMigrated": false,
+            "valid": true,
+            "percentageSnapshot": null,
+            "percentageSnapshotUpdatedAt": null,
+            "translation": null,
+            "author": null
+        });
+        self.store.staged.segments.insert(id.to_string(), record);
+    }
+
+    /// Whether a product / variant / collection gid is already present in staged
+    /// state (and so does not need an upstream existence lookup).
+    fn discount_reference_already_staged(&self, gid: &str) -> bool {
+        if gid.starts_with("gid://shopify/Product/") {
+            self.store.has_product(gid)
+        } else if gid.starts_with("gid://shopify/ProductVariant/") {
+            self.store.product_variant_by_id(gid).is_some()
+        } else if gid.starts_with("gid://shopify/Collection/") {
+            self.store.collection_by_id(gid).is_some()
+        } else {
+            false
+        }
+    }
+
+    /// Referential-integrity validation that depends on the real backend's
     /// contents: a duplicate redeem code (TAKEN) and item-entitlement references to
     /// products / variants / collections that do not exist. Shopify resolves these
-    /// against its catalog; the proxy mirrors that for an arbitrary backend by
-    /// checking the entities a scenario has seeded or staged. To avoid fabricating
-    /// rejections for entities the proxy was simply never told about, existence is
-    /// enforced only once the store is authoritative for that entity type (something
-    /// of that kind has been seeded/staged) — except the universally-invalid `/0`
-    /// sentinel id, which never resolves on any Shopify store.
+    /// against its catalog; the proxy mirrors that by forwarding a uniqueness lookup
+    /// upstream (see `discount_code_is_taken`) and a batched node lookup
+    /// (`hydrate_discount_item_refs`) before validation. Item-entitlement existence
+    /// is enforced once the referenced nodes have been observed — except the
+    /// universally-invalid `/0` sentinel id, which never resolves on any Shopify
+    /// store.
     fn discount_reference_user_errors(
         &self,
+        request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         input_arg: &str,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         if let Some(code) = resolved_string_path(input, &["code"]) {
-            if !code.trim().is_empty()
-                && self
-                    .store
-                    .staged
-                    .discount_code_index
-                    .contains_key(&code.to_ascii_uppercase())
-            {
+            if !code.trim().is_empty() && self.discount_code_is_taken(request, &code) {
                 errors.push(discount_user_error(
                     vec![input_arg, "code"],
                     "Code must be unique. Please try a different code.",
@@ -430,6 +629,39 @@ impl DraftProxy {
             errors.extend(self.discount_items_reference_errors(input, input_arg, selection));
         }
         errors
+    }
+
+    /// Whether `code` is already assigned to a discount in the shop and so cannot be
+    /// reused. A code staged earlier in the same scenario is taken without consulting
+    /// upstream. Otherwise the proxy resolves uniqueness the real way: it forwards a
+    /// `codeDiscountNodeByCode` lookup and treats a non-null node as taken. In
+    /// `snapshot` mode (no upstream) and when the upstream lookup cannot be resolved
+    /// (non-200 — e.g. a parity scenario that does not record a uniqueness call), it
+    /// degrades to "not taken", the permissive default that never fabricates a
+    /// rejection. This mirrors `fetch_shop_sells_subscriptions`.
+    fn discount_code_is_taken(&self, request: &Request, code: &str) -> bool {
+        if self
+            .store
+            .staged
+            .discount_code_index
+            .contains_key(&code.to_ascii_uppercase())
+        {
+            return true;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DISCOUNT_UNIQUENESS_QUERY,
+                "variables": { "code": code }
+            }),
+        );
+        if response.status != 200 {
+            return false;
+        }
+        !response.body["data"]["codeDiscountNodeByCode"].is_null()
     }
 
     /// Existence / conflict validation for one entitlement selection (`customerBuys`
@@ -1079,6 +1311,7 @@ impl DraftProxy {
 
     fn discount_redeem_code_bulk_add(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let discount_id = resolved_field_string_arg(field, "discountId").unwrap_or_default();
@@ -1119,13 +1352,35 @@ impl DraftProxy {
         // Codes already assigned to any discount in the shop (uppercased). Code
         // uniqueness is shop-wide, so a code that exists on another discount is
         // rejected here. Captured before this batch mutates the index.
-        let existing_codes: BTreeSet<String> = self
+        let mut existing_codes: BTreeSet<String> = self
             .store
             .staged
             .discount_code_index
             .keys()
             .cloned()
             .collect();
+        // Codes not already known from local staged state have their shop-wide
+        // uniqueness resolved the real way: forward a `codeDiscountNodeByCode`
+        // lookup per candidate and treat a non-null node as taken (see
+        // `discount_code_is_taken`). Only codes that would otherwise be accepted
+        // are probed — format failures and in-batch duplicates are rejected
+        // locally without consulting upstream, and a code already in the local
+        // index is taken without a redundant forward. In `snapshot` mode (no
+        // upstream) and when the lookup can't be resolved, the probe degrades to
+        // "not taken", so scenarios that record no uniqueness call behave exactly
+        // as a fresh batch would.
+        for (index, code) in codes.iter().enumerate() {
+            let normalized = code.to_ascii_uppercase();
+            if existing_codes.contains(&normalized) {
+                continue;
+            }
+            if !redeem_code_errors(code, &codes, index, &existing_codes).is_empty() {
+                continue;
+            }
+            if self.discount_code_is_taken(request, code) {
+                existing_codes.insert(normalized);
+            }
+        }
         let creation_id = self.next_proxy_synthetic_gid("DiscountRedeemCodeBulkCreation");
         // A later `discountRedeemCodeBulkCreation(id:)` read always observes the
         // completed job, so we store the validated result (per-code errors + final
@@ -3271,6 +3526,63 @@ fn resolved_bool_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) ->
     match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
         Some(ResolvedValue::Bool(value)) => Some(*value),
         _ => None,
+    }
+}
+
+/// The input argument name carrying the discount payload for each create field,
+/// or `None` for non-create fields. Used to walk a create's entitlement
+/// references before validation.
+fn discount_create_input_arg(field_name: &str) -> Option<&'static str> {
+    match field_name {
+        "discountCodeBasicCreate" => Some("basicCodeDiscount"),
+        "discountCodeBxgyCreate" => Some("bxgyCodeDiscount"),
+        "discountCodeFreeShippingCreate" => Some("freeShippingCodeDiscount"),
+        "discountCodeAppCreate" => Some("codeAppDiscount"),
+        "discountAutomaticBasicCreate" => Some("automaticBasicDiscount"),
+        "discountAutomaticBxgyCreate" => Some("automaticBxgyDiscount"),
+        "discountAutomaticFreeShippingCreate" => Some("freeShippingAutomaticDiscount"),
+        "discountAutomaticAppCreate" => Some("automaticAppDiscount"),
+        _ => None,
+    }
+}
+
+/// The input argument name carrying the discount payload for each create *or
+/// update* field. Buyer-context member resolution walks both, because the segment
+/// / customer selection a discount echoes back can be established at create time or
+/// switched at update time and must resolve against real store state in either case.
+fn discount_mutation_input_arg(field_name: &str) -> Option<&'static str> {
+    match field_name {
+        "discountCodeBasicCreate" | "discountCodeBasicUpdate" => Some("basicCodeDiscount"),
+        "discountCodeBxgyCreate" | "discountCodeBxgyUpdate" => Some("bxgyCodeDiscount"),
+        "discountCodeFreeShippingCreate" | "discountCodeFreeShippingUpdate" => {
+            Some("freeShippingCodeDiscount")
+        }
+        "discountCodeAppCreate" | "discountCodeAppUpdate" => Some("codeAppDiscount"),
+        "discountAutomaticBasicCreate" | "discountAutomaticBasicUpdate" => {
+            Some("automaticBasicDiscount")
+        }
+        "discountAutomaticBxgyCreate" | "discountAutomaticBxgyUpdate" => {
+            Some("automaticBxgyDiscount")
+        }
+        "discountAutomaticFreeShippingCreate" | "discountAutomaticFreeShippingUpdate" => {
+            Some("freeShippingAutomaticDiscount")
+        }
+        "discountAutomaticAppCreate" | "discountAutomaticAppUpdate" => Some("automaticAppDiscount"),
+        _ => None,
+    }
+}
+
+/// Order two Shopify resource gids the way the conformance capture scripts do:
+/// by numeric id tail ascending, with ties (and any non-numeric tail) broken by
+/// the full gid string. Keeps a forwarded `nodes(ids:)` batch in the same order
+/// as the recorded cassette so the request matches byte-for-byte.
+fn compare_resource_ids(left: &str, right: &str) -> std::cmp::Ordering {
+    match (
+        resource_id_tail(left).parse::<u128>(),
+        resource_id_tail(right).parse::<u128>(),
+    ) {
+        (Ok(left_tail), Ok(right_tail)) if left_tail != right_tail => left_tail.cmp(&right_tail),
+        _ => left.cmp(right),
     }
 }
 

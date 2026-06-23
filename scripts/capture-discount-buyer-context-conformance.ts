@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -36,11 +36,6 @@ function readRequiredString(result: ConformanceGraphqlResult, pathSegments: stri
   return value;
 }
 
-function readRecord(result: ConformanceGraphqlResult, pathSegments: string[]): JsonRecord | null {
-  const value = readPath(result.payload, pathSegments);
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : null;
-}
-
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
@@ -56,6 +51,23 @@ const adminOptions = {
   headers: buildAdminAuthHeaders(adminAccessToken),
 };
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
+
+// Shared verbatim with the Rust proxy so the recorded cassette calls byte-match
+// what the de-seeded create/update path forwards upstream to resolve buyer-context
+// member names the real way (the cassette matcher is strict on query text +
+// variables). `CustomerHydrate` stages the customer's displayName, the segment
+// hydrate stages the segment's name, and `DiscountUniquenessCheck` resolves the
+// code uniqueness probe the code-discount create forwards.
+const customerHydrateQuery = await readFile(
+  'config/parity-requests/customers/customer-mutation-hydrate.graphql',
+  'utf8',
+);
+const segmentHydrateQuery = await readFile(
+  'config/parity-requests/discounts/discount-context-segment-hydrate.graphql',
+  'utf8',
+);
+const uniquenessQuery = await readFile('config/parity-requests/discounts/discount-uniqueness-check.graphql', 'utf8');
+const upstreamCalls: unknown[] = [];
 
 await mkdir(outputDir, { recursive: true });
 
@@ -375,6 +387,40 @@ try {
   assertSuccess(segmentCreate, 'segmentCreate setup');
   segmentId = readRequiredString(segmentCreate, ['data', 'segmentCreate', 'segment', 'id'], 'segmentCreate setup');
 
+  // Record the reads the de-seeded proxy forwards to resolve the buyer-context
+  // member names from real store state (instead of a seeded precondition): the
+  // customer hydrate (customer-context create), the segment hydrate
+  // (segment-context update), and the code uniqueness probe (code-discount
+  // create). Each is issued against the live store while the disposable customer /
+  // segment still exist, and stored in the cassette entry shape so parity replays
+  // them byte-for-byte.
+  const customerHydrate = await runGraphqlRaw(customerHydrateQuery, { id: customerId });
+  assertSuccess(customerHydrate, 'customer hydrate forward');
+  upstreamCalls.push({
+    operationName: 'CustomerHydrate',
+    variables: { id: customerId },
+    query: customerHydrateQuery,
+    response: { status: customerHydrate.status, body: customerHydrate.payload },
+  });
+
+  const segmentHydrate = await runGraphqlRaw(segmentHydrateQuery, { id: segmentId });
+  assertSuccess(segmentHydrate, 'segment hydrate forward');
+  upstreamCalls.push({
+    operationName: 'DiscountContextSegmentHydrate',
+    variables: { id: segmentId },
+    query: segmentHydrateQuery,
+    response: { status: segmentHydrate.status, body: segmentHydrate.payload },
+  });
+
+  const uniquenessCheck = await runGraphqlRaw(uniquenessQuery, { code: initialCode });
+  assertSuccess(uniquenessCheck, 'code uniqueness forward');
+  upstreamCalls.push({
+    operationName: 'DiscountUniquenessCheck',
+    variables: { code: initialCode },
+    query: uniquenessQuery,
+    response: { status: uniquenessCheck.status, body: uniquenessCheck.payload },
+  });
+
   codeCreateVariables = {
     input: {
       title: `HAR-390 code customer context ${runId}`,
@@ -529,9 +575,6 @@ try {
   }
 }
 
-const seedCustomer = customerCreate ? readRecord(customerCreate, ['data', 'customerCreate', 'customer']) : null;
-const seedSegment = segmentCreate ? readRecord(segmentCreate, ['data', 'segmentCreate', 'segment']) : null;
-
 const output = {
   capturedAt: new Date().toISOString(),
   storeDomain,
@@ -545,8 +588,12 @@ const output = {
     updatedCode,
   },
   scopeProbe,
-  seedCustomers: seedCustomer ? [seedCustomer] : [],
-  seedSegments: seedSegment ? [seedSegment] : [],
+  // De-seeded: the buyer-context member names are resolved by forwarding the reads
+  // in `upstreamCalls` (customer / segment hydrate) rather than injecting
+  // `seedCustomers` / `seedSegments` preconditions. The disposable customer and
+  // segment are still created (and deleted) as live setup so those reads return
+  // real data at capture time.
+  upstreamCalls,
   setup: {
     customerCreate: { query: customerCreateDocument, variables: customerCreateVariables, response: customerCreate },
     segmentCreate: { query: segmentCreateDocument, variables: segmentCreateVariables, response: segmentCreate },
@@ -571,6 +618,7 @@ const output = {
   notes: [
     'Live Shopify 2026-04 capture for code-basic and automatic-basic discount buyer context transitions from explicit customer selection to customer-segment selection.',
     'The disposable discount, customer, and segment records are deleted in cleanup after capture.',
+    'De-seeded: buyer-context member names are resolved by forwarding the customer / segment hydrate reads recorded in upstreamCalls, not by seedCustomers / seedSegments preconditions.',
   ],
 };
 

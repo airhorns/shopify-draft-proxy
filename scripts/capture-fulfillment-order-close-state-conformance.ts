@@ -202,19 +202,69 @@ const moveMutation = `#graphql
   }
 `;
 
-const hydrateQuery = `#graphql
-  query ShippingFulfillmentOrderHydrate($id: ID!) {
+// Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
+// (src/proxy/online_store_orders_payments.rs). The submit / accept / close
+// lifecycle mutations forward this exact (expanded, not compact) document on a
+// cold fulfillment-order miss; recording its live response is what lets
+// de-seeded replay forward+observe the order. Kept flush-left so trimGraphql
+// leaves it identical to the constant.
+const hydrateQuery = `query ShippingFulfillmentOrderHydrate($id: ID!) {
     fulfillmentOrder(id: $id) {
-      id status requestStatus fulfillAt fulfillBy updatedAt
-      supportedActions { action }
-      assignedLocation { name location { id name } }
-      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
-      merchantRequests(first: 10) { nodes { kind message requestOptions } }
-      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
-      order { id name displayFulfillmentStatus }
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+        }
+      }
+      lineItems(first: 20) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
     }
-  }
-`;
+  }`;
 
 function trimGraphql(query: string): string {
   return query.replace(/^#graphql\n/u, '').trim();

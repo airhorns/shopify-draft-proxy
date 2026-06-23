@@ -18,14 +18,14 @@
     "documentPath": "config/parity-requests/customers/customer-order-summary-create-customer.graphql",
     "variables": {
       "input": {
-        "email": "har-288-customer-order-summary-1777250739747@example.com",
+        "email": { "fromCapturePath": "$.variables.email" },
         "firstName": "HAR-288",
         "lastName": "Order Summary"
       }
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison now replays the HAR-288 customer order-summary read-effects trace through the local proxy harness. The runner seeds the captured order, stages customer setup locally, then compares before-set reads, orderCustomerSet, after-set reads, orderCustomerRemove, and after-remove reads. The comparison focuses on the immediate customer/order association behavior captured by Shopify: Customer.orders exposes the linked order after set and returns empty after remove, while lastOrder stays at the baseline. Expected differences are limited to locally generated customer IDs, opaque order connection cursors, and the existing local representation gap where freshly staged customers use numeric/null summary defaults instead of Shopify's string zero and shop-currency money object.",
+  "notes": "Strict comparison replays the HAR-288 customer order-summary read-effects trace through the local proxy harness with NO precondition seeding. The proxy earns its state from real upstream forwards recorded in the fixture's upstreamCalls: the store-wide customersCount baseline (CustomerCountHydrate) and the cold order projection for orderCustomerSet (OrderManagementDownstreamRead). It stages the customer setup locally, then compares before-set reads, orderCustomerSet, after-set reads, orderCustomerRemove, and after-remove reads. The comparison focuses on the immediate customer/order association behavior captured by Shopify: Customer.orders exposes the linked order after set and returns empty after remove, while lastOrder stays at the baseline. Expected differences are limited to locally generated customer IDs, opaque order connection cursors, and the existing local representation gap where freshly staged customers use numeric/null summary defaults instead of Shopify's string zero and shop-currency money object.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -58,7 +58,7 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
-            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+            "emailQuery": { "fromCapturePath": "$.variables.emailQuery" }
           }
         },
         "expectedDifferences": [
@@ -82,7 +82,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-order-summary-set.graphql",
           "variables": {
-            "orderId": "gid://shopify/Order/8710861881650",
+            "orderId": { "fromCapturePath": "$.variables.orderId" },
             "customerId": {
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             }
@@ -106,7 +106,7 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
-            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+            "emailQuery": { "fromCapturePath": "$.variables.emailQuery" }
           }
         },
         "expectedDifferences": [
@@ -150,7 +150,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-order-summary-remove.graphql",
           "variables": {
-            "orderId": "gid://shopify/Order/8710861881650"
+            "orderId": { "fromCapturePath": "$.variables.orderId" }
           }
         }
       },
@@ -164,7 +164,7 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
-            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+            "emailQuery": { "fromCapturePath": "$.variables.emailQuery" }
           }
         },
         "expectedDifferences": [

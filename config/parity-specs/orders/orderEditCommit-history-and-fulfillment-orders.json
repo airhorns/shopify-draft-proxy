@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live captured order edit commit scenario proving the edited order event, fulfillment-order remaining quantities, and current order totals/tax lines after a set-quantity plus add-variant edit. Volatile Shopify/proxy allocated IDs and event timestamps are excluded; selected payload values are otherwise compared strictly.",
+  "notes": "Live captured order edit commit scenario proving the edited order event (action \"edited\"), fulfillment-order remaining quantities, and current order totals/tax lines after a set-quantity plus add-variant edit. Volatile Shopify/proxy allocated IDs and event timestamps are excluded. The event message (\"<author> edited this order.\") is also excluded: its author (\"example.com\") is opaque app-attribution text Shopify renders server-side and exposes via no queryable Admin API field (not even the event's own appTitle), so the proxy cannot reproduce it without a precondition seed — it emits the event with a null message. Selected payload values are otherwise compared strictly.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -88,6 +88,7 @@
           "$.lineItems.nodes[*].id",
           "$.events.nodes[*].id",
           "$.events.nodes[*].createdAt",
+          "$.events.nodes[*].message",
           "$.fulfillmentOrders.nodes[*].id",
           "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
           "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].lineItem.id"

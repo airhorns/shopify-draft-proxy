@@ -318,6 +318,10 @@ const orderDeleteMutation = `#graphql
 
 const returnCreateMutation = await readRequest('return-create-shipping-fee-recorded.graphql');
 const downstreamReadQuery = await readRequest('return-shipping-fee-read-recorded.graphql');
+// The exact document the proxy forwards to hydrate a return's order on a cold
+// miss. Recording the live response of this byte-identical query is what lets
+// the scenario replay without `seedOrder`.
+const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -394,9 +398,17 @@ const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
 requireEmptyUserErrors(fulfillmentCreate, 'fulfillmentCreate');
 
 const orderReadAfterFulfillment = await capture(orderReadQuery, { id: orderId });
-const seedOrder = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
-const fulfillmentLineItem = firstFulfillmentLineItem(readRecord(seedOrder) ?? {});
+const orderAfterFulfillment = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
+const fulfillmentLineItem = firstFulfillmentLineItem(readRecord(orderAfterFulfillment) ?? {});
 const fulfillmentLineItemId = requireString(fulfillmentLineItem['id'], 'fulfilled fulfillment line item id');
+
+// Record the proxy's cold-miss order hydrate (byte-identical document) against the
+// freshly fulfilled order — before any return exists — so replay forwards+observes
+// real store state instead of relying on a seeded order.
+const returnOrderHydrate = await runGraphqlRequest(returnOrderHydrateQuery, { id: orderId });
+if (returnOrderHydrate.payload['errors']) {
+  throw new Error(`return-order hydrate returned errors: ${JSON.stringify(returnOrderHydrate.payload)}`);
+}
 
 const returnCreate = await capture(returnCreateMutation, {
   returnInput: {
@@ -467,7 +479,6 @@ await writeJson(fixturePath, {
     fulfillmentCreate,
     orderReadAfterFulfillment,
   },
-  seedOrder,
   returnCreate,
   downstreamRead,
   hiddenInputProbe,
@@ -477,16 +488,12 @@ await writeJson(fixturePath, {
   },
   upstreamCalls: [
     {
-      operationName: 'OrdersOrderHydrate',
+      operationName: 'OrdersReturnOrderHydrate',
       variables: { id: orderId },
-      query: 'hand-synthesized from checked-in seedOrder for return shipping fee Pattern 2 order hydration',
+      query: returnOrderHydrateQuery,
       response: {
-        status: 200,
-        body: {
-          data: {
-            order: seedOrder,
-          },
-        },
+        status: returnOrderHydrate.status,
+        body: returnOrderHydrate.payload,
       },
     },
   ],

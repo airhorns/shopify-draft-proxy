@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-complete-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.graphql",
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The live capture completes a draft created earlier in the same conformance run, verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The strict comparison seeds the captured draft before replaying local completion; expected differences are limited to Shopify-generated completion/order identity values.",
+  "notes": "The live capture completes a disposable draft (harry-test-heelo), verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The proxy resolves the precondition draft via a real cold OrdersDraftOrderHydrate forward (the fixture's single upstreamCall) rather than a setup-block seed, then replays completion locally. Expected differences are limited to Shopify-generated completion/order identity values.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

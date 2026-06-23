@@ -21,7 +21,7 @@ type ReturnSeed = {
   orderCreate: GraphqlCapture;
   fulfillmentCreate: GraphqlCapture;
   orderReadAfterFulfillment: GraphqlCapture;
-  seedOrder: unknown;
+  returnOrderHydrate: ConformanceGraphqlResult;
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -288,6 +288,9 @@ const returnProcessMutation = await readRequest('return-process-recorded.graphql
 const returnCloseMutation = await readRequest('return-close-state-precondition.graphql');
 const returnReopenMutation = await readRequest('return-reopen-state-precondition.graphql');
 const returnCancelMutation = await readRequest('return-cancel-state-precondition.graphql');
+// The exact document the proxy forwards to hydrate a return's order on a cold
+// miss; recording its live response per order is what replaces the seeded orders.
+const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -374,10 +377,18 @@ async function createFulfilledReturnSeed(label: string): Promise<ReturnSeed> {
   requireEmptyUserErrors(fulfillmentCreate, 'fulfillmentCreate');
 
   const orderReadAfterFulfillment = await capture(orderReadQuery, { id: orderId });
-  const seedOrder = readRecord(orderReadAfterFulfillment.response.payload as JsonRecord)?.['data'];
-  const order = readRecord(readRecord(seedOrder)?.['order']) ?? {};
+  const readData = readRecord(orderReadAfterFulfillment.response.payload as JsonRecord)?.['data'];
+  const order = readRecord(readRecord(readData)?.['order']) ?? {};
   const fulfillmentLineItem = firstFulfillmentLineItem(order);
   const fulfillmentLineItemId = requireString(fulfillmentLineItem['id'], `${label} fulfillment line item id`);
+
+  // Record the proxy's cold-miss order hydrate (byte-identical document) against the
+  // freshly fulfilled order — before any return exists — so replay forwards+observes
+  // real store state instead of relying on a seeded order.
+  const returnOrderHydrate = await runGraphqlRequest(returnOrderHydrateQuery, { id: orderId });
+  if (returnOrderHydrate.payload['errors']) {
+    throw new Error(`${label} return-order hydrate returned errors: ${JSON.stringify(returnOrderHydrate.payload)}`);
+  }
 
   return {
     label,
@@ -386,7 +397,7 @@ async function createFulfilledReturnSeed(label: string): Promise<ReturnSeed> {
     orderCreate,
     fulfillmentCreate,
     orderReadAfterFulfillment,
-    seedOrder: readRecord(seedOrder)?.['order'] ?? null,
+    returnOrderHydrate,
   };
 }
 
@@ -518,6 +529,15 @@ const cleanup = {
   processed: await cleanupOrder(processedSeed.orderId),
 };
 
+// Each fulfilled order is hydrated by the proxy on its first return mutation by
+// forwarding the shared return-order-hydrate document; surface those live forwards
+// as the scenario's cassettes (one per order) so de-seeding forwards+observes.
+const returnSeeds = [requestedSeed, openSeed, cancelableSeed, declinedSeed, processedSeed];
+// The setup block remains as recorded evidence, minus the hydrate response (which
+// lives under upstreamCalls).
+const setupSeed = ({ returnOrderHydrate: _hydrate, ...rest }: ReturnSeed): Omit<ReturnSeed, 'returnOrderHydrate'> =>
+  rest;
+
 await writeJson(fixturePath, {
   capturedAt: new Date().toISOString(),
   apiVersion,
@@ -528,11 +548,11 @@ await writeJson(fixturePath, {
   locations,
   setup: {
     locationId,
-    requested: requestedSeed,
-    openCloseReopen: openSeed,
-    cancelable: cancelableSeed,
-    declined: declinedSeed,
-    processed: processedSeed,
+    requested: setupSeed(requestedSeed),
+    openCloseReopen: setupSeed(openSeed),
+    cancelable: setupSeed(cancelableSeed),
+    declined: setupSeed(declinedSeed),
+    processed: setupSeed(processedSeed),
   },
   declineRequest: {
     declineInput,
@@ -568,7 +588,15 @@ await writeJson(fixturePath, {
     returnCancelInvalid: returnCancelProcessedInvalid,
   },
   cleanup,
-  upstreamCalls: [],
+  upstreamCalls: returnSeeds.map((seed) => ({
+    operationName: 'OrdersReturnOrderHydrate',
+    variables: { id: seed.orderId },
+    query: returnOrderHydrateQuery,
+    response: {
+      status: seed.returnOrderHydrate.status,
+      body: seed.returnOrderHydrate.payload,
+    },
+  })),
 });
 
 console.log(

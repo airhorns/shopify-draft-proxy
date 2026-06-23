@@ -2437,21 +2437,36 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 
 impl DraftProxy {
     // Collect the `feedbackInput[].productId`s that reference a product the
-    // proxy can prove does not exist, so `bulkProductResourceFeedbackCreate` can
-    // emit a per-entry `Product does not exist` userError. A locally tombstoned
-    // id is reported missing immediately. An id merely absent from the local
-    // catalog is NOT assumed missing — the proxy never seeds every real product,
-    // so absence alone is no proof. Instead we confirm against upstream with a
-    // cassette-backed `nodes(...)` hydrate: a null node (or, in Snapshot mode,
-    // no upstream to consult) means the product does not exist; a hydrated node
-    // means it does and feedback stages normally.
+    // proxy can prove is unavailable to resource feedback, so
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry
+    // PRODUCT_NOT_FOUND userError. A locally tombstoned id is reported missing
+    // immediately. Known non-ACTIVE products are also unavailable. An id merely
+    // absent from the local catalog is NOT assumed missing — the proxy never
+    // seeds every real product, so absence alone is no proof. Instead we confirm
+    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
+    // (or, in Snapshot mode, no upstream to consult) means the product does not
+    // exist; a hydrated node means it does and feedback stages normally.
     pub(in crate::proxy) fn feedback_missing_product_ids(
         &self,
         field: &RootFieldSelection,
         request: &Request,
     ) -> BTreeSet<String> {
         let mut missing = BTreeSet::new();
-        for input in resolved_object_list_field(&field.arguments, "feedbackInput").iter() {
+        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
+        // oversized batch returns TOO_LONG without ever looking up a product. Never
+        // forward an existence lookup the resolver itself would not perform.
+        if inputs.len() > 50 {
+            return missing;
+        }
+        for input in inputs.iter() {
+            // Per-entry message / generated-at / length guards run before the
+            // existence check, mirroring Shopify's resolver order: an entry that
+            // fails one of those reports only that error and never resolves (nor
+            // forwards a lookup for) its product.
+            if resource_feedback_validation_error(input, None).is_some() {
+                continue;
+            }
             let Some(id) = resolved_string_field(input, "productId") else {
                 continue;
             };
@@ -2459,7 +2474,10 @@ impl DraftProxy {
                 missing.insert(id);
                 continue;
             }
-            if self.store.product_staged_or_base(&id).is_some() {
+            if let Some(product) = self.store.product_staged_or_base(&id) {
+                if !product.status.is_empty() && product.status != "ACTIVE" {
+                    missing.insert(id);
+                }
                 continue;
             }
             // Only LiveHybrid can prove a product's absence by hydrating it
@@ -2606,9 +2624,9 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback"],
-                "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
+                "field": Value::Null,
+                "message": "The operation was attempted on too many feedback objects. The maximum number of feedback objects that you can operate on is 50.",
+                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
             }]
         })
     } else {
@@ -2619,12 +2637,10 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
                 user_errors.push(error);
                 continue;
             }
-            // Per-entry product existence is validated only after the message /
-            // generated-at / length guards pass, mirroring Shopify's resolver order:
-            // a blank-message or future-date entry never also reports the product
-            // missing. The store is the existence oracle (seeded precondition
-            // catalog), so an unknown productId yields the recorded
-            // `Product does not exist` userError with a null code.
+            // Per-entry product availability is validated only after the message /
+            // generated-at / length guards pass, mirroring Shopify's resolver
+            // order: a blank-message or future-date entry never also reports the
+            // product missing.
             let product_id = resolved_string_field(input, "productId").unwrap_or_default();
             if missing_product_ids.contains(&product_id) {
                 user_errors.push(resource_feedback_missing_product_error(Some(index)));
@@ -2711,10 +2727,10 @@ fn feedback_field_path(
     field: &str,
     nested_index: Option<usize>,
 ) -> Vec<String> {
-    let mut path = vec!["feedback".to_string()];
-    if let Some(index) = feedback_index {
-        path.push(index.to_string());
-    }
+    let mut path = match feedback_index {
+        Some(index) => vec!["feedbackInput".to_string(), index.to_string()],
+        None => vec!["feedback".to_string()],
+    };
     path.push(field.to_string());
     if let Some(index) = nested_index {
         path.push(index.to_string());
@@ -2726,14 +2742,17 @@ fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -
     user_error(field, message, Some(code))
 }
 
-// Shopify reports a referenced-but-absent product on the feedback root with a
-// null `code` (distinct from the BLANK / INVALID / TOO_LONG resolver guards),
-// anchored at the entry's `productId` argument path.
+// Shopify reports referenced-but-unavailable products at the feedback entry
+// root with PRODUCT_NOT_FOUND, distinct from the BLANK / INVALID / TOO_LONG
+// resolver guards anchored at concrete input fields.
 fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
+    let field = feedback_index
+        .map(|index| json!(["feedbackInput", index.to_string()]))
+        .unwrap_or(Value::Null);
     user_error(
-        feedback_field_path(feedback_index, "productId", None),
-        "Product does not exist",
-        None,
+        field,
+        "The product wasn't found or isn't available to the channel.",
+        Some("PRODUCT_NOT_FOUND"),
     )
 }
 

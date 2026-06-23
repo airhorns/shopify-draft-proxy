@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -49,6 +49,28 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
 async function writeJson(filePath: string, payload: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+// The exact cold-order hydrate the proxy forwards on a `refundCreate` against an
+// order it has not yet staged. Read verbatim from the shared `.graphql` so the
+// recorded cassette byte-matches the Rust `REFUND_ORDER_HYDRATE_QUERY`
+// (`include_str!` of the same file). Forwarding this live establishes the real
+// precondition read — replacing the old `setup`-block order seed.
+const refundOrderHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'orders', 'refund-order-hydrate.graphql'),
+  'utf8',
+);
+
+function refundHydrateUpstreamCall(orderId: string, hydrate: GraphqlResult): JsonRecord {
+  return {
+    operationName: 'OrdersOrderHydrate',
+    variables: { id: orderId },
+    query: refundOrderHydrateQuery,
+    response: {
+      status: hydrate.status,
+      body: hydrate.payload,
+    },
+  };
 }
 
 function requirePath<T>(value: T | null | undefined, label: string): T {
@@ -374,87 +396,6 @@ const orderReadAfterRefund = `#graphql
   }
 `;
 
-const orderHydrateRead = `#graphql
-  query OrdersOrderHydrateCapture($id: ID!) {
-    order(id: $id) {
-      id
-      name
-      createdAt
-      updatedAt
-      displayFinancialStatus
-      displayFulfillmentStatus
-      note
-      tags
-      totalOutstandingSet { shopMoney { amount currencyCode } }
-      totalReceivedSet { shopMoney { amount currencyCode } }
-      totalRefundedSet { shopMoney { amount currencyCode } }
-      currentTotalPriceSet { shopMoney { amount currencyCode } }
-      totalPriceSet { shopMoney { amount currencyCode } }
-      shippingLines(first: 5) {
-        nodes {
-          id
-          title
-          code
-          source
-          originalPriceSet { shopMoney { amount currencyCode } }
-          discountedPriceSet { shopMoney { amount currencyCode } }
-        }
-      }
-      lineItems(first: 5) {
-        nodes {
-          id
-          title
-          name
-          quantity
-          currentQuantity
-          sku
-          variantTitle
-          originalUnitPriceSet { shopMoney { amount currencyCode } }
-          originalTotalSet { shopMoney { amount currencyCode } }
-          variant { id title sku }
-        }
-      }
-      transactions {
-        id
-        kind
-        status
-        gateway
-        amountSet { shopMoney { amount currencyCode } }
-      }
-      refunds {
-        id
-        note
-        totalRefundedSet { shopMoney { amount currencyCode } }
-        refundLineItems(first: 10) {
-          nodes {
-            id
-            quantity
-            restockType
-            lineItem {
-              id
-              title
-            }
-            subtotalSet { shopMoney { amount currencyCode } }
-          }
-        }
-        transactions(first: 10) {
-          nodes {
-            id
-            kind
-            status
-            gateway
-            amountSet { shopMoney { amount currencyCode } }
-          }
-        }
-      }
-      returns(first: 5) {
-        nodes { id status }
-        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-      }
-    }
-  }
-`;
-
 async function captureScenario({
   scenario,
   lineItemQuantity,
@@ -476,6 +417,10 @@ async function captureScenario({
     locations.payload?.data?.locations?.nodes?.find((location) => location?.isActive === true)?.id ??
     locations.payload?.data?.locations?.nodes?.[0]?.id ??
     null;
+  // Forward the real cold-order hydrate BEFORE the refund mutation, so the recorded
+  // cassette reflects the pre-refund order the proxy observes and replays the refund
+  // math against locally. This replaces the seeded `setup.orderCreate` precondition.
+  const hydrate = await runGraphql(refundOrderHydrateQuery, { id: orderId });
   const refundVariables = {
     input: buildRefundInput({
       order,
@@ -490,15 +435,6 @@ async function captureScenario({
 
   await writeJson(fixturePath, {
     variables: refundVariables,
-    setup: {
-      orderCreate: {
-        variables: orderVariables,
-        response: orderCreate.payload,
-      },
-      locations: {
-        response: locations.payload,
-      },
-    },
     mutation: {
       response: refund.payload,
     },
@@ -506,21 +442,7 @@ async function captureScenario({
       variables: { id: orderId },
       response: downstreamRead.payload,
     },
-    upstreamCalls: [
-      {
-        operationName: 'OrdersOrderHydrate',
-        variables: { id: orderId },
-        query: 'hand-synthesized from checked-in setup orderCreate response for refundCreate Pattern 2 hydration',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              order,
-            },
-          },
-        },
-      },
-    ],
+    upstreamCalls: [refundHydrateUpstreamCall(orderId, hydrate)],
   });
 
   return {
@@ -654,14 +576,23 @@ async function captureUserErrorsAndQuantities(): Promise<Record<string, unknown>
       ],
     },
   };
-  const initialRefund = await runGraphql(refundCreateMutation, initialRefundVariables);
-  const hydrateOrder = await runGraphql(orderHydrateRead, { id: orderId });
-  const hydratedOrder = requirePath(hydrateOrder.payload?.data?.order, 'userErrorsAndQuantities.hydratedOrder');
+  // Perform the initial partial refund for its effect on live order state (its result is
+  // not asserted — the over-refund branches below read the post-refund state via hydrate).
+  await runGraphql(refundCreateMutation, initialRefundVariables);
+  // Forward the real cold-order hydrate AFTER the initial partial refund so the
+  // cassette reflects the already-$10-refunded order state the proxy must observe
+  // when it later replays the over-refund attempts locally. Replaces the seeded
+  // `setup.orderCreate` + `setup.initialRefund` precondition.
+  const realHydrate = await runGraphql(refundOrderHydrateQuery, { id: orderId });
+  requirePath(realHydrate.payload?.data?.order, 'userErrorsAndQuantities.hydratedOrder');
   const unknownOrderVariables = {
     input: {
       orderId: `gid://shopify/Order/999999${stamp}`,
     },
   };
+  // The proxy hydrates the unknown order id too (cold miss) before rejecting it as
+  // NOT_FOUND; forward the same hydrate live so the null-order cassette is real.
+  const unknownHydrate = await runGraphql(refundOrderHydrateQuery, { id: unknownOrderVariables.input.orderId });
   const unknownOrder = await runGraphql(refundCreateMutation, unknownOrderVariables);
   const overRefundQuantityVariables = {
     input: {
@@ -706,20 +637,6 @@ async function captureUserErrorsAndQuantities(): Promise<Record<string, unknown>
   const overRefundAllowed = await runGraphql(refundCreateMutation, overRefundAllowedVariables);
 
   await writeJson(userErrorsAndQuantitiesFixturePath, {
-    setup: {
-      orderCreate: {
-        variables: orderVariables,
-        response: orderCreate.payload,
-      },
-      initialRefund: {
-        variables: initialRefundVariables,
-        response: initialRefund.payload,
-      },
-      hydrateOrder: {
-        variables: { id: orderId },
-        response: hydrateOrder.payload,
-      },
-    },
     unknownOrder: {
       variables: unknownOrderVariables,
       response: unknownOrder.payload,
@@ -737,34 +654,8 @@ async function captureUserErrorsAndQuantities(): Promise<Record<string, unknown>
       response: overRefundAllowed.payload,
     },
     upstreamCalls: [
-      {
-        operationName: 'OrdersOrderHydrate',
-        variables: {
-          id: unknownOrderVariables.input.orderId,
-        },
-        query: 'captured unknown order hydrate for refundCreate userErrors and quantities',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              order: null,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'OrdersOrderHydrate',
-        variables: { id: orderId },
-        query: 'captured post-initial-refund order hydrate for refundCreate userErrors and quantities',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              order: hydratedOrder,
-            },
-          },
-        },
-      },
+      refundHydrateUpstreamCall(orderId, realHydrate),
+      refundHydrateUpstreamCall(unknownOrderVariables.input.orderId, unknownHydrate),
     ],
   });
 

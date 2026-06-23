@@ -20,6 +20,15 @@ const readWithEmailDocument = await readFile(
   'utf8',
 );
 const readDocument = await readFile('config/parity-requests/customers/customer-merge-selection-read.graphql', 'utf8');
+// The merge resolves each referenced customer the real way instead of from seeded records:
+// customerMerge forwards CUSTOMER_MERGE_HYDRATE_QUERY per id (ensure_customer_hydrated_for_merge) and
+// stages the observed record, so selection (email presence / account-state tiebreak) and the
+// downstream readback both read real upstream state. Record that exact constant (include_str! of
+// the file below) so the cassette byte-matches the proxy's forward. No seeding required.
+const customerMergeHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-hydrate.graphql',
+  'utf8',
+);
 
 const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   adminOrigin,
@@ -31,6 +40,23 @@ function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
     throw new Error(`${context} failed: ${JSON.stringify(result, null, 2)}`);
   }
+}
+
+// Forward CUSTOMER_MERGE_HYDRATE_QUERY upstream and capture the live response at the customer's
+// current (post-invite, pre-merge) state, so the proxy reproduces the same selection + readback.
+async function captureMutationHydrate(id, context) {
+  const result = await runGraphql(customerMergeHydrateDocument, { id });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function hydrateUpstreamCall(id, payload) {
+  return {
+    operationName: 'CustomerMergeHydrate',
+    variables: { id },
+    query: customerMergeHydrateDocument,
+    response: { status: 200, body: payload },
+  };
 }
 
 const customerSlice = `
@@ -168,7 +194,7 @@ async function deleteCustomer(id) {
   return { variables, response: response.payload };
 }
 
-async function captureCase(key, setup, seedCustomers, cleanup) {
+async function captureCase(key, setup, upstreamCalls, cleanup) {
   const one = await createCustomer(`${key} one`, setup.oneInput);
   let oneCustomer = one.customer;
   let invite = null;
@@ -178,7 +204,12 @@ async function captureCase(key, setup, seedCustomers, cleanup) {
   }
   const two = await createCustomer(`${key} two`, setup.twoInput);
   const twoCustomer = two.customer;
-  seedCustomers.push(oneCustomer, twoCustomer);
+
+  // Capture the upstream hydrates the merge forwards for this pair at the pre-merge state
+  // (customerOne already in its INVITED state when this case invites it).
+  const hydrateOne = await captureMutationHydrate(oneCustomer.id, `${key} hydrate one`);
+  const hydrateTwo = await captureMutationHydrate(twoCustomer.id, `${key} hydrate two`);
+  upstreamCalls.push(hydrateUpstreamCall(oneCustomer.id, hydrateOne), hydrateUpstreamCall(twoCustomer.id, hydrateTwo));
 
   const mergeVariables = {
     one: oneCustomer.id,
@@ -234,7 +265,7 @@ async function captureCase(key, setup, seedCustomers, cleanup) {
 async function main() {
   await mkdir(outputDir, { recursive: true });
   const stamp = Date.now();
-  const seedCustomers = [];
+  const upstreamCalls = [];
   const cleanup = [];
 
   const cases = {
@@ -253,7 +284,7 @@ async function main() {
         },
         overrideFor: (one) => ({ customerIdOfEmailToKeep: one.id }),
       },
-      seedCustomers,
+      upstreamCalls,
       cleanup,
     ),
     onlyCustomerOneHasEmail: await captureCase(
@@ -269,7 +300,7 @@ async function main() {
           lastName: 'SingleEmailTwo',
         },
       },
-      seedCustomers,
+      upstreamCalls,
       cleanup,
     ),
     accountStateCustomerOne: await captureCase(
@@ -287,7 +318,7 @@ async function main() {
           lastName: 'DisabledTwo',
         },
       },
-      seedCustomers,
+      upstreamCalls,
       cleanup,
     ),
     neitherHasEmail: await captureCase(
@@ -302,14 +333,14 @@ async function main() {
           lastName: 'NoEmailTwo',
         },
       },
-      seedCustomers,
+      upstreamCalls,
       cleanup,
     ),
   };
 
   const capture = {
-    seedCustomers,
     cases,
+    upstreamCalls,
     cleanup,
   };
   await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`);

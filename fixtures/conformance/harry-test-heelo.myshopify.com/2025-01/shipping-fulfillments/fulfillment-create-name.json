@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-21T21:14:22.136Z",
+  "capturedAt": "2026-06-23T00:25:38.751Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "adminOrigin": "https://harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
@@ -8,8 +8,8 @@
       "query": "mutation FulfillmentCreateNameOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      fulfillments(first: 5) {\n        id\n        name\n        status\n        displayStatus\n      }\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
       "variables": {
         "order": {
-          "email": "fulfillment-create-name-1782076459175@example.com",
-          "note": "fulfillmentCreate name 1782076459175",
+          "email": "fulfillment-create-name-1782174335339@example.com",
+          "note": "fulfillmentCreate name 1782174335339",
           "tags": ["parity-probe", "fulfillment-create-name"],
           "test": true,
           "lineItems": [
@@ -24,7 +24,7 @@
               },
               "requiresShipping": true,
               "taxable": false,
-              "sku": "FULFILLMENT-CREATE-NAME-1782076459175"
+              "sku": "FULFILLMENT-CREATE-NAME-1782174335339"
             }
           ],
           "transactions": [
@@ -49,28 +49,28 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8836212982066",
-              "name": "#1468",
-              "email": "fulfillment-create-name-1782076459175@example.com",
-              "createdAt": "2026-06-21T21:14:19Z",
-              "updatedAt": "2026-06-21T21:14:19Z",
+              "id": "gid://shopify/Order/8838112182578",
+              "name": "#1513",
+              "email": "fulfillment-create-name-1782174335339@example.com",
+              "createdAt": "2026-06-23T00:25:35Z",
+              "updatedAt": "2026-06-23T00:25:35Z",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "fulfillments": [],
               "fulfillmentOrders": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrder/9772252528946",
+                    "id": "gid://shopify/FulfillmentOrder/9774466990386",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19663777169714",
                           "totalQuantity": 2,
                           "remainingQuantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19491766534450",
+                            "id": "gid://shopify/LineItem/19495367999794",
                             "title": "fulfillmentCreate name sequence line",
                             "quantity": 2,
                             "fulfillableQuantity": 2
@@ -99,26 +99,26 @@
       }
     }
   },
-  "orderId": "gid://shopify/Order/8836212982066",
-  "orderName": "#1468",
-  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
-  "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+  "orderId": "gid://shopify/Order/8838112182578",
+  "orderName": "#1513",
+  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774466990386",
+  "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19663777169714",
   "firstFulfillmentCreate": {
     "query": "mutation FulfillmentCreateName($fulfillment: FulfillmentInput!, $message: String) {\n  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n    fulfillment {\n      id\n      name\n      status\n      displayStatus\n      trackingInfo(first: 5) {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
       "fulfillment": {
         "notifyCustomer": false,
         "trackingInfo": {
-          "number": "FCN-FIRST-1782076459175",
-          "url": "https://example.com/track/FCN-FIRST-1782076459175",
+          "number": "FCN-FIRST-1782174335339",
+          "url": "https://example.com/track/FCN-FIRST-1782174335339",
           "company": "Hermes"
         },
         "lineItemsByFulfillmentOrder": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774466990386",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                "id": "gid://shopify/FulfillmentOrderLineItem/19663777169714",
                 "quantity": 1
               }
             ]
@@ -132,24 +132,24 @@
       "data": {
         "fulfillmentCreate": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7984280568114",
-            "name": "#1468-F1",
+            "id": "gid://shopify/Fulfillment/7987144655154",
+            "name": "#1513-F1",
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "trackingInfo": [
               {
-                "number": "FCN-FIRST-1782076459175",
-                "url": "https://example.com/track/FCN-FIRST-1782076459175",
+                "number": "FCN-FIRST-1782174335339",
+                "url": "https://example.com/track/FCN-FIRST-1782174335339",
                 "company": "Hermes"
               }
             ],
             "fulfillmentLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentLineItem/17269162574130",
+                  "id": "gid://shopify/FulfillmentLineItem/17274240205106",
                   "quantity": 1,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19491766534450",
+                    "id": "gid://shopify/LineItem/19495367999794",
                     "title": "fulfillmentCreate name sequence line"
                   }
                 }
@@ -178,16 +178,16 @@
       "fulfillment": {
         "notifyCustomer": false,
         "trackingInfo": {
-          "number": "FCN-SECOND-1782076459175",
-          "url": "https://example.com/track/FCN-SECOND-1782076459175",
+          "number": "FCN-SECOND-1782174335339",
+          "url": "https://example.com/track/FCN-SECOND-1782174335339",
           "company": "Hermes"
         },
         "lineItemsByFulfillmentOrder": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774466990386",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                "id": "gid://shopify/FulfillmentOrderLineItem/19663777169714",
                 "quantity": 1
               }
             ]
@@ -201,24 +201,24 @@
       "data": {
         "fulfillmentCreate": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7984280600882",
-            "name": "#1468-F2",
+            "id": "gid://shopify/Fulfillment/7987144687922",
+            "name": "#1513-F2",
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "trackingInfo": [
               {
-                "number": "FCN-SECOND-1782076459175",
-                "url": "https://example.com/track/FCN-SECOND-1782076459175",
+                "number": "FCN-SECOND-1782174335339",
+                "url": "https://example.com/track/FCN-SECOND-1782174335339",
                 "company": "Hermes"
               }
             ],
             "fulfillmentLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentLineItem/17269162606898",
+                  "id": "gid://shopify/FulfillmentLineItem/17274240237874",
                   "quantity": 1,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19491766534450",
+                    "id": "gid://shopify/LineItem/19495367999794",
                     "title": "fulfillmentCreate name sequence line"
                   }
                 }
@@ -242,11 +242,11 @@
     }
   },
   "cleanup": {
-    "gid://shopify/Order/8836212982066": {
+    "gid://shopify/Order/8838112182578": {
       "cancel": {
         "query": "mutation FulfillmentCreateNameOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8836212982066",
+          "orderId": "gid://shopify/Order/8838112182578",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -287,13 +287,13 @@
       "delete": {
         "query": "mutation FulfillmentCreateNameOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8836212982066"
+          "orderId": "gid://shopify/Order/8838112182578"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8836212982066",
+              "deletedId": "gid://shopify/Order/8838112182578",
               "userErrors": []
             }
           },
@@ -311,5 +311,85 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9774466990386"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9774466990386",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-23T00:25:36Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19663777169714",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19495367999794",
+                      "title": "fulfillmentCreate name sequence line",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8838112182578",
+                "name": "#1513",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

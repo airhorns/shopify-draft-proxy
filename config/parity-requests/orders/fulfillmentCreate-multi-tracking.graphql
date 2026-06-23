@@ -10,9 +10,6 @@ mutation FulfillmentCreateMultiTracking($fulfillment: FulfillmentInput!, $messag
         company
       }
     }
-    userErrors {
-      field
-      message
-    }
+    userErrors { field message }
   }
 }

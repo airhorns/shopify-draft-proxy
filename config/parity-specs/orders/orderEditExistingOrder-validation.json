@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "user-errors"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql",
@@ -33,7 +33,7 @@
             },
             "variantId": "gid://shopify/ProductVariant/0",
             "quantity": 1,
-            "locationId": "gid://shopify/Location/68509171945",
+            "locationId": "gid://shopify/Location/106318430514",
             "allowDuplicates": false
           }
         },
@@ -48,9 +48,9 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
             },
-            "variantId": "gid://shopify/ProductVariant/48540157378793",
+            "variantId": "gid://shopify/ProductVariant/49875425460530",
             "quantity": 1,
-            "locationId": "gid://shopify/Location/68509171945",
+            "locationId": "gid://shopify/Location/106318430514",
             "allowDuplicates": false
           }
         },

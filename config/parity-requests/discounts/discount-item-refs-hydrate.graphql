@@ -1,0 +1,291 @@
+query ProductsHydrateNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on Product {
+      legacyResourceId
+      title
+      handle
+      status
+      combinedListingRole
+      vendor
+      productType
+      tags
+      totalInventory
+      tracksInventory
+      createdAt
+      updatedAt
+      publishedAt
+      descriptionHtml
+      onlineStorePreviewUrl
+      templateSuffix
+      seo { title description }
+      options {
+        id
+        name
+        position
+        optionValues { id name hasVariants }
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          jsonValue
+          createdAt
+          updatedAt
+          ownerType
+        }
+      }
+      media(first: 250) {
+        nodes {
+          __typename
+          id
+          alt
+          mediaContentType
+          status
+          preview { image { url width height } }
+          ... on MediaImage {
+            image { id url altText width height }
+          }
+        }
+      }
+      collections(first: 250) {
+        nodes {
+          id
+          legacyResourceId
+          title
+          handle
+          updatedAt
+          description
+          descriptionHtml
+          sortOrder
+          templateSuffix
+          seo { title description }
+          productsCount { count }
+        }
+      }
+      variants(first: 250) {
+        nodes {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions { name value }
+          metafields(first: 250) {
+            nodes {
+              id
+              namespace
+              key
+              type
+              value
+              compareDigest
+              jsonValue
+              createdAt
+              updatedAt
+              ownerType
+            }
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+            measurement { weight { unit value } }
+            inventoryLevels(first: 50) {
+              nodes {
+                id
+                location { id name }
+                quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+                  name
+                  quantity
+                  updatedAt
+                }
+              }
+            }
+          }
+          sellingPlanGroups(first: 50) {
+            nodes { id name merchantCode }
+          }
+        }
+      }
+      sellingPlanGroups(first: 50) {
+        nodes { id name merchantCode }
+      }
+    }
+    ... on Collection {
+      legacyResourceId
+      title
+      handle
+      updatedAt
+      description
+      descriptionHtml
+      sortOrder
+      templateSuffix
+      seo { title description }
+      ruleSet {
+        appliedDisjunctively
+        rules { column relation condition }
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          jsonValue
+          createdAt
+          updatedAt
+          ownerType
+        }
+      }
+      productsCount { count }
+      products(first: 250) {
+        edges {
+          cursor
+          node { id title handle status vendor productType tags totalInventory tracksInventory }
+        }
+      }
+    }
+    ... on ProductVariant {
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      taxable
+      inventoryPolicy
+      inventoryQuantity
+      selectedOptions { name value }
+      product { id title handle status totalInventory tracksInventory }
+      product {
+        variants(first: 250) {
+          nodes {
+            id
+            title
+            sku
+            barcode
+            price
+            compareAtPrice
+            taxable
+            inventoryPolicy
+            inventoryQuantity
+            selectedOptions { name value }
+            inventoryItem {
+              id
+              tracked
+              requiresShipping
+              measurement { weight { unit value } }
+            }
+          }
+        }
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          jsonValue
+          createdAt
+          updatedAt
+          ownerType
+        }
+      }
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+      }
+      sellingPlanGroups(first: 50) {
+        nodes { id name merchantCode }
+      }
+    }
+    ... on InventoryItem {
+      tracked
+      requiresShipping
+      measurement { weight { unit value } }
+      variant {
+        id
+        title
+        inventoryQuantity
+        selectedOptions { name value }
+        product {
+          id
+          title
+          handle
+          status
+          totalInventory
+          tracksInventory
+        }
+      }
+      inventoryLevels(first: 50) {
+        nodes {
+          id
+          location { id name }
+          quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+    ... on InventoryLevel {
+      id
+      location { id name }
+      quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+        name
+        quantity
+        updatedAt
+      }
+      item {
+        id
+        tracked
+        requiresShipping
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+      }
+    }
+    ... on Location {
+      id
+      name
+      isActive
+    }
+  }
+}

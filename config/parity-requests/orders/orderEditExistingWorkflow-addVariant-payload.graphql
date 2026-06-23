@@ -15,7 +15,6 @@ mutation OrderEditExistingWorkflowAddVariantPayload(
     calculatedLineItem {
       title
       quantity
-      currentQuantity
       sku
       variant {
         id

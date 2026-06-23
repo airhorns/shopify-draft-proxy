@@ -136,6 +136,30 @@ const paymentTermsDeleteDocument = `#graphql
   }
 `;
 
+// Byte-for-byte copy of the proxy's PAYMENT_TERMS_DRAFT_HYDRATE_QUERY
+// (src/proxy/metafields_orders_payments.rs). On a cold paymentTermsCreate whose
+// referenceId is a draft order not staged locally, the proxy forwards this exact
+// document (PaymentTermsDraftHydrate) to read the draft's totalPriceSet so the
+// payment schedule amount is computed from real store state instead of a seed.
+// Kept flush-left so the recorded query matches the constant byte-for-byte.
+const paymentTermsDraftHydrateQuery = `query PaymentTermsDraftHydrate($id: ID!) {
+    draftOrder(id: $id) {
+      id
+      name
+      paymentTerms {
+        id
+      }
+      subtotalPriceSet {
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
+      }
+      totalPriceSet {
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
+      }
+    }
+  }`;
+
 const draftOrderReadDocument = `#graphql
   query PaymentTermsLifecycleDraftRead($id: ID!) {
     draftOrder(id: $id) {
@@ -211,7 +235,10 @@ const paymentTermsCreateVariables = {
   referenceId: '',
   attrs: {
     paymentTermsTemplateId: 'gid://shopify/PaymentTermsTemplate/4',
-    paymentSchedules: [{ issuedAt: '2026-04-27T12:00:00Z' }],
+    // Future-dated so the Net-30 schedule is not yet due at capture time; the proxy
+    // models a freshly-created term as due=false/overdue=false (it does not compute
+    // date-relative due state), so the live capture must read a not-yet-due schedule.
+    paymentSchedules: [{ issuedAt: '2027-04-27T12:00:00Z' }],
   },
 };
 const paymentTermsUpdateVariables = {
@@ -219,7 +246,9 @@ const paymentTermsUpdateVariables = {
     paymentTermsId: '',
     paymentTermsAttributes: {
       paymentTermsTemplateId: 'gid://shopify/PaymentTermsTemplate/7',
-      paymentSchedules: [{ dueAt: '2026-05-27T12:00:00Z' }],
+      // Future-dated for the same reason as create (see above): the FIXED schedule
+      // must not be due/overdue at capture time to match the proxy's static state.
+      paymentSchedules: [{ dueAt: '2027-05-27T12:00:00Z' }],
     },
   },
 };
@@ -238,6 +267,12 @@ try {
   if (!draftOrderId) {
     throw new Error(`draftOrderCreate did not return a draft order id: ${JSON.stringify(draftOrderCreate, null, 2)}`);
   }
+
+  // Record the cold-miss owner hydrate the proxy forwards while processing
+  // paymentTermsCreate against this (un-staged) draft order, so de-seeded replay
+  // reads the draft's totalPriceSet from a real upstream reply.
+  const paymentTermsDraftHydrate = await runGraphqlRequest(paymentTermsDraftHydrateQuery, { id: draftOrderId });
+  assertNoTopLevelErrors(paymentTermsDraftHydrate, 'PaymentTermsDraftHydrate');
 
   paymentTermsCreateVariables.referenceId = draftOrderId;
   const paymentTermsCreate = await runGraphqlRequest(paymentTermsCreateDocument, paymentTermsCreateVariables);
@@ -278,7 +313,7 @@ try {
     capturedAt: new Date().toISOString(),
     storeDomain,
     apiVersion,
-    seedDraftOrder: draftOrder,
+    draftOrderId: capturedDraftOrderId,
     setup: {
       draftOrderCreate: {
         query: draftOrderCreateDocument,
@@ -286,6 +321,17 @@ try {
         response: draftOrderCreate.payload,
       },
     },
+    upstreamCalls: [
+      {
+        operationName: 'PaymentTermsDraftHydrate',
+        query: paymentTermsDraftHydrateQuery,
+        variables: { id: capturedDraftOrderId },
+        response: {
+          status: paymentTermsDraftHydrate.status,
+          body: paymentTermsDraftHydrate.payload,
+        },
+      },
+    ],
     operations: {
       paymentTermsCreate: {
         query: paymentTermsCreateDocument,

@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql",
@@ -52,7 +52,7 @@
       },
       {
         "name": "downstream-removed-line-current-quantity",
-        "capturePath": "$.downstreamRead.response.data.order.lineItems.nodes[0].currentQuantity",
+        "capturePath": "$.downstreamRead.response.data.order.lineItems.nodes[2].currentQuantity",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql",
           "variables": {

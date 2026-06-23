@@ -1251,7 +1251,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback", "0", "messages"],
+                "field": ["feedbackInput", "0", "messages"],
                 "message": "Messages can't be blank",
                 "code": "BLANK"
             }]
@@ -1262,7 +1262,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback", "0", "feedbackGeneratedAt"],
+                "field": ["feedbackInput", "0", "feedbackGeneratedAt"],
                 "message": "Feedback generated at must not be in the future",
                 "code": "INVALID"
             }]
@@ -1273,7 +1273,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback", "0", "messages", "0"],
+                "field": ["feedbackInput", "0", "messages", "0"],
                 "message": "Message is too long (maximum is 100 characters)",
                 "code": "TOO_LONG"
             }]
@@ -1284,9 +1284,9 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         json!({
             "feedback": [],
             "userErrors": [{
-                "field": ["feedback"],
-                "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
+                "field": Value::Null,
+                "message": "The operation was attempted on too many feedback objects. The maximum number of feedback objects that you can operate on is 50.",
+                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
             }]
         })
     );
@@ -1449,12 +1449,12 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
             }],
             "userErrors": [
                 {
-                    "field": ["feedback", "1", "feedbackGeneratedAt"],
+                    "field": ["feedbackInput", "1", "feedbackGeneratedAt"],
                     "message": "Feedback generated at must not be in the future",
                     "code": "INVALID"
                 },
                 {
-                    "field": ["feedback", "2", "messages"],
+                    "field": ["feedbackInput", "2", "messages"],
                     "message": "Messages can't be blank",
                     "code": "BLANK"
                 }
@@ -1481,6 +1481,78 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
                 "message": "Message is too long (maximum is 100 characters)",
                 "code": "TOO_LONG"
             }]
+        })
+    );
+}
+
+#[test]
+fn product_resource_feedback_reports_unavailable_products_as_product_not_found() {
+    let deleted_product_id = "gid://shopify/Product/deleted-feedback-product";
+    let archived_product_id = "gid://shopify/Product/archived-feedback-product";
+    let mut archived_product = seed_product(archived_product_id);
+    archived_product.status = "ARCHIVED".to_string();
+    let mut proxy = snapshot_proxy()
+        .with_base_products(vec![seed_product(deleted_product_id), archived_product]);
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteProductBeforeFeedback($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": deleted_product_id } }),
+    ));
+    assert_eq!(delete.status, 200, "delete response: {}", delete.body);
+
+    let feedback = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductFeedbackUnavailableProducts($feedbackInput: [ProductResourceFeedbackInput!]!) {
+          productFeedback: bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "feedbackInput": [
+                {
+                    "productId": deleted_product_id,
+                    "state": "REQUIRES_ACTION",
+                    "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                    "productUpdatedAt": "2024-01-01T00:00:00Z",
+                    "messages": ["needs review"]
+                },
+                {
+                    "productId": archived_product_id,
+                    "state": "REQUIRES_ACTION",
+                    "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                    "productUpdatedAt": "2024-01-01T00:00:00Z",
+                    "messages": ["needs review"]
+                }
+            ]
+        }),
+    ));
+
+    assert_eq!(feedback.status, 200, "feedback response: {}", feedback.body);
+    assert_eq!(
+        feedback.body["data"]["productFeedback"],
+        json!({
+            "feedback": [],
+            "userErrors": [
+                {
+                    "field": ["feedbackInput", "0"],
+                    "message": "The product wasn't found or isn't available to the channel.",
+                    "code": "PRODUCT_NOT_FOUND"
+                },
+                {
+                    "field": ["feedbackInput", "1"],
+                    "message": "The product wasn't found or isn't available to the channel.",
+                    "code": "PRODUCT_NOT_FOUND"
+                }
+            ]
         })
     );
 }
