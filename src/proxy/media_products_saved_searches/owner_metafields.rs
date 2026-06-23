@@ -252,9 +252,7 @@ impl DraftProxy {
                 // must forward the whole read upstream as a passthrough rather than be
                 // answered with a metafields-only projection that silently drops them.
                 if cold
-                    && !Self::owner_metafields_read_selection_is_metafields_only(
-                        &field.selection,
-                    )
+                    && !Self::owner_metafields_read_selection_is_metafields_only(&field.selection)
                 {
                     continue;
                 }
