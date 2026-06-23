@@ -347,6 +347,241 @@ async function captureLineItemUpdate(): Promise<void> {
   }
 }
 
+async function captureBillingAccessLocalStaging(): Promise<void> {
+  const scenario = 'app-billing-access-local-staging';
+  const fileName = `${scenario}.json`;
+  const existing = await readExistingFixture(fileName);
+  const proxy = await createProxy();
+  try {
+    const subscriptionCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionCreate-local-lifecycle.graphql'),
+          variables: {
+            lineItems: [
+              {
+                plan: {
+                  appUsagePricingDetails: {
+                    cappedAmount: { amount: 100, currencyCode: 'USD' },
+                    terms: 'usage terms',
+                  },
+                },
+              },
+            ],
+          },
+        },
+        { apiVersion },
+      ),
+      'billing access subscription create',
+    );
+    const subscriptionId = readStringPath(
+      subscriptionCreate,
+      ['data', 'appSubscriptionCreate', 'appSubscription', 'id'],
+      'subscriptionCreate',
+    );
+    const lineItemId = readStringPath(
+      subscriptionCreate,
+      ['data', 'appSubscriptionCreate', 'appSubscription', 'lineItems', '0', 'id'],
+      'subscriptionCreate',
+    );
+    const oneTimeCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('appPurchaseOneTimeCreate-local-lifecycle.graphql') },
+        { apiVersion },
+      ),
+      'one-time create',
+    );
+    const lineItemUpdate = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionLineItemUpdate-local-lifecycle.graphql'),
+          variables: { id: lineItemId },
+        },
+        { apiVersion },
+      ),
+      'line item update',
+    );
+    const usageCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appUsageRecordCreate-local-lifecycle.graphql'),
+          variables: { id: lineItemId },
+        },
+        { apiVersion },
+      ),
+      'usage create',
+    );
+    const trialExtend = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionTrialExtend-local-lifecycle.graphql'),
+          variables: { id: subscriptionId },
+        },
+        { apiVersion },
+      ),
+      'trial extend',
+    );
+    const cancel = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionCancel-local-lifecycle.graphql'),
+          variables: { id: subscriptionId },
+        },
+        { apiVersion },
+      ),
+      'cancel',
+    );
+    const cancelAgain = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionCancel-local-lifecycle.graphql'),
+          variables: { id: subscriptionId },
+        },
+        { apiVersion },
+      ),
+      'cancel again',
+    );
+    const billingRead = assertOk(
+      await proxy.processGraphQLRequest({ query: await readGraphql('app-billing-local-read.graphql') }, { apiVersion }),
+      'billing read',
+    );
+    const revoke = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('appRevokeAccessScopes-local-lifecycle.graphql') },
+        { apiVersion },
+      ),
+      'revoke',
+    );
+    const accessRead = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('app-access-scopes-local-read.graphql') },
+        { apiVersion },
+      ),
+      'access read',
+    );
+    const delegateCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('delegateAccessTokenCreate-local-lifecycle.graphql') },
+        { apiVersion },
+      ),
+      'delegate create',
+    );
+    const delegateToken = readStringPath(
+      delegateCreate,
+      ['data', 'delegateAccessTokenCreate', 'delegateAccessToken', 'accessToken'],
+      'delegateCreate',
+    );
+    const redactedDelegateCreate = JSON.parse(JSON.stringify(delegateCreate)) as JsonRecord;
+    const redactedTokenParent = readObject(
+      readPath(
+        redactedDelegateCreate,
+        ['data', 'delegateAccessTokenCreate', 'delegateAccessToken'],
+        'redactedDelegateCreate',
+      ),
+      'redactedDelegateCreate.data.delegateAccessTokenCreate.delegateAccessToken',
+    );
+    redactedTokenParent['accessToken'] = 'shpat_delegate_proxy_redacted';
+    const delegateDestroy = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('delegateAccessTokenDestroy-local-lifecycle.graphql'),
+          variables: { token: delegateToken },
+        },
+        { apiVersion },
+      ),
+      'delegate destroy',
+    );
+    const delegateDestroyRepeat = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('delegateAccessTokenDestroy-local-lifecycle.graphql'),
+          variables: { token: delegateToken },
+        },
+        { apiVersion },
+      ),
+      'delegate destroy repeat',
+    );
+    const uninstall = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('appUninstall-local-lifecycle.graphql') },
+        { apiVersion },
+      ),
+      'uninstall',
+    );
+    const afterUninstallRead = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('app-installation-id-local-read.graphql') },
+        { apiVersion },
+      ),
+      'after uninstall read',
+    );
+    const unknownCancel = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscriptionCancel-local-lifecycle.graphql'),
+          variables: { id: 'gid://shopify/AppSubscription/0' },
+        },
+        { apiVersion },
+      ),
+      'unknown cancel',
+    );
+    const notes = Array.isArray(existing['notes']) ? (existing['notes'] as string[]) : [];
+    await writeFixture(fileName, {
+      capturedAt: existing['capturedAt'],
+      storeDomain: 'local-runtime',
+      apiVersion,
+      scenario,
+      notes: localRuntimeNotes(scenario, notes),
+      operationNames: [
+        'appPurchaseOneTimeCreate',
+        'appSubscriptionCreate',
+        'appSubscriptionCancel',
+        'appSubscriptionLineItemUpdate',
+        'appSubscriptionTrialExtend',
+        'appUsageRecordCreate',
+        'appRevokeAccessScopes',
+        'appUninstall',
+        'delegateAccessTokenCreate',
+        'delegateAccessTokenDestroy',
+      ],
+      evidence: {
+        parity: {
+          expected: {
+            subscriptionCreate,
+            oneTimeCreate,
+            lineItemUpdate,
+            usageCreate,
+            trialExtend,
+            cancel,
+            cancelAgain,
+            billingRead,
+            revoke,
+            accessRead,
+            delegateCreate: redactedDelegateCreate,
+            delegateDestroy,
+            delegateDestroyRepeat,
+            uninstall,
+            afterUninstallRead,
+          },
+        },
+        unknownCancel: {
+          variables: {
+            id: 'gid://shopify/AppSubscription/0',
+          },
+          expected: unknownCancel,
+        },
+        billingLifecycle: readObject(existing['evidence'], 'existing.evidence')['billingLifecycle'],
+        accessAndInstall: readObject(existing['evidence'], 'existing.evidence')['accessAndInstall'],
+        delegatedTokens: readObject(existing['evidence'], 'existing.evidence')['delegatedTokens'],
+      },
+      upstreamCalls: [],
+    });
+  } finally {
+    proxy.dispose();
+  }
+}
+
 await capturePurchaseValidation();
 await captureUsageRecord();
 await captureLineItemUpdate();
+await captureBillingAccessLocalStaging();

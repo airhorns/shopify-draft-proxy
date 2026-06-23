@@ -606,14 +606,28 @@ impl DraftProxy {
                 "failed",
             )
         } else {
+            let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
+            let job_id = self.next_synthetic_gid("Job");
+            let job = json!({
+                "__typename": "Job",
+                "id": job_id.clone(),
+                "done": false,
+                "query": { "__typename": "QueryRoot" },
+            });
+            if let Some(job_id) = job.get("id").and_then(Value::as_str) {
+                self.store
+                    .staged
+                    .collection_jobs
+                    .insert(job_id.to_string(), job.clone());
+            }
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": id,
-                    "job": product_tail_full_sync_job(),
+                    "job": job,
                     "userErrors": []
                 }),
-                vec![id, "gid://shopify/Job/2".to_string()],
+                vec![id, operation_id, job_id],
                 "staged",
             )
         };
@@ -632,11 +646,6 @@ impl DraftProxy {
         let Some(id) = resolved_string_arg(&field.arguments, "id") else {
             return Value::Null;
         };
-        if id == "gid://shopify/Job/2"
-            && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
-        {
-            return selected_json(&product_tail_full_sync_job(), &field.selection);
-        }
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
             return selected_json(job, &field.selection);
         }

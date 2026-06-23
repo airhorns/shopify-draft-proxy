@@ -233,6 +233,7 @@ impl DraftProxy {
                         | "companyRevokeMainContact"
                         | "companyContactAssignRole"
                         | "companyContactAssignRoles"
+                        | "companyContactRevokeRole"
                         | "companyContactRevokeRoles"
                         | "companyLocationCreate"
                         | "companyLocationUpdate"
@@ -295,6 +296,9 @@ impl DraftProxy {
                         }
                         "companyContactAssignRoles" => {
                             self.b2b_company_contact_assign_roles_payload(&field)
+                        }
+                        "companyContactRevokeRole" => {
+                            self.b2b_company_contact_revoke_role_payload(&field)
                         }
                         "companyContactRevokeRoles" => {
                             self.b2b_company_contact_revoke_roles_payload(&field)
@@ -878,7 +882,7 @@ impl DraftProxy {
             let external_id_errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 None,
             );
             if !external_id_errors.is_empty() {
@@ -978,7 +982,7 @@ impl DraftProxy {
             let errors = b2b_location_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations,
+                &self.store.staged.b2b_locations.records,
                 Some(&location_id),
             );
             if !errors.is_empty() {
@@ -1625,6 +1629,58 @@ impl DraftProxy {
         )
     }
 
+    /// Revokes one contact role assignment by id, scoped to the supplied contact.
+    pub(in crate::proxy) fn b2b_company_contact_revoke_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_id = resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
+            .unwrap_or_default();
+        let assignment_matches_contact = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .get(&assignment_id)
+            .and_then(|assignment| assignment["companyContactId"].as_str())
+            == Some(contact_id.as_str());
+
+        if !assignment_matches_contact {
+            return (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "companyContact": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactRoleAssignmentId"],
+                        "message": "The role assignment doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let company_contact = self
+            .store
+            .staged
+            .b2b_contacts
+            .get(&contact_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let _ = self.b2b_remove_role_assignment(&assignment_id);
+        (
+            json!({
+                "revokedCompanyContactRoleAssignmentId": assignment_id,
+                "companyContact": company_contact,
+                "userErrors": []
+            }),
+            "staged",
+            vec![assignment_id],
+        )
+    }
+
     /// Revokes contact role assignments by id, reporting a per-index
     /// RESOURCE_NOT_FOUND for any unknown assignment id.
     pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
@@ -1636,14 +1692,7 @@ impl DraftProxy {
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-                if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                    self.b2b_remove_location_assignment_id(
-                        location_id,
-                        "roleAssignmentIds",
-                        assignment_id,
-                    );
-                }
+            if self.b2b_remove_role_assignment(assignment_id).is_some() {
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -2107,7 +2156,7 @@ impl DraftProxy {
     /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
     pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
-        let location_ids = self.store.staged.b2b_location_order.clone();
+        let location_ids = self.store.staged.b2b_locations.order.clone();
         for location_id in location_ids {
             let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned()
             else {
@@ -2815,7 +2864,8 @@ impl DraftProxy {
     fn b2b_ordered_locations(&self) -> Vec<Value> {
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .iter()
             .filter_map(|id| self.store.staged.b2b_locations.get(id).cloned())
             .collect()
@@ -2891,18 +2941,6 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.to_string(), location);
-        if !self
-            .store
-            .staged
-            .b2b_location_order
-            .iter()
-            .any(|id| id == location_id)
-        {
-            self.store
-                .staged
-                .b2b_location_order
-                .push(location_id.to_string());
-        }
         self.store
             .staged
             .b2b_companies
@@ -2915,7 +2953,8 @@ impl DraftProxy {
         };
         self.store
             .staged
-            .b2b_location_order
+            .b2b_locations
+            .order
             .retain(|id| id != location_id);
         if let Some(company_id) = location["companyId"].as_str() {
             if let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() {
@@ -3470,7 +3509,7 @@ impl DraftProxy {
         );
 
         for assignment_id in b2b_passthrough_deleted_request_ids(&response, &assignment_ids) {
-            self.b2b_remove_role_assignment(&assignment_id);
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
         }
         response
     }
@@ -3479,16 +3518,16 @@ impl DraftProxy {
     /// location's `roleAssignmentIds` list. A contact's roleAssignments connection
     /// is resolved by filtering the assignment map, so dropping the entry here is
     /// enough to clear it from the contact view too.
-    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) {
-        if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-            if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                self.b2b_remove_location_assignment_id(
-                    location_id,
-                    "roleAssignmentIds",
-                    assignment_id,
-                );
-            }
+    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) -> Option<Value> {
+        let assignment = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .remove(assignment_id)?;
+        if let Some(location_id) = assignment["companyLocationId"].as_str() {
+            self.b2b_remove_location_assignment_id(location_id, "roleAssignmentIds", assignment_id);
         }
+        Some(assignment)
     }
 
     /// Points a company's main contact at `main_contact_id` (or clears it when
@@ -3689,7 +3728,8 @@ impl DraftProxy {
         for field_name in ["customerOneId", "customerTwoId"] {
             if let Some(id) = resolved_string_field(&arguments, field_name) {
                 if id != resulting_id {
-                    self.store.staged.deleted_customer_ids.insert(id);
+                    self.store.staged.customers.remove(&id);
+                    self.store.staged.customers.tombstone(id);
                 }
             }
         }
@@ -3703,7 +3743,7 @@ impl DraftProxy {
             "customer" => match field.arguments.get("id") {
                 Some(ResolvedValue::String(id)) => {
                     self.store.staged.customers.contains_key(id)
-                        || self.store.staged.deleted_customer_ids.contains(id)
+                        || self.store.staged.customers.is_tombstoned(id)
                         || self.store_credit_owner_has_accounts(id)
                 }
                 _ => false,
@@ -3755,7 +3795,7 @@ impl DraftProxy {
             .staged
             .customers_count_base
             .unwrap_or(177)
-            .saturating_sub(self.store.staged.deleted_customer_ids.len() as u64)
+            .saturating_sub(self.store.staged.customers.tombstones.len() as u64)
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -3810,7 +3850,7 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return Value::Null;
         };
-        if self.store.staged.deleted_customer_ids.contains(id) {
+        if self.store.staged.customers.is_tombstoned(id) {
             return Value::Null;
         }
         self.store
@@ -4175,10 +4215,6 @@ impl DraftProxy {
         });
         self.store
             .staged
-            .store_credit_account_order
-            .push(account_id.clone());
-        self.store
-            .staged
             .store_credit_accounts
             .insert(account_id.clone(), account);
         account_id
@@ -4267,7 +4303,8 @@ impl DraftProxy {
         let accounts = self
             .store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
@@ -4283,7 +4320,8 @@ impl DraftProxy {
     ) -> Option<String> {
         self.store
             .staged
-            .store_credit_account_order
+            .store_credit_accounts
+            .order
             .iter()
             .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
             .find(|account| {
@@ -4305,10 +4343,10 @@ impl DraftProxy {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
                 self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.deleted_customer_ids.contains(owner_id)
+                    && !self.store.staged.customers.is_tombstoned(owner_id)
             }
             Some("CompanyLocation") => {
-                b2b_company_location_exists(&self.store.staged.b2b_locations, owner_id)
+                b2b_company_location_exists(&self.store.staged.b2b_locations.records, owner_id)
             }
             _ => false,
         }
@@ -4364,7 +4402,7 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                !self.store.staged.deleted_customer_ids.contains(id)
+                !self.store.staged.customers.is_tombstoned(id)
             })
             .filter(|customer| customer_matches_query(customer, query.as_deref()))
             .cloned()
@@ -4400,7 +4438,7 @@ impl DraftProxy {
             customer
                 .get("id")
                 .and_then(Value::as_str)
-                .map(|id| !self.store.staged.deleted_customer_ids.contains(id))
+                .map(|id| !self.store.staged.customers.is_tombstoned(id))
                 .unwrap_or(true)
         };
         let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
@@ -4426,7 +4464,7 @@ impl DraftProxy {
                 .staged
                 .customers
                 .get(&id)
-                .filter(|_| !self.store.staged.deleted_customer_ids.contains(&id))
+                .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
         } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
             .or_else(|| resolved_string_field(identifier, "phoneNumber"))
         {
@@ -5123,7 +5161,7 @@ impl DraftProxy {
             })
         } else {
             self.store.staged.customers.remove(&id);
-            self.store.staged.deleted_customer_ids.insert(id.clone());
+            self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
@@ -5256,7 +5294,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(id) = find(&self.store.staged.customers, identifier_value) {
+        if let Some(id) = find(&self.store.staged.customers.records, identifier_value) {
             let Some(existing) = self.customer_existing_for_update(request, &id) else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
@@ -5356,7 +5394,6 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        self.store.staged.deleted_customer_ids.remove(id);
         self.store
             .staged
             .customers
@@ -5369,7 +5406,7 @@ impl DraftProxy {
     }
 
     fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
-        if id.is_empty() || self.store.staged.deleted_customer_ids.contains(id) {
+        if id.is_empty() || self.store.staged.customers.is_tombstoned(id) {
             return None;
         }
         self.store
@@ -5392,13 +5429,13 @@ impl DraftProxy {
     /// has been deleted/merged away.
     fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
         if id.is_empty()
-            || self.store.staged.customers.contains_key(id)
-            || self.store.staged.deleted_customer_ids.contains(id)
+            || self.store.staged.customers.contains_staged(id)
+            || self.store.staged.customers.is_tombstoned(id)
         {
             return;
         }
         if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
-            self.store.staged.customers.insert(id.to_string(), customer);
+            self.store.staged.customers.stage(id.to_string(), customer);
         }
     }
 
@@ -5820,13 +5857,7 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
-        if customer_id.is_empty()
-            || self
-                .store
-                .staged
-                .deleted_customer_ids
-                .contains(&customer_id)
-        {
+        if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(&customer_id) {
             return (
                 customer_tax_exemptions_payload(
                     Value::Null,
@@ -7859,82 +7890,6 @@ fn sms_consent_invalid_variable_response(
     ok_json(json!({ "errors": [Value::Object(error)] }))
 }
 
-/// Resolves the 1-based (line, column) of a variable *definition* (`$name`) in the query
-/// document. Shopify anchors `INVALID_VARIABLE` coercion errors to the variable definition,
-/// which is always the first `$name` occurrence (definitions precede usages).
-pub(in crate::proxy) fn graphql_variable_definition_location(
-    query: &str,
-    variable_name: &str,
-) -> Option<(usize, usize)> {
-    let needle = format!("${variable_name}");
-    let bytes = query.as_bytes();
-    let mut search_from = 0;
-    while let Some(relative) = query[search_from..].find(&needle) {
-        let start = search_from + relative;
-        let after = start + needle.len();
-        let is_boundary = match bytes.get(after) {
-            None => true,
-            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
-        };
-        if is_boundary {
-            let mut line = 1usize;
-            let mut column = 1usize;
-            for (index, ch) in query.char_indices() {
-                if index == start {
-                    return Some((line, column));
-                }
-                if ch == '\n' {
-                    line += 1;
-                    column = 1;
-                } else {
-                    column += 1;
-                }
-            }
-            return Some((line, column));
-        }
-        search_from = after;
-    }
-    None
-}
-
-/// Resolves the declared GraphQL type of a variable (`$name: <TYPE>`) from the query
-/// document, e.g. `[TaxExemption!]!` or `CustomerSmsMarketingConsentUpdateInput!`.
-/// Shopify echoes the exact declared type in `INVALID_VARIABLE` coercion messages, so
-/// we parse it from the variable definition rather than hardcoding a single shape.
-pub(in crate::proxy) fn graphql_variable_definition_type(
-    query: &str,
-    variable_name: &str,
-) -> Option<String> {
-    let needle = format!("${variable_name}");
-    let bytes = query.as_bytes();
-    let mut search_from = 0;
-    while let Some(relative) = query[search_from..].find(&needle) {
-        let start = search_from + relative;
-        let after = start + needle.len();
-        let is_boundary = match bytes.get(after) {
-            None => true,
-            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
-        };
-        if is_boundary {
-            // A variable *definition* is `$name: <TYPE>`; a *usage* (`field(arg: $name)`)
-            // has no `:` immediately following. Only the definition yields a type.
-            if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
-                let declared: String = type_part
-                    .trim_start()
-                    .chars()
-                    .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
-                    .collect();
-                let declared = declared.trim();
-                if !declared.is_empty() {
-                    return Some(declared.to_string());
-                }
-            }
-        }
-        search_from = after;
-    }
-    None
-}
-
 fn is_known_tax_exemption(value: &str) -> bool {
     TAX_EXEMPTION_VALUES.contains(&value)
 }
@@ -9119,10 +9074,7 @@ impl DraftProxy {
             .customers
             .insert(result_id.clone(), result);
         self.store.staged.customers.remove(&source_id);
-        self.store
-            .staged
-            .deleted_customer_ids
-            .insert(source_id.clone());
+        self.store.staged.customers.tombstone(source_id.clone());
         self.store
             .staged
             .merged_customer_ids
@@ -9169,7 +9121,7 @@ impl DraftProxy {
     fn customer_exists(&self, id: &str) -> bool {
         !id.is_empty()
             && self.store.staged.customers.contains_key(id)
-            && !self.store.staged.deleted_customer_ids.contains(id)
+            && !self.store.staged.customers.is_tombstoned(id)
     }
 
     fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
@@ -9542,7 +9494,7 @@ fn node_connection_cursor(node: &Value) -> String {
         .to_string()
 }
 
-/// Lift a customer's hydrated `orders` connection (an `edges { cursor node { ... } }` page)
+/// Lift a customer's hydrated `orders` connection (an `edges { cursor node { … } }` page)
 /// into the per-customer order records the staged `customer_orders` index expects: each node
 /// carries its opaque connection `__cursor` (so downstream order reads reproduce Shopify's
 /// cursors verbatim) and a `customer { id }` back-reference (so a transferred order re-stamps

@@ -408,8 +408,7 @@ impl DraftProxy {
             })));
         }
         for id in &ids {
-            self.store.staged.deleted_media_file_ids.insert(id.clone());
-            self.store.staged.media_files.remove(id);
+            self.store.staged.media_files.tombstone_staged(id);
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
@@ -755,7 +754,7 @@ impl DraftProxy {
             // Stage the file record itself so the existence check passes.
             if let Some(record) = media_file_record_from_node(&node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -792,7 +791,7 @@ impl DraftProxy {
         {
             if let Some(record) = media_file_record_from_node(media_node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -904,7 +903,7 @@ impl DraftProxy {
                         .staged
                         .media_files
                         .iter()
-                        .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
+                        .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
                     // Order by sortKey: ID (the numeric resource id), then honor

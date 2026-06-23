@@ -2259,28 +2259,6 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
     Value::Object(data)
 }
 
-/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
-/// representation: strip trailing zeros after the decimal point but keep at
-/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
-/// "38.25" -> "38.25", "57" -> "57.0").
-pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
-    let trimmed = amount.trim();
-    if trimmed.is_empty() {
-        return "0.0".to_string();
-    }
-    if trimmed.contains('.') {
-        let stripped = trimmed.trim_end_matches('0');
-        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
-        if stripped.contains('.') {
-            stripped.to_string()
-        } else {
-            format!("{stripped}.0")
-        }
-    } else {
-        format!("{trimmed}.0")
-    }
-}
-
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
 /// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
 /// "2026-05-27T12:00:00Z").
@@ -3641,12 +3619,19 @@ impl DraftProxy {
         }
         if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
             let money = payment_terms_extract_owner_money(&owner);
-            let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-                &mut self.store.staged.draft_orders
+            if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                self.store
+                    .staged
+                    .draft_orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
             } else {
-                &mut self.store.staged.orders
-            };
-            target.entry(owner_id.to_string()).or_insert(owner);
+                self.store
+                    .staged
+                    .orders
+                    .entry(owner_id.to_string())
+                    .or_insert(owner);
+            }
             if let Some(money) = money {
                 return money;
             }
@@ -3779,17 +3764,29 @@ impl DraftProxy {
     }
 
     fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
-        let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-            &mut self.store.staged.draft_orders
+        let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            self.store
+                .staged
+                .draft_orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#DRAFT"
+                    })
+                })
         } else {
-            &mut self.store.staged.orders
+            self.store
+                .staged
+                .orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "id": owner_id,
+                        "name": "#1"
+                    })
+                })
         };
-        let entry = target.entry(owner_id.to_string()).or_insert_with(|| {
-            json!({
-                "id": owner_id,
-                "name": if owner_id.starts_with("gid://shopify/DraftOrder/") { "#DRAFT" } else { "#1" }
-            })
-        });
         entry["paymentTerms"] = terms.unwrap_or(Value::Null);
     }
 

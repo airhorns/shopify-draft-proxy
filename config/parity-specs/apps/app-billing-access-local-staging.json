@@ -25,7 +25,7 @@
     "secret-redaction"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json"],
-  "runtimeTestFiles": ["tests/integration/app-billing-access-flow.test.ts"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",

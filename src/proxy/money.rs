@@ -25,6 +25,28 @@ pub(in crate::proxy) fn money_set_pair(
     })
 }
 
+/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
+/// representation: strip trailing zeros after the decimal point but keep at
+/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
+/// "38.25" -> "38.25", "57" -> "57.0").
+pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
+    let trimmed = amount.trim();
+    if trimmed.is_empty() {
+        return "0.0".to_string();
+    }
+    if trimmed.contains('.') {
+        let stripped = trimmed.trim_end_matches('0');
+        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
+        if stripped.contains('.') {
+            stripped.to_string()
+        } else {
+            format!("{stripped}.0")
+        }
+    } else {
+        format!("{trimmed}.0")
+    }
+}
+
 // Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
 // for Shopify date fields that need civil-date offsets without a date library.
 pub(in crate::proxy) fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {

@@ -392,13 +392,13 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
             index + 1
         ),
     };
-    let mut capped_amount = "100".to_string();
+    let mut capped_amount = "100.0".to_string();
     let mut currency_code = "USD".to_string();
     let mut terms = "usage terms".to_string();
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
-                let mut price_amount = "1".to_string();
+                let mut price_amount = "1.0".to_string();
                 let mut price_currency = "USD".to_string();
                 if let Some(ResolvedValue::Object(price)) = details.get("price") {
                     price_amount = resolved_money_amount_string(price.get("amount"));
@@ -446,20 +446,18 @@ pub(in crate::proxy) fn format_money_amount(value: f64) -> String {
         format!("{value:.1}")
     } else {
         let text = format!("{value:.2}");
-        text.trim_end_matches('0').trim_end_matches('.').to_string()
+        normalize_money_amount(text.as_str())
     }
 }
 
 pub(in crate::proxy) fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
-    match value {
+    let raw = match value {
         Some(ResolvedValue::Int(value)) => value.to_string(),
-        Some(ResolvedValue::Float(value)) => {
-            let text = value.to_string();
-            text.strip_suffix(".0").unwrap_or(&text).to_string()
-        }
+        Some(ResolvedValue::Float(value)) => value.to_string(),
         Some(ResolvedValue::String(value)) => value.clone(),
         _ => "100".to_string(),
-    }
+    };
+    normalize_money_amount(&raw)
 }
 
 pub(in crate::proxy) fn current_app_installation_json(
@@ -2438,8 +2436,8 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 impl DraftProxy {
     // Collect the `feedbackInput[].productId`s that reference a product the
     // proxy can prove is unavailable to resource feedback, so
-    // `bulkProductResourceFeedbackCreate` can emit Shopify's captured per-entry
-    // missing-product userError. A locally tombstoned id is reported missing
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry missing
+    // product userError. A locally tombstoned id is reported missing
     // immediately. Known non-ACTIVE products are also unavailable. An id merely
     // absent from the local catalog is NOT assumed missing — the proxy never
     // seeds every real product, so absence alone is no proof. Instead we confirm
@@ -2507,7 +2505,7 @@ impl DraftProxy {
             matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
         let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
         let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
+        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
             return (
                 json!({
                     "companyLocation": null,
@@ -2613,15 +2611,6 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -
 
 pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
     "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
-}
-
-pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
-    json!({
-        "__typename": "Job",
-        "id": "gid://shopify/Job/2",
-        "done": false,
-        "query": { "__typename": "QueryRoot" }
-    })
 }
 
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
@@ -2751,9 +2740,8 @@ fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -
     user_error(field, message, Some(code))
 }
 
-// Shopify reports referenced-but-unavailable products at the feedback entry's
-// productId field, distinct from the BLANK / INVALID / TOO_LONG resolver guards
-// anchored at concrete input fields.
+// Shopify reports referenced-but-unavailable products at the product id field,
+// distinct from the BLANK / INVALID / TOO_LONG resolver guards.
 fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
     let field = feedback_index
         .map(|index| json!(["feedback", index.to_string(), "productId"]))

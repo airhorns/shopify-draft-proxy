@@ -712,8 +712,8 @@ impl DraftProxy {
         let mut level_nodes = Vec::new();
         for location_id in &location_order_local {
             let available = available_by_location.get(location_id).copied().unwrap_or(0);
-            if !self.store.staged.location_order.contains(location_id) {
-                self.store.staged.location_order.push(location_id.clone());
+            if !self.store.staged.locations.order.contains(location_id) {
+                self.store.staged.locations.order.push(location_id.clone());
             }
             let key = (inventory_item_id.clone(), location_id.clone());
             let mut quantities = BTreeMap::new();

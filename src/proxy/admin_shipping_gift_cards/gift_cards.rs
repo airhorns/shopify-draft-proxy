@@ -2,7 +2,7 @@ use crate::proxy::*;
 
 const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
-const GIFT_CARD_HYDRATE_QUERY: &str = r#"#graphql
+const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
         id
@@ -560,6 +560,7 @@ impl DraftProxy {
             .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
+        let mut card = None;
 
         // Trial-shop notifications are blocked after the entitlement (plan) check
         // but before any card-state/not-found checks, mirroring Shopify's order:
@@ -573,11 +574,11 @@ impl DraftProxy {
                 "Notifications are not available on trial shops.",
             ));
         }
-        let card = if user_errors.is_empty() {
-            self.gift_card_effective_record_for_notification(request, &id)
-        } else {
-            None
-        };
+        if user_errors.is_empty() && !id.is_empty() {
+            card = self
+                .gift_card_effective_record(&id)
+                .or_else(|| self.hydrate_gift_card_for_notification(request, &id));
+        }
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -636,6 +637,28 @@ impl DraftProxy {
         }
     }
 
+    fn hydrate_gift_card_for_notification(&mut self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": GIFT_CARD_NOTIFICATION_HYDRATE_QUERY,
+                "variables": { "id": id },
+            }),
+        );
+        let card = response.body["data"]["giftCard"].clone();
+        if card.is_null() {
+            return None;
+        }
+        self.store
+            .staged
+            .gift_cards
+            .insert(id.to_string(), card.clone());
+        Some(card)
+    }
+
     fn gift_card_effective_record(&self, id: &str) -> Option<Value> {
         self.store
             .staged
@@ -643,40 +666,6 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .or_else(|| gift_card_seed_record(id))
-    }
-
-    fn gift_card_effective_record_for_notification(
-        &mut self,
-        request: &Request,
-        id: &str,
-    ) -> Option<Value> {
-        if let Some(card) = self.gift_card_effective_record(id) {
-            return Some(card);
-        }
-        if id.is_empty() || self.config.read_mode != ReadMode::LiveHybrid {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": GIFT_CARD_HYDRATE_QUERY,
-                "operationName": "GiftCardHydrate",
-                "variables": { "id": id },
-            }),
-        );
-        if response.status >= 400 {
-            return None;
-        }
-        let card = response
-            .body
-            .pointer("/data/giftCard")
-            .filter(|value| !value.is_null())
-            .cloned()?;
-        self.store
-            .staged
-            .gift_cards
-            .insert(id.to_string(), card.clone());
-        Some(card)
     }
 
     /// A gift-card notification is unavailable when the shop is on a trial plan.
@@ -1333,28 +1322,11 @@ fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
         || recipient.get("phone").is_some()
         || recipient.get("defaultEmailAddress").is_some()
         || recipient.get("defaultPhoneNumber").is_some();
-    if !has_contact_projection {
-        return false;
-    }
-    let email = recipient
-        .get("email")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            recipient
-                .pointer("/defaultEmailAddress/emailAddress")
-                .and_then(Value::as_str)
-        })
-        .is_some_and(|value| !value.trim().is_empty());
-    let phone = recipient
-        .get("phone")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            recipient
-                .pointer("/defaultPhoneNumber/phoneNumber")
-                .and_then(Value::as_str)
-        })
-        .is_some_and(|value| !value.trim().is_empty());
-    !email && !phone
+    has_contact_projection
+        && recipient["email"].is_null()
+        && recipient["phone"].is_null()
+        && recipient["defaultEmailAddress"]["emailAddress"].is_null()
+        && recipient["defaultPhoneNumber"]["phoneNumber"].is_null()
 }
 
 fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {

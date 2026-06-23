@@ -519,7 +519,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
                 "status": "ACTIVE",
                 "test": true,
                 "createdAt": "2024-01-01T00:00:00.000Z",
-                "price": { "amount": "5.00", "currencyCode": "USD" }
+                "price": { "amount": "5.0", "currencyCode": "USD" }
             },
             "confirmationUrl": "https://app.example.test/local-confirmation",
             "userErrors": []
@@ -671,7 +671,7 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
                 "id": "gid://shopify/AppSubscriptionLineItem/expected",
                 "plan": { "pricingDetails": {
                     "__typename": "AppUsagePricing",
-                    "cappedAmount": { "amount": "100", "currencyCode": "USD" },
+                    "cappedAmount": { "amount": "100.0", "currencyCode": "USD" },
                     "balanceUsed": { "amount": "0.0", "currencyCode": "USD" },
                     "interval": "EVERY_30_DAYS",
                     "terms": "usage terms"
@@ -783,10 +783,10 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             "appUsageRecord": {
                 "id": "gid://shopify/AppUsageRecord/expected",
                 "description": "first",
-                "price": { "amount": "3.00", "currencyCode": "USD" },
+                "price": { "amount": "3.0", "currencyCode": "USD" },
                 "subscriptionLineItem": {
                     "id": "gid://shopify/AppSubscriptionLineItem/expected",
-                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } }
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } }
                 }
             },
             "userErrors": []
@@ -919,11 +919,11 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         json!({
             "allSubscriptions": { "nodes": [{
                 "lineItems": [{
-                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } },
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } },
                     "usageRecords": { "nodes": [{
                         "id": "gid://shopify/AppUsageRecord/expected",
                         "description": "first",
-                        "price": { "amount": "3.00", "currencyCode": "USD" }
+                        "price": { "amount": "3.0", "currencyCode": "USD" }
                     }] }
                 }]
             }] }
@@ -976,7 +976,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
                 "name": "Import package",
                 "status": "ACTIVE",
                 "test": true,
-                "price": { "amount": "10", "currencyCode": "USD" }
+                "price": { "amount": "10.0", "currencyCode": "USD" }
             },
             "userErrors": []
         })
@@ -1087,7 +1087,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             "oneTimePurchases": { "nodes": [{
                 "name": "Import package",
                 "status": "ACTIVE",
-                "price": { "amount": "10", "currencyCode": "USD" }
+                "price": { "amount": "10.0", "currencyCode": "USD" }
             }] }
         })
     );
@@ -1109,7 +1109,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             "name": "Import package",
             "status": "ACTIVE",
             "test": true,
-            "price": { "amount": "10", "currencyCode": "USD" }
+            "price": { "amount": "10.0", "currencyCode": "USD" }
         })
     );
 
@@ -1187,14 +1187,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                         "id": "gid://shopify/AppSubscriptionLineItem/usage",
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
-                            "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                            "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                         }}
                     },
                     {
                         "id": "gid://shopify/AppSubscriptionLineItem/recurring",
                         "plan": { "pricingDetails": {
                             "__typename": "AppRecurringPricing",
-                            "price": { "amount": "1", "currencyCode": "USD" }
+                            "price": { "amount": "1.0", "currencyCode": "USD" }
                         }}
                     }
                 ]
@@ -1267,14 +1267,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                             "id": "gid://shopify/AppSubscriptionLineItem/usage",
                             "plan": { "pricingDetails": {
                                 "__typename": "AppUsagePricing",
-                                "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                                "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                             }}
                         },
                         {
                             "id": "gid://shopify/AppSubscriptionLineItem/recurring",
                             "plan": { "pricingDetails": {
                                 "__typename": "AppRecurringPricing",
-                                "price": { "amount": "1", "currencyCode": "USD" }
+                                "price": { "amount": "1.0", "currencyCode": "USD" }
                             }}
                         }
                     ]
@@ -1320,7 +1320,7 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                         "id": "gid://shopify/AppSubscriptionLineItem/usage",
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
-                            "cappedAmount": { "amount": "12", "currencyCode": "USD" }
+                            "cappedAmount": { "amount": "12.0", "currencyCode": "USD" }
                         }}
                     },
                     {
