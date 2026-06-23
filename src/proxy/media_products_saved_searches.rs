@@ -1701,6 +1701,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let mut updated_variants = Vec::new();
+        let mut position_moves = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
             let prefix = ["variants".to_string(), index.to_string()];
             let Some(variant_id) = resolved_string_field(input, "id") else {
@@ -1743,6 +1744,9 @@ impl DraftProxy {
             let mut variant = existing;
             apply_product_variant_input(&mut variant, input);
             Self::normalize_bulk_variant_title(&mut variant);
+            if let Some(position) = resolved_int_field(input, "position") {
+                position_moves.push((variant.id.clone(), position, index));
+            }
             updated_variants.push(variant);
         }
         if !user_errors.is_empty() {
@@ -1760,6 +1764,14 @@ impl DraftProxy {
         }
         for (variant, input) in updated_variants.iter().zip(variants_input.iter()) {
             self.stage_input_variant_metafields(&variant.id, input);
+        }
+        if !position_moves.is_empty() {
+            self.store
+                .move_product_variants_to_positions(&product.id, &position_moves);
+            updated_variants = updated_variants
+                .iter()
+                .filter_map(|variant| self.store.product_variant_by_id(&variant.id).cloned())
+                .collect();
         }
         let mut staged_ids = vec![product.id.clone()];
         staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
@@ -1899,15 +1911,25 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let mut ordered_positions = Vec::new();
+        let mut seen_variant_ids = BTreeSet::new();
         for (index, position) in positions.iter().enumerate() {
             let Some(variant_id) = resolved_string_field(position, "id") else {
                 user_errors.push(Self::bulk_user_error(
                     &["positions", &index.to_string(), "id"],
                     "Product variant is missing ID attribute",
-                    Some("PRODUCT_VARIANT_ID_MISSING"),
+                    Some("MISSING_VARIANT"),
                 ));
                 continue;
             };
+            let position_value =
+                resolved_int_field(position, "position").unwrap_or((index + 1) as i64);
+            if position_value < 1 {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions", &index.to_string(), "position"],
+                    "Position can not be zero or negative number",
+                    Some("INVALID_POSITION"),
+                ));
+            }
             if self
                 .store
                 .product_variant_by_id(&variant_id)
@@ -1916,11 +1938,18 @@ impl DraftProxy {
                 user_errors.push(Self::bulk_user_error(
                     &["positions", &index.to_string(), "id"],
                     "Product variant does not exist",
-                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                    Some("MISSING_VARIANT"),
                 ));
                 continue;
             }
-            let position_value = resolved_int_field(position, "position").unwrap_or(index as i64);
+            if !seen_variant_ids.insert(variant_id.clone()) {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions"],
+                    "Product variant IDs must be unique",
+                    Some("DUPLICATED_VARIANT_ID"),
+                ));
+                continue;
+            }
             ordered_positions.push((position_value, index, variant_id));
         }
         if !user_errors.is_empty() {
