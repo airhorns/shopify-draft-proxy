@@ -1441,10 +1441,12 @@ impl DraftProxy {
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let shop = effective_shop_json(&self.store);
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
+                    "shop" => Some(selected_json(&shop, &selection.selection)),
                     "userErrors" => Some(Value::Array(
                         user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
                     )),

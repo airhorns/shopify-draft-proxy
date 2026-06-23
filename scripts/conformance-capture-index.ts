@@ -880,6 +880,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-delete-shop-payload',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-delete-shop-payload-conformance.ts',
+    purpose:
+      'collectionDelete payload shape for the required non-null shop field on success and not-found userError branches.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-delete-shop-payload.json`,
+      'config/parity-specs/products/collectionDelete-parity-plan.json',
+      'config/parity-requests/products/collectionDelete-parity-plan.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable collection and deletes it; not-found branch is validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:
