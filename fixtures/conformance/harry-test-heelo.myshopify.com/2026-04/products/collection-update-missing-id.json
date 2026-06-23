@@ -1,0 +1,82 @@
+{
+  "summary": "Live 2026-04 collectionUpdate missing-id BadRequest shape plus present-but-unknown id userError branch.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "missingId": {
+    "variables": {
+      "input": {
+        "title": "Hermes Missing Id 1782254764207"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "id must be specified on collectionUpdate",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["collectionUpdate"]
+          }
+        ],
+        "data": {
+          "collectionUpdate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownId": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/999999999999999",
+        "title": "Hermes Unknown Id 1782254764207"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "collectionUpdate": {
+            "collection": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Collection does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {}
+}

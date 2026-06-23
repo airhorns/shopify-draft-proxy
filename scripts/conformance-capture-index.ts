@@ -5242,6 +5242,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-update-missing-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-update-missing-id-conformance.mts',
+    purpose: 'collectionUpdate missing input.id BadRequest shape and present-but-unknown id userError branch.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-update-missing-id.json`,
+      'config/parity-specs/products/collection-update-missing-id.json',
+      'config/parity-requests/products/collectionUpdate-missing-id.graphql',
+    ],
+    cleanupBehavior: 'Validation-only probes do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-create-and-add-products-parity',
     scriptPath: 'scripts/capture-collection-create-and-add-products-parity.ts',
     purpose:
