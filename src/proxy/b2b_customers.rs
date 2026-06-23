@@ -1181,14 +1181,7 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
-                b2b_company_contact_payload(
-                    None,
-                    vec![json!({
-                        "field": ["companyId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    })],
-                ),
+                b2b_company_contact_payload(None, vec![b2b_resource_not_found(["companyId"])]),
                 "failed",
                 Vec::new(),
             );
@@ -1363,14 +1356,7 @@ impl DraftProxy {
             resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
         let Some(company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
             return (
-                b2b_company_payload(
-                    None,
-                    vec![json!({
-                        "field": ["companyId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    })],
-                ),
+                b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
                 "failed",
                 Vec::new(),
             );
@@ -1430,14 +1416,7 @@ impl DraftProxy {
         let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
-                b2b_company_payload(
-                    None,
-                    vec![json!({
-                        "field": ["companyId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    })],
-                ),
+                b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
                 "failed",
                 Vec::new(),
             );
@@ -1474,11 +1453,7 @@ impl DraftProxy {
             return (
                 json!({
                     "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -1575,11 +1550,7 @@ impl DraftProxy {
             return (
                 json!({
                     "roleAssignments": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -1593,19 +1564,19 @@ impl DraftProxy {
                 .unwrap_or_default();
             let location_id = resolved_string_field(input, "companyLocationId").unwrap_or_default();
             if !self.store.staged.b2b_locations.contains_key(&location_id) {
-                user_errors.push(json!({
-                    "field": ["rolesToAssign", index.to_string(), "companyLocationId"],
-                    "message": "Resource requested does not exist.",
-                    "code": "RESOURCE_NOT_FOUND"
-                }));
+                user_errors.push(b2b_resource_not_found(json!([
+                    "rolesToAssign",
+                    index.to_string(),
+                    "companyLocationId"
+                ])));
                 continue;
             }
             if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
-                user_errors.push(json!({
-                    "field": ["rolesToAssign", index.to_string(), "companyContactRoleId"],
-                    "message": "Resource requested does not exist.",
-                    "code": "RESOURCE_NOT_FOUND"
-                }));
+                user_errors.push(b2b_resource_not_found(json!([
+                    "rolesToAssign",
+                    index.to_string(),
+                    "companyContactRoleId"
+                ])));
                 continue;
             }
             assignments.push(self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id));
@@ -1762,11 +1733,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyId": Value::Null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["id"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -1916,11 +1883,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyLocationId": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -2091,11 +2054,7 @@ impl DraftProxy {
             return (
                 json!({
                     "addresses": Value::Null,
-                    "userErrors": [{
-                        "field": ["locationId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["locationId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -2206,11 +2165,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedAddressId": Value::Null,
-                    "userErrors": [{
-                        "field": ["addressId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["addressId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -2238,11 +2193,7 @@ impl DraftProxy {
             return (
                 json!({
                     "companyLocationStaffMemberAssignments": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -2385,11 +2336,7 @@ impl DraftProxy {
             return (
                 json!({
                     "roleAssignments": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "Resource requested does not exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
                 }),
                 "failed",
                 Vec::new(),
@@ -8441,6 +8388,14 @@ fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) 
         "message": message,
         "code": code
     })
+}
+
+fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
+    user_error(
+        field,
+        "Resource requested does not exist.",
+        Some("RESOURCE_NOT_FOUND"),
+    )
 }
 
 /// Validates a `companyContactCreate` input: a title carrying HTML, a name that
