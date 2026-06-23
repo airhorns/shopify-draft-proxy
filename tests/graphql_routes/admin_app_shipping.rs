@@ -6898,33 +6898,66 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         }])
     );
 
-    let missing_account = store_credit_debit_error(
+    let missing_account = store_credit_debit_response(
         &mut proxy,
         "gid://shopify/StoreCreditAccount/999",
         json!({ "amount": "1.00", "currencyCode": "USD" }),
     );
-    assert_eq!(
-        missing_account,
-        json!([{
-            "field": ["id"],
-            "message": "Store credit account does not exist",
-            "code": "NOT_FOUND"
-        }])
+    assert_store_credit_missing_id_user_error(
+        &missing_account,
+        "storeCreditAccountDebit",
+        "Store credit account does not exist",
+        "ACCOUNT_NOT_FOUND",
     );
 
-    let missing_owner = store_credit_credit_error(
+    let missing_owner = store_credit_credit_response(
         &mut proxy,
         "gid://shopify/Customer/999",
         json!({ "amount": "1.00", "currencyCode": "USD" }),
         None,
     );
-    assert_eq!(
-        missing_owner,
-        json!([{
-            "field": ["id"],
-            "message": "Owner does not exist",
-            "code": "NOT_FOUND"
-        }])
+    assert_store_credit_missing_id_user_error(
+        &missing_owner,
+        "storeCreditAccountCredit",
+        "Owner does not exist",
+        "OWNER_NOT_FOUND",
+    );
+
+    let missing_company_location = store_credit_credit_response(
+        &mut proxy,
+        "gid://shopify/CompanyLocation/999",
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        None,
+    );
+    assert_store_credit_missing_id_user_error(
+        &missing_company_location,
+        "storeCreditAccountCredit",
+        "Owner does not exist",
+        "OWNER_NOT_FOUND",
+    );
+
+    let missing_customer_debit = store_credit_debit_response(
+        &mut proxy,
+        "gid://shopify/Customer/999",
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+    );
+    assert_store_credit_missing_id_user_error(
+        &missing_customer_debit,
+        "storeCreditAccountDebit",
+        "Store credit account does not exist",
+        "ACCOUNT_NOT_FOUND",
+    );
+
+    let missing_company_location_debit = store_credit_debit_response(
+        &mut proxy,
+        "gid://shopify/CompanyLocation/999",
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+    );
+    assert_store_credit_missing_id_user_error(
+        &missing_company_location_debit,
+        "storeCreditAccountDebit",
+        "Store credit account does not exist",
+        "ACCOUNT_NOT_FOUND",
     );
 
     let entries = proxy.get_log_snapshot()["entries"]
@@ -7106,11 +7139,22 @@ fn store_credit_credit_error(
     amount: Value,
     expires_at: Option<&str>,
 ) -> Value {
+    let response = store_credit_credit_response(proxy, id, amount, expires_at);
+    assert_eq!(response.status, 200);
+    response.body["data"]["storeCreditAccountCredit"]["userErrors"].clone()
+}
+
+fn store_credit_credit_response(
+    proxy: &mut DraftProxy,
+    id: &str,
+    amount: Value,
+    expires_at: Option<&str>,
+) -> Response {
     let mut credit_input = json!({ "creditAmount": amount });
     if let Some(expires_at) = expires_at {
         credit_input["expiresAt"] = json!(expires_at);
     }
-    let response = proxy.process_request(json_graphql_request(
+    proxy.process_request(json_graphql_request(
         r#"
         mutation StoreCreditValidationCredit($id: ID!, $input: StoreCreditAccountCreditInput!) {
           storeCreditAccountCredit(id: $id, creditInput: $input) {
@@ -7120,13 +7164,17 @@ fn store_credit_credit_error(
         }
         "#,
         json!({ "id": id, "input": credit_input }),
-    ));
-    assert_eq!(response.status, 200);
-    response.body["data"]["storeCreditAccountCredit"]["userErrors"].clone()
+    ))
 }
 
 fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> Value {
-    let response = proxy.process_request(json_graphql_request(
+    let response = store_credit_debit_response(proxy, id, amount);
+    assert_eq!(response.status, 200);
+    response.body["data"]["storeCreditAccountDebit"]["userErrors"].clone()
+}
+
+fn store_credit_debit_response(proxy: &mut DraftProxy, id: &str, amount: Value) -> Response {
+    proxy.process_request(json_graphql_request(
         r#"
         mutation StoreCreditValidationDebit($id: ID!, $input: StoreCreditAccountDebitInput!) {
           storeCreditAccountDebit(id: $id, debitInput: $input) {
@@ -7136,9 +7184,29 @@ fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> 
         }
         "#,
         json!({ "id": id, "input": { "debitAmount": amount } }),
-    ));
+    ))
+}
+
+fn assert_store_credit_missing_id_user_error(
+    response: &Response,
+    root: &str,
+    message: &str,
+    code: &str,
+) {
     assert_eq!(response.status, 200);
-    response.body["data"]["storeCreditAccountDebit"]["userErrors"].clone()
+    assert_eq!(
+        response.body["data"][root]["storeCreditAccountTransaction"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"][root]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": message,
+            "code": code
+        }])
+    );
+    assert_eq!(response.body["errors"], Value::Null);
 }
 
 fn bulk_operation_hydrate_response(operation: Value) -> shopify_draft_proxy::proxy::Response {

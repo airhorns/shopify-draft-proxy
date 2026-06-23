@@ -3419,6 +3419,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-invalid-key',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-invalid-key-conformance.mts',
+    purpose:
+      'translationsRegister Product key validation for one valid title row plus one invalid-key row in the same request.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-invalid-key.json`,
+      'config/parity-specs/localization/localization-translations-invalid-key.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enables French only when needed, captures invalid-key partial success and downstream readback, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-handle-translation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-handle-translation-validation-conformance.mts',
@@ -4948,6 +4971,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates one disposable moderated blog/article and REST article comments, prepares PUBLISHED and SPAM source states with Admin GraphQL moderation roots, then deletes the article and blog during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-comment-moderation-status-enums-local-runtime',
+    scriptPath: 'scripts/capture-online-store-comment-moderation-status-enums-local-runtime.ts',
+    purpose:
+      'Executable local-runtime evidence that commentSpam, commentNotSpam, and commentApprove persist Core comment status enum values from a cassette-hydrated comment.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}comment-moderation-status-enums.json`,
+      'config/parity-specs/online-store/comment-moderation-status-enums.json',
+      'config/parity-requests/online-store/comment-moderation-status-approve.graphql',
+      'config/parity-requests/online-store/comment-moderation-status-not-spam.graphql',
+      'config/parity-requests/online-store/comment-moderation-status-spam.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; the fixture replays a recorded comment hydrate response through the parity cassette and does not modify Shopify.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
   },
   {
     domain: 'online-store',
@@ -7718,6 +7759,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-delete-not-found-conformance.ts',
+    purpose: 'paymentTermsDelete unknown PaymentTerms id userError field, message, and public enum code.',
+    requiredAuthScopes: ['read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-delete-not-found.json`,
+      'config/parity-specs/payments/payment-terms-delete-not-found.json',
+      'config/parity-requests/payments/payment-terms-delete-not-found.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no Shopify resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-multiple-schedules',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-multiple-schedules-conformance.ts',
@@ -7841,6 +7897,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
       `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-node-malformed-gid.json',
+      'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-node.graphql',
+      'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-nodes.graphql',
       'config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-validation.json',
       'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
@@ -9891,6 +9950,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'store-credit-unknown-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-store-credit-unknown-id-conformance.ts',
+    purpose:
+      'StoreCreditAccountCredit and StoreCreditAccountDebit missing-id userError envelopes for well-formed but nonexistent StoreCreditAccount, Customer, and CompanyLocation ids.',
+    requiredAuthScopes: ['read_customers', 'read_companies', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-unknown-id-user-errors.json`,
+      'config/parity-specs/customers/store-credit-account-unknown-id-user-errors.json',
+    ],
+    cleanupBehavior: 'Uses fixed never-created IDs only; Shopify rejects before mutation so no cleanup is required.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

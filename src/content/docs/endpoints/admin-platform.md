@@ -32,7 +32,7 @@ Mutation roots:
 Snapshot reads are conservative and only model shapes backed by checked-in evidence:
 
 - `publicApiVersions` returns the captured Admin API version window.
-- `node(id:)` and `nodes(ids:)` dispatch by GID type to an existing local detail handler or serializer. They preserve input order for `nodes(ids:)`, return `null` for malformed/missing/unsupported IDs, and do not create domain support by themselves.
+- `node(id:)` and `nodes(ids:)` dispatch by GID type to an existing local detail handler or serializer. They preserve input order for `nodes(ids:)`; well-formed but absent, unsupported, or unknown-type GIDs return `null`, while malformed global IDs fail before execution with Shopify's top-level `Invalid global id '<value>'` coercion error envelope and no `data` payload. Generic Node dispatch does not create domain support by itself.
 - Supported generic Node families include records that already exist in normalized local state for products, product options and option values, product variants, catalog/inventory records, metafields, selling plans, customers and payment methods, B2B companies and selected nested records, app billing/access records, store/shop/location/business-entity records, files, saved searches, payment terms, finance/POS/dispute no-data records, bulk operations, metafield/metaobject definitions, orders/fulfillments/returns/draft orders, gift cards, delivery profiles and selected nested records, discount wrappers, marketing/events/webhooks/segments, markets and price lists, taxonomy categories, and supported online-store records.
 - Unsupported generic Node implementors and resource families without a local lifecycle/read model return Shopify-like `null` entries instead of partial fabricated objects.
 - `job(id:)` resolves staged or fixture-backed generic `Job` nodes. Collection product-membership jobs staged by supported collection mutations read back as completed with a selected `query { __typename }` QueryRoot link. Unknown arbitrary Job GIDs preserve the captured compatibility payload shape.
@@ -72,6 +72,7 @@ Mutation behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-baseline.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/markets-baseline.json`
 - `config/parity-specs/admin-platform/admin-platform-utility-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-node-malformed-gid.json`
 - `config/parity-specs/admin-platform/admin-platform-supported-node-reads.json`
 - `config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json`
 - `config/parity-specs/admin-platform/admin-platform-metafield-node-reads.json`
@@ -98,6 +99,7 @@ Mutation behavior:
 ### Validation
 
 - `corepack pnpm parity -- admin-platform-utility-reads`
+- `corepack pnpm parity -- admin-platform-node-malformed-gid`
 - `corepack pnpm parity -- admin-platform-supported-node-reads`
 - `corepack pnpm parity -- admin-platform-by-id-not-found-read`
 - `corepack pnpm parity -- admin-platform-backup-region-update`

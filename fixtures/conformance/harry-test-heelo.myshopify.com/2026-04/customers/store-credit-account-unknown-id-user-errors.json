@@ -1,0 +1,255 @@
+{
+  "capturedAt": "2026-06-23T21:38:09.329Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Records StoreCreditAccountCredit and StoreCreditAccountDebit missing-id userErrors for well-formed but nonexistent StoreCreditAccount, Customer, and CompanyLocation GIDs.",
+    "Shopify returns payload userErrors for these mutation roots: credit by an unknown Customer or CompanyLocation returns OWNER_NOT_FOUND, while unknown StoreCreditAccount and debit missing-id branches return ACCOUNT_NOT_FOUND."
+  ],
+  "unknownIds": {
+    "customer": "gid://shopify/Customer/999999999999999",
+    "storeCreditAccount": "gid://shopify/StoreCreditAccount/999999999999999",
+    "companyLocation": "gid://shopify/CompanyLocation/999999999999999"
+  },
+  "creditUnknownCustomer": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Customer/999999999999999",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountCredit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Owner does not exist",
+              "code": "OWNER_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "creditUnknownStoreCreditAccount": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/StoreCreditAccount/999999999999999",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountCredit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Store credit account does not exist",
+              "code": "ACCOUNT_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "creditUnknownCompanyLocation": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/999999999999999",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountCredit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Owner does not exist",
+              "code": "OWNER_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "debitUnknownCustomer": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Customer/999999999999999",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountDebit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Store credit account does not exist",
+              "code": "ACCOUNT_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "debitUnknownStoreCreditAccount": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/StoreCreditAccount/999999999999999",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountDebit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Store credit account does not exist",
+              "code": "ACCOUNT_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "debitUnknownCompanyLocation": {
+    "request": {
+      "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on Customer {\n              id\n              email\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/999999999999999",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "1.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "storeCreditAccountDebit": {
+          "storeCreditAccountTransaction": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Store credit account does not exist",
+              "code": "ACCOUNT_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

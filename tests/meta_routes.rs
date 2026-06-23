@@ -1404,6 +1404,355 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
 }
 
 #[test]
+fn restore_state_round_trips_customer_payment_method_records_and_counter() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreatePaymentMethod($sessionId: String!) {
+          customerPaymentMethodCreditCardCreate(
+            customerId: "gid://shopify/Customer/8801"
+            sessionId: $sessionId
+            billingAddress: {
+              firstName: "Ada"
+              lastName: "Lovelace"
+              address1: "1 Main St"
+              city: "New York"
+              zip: "10001"
+              country: "US"
+              province: "NY"
+            }
+          ) {
+            customerPaymentMethod {
+              id
+              customer { id }
+              instrument {
+                __typename
+                ... on CustomerCreditCard {
+                  billingAddress { address1 city zip countryCodeV2 provinceCode }
+                }
+              }
+            }
+            processing
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first = proxy.process_request(graphql_request(
+        &json!({ "query": create_query, "variables": { "sessionId": "session-one" } }).to_string(),
+    ));
+    assert_eq!(first.status, 200);
+    assert_eq!(
+        first.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
+        json!([])
+    );
+    let first_id = first.body["data"]["customerPaymentMethodCreditCardCreate"]
+        ["customerPaymentMethod"]["id"]
+        .clone();
+    assert_eq!(first_id, json!("gid://shopify/CustomerPaymentMethod/1"));
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-22T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["customerPaymentMethods"]
+            ["gid://shopify/CustomerPaymentMethod/1"]["customer"]["id"],
+        json!("gid://shopify/Customer/8801")
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
+            ["gid://shopify/Customer/8801"],
+        json!([
+            "gid://shopify/CustomerPaymentMethod/base-card",
+            "gid://shopify/CustomerPaymentMethod/base-paypal",
+            "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+            "gid://shopify/CustomerPaymentMethod/1"
+        ])
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["nextCustomerPaymentMethodId"],
+        json!(2)
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let read = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                query ReadPaymentMethod($id: ID!) {
+                  customerPaymentMethod(id: $id, showRevoked: true) {
+                    id
+                    customer { id }
+                    instrument {
+                      __typename
+                      ... on CustomerCreditCard {
+                        billingAddress { address1 city zip countryCodeV2 provinceCode }
+                      }
+                    }
+                  }
+                }
+            "#,
+            "variables": { "id": first_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/1")
+    );
+    assert_eq!(
+        read.body["data"]["customerPaymentMethod"]["instrument"]["billingAddress"]["address1"],
+        json!("1 Main St")
+    );
+
+    let second = restored.process_request(graphql_request(
+        &json!({ "query": create_query, "variables": { "sessionId": "session-two" } }).to_string(),
+    ));
+    assert_eq!(second.status, 200);
+    assert_eq!(
+        second.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/2")
+    );
+}
+
+#[test]
+fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
+    let mut proxy = snapshot_proxy();
+    let create_customer = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation CreateOrderCustomer {
+                  customerCreate(input: { email: "order-customer-roundtrip@example.com" }) {
+                    customer { id email displayName }
+                    userErrors { field message code }
+                  }
+                }
+            "#
+        })
+        .to_string(),
+    ));
+    assert_eq!(create_customer.status, 200);
+    assert_eq!(
+        create_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create_customer.body["data"]["customerCreate"]["customer"]["id"].clone();
+
+    let create_order_query = r#"
+        mutation CreateOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id customer { id } }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let regular_order = proxy.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": {
+                "order": {
+                    "email": "order-customer-roundtrip-order@example.com",
+                    "customerId": customer_id
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(regular_order.status, 200);
+    assert_eq!(
+        regular_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let regular_order_id = regular_order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let company = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation CreateOrderCustomerCompany {
+                  companyCreate(input: { company: { name: "Order Customer Error Paths Company" } }) {
+                    company { id name }
+                    userErrors { field message code }
+                  }
+                }
+            "#
+        })
+        .to_string(),
+    ));
+    assert_eq!(company.status, 200);
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+    let assign = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation AssignOrderCustomerContact($companyId: ID!, $customerId: ID!) {
+                  companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+                    companyContact { id customer { id } company { id name } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "companyId": company_id, "customerId": customer_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(assign.status, 200);
+    assert_eq!(
+        assign.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+
+    let b2b_order = proxy.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": { "order": { "email": "order-customer-b2b@example.com" } }
+        })
+        .to_string(),
+    ));
+    assert_eq!(b2b_order.status, 200);
+    let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let cancelled_order = proxy.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": { "order": { "email": "order-customer-cancelled@example.com" } }
+        })
+        .to_string(),
+    ));
+    assert_eq!(cancelled_order.status, 200);
+    let cancelled_order_id = cancelled_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation CancelOrderCustomerOrder($orderId: ID!) {
+                  orderCancel(orderId: $orderId, restock: false, reason: OTHER) {
+                    order { id cancelledAt cancelReason }
+                    orderCancelUserErrors { field message code }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": cancelled_order_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(cancel.status, 200);
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-22T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerOrders"]
+            [regular_order_id.as_str().unwrap()]["id"],
+        regular_order_id
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerB2bOrderIds"],
+        json!([b2b_order_id])
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerCancelledIds"],
+        json!([cancelled_order_id])
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerContactCustomerIds"],
+        json!([customer_id])
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["nextOrderCustomerOrderId"],
+        json!(4)
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let set = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation SetOrderCustomer($orderId: ID!, $customerId: ID!) {
+                  orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+                    order { id customer { id email displayName } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": regular_order_id, "customerId": customer_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(
+        set.body["data"]["orderCustomerSet"]["userErrors"],
+        json!([])
+    );
+
+    let b2b_not_permitted = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation SetB2bOrderCustomer($orderId: ID!, $customerId: ID!) {
+                  orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+                    order { id customer { id } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": b2b_order_id, "customerId": customer_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        b2b_not_permitted.body["data"]["orderCustomerSet"]["userErrors"][0]["code"],
+        json!("NOT_PERMITTED")
+    );
+
+    let cancelled_remove = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation RemoveCancelledOrderCustomer($orderId: ID!) {
+                  orderCustomerRemove(orderId: $orderId) {
+                    order { id customer { id } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": cancelled_order_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        cancelled_remove.body["data"]["orderCustomerRemove"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
+    let next_order = restored.process_request(graphql_request(
+        &json!({
+            "query": create_order_query,
+            "variables": { "order": { "email": "order-customer-next@example.com" } }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        next_order.body["data"]["orderCreate"]["order"]["id"],
+        json!("gid://shopify/Order/4?shopify-draft-proxy=synthetic")
+    );
+}
+
+#[test]
 fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(

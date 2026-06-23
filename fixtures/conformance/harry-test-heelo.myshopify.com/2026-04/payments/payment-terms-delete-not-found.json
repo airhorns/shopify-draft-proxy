@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-06-23T21:43:06.816Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [],
+  "case": {
+    "purpose": "Unknown PaymentTerms id returns the public PaymentTermsDeleteUserError code enum.",
+    "query": "#graphql\n  mutation PaymentTermsDeleteNotFound($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "paymentTermsDelete": {
+          "deletedId": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Could not find payment terms.",
+              "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "Live Shopify capture for paymentTermsDelete not-found. The selected PaymentTermsDeleteUserError.code value is PAYMENT_TERMS_DELETE_UNSUCCESSFUL."
+}

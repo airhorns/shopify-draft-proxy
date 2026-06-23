@@ -1,0 +1,99 @@
+{
+  "scenarioId": "localization-translations-invalid-key",
+  "operationNames": ["productCreate", "shopLocaleEnable", "translationsRegister", "translatableResource"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-branch-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-invalid-key.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-enable-french-locale",
+        "capturePath": "$.setup.localeSetup.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "locale": "fr" }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shopLocale",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The live shop may already have French enabled, while parity replay enables it on a clean proxy to satisfy translationsRegister locale validation before the invalid-key assertion."
+          },
+          {
+            "path": "$.userErrors",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The setup branch is environment-dependent and is not the behavior under test; invalid-key validation targets below are strict."
+          }
+        ]
+      },
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-digest-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setup.productCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a synthetic product GID while Shopify returns a real disposable product GID."
+          }
+        ]
+      },
+      {
+        "name": "translations-register-invalid-key-partial-success",
+        "capturePath": "$.invalidKeyRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.invalidKeyRegister.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream-read-omits-invalid-key-row",
+        "capturePath": "$.downstreamRead.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads the staged synthetic product GID while Shopify reads the real disposable product GID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product, ensures French is enabled, reads the product title digest, registers one valid title translation and one invalid Product key in the same translationsRegister call, proves Shopify returns a single indexed INVALID_KEY_FOR_MODEL userError while echoing the valid row, then proves the invalid row is absent from a downstream translatableResource translations read before cleanup."
+}

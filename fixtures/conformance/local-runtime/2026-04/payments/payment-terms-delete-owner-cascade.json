@@ -218,9 +218,9 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": ["input", "paymentTermsId"],
-                "message": "Payment terms do not exist",
-                "code": "payment_terms_deletion_unsuccessful"
+                "field": null,
+                "message": "Could not find payment terms.",
+                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
               }
             ]
           }

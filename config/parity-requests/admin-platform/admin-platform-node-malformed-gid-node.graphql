@@ -1,0 +1,6 @@
+query AdminPlatformNodeMalformedGid {
+  node(id: "gid://shopify/Product") {
+    __typename
+    id
+  }
+}

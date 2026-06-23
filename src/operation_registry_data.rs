@@ -1826,7 +1826,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1834,7 +1834,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1842,7 +1842,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1850,7 +1850,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1858,7 +1858,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1866,7 +1866,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1874,7 +1874,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1882,7 +1882,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1890,7 +1890,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1898,7 +1898,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1906,7 +1906,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1914,7 +1914,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1922,7 +1922,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1930,7 +1930,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1938,7 +1938,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1946,7 +1946,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1954,7 +1954,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1962,7 +1962,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1970,7 +1970,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1978,7 +1978,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1986,7 +1986,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -1994,7 +1994,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -2002,7 +2002,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -2010,7 +2010,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -2018,7 +2018,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[],
         ),
         registry_entry(

@@ -1336,6 +1336,54 @@
         }
       }
     },
+    "nodeMalformedMissingId": {
+      "query": "#graphql\n  query AdminPlatformNodeMalformedGid {\n    node(id: \"gid://shopify/Product\") {\n      __typename\n      id\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid global id 'gid://shopify/Product'",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "path": ["query AdminPlatformNodeMalformedGid", "node", "id"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "nodesMalformedMixed": {
+      "query": "#graphql\n  query AdminPlatformNodesMalformedGid {\n    nodes(ids: [\"gid://shopify/Product/0\", \"gid://shopify/Product\", \"gid://shopify/UnknownType/123\"]) {\n      __typename\n      id\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid global id 'gid://shopify/Product'",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "path": ["query AdminPlatformNodesMalformedGid", "nodes", "ids"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+              }
+            }
+          ]
+        }
+      }
+    },
     "jobDomainNoData": {
       "query": "#graphql\n  query JobDomainNoDataRead($domainId: ID!, $jobId: ID!) {\n    domain(id: $domainId) {\n      id\n      host\n      url\n      sslEnabled\n    }\n    job(id: $jobId) {\n      id\n      done\n      query {\n        __typename\n      }\n    }\n  }\n",
       "variables": {

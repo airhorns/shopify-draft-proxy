@@ -397,6 +397,20 @@ struct StagedState {
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
     online_store_integrations: BTreeMap<String, Value>,
+    online_store_blogs: BTreeMap<String, Value>,
+    online_store_blog_order: Vec<String>,
+    deleted_online_store_blog_ids: BTreeSet<String>,
+    online_store_blogs_count_base: Option<usize>,
+    online_store_pages: BTreeMap<String, Value>,
+    online_store_page_order: Vec<String>,
+    deleted_online_store_page_ids: BTreeSet<String>,
+    online_store_pages_count_base: Option<usize>,
+    online_store_articles: BTreeMap<String, Value>,
+    online_store_article_order: Vec<String>,
+    deleted_online_store_article_ids: BTreeSet<String>,
+    online_store_comments: BTreeMap<String, Value>,
+    online_store_comment_order: Vec<String>,
+    deleted_online_store_comment_ids: BTreeSet<String>,
     product_operations: BTreeMap<String, ProductOperationRecord>,
     product_delete_operations: BTreeMap<String, String>,
     mandate_payment_keys: BTreeSet<String>,
@@ -796,6 +810,20 @@ impl Default for StagedState {
             metafield_reference_ids: BTreeSet::new(),
             media_files: StagedRecords::default(),
             online_store_integrations: BTreeMap::new(),
+            online_store_blogs: BTreeMap::new(),
+            online_store_blog_order: Vec::new(),
+            deleted_online_store_blog_ids: BTreeSet::new(),
+            online_store_blogs_count_base: None,
+            online_store_pages: BTreeMap::new(),
+            online_store_page_order: Vec::new(),
+            deleted_online_store_page_ids: BTreeSet::new(),
+            online_store_pages_count_base: None,
+            online_store_articles: BTreeMap::new(),
+            online_store_article_order: Vec::new(),
+            deleted_online_store_article_ids: BTreeSet::new(),
+            online_store_comments: BTreeMap::new(),
+            online_store_comment_order: Vec::new(),
+            deleted_online_store_comment_ids: BTreeSet::new(),
             product_operations: BTreeMap::new(),
             product_delete_operations: BTreeMap::new(),
             mandate_payment_keys: BTreeSet::new(),
@@ -1658,12 +1686,13 @@ mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
-mod markets_online_inventory;
+mod markets_catalog_helpers;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
 mod money;
+mod online_store_content;
 mod online_store_orders_payments;
 mod privacy;
 mod product_helpers;
@@ -1700,7 +1729,7 @@ pub(in crate::proxy) use self::localization_markets_catalogs::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
 #[allow(unused_imports)]
-pub(in crate::proxy) use self::markets_online_inventory::*;
+pub(in crate::proxy) use self::markets_catalog_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 #[allow(unused_imports)]
@@ -1711,6 +1740,8 @@ pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::metaobjects::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::money::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::online_store_content::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
