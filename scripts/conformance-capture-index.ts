@@ -8821,6 +8821,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-cancel-preserves-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-cancel-preserves-fields-conformance.ts',
+    purpose:
+      'bulkOperationCancel preserves non-status fields when canceling a non-terminal operation with accumulated counters.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-cancel-preserves-fields.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-cancel-preserves-fields.json',
+    ],
+    cleanupBehavior:
+      'Starts a safe product bulk query and cancels it after Shopify reports non-zero progress counters.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-schema-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-schema-roots-conformance.ts',
