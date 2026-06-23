@@ -7718,6 +7718,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-delete-not-found-conformance.ts',
+    purpose: 'paymentTermsDelete unknown PaymentTerms id userError field, message, and public enum code.',
+    requiredAuthScopes: ['read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-delete-not-found.json`,
+      'config/parity-specs/payments/payment-terms-delete-not-found.json',
+      'config/parity-requests/payments/payment-terms-delete-not-found.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no Shopify resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-multiple-schedules',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-multiple-schedules-conformance.ts',

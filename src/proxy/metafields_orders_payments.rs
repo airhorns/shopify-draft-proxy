@@ -5081,9 +5081,9 @@ impl DraftProxy {
                             payment_terms_delete_payload_value(
                                 Value::Null,
                                 vec![payment_terms_user_error(
-                                    json!(["input", "paymentTermsId"]),
-                                    "Payment terms do not exist",
-                                    "payment_terms_deletion_unsuccessful",
+                                    Value::Null,
+                                    "Could not find payment terms.",
+                                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
                                 )],
                                 &field.selection,
                             )["paymentTermsDelete"]
