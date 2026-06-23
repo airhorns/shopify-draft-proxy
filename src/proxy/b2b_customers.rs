@@ -3604,14 +3604,6 @@ impl DraftProxy {
             return None;
         }
 
-        for field in &fields {
-            if field.name == "productFullSync" {
-                if let Some(error) = product_full_sync_payload_selection_error(field) {
-                    return Some(ok_json(json!({ "errors": [error] })));
-                }
-            }
-        }
-
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -4156,10 +4148,11 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": Value::Null
+                        "code": "NOT_FOUND"
                     }]
                 }),
                 Vec::new(),
@@ -4173,6 +4166,7 @@ impl DraftProxy {
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
+                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["updatedAtSince"],
                         "message": "updatedAtSince must be before beforeUpdatedAt",
@@ -4184,13 +4178,27 @@ impl DraftProxy {
             )
         } else {
             let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
+            let job_id = self.next_synthetic_gid("Job");
+            let job = json!({
+                "__typename": "Job",
+                "id": job_id.clone(),
+                "done": false,
+                "query": { "__typename": "QueryRoot" },
+            });
+            if let Some(job_id) = job.get("id").and_then(Value::as_str) {
+                self.store
+                    .staged
+                    .collection_jobs
+                    .insert(job_id.to_string(), job.clone());
+            }
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
-                    "id": operation_id,
+                    "id": id,
+                    "job": job,
                     "userErrors": []
                 }),
-                vec![id, operation_id],
+                vec![id, operation_id, job_id],
                 "staged",
             )
         };
@@ -8793,25 +8801,6 @@ fn publication_default_state_invalid_response(
         }),
     );
     ok_json(json!({ "errors": [Value::Object(error)] }))
-}
-
-fn product_full_sync_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {
-    let selected = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "job")?;
-    Some(json!({
-        "message": "Field 'job' doesn't exist on type 'ProductFullSyncPayload'",
-        "path": [
-            field.response_key.clone(),
-            selected.response_key.clone()
-        ],
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": "ProductFullSyncPayload",
-            "fieldName": "job"
-        }
-    }))
 }
 
 fn product_full_sync_updated_at_range_invalid(
