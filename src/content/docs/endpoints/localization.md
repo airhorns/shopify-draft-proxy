@@ -64,9 +64,9 @@ scenarios. For Product resource IDs, the local slice validates existence against
 known localization Product resources plus normalized product state before
 applying translation-specific validation; unknown Product GIDs return
 `RESOURCE_NOT_FOUND` with `field: ["resourceId"]` and `translations: null`. The
-slice also validates enabled non-primary locale requirements, translatable keys,
-digest mismatches, non-blank values, the 100-key mutation limit, market scope,
-and selected handle-normalization
+slice also validates enabled non-primary locale requirements, modeled Product
+translatable-key membership (`INVALID_KEY_FOR_MODEL`), digest mismatches,
+non-blank values, the 100-key mutation limit, market scope, and selected handle-normalization
 branches. Successful translations are staged in local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. `translationsRemove` removes every requested

@@ -3009,10 +3009,20 @@ impl DraftProxy {
                 }));
                 continue;
             }
+            let key = resolved_object_string(translation_input, "key").unwrap_or_default();
+            if self.localization_resource_has_modeled_translation_keys(&resource_id)
+                && !Self::localization_product_translation_key_is_valid(&key)
+            {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "key"],
+                    "message": format!("Key {key} is not a valid translatable field"),
+                    "code": "INVALID_KEY_FOR_MODEL"
+                }));
+                continue;
+            }
             if let Some(supplied_digest) =
                 resolved_object_string(translation_input, "translatableContentDigest")
             {
-                let key = resolved_object_string(translation_input, "key").unwrap_or_default();
                 let digest_invalid = supplied_digest.starts_with("invalid-")
                     || self
                         .localization_source_content_value(&resource_id, &key)
@@ -3724,6 +3734,17 @@ impl DraftProxy {
             _ => return None,
         };
         Some(value)
+    }
+
+    fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
+        resource_id.starts_with("gid://shopify/Product/")
+    }
+
+    fn localization_product_translation_key_is_valid(key: &str) -> bool {
+        matches!(
+            key,
+            "title" | "handle" | "body_html" | "product_type" | "meta_title" | "meta_description"
+        )
     }
 
     /// Mirror Shopify's web-presence ↔ alternate-locale sync. When a non-primary
