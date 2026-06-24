@@ -1,0 +1,132 @@
+{
+  "scenarioId": "draftOrder-applied-discount-validation",
+  "operationNames": ["draftOrderCreate", "draftOrderUpdate", "draftOrderCalculate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-applied-discount-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrder-applied-discount-validation-setup.graphql",
+    "variablesCapturePath": "$.setupCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-user-errors",
+        "capturePath": "$.setupCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "create-applied-discount-value-validation",
+        "capturePath": "$.createValidation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-applied-discount-validation-create.graphql",
+          "variablesCapturePath": "$.createValidation.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.orderPercentageAboveMax",
+          "$.orderValueTooPrecise",
+          "$.linePercentageAboveMax",
+          "$.lineValueTooPrecise",
+          "$.orderPercentageNegative.userErrors",
+          "$.linePercentageNegative.userErrors",
+          "$.validOrderPercentage.userErrors",
+          "$.validOrderPercentage.draftOrder.appliedDiscount",
+          "$.validOrderPercentage.draftOrder.totalDiscountsSet",
+          "$.validLinePercentage.userErrors",
+          "$.validLinePercentage.draftOrder.lineItems",
+          "$.validLinePercentage.draftOrder.totalDiscountsSet"
+        ]
+      },
+      {
+        "name": "update-applied-discount-value-validation",
+        "capturePath": "$.updateValidation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-applied-discount-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "orderPercentageAboveMax": {
+              "fromCapturePath": "$.updateValidation.variables.orderPercentageAboveMax"
+            },
+            "orderPercentageNegative": {
+              "fromCapturePath": "$.updateValidation.variables.orderPercentageNegative"
+            },
+            "orderValueTooPrecise": {
+              "fromCapturePath": "$.updateValidation.variables.orderValueTooPrecise"
+            },
+            "linePercentageAboveMax": {
+              "fromCapturePath": "$.updateValidation.variables.linePercentageAboveMax"
+            },
+            "linePercentageNegative": {
+              "fromCapturePath": "$.updateValidation.variables.linePercentageNegative"
+            },
+            "lineValueTooPrecise": {
+              "fromCapturePath": "$.updateValidation.variables.lineValueTooPrecise"
+            },
+            "validOrderPercentage": {
+              "fromCapturePath": "$.updateValidation.variables.validOrderPercentage"
+            },
+            "validLinePercentage": {
+              "fromCapturePath": "$.updateValidation.variables.validLinePercentage"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.orderPercentageAboveMax",
+          "$.orderValueTooPrecise",
+          "$.linePercentageAboveMax",
+          "$.lineValueTooPrecise",
+          "$.orderPercentageNegative.userErrors",
+          "$.linePercentageNegative.userErrors",
+          "$.validOrderPercentage.userErrors",
+          "$.validOrderPercentage.draftOrder.appliedDiscount",
+          "$.validOrderPercentage.draftOrder.totalDiscountsSet",
+          "$.validLinePercentage.userErrors",
+          "$.validLinePercentage.draftOrder.lineItems"
+        ]
+      },
+      {
+        "name": "calculate-applied-discount-value-validation",
+        "capturePath": "$.calculateValidation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-applied-discount-validation-calculate.graphql",
+          "variablesCapturePath": "$.calculateValidation.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.orderPercentageAboveMax",
+          "$.orderValueTooPrecise",
+          "$.linePercentageAboveMax",
+          "$.lineValueTooPrecise",
+          "$.orderPercentageNegative.userErrors",
+          "$.linePercentageNegative.userErrors",
+          "$.validOrderPercentage",
+          "$.validLinePercentage"
+        ]
+      },
+      {
+        "name": "value-type-coercion-errors",
+        "capturePath": "$.missingValueTypeValidation.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-applied-discount-value-type-required.graphql",
+          "variablesCapturePath": "$.missingValueTypeValidation.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify 2026-04 DraftOrderAppliedDiscountInput validation for order-level and line-level appliedDiscount values across draftOrderCreate, draftOrderUpdate, and draftOrderCalculate. Percentage values above 100 and percentage values with more than two decimal places return mutation userErrors. Missing or out-of-enum valueType fails earlier as INVALID_VARIABLE GraphQL coercion. Live 2025-01 and 2026-04 probes accepted negative percentage values, so the proxy intentionally does not reject them."
+}

@@ -2199,6 +2199,160 @@ fn draft_order_validations_return_captured_error_shapes_without_staging() {
     );
 }
 
+fn without_id_fields(value: &Value) -> Value {
+    match value {
+        Value::Array(values) => Value::Array(values.iter().map(without_id_fields).collect()),
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .filter(|(key, _)| key.as_str() != "id")
+                .map(|(key, value)| (key.clone(), without_id_fields(value)))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
+fn assert_discount_validation_rejected_aliases(actual: &Value, expected: &Value) {
+    for alias in [
+        "orderPercentageAboveMax",
+        "orderValueTooPrecise",
+        "linePercentageAboveMax",
+        "lineValueTooPrecise",
+    ] {
+        assert_eq!(actual[alias], expected[alias], "{alias}");
+    }
+}
+
+fn assert_discount_validation_accepted_aliases(
+    actual: &Value,
+    expected: &Value,
+    resource_name: &str,
+) {
+    for alias in [
+        "orderPercentageNegative",
+        "linePercentageNegative",
+        "validOrderPercentage",
+        "validLinePercentage",
+    ] {
+        assert_eq!(actual[alias]["userErrors"], json!([]), "{alias}");
+        assert_eq!(expected[alias]["userErrors"], json!([]), "{alias}");
+        assert!(
+            actual[alias][resource_name].is_object(),
+            "{alias} should return {resource_name}"
+        );
+    }
+}
+
+#[test]
+fn draft_order_applied_discount_validation_replays_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-applied-discount-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-applied-discount-validation-create.graphql"
+        ),
+        fixture["createValidation"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    let create_data = &create.body["data"];
+    let expected_create = &fixture["createValidation"]["response"]["data"];
+    assert_discount_validation_rejected_aliases(create_data, expected_create);
+    assert_discount_validation_accepted_aliases(create_data, expected_create, "draftOrder");
+    assert_eq!(
+        without_id_fields(&create_data["validOrderPercentage"]),
+        without_id_fields(&expected_create["validOrderPercentage"])
+    );
+    assert_eq!(
+        without_id_fields(&create_data["validLinePercentage"]),
+        without_id_fields(&expected_create["validLinePercentage"])
+    );
+
+    let setup = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-applied-discount-validation-setup.graphql"
+        ),
+        fixture["setupCreate"]["variables"].clone(),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(
+        setup.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_id = setup.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let mut update_variables = fixture["updateValidation"]["variables"].clone();
+    update_variables["id"] = draft_id;
+    let update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-applied-discount-validation-update.graphql"
+        ),
+        update_variables,
+    ));
+    assert_eq!(update.status, 200);
+    let update_data = &update.body["data"];
+    let expected_update = &fixture["updateValidation"]["response"]["data"];
+    assert_discount_validation_rejected_aliases(update_data, expected_update);
+    assert_discount_validation_accepted_aliases(update_data, expected_update, "draftOrder");
+    assert_eq!(
+        without_id_fields(&update_data["validOrderPercentage"]),
+        without_id_fields(&expected_update["validOrderPercentage"])
+    );
+    assert_eq!(
+        update_data["validLinePercentage"]["draftOrder"]["lineItems"],
+        expected_update["validLinePercentage"]["draftOrder"]["lineItems"]
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-applied-discount-validation-calculate.graphql"
+        ),
+        fixture["calculateValidation"]["variables"].clone(),
+    ));
+    assert_eq!(calculate.status, 200);
+    let calculate_data = &calculate.body["data"];
+    let expected_calculate = &fixture["calculateValidation"]["response"]["data"];
+    assert_discount_validation_rejected_aliases(calculate_data, expected_calculate);
+    assert_discount_validation_accepted_aliases(
+        calculate_data,
+        expected_calculate,
+        "calculatedDraftOrder",
+    );
+    assert_eq!(
+        calculate_data["validOrderPercentage"],
+        expected_calculate["validOrderPercentage"]
+    );
+    assert_eq!(
+        calculate_data["validLinePercentage"],
+        expected_calculate["validLinePercentage"]
+    );
+}
+
+#[test]
+fn draft_order_applied_discount_value_type_coercion_matches_capture() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-applied-discount-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-applied-discount-value-type-required.graphql"
+        ),
+        fixture["missingValueTypeValidation"]["variables"].clone(),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"],
+        fixture["missingValueTypeValidation"]["response"]["errors"]
+    );
+    assert!(response.body.get("data").is_none());
+}
+
 #[test]
 fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
     let malformed_fixture: Value = serde_json::from_str(include_str!(

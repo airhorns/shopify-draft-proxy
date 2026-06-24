@@ -151,6 +151,20 @@ accepted payment terms, and later rapid attempts hit Shopify's order-create rate
 guard. The checked-in paid-update anchor is
 `config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
 
+## Current: Draft-order percentage discounts accept negative values
+
+Admin GraphQL 2025-01 and 2026-04 probes against
+`harry-test-heelo.myshopify.com` accepted `DraftOrderAppliedDiscountInput` with
+`valueType: PERCENTAGE` and `value: -5` for order-level and line-item discounts
+across draft-order create/update/calculate flows. The same 2026-04 capture
+rejected percentages above 100 and values with more than two decimal places,
+and rejected missing or invalid `valueType` during GraphQL variable coercion.
+
+Practical rule: do not add a local `value >= 0` rejection for draft-order
+applied discounts unless a newer public Admin capture shows Shopify changed this
+branch. The checked-in anchor is
+`config/parity-specs/orders/draftOrder-applied-discount-validation.json`.
+
 ## Current: productCreate legacy ProductInput key guard differs from internal notes
 
 A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed

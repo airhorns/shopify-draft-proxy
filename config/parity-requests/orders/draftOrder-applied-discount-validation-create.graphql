@@ -1,0 +1,131 @@
+mutation DraftOrderAppliedDiscountValidationCreate(
+  $orderPercentageAboveMax: DraftOrderInput!
+  $orderPercentageNegative: DraftOrderInput!
+  $orderValueTooPrecise: DraftOrderInput!
+  $linePercentageAboveMax: DraftOrderInput!
+  $linePercentageNegative: DraftOrderInput!
+  $lineValueTooPrecise: DraftOrderInput!
+  $validOrderPercentage: DraftOrderInput!
+  $validLinePercentage: DraftOrderInput!
+) {
+  orderPercentageAboveMax: draftOrderCreate(input: $orderPercentageAboveMax) {
+    draftOrder {
+      id
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderPercentageNegative: draftOrderCreate(input: $orderPercentageNegative) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderValueTooPrecise: draftOrderCreate(input: $orderValueTooPrecise) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageAboveMax: draftOrderCreate(input: $linePercentageAboveMax) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageNegative: draftOrderCreate(input: $linePercentageNegative) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  lineValueTooPrecise: draftOrderCreate(input: $lineValueTooPrecise) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validOrderPercentage: draftOrderCreate(input: $validOrderPercentage) {
+    draftOrder {
+      id
+      appliedDiscount {
+        value
+        valueType
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validLinePercentage: draftOrderCreate(input: $validLinePercentage) {
+    draftOrder {
+      id
+      lineItems(first: 5) {
+        nodes {
+          appliedDiscount {
+            value
+            valueType
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
