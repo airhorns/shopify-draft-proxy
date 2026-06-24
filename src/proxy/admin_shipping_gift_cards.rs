@@ -1214,8 +1214,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(json!({
-                "field": ["base"],
-                "message": "Source app is missing.",
+                "field": ["id"],
+                "message": "No app found on the access token.",
                 "code": "MISSING_SOURCE_APP"
             }));
         } else {

@@ -7470,6 +7470,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/apps/app-subscription-line-item-update-validation.json',
       'config/parity-specs/apps/app-billing-access-local-staging.json',
       'config/parity-specs/apps/app-revoke-access-scopes-error-codes.json',
+      'fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes-anonymous.graphql',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes-ordinary-operation-name.graphql',
@@ -7490,6 +7491,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Local-runtime only; the script executes supported mutations against a local proxy with no Shopify upstream writes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The appRevokeAccessScopes missing-source-app branch is Core-source-derived because valid public Admin requests provide source app context and unauthenticated requests fail before resolver execution.',
   },
   {
     domain: 'apps',
