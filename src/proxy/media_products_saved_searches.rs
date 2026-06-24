@@ -3,7 +3,6 @@ use super::*;
 mod bulk_operations;
 mod media;
 mod owner_metafields;
-mod saved_search;
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
