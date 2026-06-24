@@ -6948,21 +6948,6 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         }])
     );
 
-    let unsupported_currency = store_credit_credit_error(
-        &mut proxy,
-        &customer_id,
-        json!({ "amount": "1.00", "currencyCode": "CHF" }),
-        None,
-    );
-    assert_eq!(
-        unsupported_currency,
-        json!([{
-            "field": ["creditInput", "creditAmount", "currencyCode"],
-            "message": "Currency is not supported",
-            "code": "UNSUPPORTED_CURRENCY"
-        }])
-    );
-
     let unsupported_debit_currency = store_credit_debit_error(
         &mut proxy,
         &account_id,
@@ -7061,6 +7046,105 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
     assert_eq!(
         entries, 2,
         "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_credit_accepts_live_accepted_ordinary_currency() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditAcceptedCurrency($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: CHF } }) {
+            storeCreditAccountTransaction {
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account {
+                id
+                balance { amount currencyCode }
+                owner { ... on Customer { id email } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    let transaction =
+        &response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"];
+    assert_eq!(
+        transaction["amount"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(
+        transaction["balanceAfterTransaction"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(
+        transaction["account"]["balance"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(transaction["account"]["owner"]["id"], json!(customer_id));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "customerCreate and successful CHF credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_result_only_currency_codes_return_top_level_error_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    for currency in ["USDC", "XXX"] {
+        let response = store_credit_credit_response(
+            &mut proxy,
+            &customer_id,
+            json!({ "amount": "1.00", "currencyCode": currency }),
+            None,
+        );
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["storeCreditAccountCredit"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!(
+                "CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."
+            ))
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("CURRENCY_CODE_INVALID")
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"],
+            json!(["storeCreditAccountCredit"])
+        );
+    }
+
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "result-only currency failures should not stage store-credit mutations"
     );
 }
 
