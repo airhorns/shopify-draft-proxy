@@ -3215,7 +3215,47 @@ impl DraftProxy {
                 "message": "Your shop has reached its location limit."
             })];
         }
+        if self.location_has_non_unique_active_name(location) {
+            return vec![json!({
+                "field": ["locationId"],
+                "code": "HAS_NON_UNIQUE_NAME",
+                "message": "This location currently cannot be activated because there exists an active location with the same name."
+            })];
+        }
         Vec::new()
+    }
+
+    fn location_has_non_unique_active_name(&self, location: &Value) -> bool {
+        if location.get("isActive").and_then(Value::as_bool) == Some(true) {
+            return false;
+        }
+        let Some(target_id) = location.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        let Some(target_name) = location.get("name").and_then(Value::as_str) else {
+            return false;
+        };
+
+        let mut location_ids = BTreeSet::new();
+        for (id, _) in self.store.staged.locations.iter() {
+            location_ids.insert(id.clone());
+        }
+        for id in self.store.staged.observed_shipping_locations.keys() {
+            location_ids.insert(id.clone());
+        }
+        for (id, _) in self.store.staged.fulfillment_service_locations.iter() {
+            location_ids.insert(id.clone());
+        }
+
+        location_ids.iter().any(|id| {
+            if id == target_id {
+                return false;
+            }
+            self.location_for_read(id).is_some_and(|candidate| {
+                candidate.get("isActive").and_then(Value::as_bool) == Some(true)
+                    && candidate.get("name").and_then(Value::as_str) == Some(target_name)
+            })
+        })
     }
 
     /// Hydrates a baseline location from upstream for lifecycle mutations

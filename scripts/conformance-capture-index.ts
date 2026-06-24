@@ -8783,6 +8783,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'store-properties',
+    captureId: 'location-activate-non-unique-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-non-unique-name-conformance.mts',
+    purpose:
+      'locationActivate HAS_NON_UNIQUE_NAME validation when an inactive target name collides with another active shop location.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-non-unique-name.json',
+      'config/parity-specs/store-properties/location-activate-non-unique-name.json',
+      'config/parity-requests/store-properties/location-activate-non-unique-observed-active.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations with the same name by deactivating the target before creating the active duplicate, records the rejected activation, then deactivates/deletes both locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
