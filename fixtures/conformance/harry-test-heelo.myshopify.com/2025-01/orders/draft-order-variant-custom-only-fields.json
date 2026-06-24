@@ -1,0 +1,342 @@
+{
+  "scenarioId": "draft-order-variant-custom-only-fields",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-24T01:01:25.713Z",
+  "source": "live-shopify-admin-graphql",
+  "setup": {
+    "productCreate": {
+      "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Draft order catalog source 20260624010123",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220301549874",
+              "title": "Draft order catalog source 20260624010123",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359250350386",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productVariantsBulkUpdate": {
+      "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n        title\n        sku\n        taxable\n        price\n        inventoryItem {\n          requiresShipping\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10220301549874",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51359250350386",
+            "price": "19.95",
+            "taxable": true,
+            "inventoryItem": {
+              "sku": "DRAFT-CATALOG-20260624010123",
+              "requiresShipping": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51359250350386",
+                "title": "Default Title",
+                "sku": "DRAFT-CATALOG-20260624010123",
+                "taxable": true,
+                "price": "19.95",
+                "inventoryItem": {
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variantHydrate": {
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/51359250350386"
+      },
+      "response": {
+        "data": {
+          "productVariant": {
+            "id": "gid://shopify/ProductVariant/51359250350386",
+            "title": "Default Title",
+            "sku": "DRAFT-CATALOG-20260624010123",
+            "taxable": true,
+            "price": "19.95",
+            "inventoryItem": {
+              "requiresShipping": true
+            },
+            "product": {
+              "title": "Draft order catalog source 20260624010123"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "draftOrderCreate": {
+    "query": "mutation DraftOrderVariantCustomOnlyFieldsCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      lineItems(first: 5) {\n        nodes {\n          title\n          name\n          sku\n          quantity\n          custom\n          requiresShipping\n          taxable\n          variant {\n            id\n            title\n            sku\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "draft-order-variant-custom-fields-20260624010123@example.com",
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51359250350386",
+            "title": "Bogus custom title",
+            "sku": "BOGUS-CUSTOM-SKU",
+            "quantity": 2,
+            "originalUnitPrice": "0.01",
+            "taxable": false,
+            "requiresShipping": false
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270117335346",
+            "lineItems": {
+              "nodes": [
+                {
+                  "title": "Draft order catalog source 20260624010123",
+                  "name": "Draft order catalog source 20260624010123",
+                  "sku": "DRAFT-CATALOG-20260624010123",
+                  "quantity": 2,
+                  "custom": false,
+                  "requiresShipping": true,
+                  "taxable": true,
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/51359250350386",
+                    "title": "Default Title",
+                    "sku": "DRAFT-CATALOG-20260624010123"
+                  },
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "19.95",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftOrderCalculate": {
+    "query": "mutation DraftOrderVariantCustomOnlyFieldsCalculate($input: DraftOrderInput!) {\n  draftOrderCalculate(input: $input) {\n    calculatedDraftOrder {\n      lineItems {\n        title\n        quantity\n        custom\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51359250350386",
+            "title": "Bogus custom title",
+            "sku": "BOGUS-CUSTOM-SKU",
+            "quantity": 2,
+            "originalUnitPrice": "0.01",
+            "taxable": false,
+            "requiresShipping": false
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCalculate": {
+          "calculatedDraftOrder": {
+            "lineItems": [
+              {
+                "title": "Draft order catalog source 20260624010123",
+                "quantity": 2,
+                "custom": false,
+                "originalUnitPriceSet": {
+                  "shopMoney": {
+                    "amount": "19.95",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/51359250350386"
+      },
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/51359250350386",
+              "title": "Default Title",
+              "sku": "DRAFT-CATALOG-20260624010123",
+              "taxable": true,
+              "price": "19.95",
+              "inventoryItem": {
+                "requiresShipping": true
+              },
+              "product": {
+                "title": "Draft order catalog source 20260624010123"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "draftOrderDelete": {
+      "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsDraftDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/DraftOrder/1270117335346"
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1270117335346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "productDelete": {
+      "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10220301549874"
+        }
+      },
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10220301549874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  }
+}
