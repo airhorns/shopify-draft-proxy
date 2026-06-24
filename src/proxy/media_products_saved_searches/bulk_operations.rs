@@ -716,8 +716,10 @@ fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> 
     let analysis = BulkQueryAnalysis::analyze(&document.root_fields);
     let mut errors = Vec::new();
     if !analysis.nodes_connection_fields.is_empty() {
+        let example_connection = &analysis.nodes_connection_fields[0];
         errors.push(bulk_operation_run_query_user_error(&format!(
-            "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products {{ edges {{ node {{'. Selecting via 'nodes' is not supported. Invalid connection fields: '{}'.",
+            "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: '{} {{ edges {{ node {{'. Selecting via 'nodes' is not supported. Invalid connection fields: '{}'.",
+            example_connection,
             analysis.nodes_connection_fields.join("', '")
         )));
     }
