@@ -1,0 +1,192 @@
+{
+  "capturedAt": "2026-06-24T09:44:55.023Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "defaultProfileLookup": {
+      "query": "query DeliveryProfileDefaultLookup($first: Int!) {\n    deliveryProfiles(first: $first) {\n      edges {\n        node {\n          id\n          name\n          default\n          version\n        }\n      }\n    }\n  }",
+      "variables": {
+        "first": 10
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 3
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "defaultProfileHydrateBeforeUpdate": {
+      "query": "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/125254992178"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/125254992178",
+              "name": "General profile",
+              "default": true,
+              "version": 3
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "query": "mutation DeliveryProfileDefaultUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n        default\n        version\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/DeliveryProfile/125254992178",
+      "profile": {
+        "name": "Default profile parity 1782294294658"
+      }
+    },
+    "result": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "deliveryProfileUpdate": {
+            "profile": {
+              "id": "gid://shopify/DeliveryProfile/125254992178",
+              "name": "General profile",
+              "default": true,
+              "version": 4
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readBack": {
+    "query": "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }",
+    "variables": {
+      "id": "gid://shopify/DeliveryProfile/125254992178"
+    },
+    "result": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "deliveryProfile": {
+            "id": "gid://shopify/DeliveryProfile/125254992178",
+            "name": "General profile",
+            "default": true,
+            "version": 4
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "restoreOriginalName": null
+  },
+  "expectedProxyLog": {
+    "entries": [
+      {
+        "interpreted": {
+          "primaryRootField": "deliveryProfileUpdate"
+        },
+        "stagedResourceIds": ["gid://shopify/DeliveryProfile/125254992178"],
+        "status": "staged"
+      }
+    ]
+  },
+  "notes": [
+    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
+    "Setup reads deliveryProfiles to find the default profile id, hydrates that profile with the same read query used by the proxy update path, sends a name update for the default profile, reads it back, and restores the original name only if Shopify returns a changed display name.",
+    "Admin GraphQL 2026-04 accepts the default-profile name update with empty userErrors and increments version; the selected public payload preserves the default profile display name.",
+    "The selected mutation payload compares id, name, default, version, and userErrors exactly."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileUpdateHydrate",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/125254992178"
+      },
+      "query": "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/125254992178",
+              "name": "General profile",
+              "default": true,
+              "version": 3
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

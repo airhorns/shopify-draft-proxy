@@ -48,6 +48,7 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // locally, to learn whether the target is the shop's default profile (which
 // cannot be deleted) from real store state rather than guessing.
 const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
+const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -1517,7 +1518,10 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Vec<String>) {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(mut profile) = self.delivery_profile_for_read(&id) else {
+        let Some(mut profile) = self
+            .delivery_profile_for_read(&id)
+            .or_else(|| self.delivery_profile_hydrate_for_update(&id, request))
+        else {
             return (
                 delivery_profile_payload_json(
                     Value::Null,
@@ -1530,19 +1534,6 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
-        if profile["default"].as_bool() == Some(true) {
-            return (
-                delivery_profile_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Profile could not be updated."
-                    })],
-                ),
-                Vec::new(),
-            );
-        }
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
         let user_errors = delivery_profile_update_user_errors(&profile_input);
@@ -1553,8 +1544,10 @@ impl DraftProxy {
             );
         }
 
-        if let Some(name) = resolved_string_field(&profile_input, "name") {
-            profile["name"] = json!(name);
+        if profile["default"].as_bool() != Some(true) {
+            if let Some(name) = resolved_string_field(&profile_input, "name") {
+                profile["name"] = json!(name);
+            }
         }
         let version = profile["version"].as_i64().unwrap_or(1) + 1;
         profile["version"] = json!(version);
@@ -1973,6 +1966,38 @@ impl DraftProxy {
             .and_then(|profile| profile.get("default"))
             .and_then(Value::as_bool)
             .unwrap_or(false)
+    }
+
+    fn delivery_profile_hydrate_for_update(&self, id: &str, request: &Request) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid || id.is_empty() {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        let mut profile = response
+            .body
+            .pointer("/data/deliveryProfile")
+            .or_else(|| response.body.pointer("/data/node"))
+            .filter(|profile| profile.get("id").and_then(Value::as_str) == Some(id))?
+            .clone();
+        if profile.get("profileLocationGroups").is_none() {
+            profile["profileLocationGroups"] = json!([]);
+        }
+        if profile.get("profileItems").is_none() {
+            profile["profileItems"] = json!([]);
+        }
+        if profile.get("sellingPlanGroups").is_none() {
+            profile["sellingPlanGroups"] = json!([]);
+        }
+        if profile.get("unassignedLocations").is_none() {
+            profile["unassignedLocations"] = json!([]);
+        }
+        Some(profile)
     }
 
     fn stage_delivery_profile(&mut self, profile: Value) {

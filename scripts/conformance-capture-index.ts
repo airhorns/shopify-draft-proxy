@@ -9147,6 +9147,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-default-update',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-default-update-conformance.ts',
+    purpose: 'Name-only deliveryProfileUpdate behavior for the shop default delivery profile.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delivery-profile-default-update.json`,
+      'config/parity-specs/shipping-fulfillments/delivery-profile-default-update.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-default-update.graphql',
+    ],
+    cleanupBehavior:
+      'Finds the existing default delivery profile, updates its name for the capture, reads it back, then restores the original name in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'shipping-settings',
     scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
     purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',

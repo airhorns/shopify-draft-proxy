@@ -3702,6 +3702,9 @@ Observed behavior:
   accepted by the public API in the captured probe
 - duplicate `US` countries across two `zonesToCreate` entries in an update were
   accepted by the public API in the captured probe
+- a name-input update against the shop default delivery profile returned empty
+  `userErrors` and incremented `version`, but the selected public payload kept
+  the default profile display name as `General profile`
 
 Practical rule:
 
@@ -3709,6 +3712,9 @@ Practical rule:
   keep ticket-required local guardrails for `profileLocationGroups` unknown
   locations and overlapping zone countries covered by runtime tests unless newer
   public evidence shows a different update-side rejection shape
+- do not reject default-profile updates just because the profile is default;
+  for the public name-input branch, preserve the hydrated default display name
+  while staging Shopify's accepted payload shape
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 
