@@ -889,6 +889,97 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
 }
 
 #[test]
+fn product_variants_bulk_create_rejects_inventory_quantity_caps_atomically() {
+    let product_id = "gid://shopify/Product/1";
+    let mutation = r#"
+        mutation BulkVariantCreateInventoryCaps($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { id }
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query BulkVariantCreateInventoryCapsRead($productId: ID!) {
+          product(id: $productId) {
+            variants(first: 10) { nodes { id } }
+          }
+        }
+        "#;
+    let inventory_quantities = (0..25)
+        .map(|_| json!({ "availableQuantity": 1, "locationId": "gid://shopify/Location/1" }))
+        .collect::<Vec<_>>();
+    let variants_over_total_limit = (0..2048)
+        .map(|_| json!({ "inventoryQuantities": inventory_quantities.clone() }))
+        .collect::<Vec<_>>();
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let response = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "productId": product_id,
+            "variants": variants_over_total_limit
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkCreate"],
+        json!({
+            "product": null,
+            "productVariants": [],
+            "userErrors": [{
+                "field": ["variants"],
+                "message": "Inventory quantity input exceeds the limit of 50000. Consider using separate `inventorySetQuantities` mutations.",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+
+    let too_many_locations = (0..201)
+        .map(|_| json!({ "availableQuantity": 1, "locationId": "gid://shopify/Location/1" }))
+        .collect::<Vec<_>>();
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let response = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "price": "10",
+                "inventoryQuantities": too_many_locations
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkCreate"],
+        json!({
+            "product": null,
+            "productVariants": [],
+            "userErrors": [{
+                "field": ["variants", "0"],
+                "message": "Inventory locations cannot exceed the allowed resource limit",
+                "code": "TOO_MANY_INVENTORY_LOCATIONS"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+}
+
+#[test]
 fn product_variants_bulk_reorder_rejects_invalid_inputs_atomically() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
         .with_base_products(vec![seed_product("gid://shopify/Product/1")])

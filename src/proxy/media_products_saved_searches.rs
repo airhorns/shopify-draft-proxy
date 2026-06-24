@@ -13,6 +13,10 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+
+const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
+const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
+
 impl DraftProxy {
     pub(in crate::proxy) fn record_passthrough_log_entry(
         &mut self,
@@ -1595,6 +1599,17 @@ impl DraftProxy {
                 )],
             ));
         };
+        if let Some(error) =
+            Self::product_variant_bulk_inventory_quantities_limit_user_error(&variants_input)
+        {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                None,
+                Some(Vec::new()),
+                vec![error],
+            ));
+        }
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
@@ -2297,6 +2312,24 @@ impl DraftProxy {
         })
     }
 
+    fn product_variant_bulk_inventory_quantities_limit_user_error(
+        variants_input: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let quantity_count: usize = variants_input
+            .iter()
+            .map(|input| resolved_object_list_field(input, "inventoryQuantities").len())
+            .sum();
+        if quantity_count > PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT {
+            Some(Self::bulk_user_error(
+                &["variants"],
+                "Inventory quantity input exceeds the limit of 50000. Consider using separate `inventorySetQuantities` mutations.",
+                Some("INVALID_INPUT"),
+            ))
+        } else {
+            None
+        }
+    }
+
     fn product_variant_bulk_option_user_errors(
         input: &BTreeMap<String, ResolvedValue>,
         product: &ProductRecord,
@@ -2433,18 +2466,23 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         index: usize,
     ) -> Vec<Value> {
+        let inventory_quantities = resolved_object_list_field(input, "inventoryQuantities");
+        if inventory_quantities.len() > self.product_variant_bulk_inventory_location_limit() {
+            return vec![Self::bulk_user_error(
+                &["variants", &index.to_string()],
+                "Inventory locations cannot exceed the allowed resource limit",
+                Some("TOO_MANY_INVENTORY_LOCATIONS"),
+            )];
+        }
         let variant_title = resolved_product_variant_selected_options(input)
             .iter()
             .map(|option| option.value.as_str())
             .collect::<Vec<_>>()
             .join(" / ");
-        if resolved_object_list_field(input, "inventoryQuantities")
-            .iter()
-            .any(|quantity| {
-                resolved_string_field(quantity, "locationId")
-                    .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
-            })
-        {
+        if inventory_quantities.iter().any(|quantity| {
+            resolved_string_field(quantity, "locationId")
+                .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
+        }) {
             vec![Self::bulk_user_error(
                 &["variants", &index.to_string(), "inventoryQuantities"],
                 &format!(
@@ -2460,6 +2498,18 @@ impl DraftProxy {
         } else {
             Vec::new()
         }
+    }
+
+    fn product_variant_bulk_inventory_location_limit(&self) -> usize {
+        self.store
+            .base
+            .shop
+            .get("resourceLimits")
+            .and_then(|limits| limits.get("locationLimit"))
+            .and_then(Value::as_u64)
+            .and_then(|limit| usize::try_from(limit).ok())
+            .filter(|limit| *limit > 0)
+            .unwrap_or(PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT)
     }
 
     fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
