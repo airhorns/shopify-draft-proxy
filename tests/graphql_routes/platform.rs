@@ -4433,6 +4433,91 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
 }
 
 #[test]
+fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
+    let mut proxy = snapshot_proxy();
+    let update_query = r#"
+        mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type body }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query ShopPolicyRead {
+          shop { shopPolicies { type body } }
+        }
+    "#;
+
+    let invalid_privacy = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": "{% unknownTag %}" } }),
+    ));
+    assert_eq!(invalid_privacy.status, 200);
+    assert_eq!(
+        invalid_privacy.body["data"]["shopPolicyUpdate"],
+        json!({
+            "shopPolicy": null,
+            "userErrors": [{
+                "field": ["shopPolicy", "body"],
+                "message": "Body Liquid syntax error: Unknown tag 'unknownTag'",
+                "code": null
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        read_after_invalid.body["data"]["shop"]["shopPolicies"],
+        json!([])
+    );
+
+    let refund = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "REFUND_POLICY", "body": "{% unknownTag %}" } }),
+    ));
+    assert_eq!(refund.status, 200);
+    assert_eq!(
+        refund.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        refund.body["data"]["shopPolicyUpdate"]["shopPolicy"]["body"],
+        json!("{% unknownTag %}")
+    );
+
+    let valid_privacy_body = "Line one {{ shop.name }}";
+    let valid_privacy = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": valid_privacy_body } }),
+    ));
+    assert_eq!(valid_privacy.status, 200);
+    assert_eq!(
+        valid_privacy.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid_privacy.body["data"]["shopPolicyUpdate"]["shopPolicy"]["body"],
+        json!(valid_privacy_body)
+    );
+
+    let read = proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        read.body["data"]["shop"]["shopPolicies"],
+        json!([
+            {
+                "type": "REFUND_POLICY",
+                "body": "{% unknownTag %}"
+            },
+            {
+                "type": "PRIVACY_POLICY",
+                "body": valid_privacy_body
+            }
+        ])
+    );
+}
+
+#[test]
 fn shop_policy_update_validation_branches_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
     let query = r#"

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "shop-policy-update-privacy-liquid-validation",
+  "operationNames": ["shopPolicyUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-privacy-liquid-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.invalidPrivacyLiquidValidation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Validation-only capture for Shopify Core's privacy-policy-only Liquid parse branch. PRIVACY_POLICY bodies with invalid Liquid syntax return shopPolicy:null and a body userError; the rejected write does not mutate policy content and needs no cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "privacy-liquid-syntax-user-error",
+        "capturePath": "$.invalidPrivacyLiquidValidation.response.data.shopPolicyUpdate",
+        "proxyPath": "$.data.shopPolicyUpdate"
+      }
+    ]
+  }
+}

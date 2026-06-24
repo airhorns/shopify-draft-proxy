@@ -5866,6 +5866,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'shop-policy-privacy-liquid-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shop-policy-privacy-liquid-validation-conformance.ts',
+    purpose: 'shopPolicyUpdate PRIVACY_POLICY Liquid syntax validation for invalid policy bodies.',
+    requiredAuthScopes: ['read_content', 'write_content or policy-management access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-policy-update-privacy-liquid-validation.json`,
+      'config/parity-specs/store-properties/shop-policy-update-privacy-liquid-validation.json',
+      'config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture. Rejected privacy-policy Liquid syntax writes must return a body userError and must not mutate policy content.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policy-subscription-blank-body',
     scriptPath: 'scripts/capture-shop-policy-subscription-blank-body-conformance.ts',
     purpose:
