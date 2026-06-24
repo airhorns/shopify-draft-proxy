@@ -979,7 +979,7 @@ impl DraftProxy {
     ) -> bool {
         let normalized = country_code.to_ascii_uppercase();
         if self.store.staged.markets.is_empty() {
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             let domain = shop
                 .get("myshopifyDomain")
                 .and_then(Value::as_str)
@@ -3664,8 +3664,8 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
 /// root URLs. Falls back to the conformance default when the shop record has no
 /// `myshopifyDomain` (mirrors the fallback used by region-coverage lookups).
 fn web_presence_shop_domain(store: &Store) -> String {
-    effective_shop_json(store)
-        .get("myshopifyDomain")
+    let shop = store.effective_shop();
+    shop.get("myshopifyDomain")
         .and_then(Value::as_str)
         .unwrap_or("harry-test-heelo.myshopify.com")
         .to_string()

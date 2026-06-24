@@ -9250,6 +9250,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-name-boundary',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-name-boundary-conformance.ts',
+    purpose: 'deliveryProfileCreate and deliveryProfileUpdate name length boundary behavior at 128 and 129 characters.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-name-boundary.json',
+      'config/parity-specs/shipping-fulfillments/delivery-profile-name-boundary.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable delivery profile with a 128-character name, records 128-character update and 129-character create/update boundaries, then removes the profile in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profile-default-update',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-default-update-conformance.ts',
