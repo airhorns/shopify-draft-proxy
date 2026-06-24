@@ -1685,6 +1685,27 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
         })
     );
 
+    let variant_only = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToAdd": [variant_id] }
+        }),
+    ));
+    assert_eq!(variant_only.body["data"]["publicationUpdate"], Value::Null);
+    assert_eq!(
+        variant_only.body["errors"][0]["message"],
+        json!(format!("Invalid id: {variant_id}"))
+    );
+    assert_eq!(
+        variant_only.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        variant_only.body["errors"][0]["path"],
+        json!(["publicationUpdate"])
+    );
+
     let mixed = proxy.process_request(json_graphql_request(
         update_query,
         json!({
@@ -1692,13 +1713,18 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
             "input": { "publishablesToAdd": [product_id, variant_id] }
         }),
     ));
+    assert_eq!(mixed.body["data"]["publicationUpdate"], Value::Null);
     assert_eq!(
-        mixed.body["data"]["publicationUpdate"]["userErrors"],
-        json!([{
-            "field": ["input"],
-            "message": "Cannot combine products and variants in the same publication update",
-            "code": "CANNOT_COMBINE_PRODUCTS_AND_VARIANTS"
-        }])
+        mixed.body["errors"][0]["message"],
+        json!(format!("Invalid id: {variant_id}"))
+    );
+    assert_eq!(
+        mixed.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        mixed.body["errors"][0]["path"],
+        json!(["publicationUpdate"])
     );
 
     let invalid = proxy.process_request(json_graphql_request(

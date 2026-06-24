@@ -1,5 +1,19 @@
 use super::*;
 
+struct ProductTailMutationFieldResult {
+    value: Value,
+    errors: Vec<Value>,
+}
+
+impl ProductTailMutationFieldResult {
+    fn value(value: Value) -> Self {
+        Self {
+            value,
+            errors: Vec::new(),
+        }
+    }
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn products_mutation_tail_helper_response(
         &mut self,
@@ -34,22 +48,25 @@ impl DraftProxy {
         }
 
         let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
         for field in fields {
-            let value = match field.name.as_str() {
-                "publicationCreate" => {
-                    self.product_tail_publication_create(&field, request, query, variables)
-                }
+            let result = match field.name.as_str() {
+                "publicationCreate" => ProductTailMutationFieldResult::value(
+                    self.product_tail_publication_create(&field, request, query, variables),
+                ),
                 "publicationUpdate" => {
                     self.product_tail_publication_update(&field, request, query, variables)
                 }
-                "publicationDelete" => {
-                    self.product_tail_publication_delete(&field, request, query, variables)
-                }
-                "productFeedCreate" => {
-                    self.product_tail_feed_create(&field, request, query, variables)
-                }
-                "productFullSync" => self.product_tail_full_sync(&field, request, query, variables),
-                "job" => self.product_tail_job_read(&field),
+                "publicationDelete" => ProductTailMutationFieldResult::value(
+                    self.product_tail_publication_delete(&field, request, query, variables),
+                ),
+                "productFeedCreate" => ProductTailMutationFieldResult::value(
+                    self.product_tail_feed_create(&field, request, query, variables),
+                ),
+                "productFullSync" => ProductTailMutationFieldResult::value(
+                    self.product_tail_full_sync(&field, request, query, variables),
+                ),
+                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(&field)),
                 "bulkProductResourceFeedbackCreate" => {
                     self.record_products_tail_log(
                         request,
@@ -60,7 +77,10 @@ impl DraftProxy {
                         "failed",
                     );
                     let missing_product_ids = self.feedback_missing_product_ids(&field, request);
-                    product_tail_resource_feedback_payload(&field, &missing_product_ids)
+                    ProductTailMutationFieldResult::value(product_tail_resource_feedback_payload(
+                        &field,
+                        &missing_product_ids,
+                    ))
                 }
                 "shopResourceFeedbackCreate" => {
                     self.record_products_tail_log(
@@ -71,16 +91,23 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    product_tail_shop_feedback_payload(&field)
+                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(
+                        &field,
+                    ))
                 }
                 _ => continue,
             };
-            data.insert(field.response_key.clone(), value);
+            data.insert(field.response_key.clone(), result.value);
+            errors.extend(result.errors);
         }
         if data.is_empty() {
             return None;
         }
-        Some(ok_json(json!({ "data": Value::Object(data) })))
+        let mut response = serde_json::Map::from_iter([("data".to_string(), Value::Object(data))]);
+        if !errors.is_empty() {
+            response.insert("errors".to_string(), Value::Array(errors));
+        }
+        Some(ok_json(Value::Object(response)))
     }
 
     /// Next publication gid: one past the largest staged publication suffix, so
@@ -165,13 +192,13 @@ impl DraftProxy {
         selected_json(&payload, &field.selection)
     }
 
-    pub(in crate::proxy) fn product_tail_publication_update(
+    fn product_tail_publication_update(
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> ProductTailMutationFieldResult {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&field.arguments, "id");
         let record = id
@@ -186,33 +213,50 @@ impl DraftProxy {
                 Vec::new(),
                 "failed",
             );
-            return selected_json(
+            return ProductTailMutationFieldResult::value(selected_json(
                 &publication_not_found_payload("publication"),
                 &field.selection,
-            );
+            ));
         };
         let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
         let publishables_to_remove =
             resolved_string_list_field_unsorted(&input, "publishablesToRemove");
-        // Resolve publishable (product / variant) existence against real store
-        // state rather than a seeded catalog: forward a `nodes(...)` hydrate for
-        // any referenced product/variant not already staged and observe it, so the
-        // "Publishable ID not found." check below reflects upstream truth (a null
-        // node leaves the id unstaged -> reported missing). Shopify enforces the
-        // batch-size cap before resolving any publishable, so an oversized batch is
-        // left untouched; the limit error fires regardless of existence.
+        let publishable_count = publishables_to_add.len() + publishables_to_remove.len();
+        if publishable_count <= PUBLICATION_UPDATE_LIMIT {
+            if let Some(variant_id) = Self::first_publication_update_variant_id(
+                &publishables_to_add,
+                &publishables_to_remove,
+            ) {
+                self.record_products_tail_log(
+                    request,
+                    query,
+                    variables,
+                    "publicationUpdate",
+                    Vec::new(),
+                    "failed",
+                );
+                return ProductTailMutationFieldResult {
+                    value: Value::Null,
+                    errors: vec![Self::publication_update_invalid_variant_error(
+                        field, variant_id,
+                    )],
+                };
+            }
+        }
+        // Resolve Product publishable existence against real store state rather
+        // than a seeded catalog: forward a `nodes(...)` hydrate for any referenced
+        // product not already staged and observe it, so the "Publishable ID not
+        // found." check below reflects upstream truth (a null node leaves the id
+        // unstaged -> reported missing). Shopify enforces the batch-size cap before
+        // resolving publishables, so an oversized batch is left untouched; the limit
+        // error fires regardless of existence.
         if self.config.read_mode == ReadMode::LiveHybrid
-            && publishables_to_add.len() + publishables_to_remove.len() <= PUBLICATION_UPDATE_LIMIT
+            && publishable_count <= PUBLICATION_UPDATE_LIMIT
         {
             let pending = publishables_to_add
                 .iter()
                 .chain(publishables_to_remove.iter())
-                .filter(|id| {
-                    matches!(
-                        shopify_gid_resource_type(id),
-                        Some("Product") | Some("ProductVariant")
-                    )
-                })
+                .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
                 .filter(|id| !self.publication_update_publishable_exists(id))
                 .cloned()
                 .collect::<BTreeSet<_>>();
@@ -234,13 +278,13 @@ impl DraftProxy {
                 Vec::new(),
                 "failed",
             );
-            return selected_json(
+            return ProductTailMutationFieldResult::value(selected_json(
                 &json!({
                     "publication": null,
                     "userErrors": user_errors
                 }),
                 &field.selection,
-            );
+            ));
         };
         if let Some(auto_publish) = resolved_bool_field(&input, "autoPublish") {
             record["autoPublish"] = json!(auto_publish);
@@ -280,10 +324,10 @@ impl DraftProxy {
             vec![id],
             "staged",
         );
-        selected_json(
+        ProductTailMutationFieldResult::value(selected_json(
             &json!({ "publication": record, "userErrors": [] }),
             &field.selection,
-        )
+        ))
     }
 
     pub(in crate::proxy) fn product_tail_publication_delete(
@@ -363,6 +407,32 @@ impl DraftProxy {
         )
     }
 
+    fn first_publication_update_variant_id<'a>(
+        publishables_to_add: &'a [String],
+        publishables_to_remove: &'a [String],
+    ) -> Option<&'a str> {
+        publishables_to_add
+            .iter()
+            .chain(publishables_to_remove.iter())
+            .find(|id| shopify_gid_resource_type(id) == Some("ProductVariant"))
+            .map(String::as_str)
+    }
+
+    fn publication_update_invalid_variant_error(
+        field: &RootFieldSelection,
+        variant_id: &str,
+    ) -> Value {
+        json!({
+            "message": format!("Invalid id: {variant_id}"),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [field.response_key.clone()]
+        })
+    }
+
     fn publication_update_publishable_errors(
         &self,
         publishables_to_add: &[String],
@@ -377,18 +447,11 @@ impl DraftProxy {
         }
 
         let mut user_errors = Vec::new();
-        let mut has_product = false;
-        let mut has_variant = false;
         for (field_name, ids) in [
             ("publishablesToAdd", publishables_to_add),
             ("publishablesToRemove", publishables_to_remove),
         ] {
             for (index, id) in ids.iter().enumerate() {
-                match shopify_gid_resource_type(id) {
-                    Some("Product") => has_product = true,
-                    Some("ProductVariant") => has_variant = true,
-                    _ => {}
-                }
                 if !self.publication_update_publishable_exists(id) {
                     user_errors.push(publication_indexed_error(
                         field_name,
@@ -399,28 +462,12 @@ impl DraftProxy {
                 }
             }
         }
-        if user_errors.is_empty() && has_product && has_variant {
-            user_errors.push(publication_error(
-                vec!["input"],
-                "Cannot combine products and variants in the same publication update",
-                "CANNOT_COMBINE_PRODUCTS_AND_VARIANTS",
-            ));
-        }
         user_errors
     }
 
     fn publication_update_publishable_exists(&self, id: &str) -> bool {
         match shopify_gid_resource_type(id) {
             Some("Product") => self.product_record_by_id(id).is_some(),
-            Some("ProductVariant") => {
-                self.store.product_variant_by_id(id).is_some()
-                    || self
-                        .store
-                        .products()
-                        .iter()
-                        .flat_map(|product| product.variants.iter())
-                        .any(|variant| variant.get("id").and_then(Value::as_str) == Some(id))
-            }
             _ => false,
         }
     }
