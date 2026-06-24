@@ -1,6 +1,8 @@
 use super::resolved_values;
 use super::*;
 
+use crate::graphql::ParsedDocument;
+
 mod gift_cards;
 
 // Must byte-match the recorded upstream hydrate query in the store-properties
@@ -5869,6 +5871,11 @@ impl DraftProxy {
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
         let segment_id_input = resolved_string_field(&input, "segmentId");
+        if let Some(response) =
+            member_query_segment_id_top_level_error(query, variables, segment_id_input.as_deref())
+        {
+            return response;
+        }
         let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
             (Some(_), Some(_)) => vec![member_query_user_error(
                 json!(["input"]),
@@ -8470,6 +8477,72 @@ fn member_query_direct_query_error(query: &str) -> Option<Value> {
     let message = segment_query_unexpected_token_message(query)
         .unwrap_or_else(|| "Query is invalid.".to_string());
     Some(member_query_user_error(Value::Null, &message))
+}
+
+fn member_query_segment_id_top_level_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    segment_id: Option<&str>,
+) -> Option<Response> {
+    let segment_id = segment_id?;
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == "customerSegmentMembersQueryCreate")?;
+    match shopify_gid_resource_type(segment_id) {
+        Some("Segment") => None,
+        Some(_) => segment_id_top_level_error(segment_id, &field.response_key, field),
+        None => Some(ok_json(json!({
+            "errors": [member_query_segment_id_invalid_variable_error(&document, field, segment_id)
+                .unwrap_or_else(|| member_query_segment_id_invalid_literal_error(&document, field, segment_id))]
+        }))),
+    }
+}
+
+fn member_query_segment_id_invalid_variable_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Option<Value> {
+    let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("input")? else {
+        return None;
+    };
+    let value = value.as_ref()?;
+    let variable_definition = document.variable_definitions.get(name)?;
+    Some(invalid_variable_error(
+        VariableValidationContext {
+            variable_name: name,
+            variable_type: &variable_definition.type_display,
+            location: variable_definition.location,
+        },
+        value,
+        vec![variable_problem_with_message_value_path(
+            &[json!("segmentId")],
+            &format!("Invalid global id '{segment_id}'"),
+        )],
+    ))
+}
+
+fn member_query_segment_id_invalid_literal_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Value {
+    json!({
+        "message": format!("Invalid global id '{segment_id}'"),
+        "locations": [{"line": field.location.line, "column": field.location.column}],
+        "path": [
+            document.operation_path.as_str(),
+            field.response_key.as_str(),
+            "input",
+            "segmentId"
+        ],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
 }
 
 /// Locate the first token that cannot continue a `[NOT] <filter> <operator>`
