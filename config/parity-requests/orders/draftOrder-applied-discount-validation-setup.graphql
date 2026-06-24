@@ -1,0 +1,11 @@
+mutation DraftOrderAppliedDiscountValidationSetup($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

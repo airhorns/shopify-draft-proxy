@@ -13,6 +13,18 @@ fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     );
 }
 
+fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    let staged_web_presences = &state["stagedState"]["webPresences"];
+    assert!(
+        staged_web_presences.is_null()
+            || staged_web_presences
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty),
+        "expected no staged web presences, got {staged_web_presences:?}"
+    );
+}
+
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -209,7 +221,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Linen", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "stale"},
             {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
         ]}),
     ));
@@ -221,6 +233,10 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     assert_eq!(
         rejected.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
         json!("STALE_OBJECT")
+    );
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+        json!(["metafields", "0"])
     );
     assert_eq!(
         rejected.body["data"]["metafieldsSet"]["userErrors"][1]["message"],
@@ -259,6 +275,61 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     assert_eq!(
         accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
         json!("Cotton")
+    );
+    let accepted_digest = accepted.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(accepted_digest, digest);
+
+    let after_accept = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalCasMetafieldsRead($id: ID!) {
+          product(id: $id) { material: metafield(namespace: "custom", key: "material") { value compareDigest } }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_accept.body["data"]["product"]["material"]["value"],
+        json!("Cotton")
+    );
+    assert_eq!(
+        after_accept.body["data"]["product"]["material"]["compareDigest"],
+        json!(accepted_digest)
+    );
+}
+
+#[test]
+fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_metafield() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654399";
+
+    let invalid_compare_digest = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalCasMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "no-current-row"}]}),
+    ));
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
+        json!("INVALID_COMPARE_DIGEST")
+    );
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+        json!(["metafields", "0"])
     );
 }
 
@@ -1286,6 +1357,103 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
         noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
         json!("fr")
     );
+}
+
+#[test]
+fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_allowlist() {
+    let create_query = r#"
+        mutation RustMarketWebPresenceLocaleCatalogCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary }
+              alternateLocales { locale name primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustMarketWebPresenceLocaleCatalogUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+          webPresenceUpdate(id: $id, input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary }
+              alternateLocales { locale name primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true})
+    );
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "ja", "name": "Japanese", "primary": false }])
+    );
+    let id = create.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"alternateLocales": ["nl"]}}),
+    ));
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true})
+    );
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "nl", "name": "Dutch", "primary": false }])
+    );
+
+    let mut invalid_default_proxy = snapshot_proxy();
+    let invalid_default = invalid_default_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "zz", "alternateLocales": [], "subfolderSuffix": "zz"}}),
+    ));
+    assert_eq!(
+        invalid_default.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_default.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "defaultLocale"], "message": "Invalid locale codes: zz", "code": "INVALID"}])
+    );
+    assert_no_staged_web_presences(&invalid_default_proxy);
+
+    let mut invalid_alternate_proxy = snapshot_proxy();
+    let invalid_alternate = invalid_alternate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "it", "alternateLocales": ["zz"], "subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        invalid_alternate.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_alternate.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "alternateLocales"], "message": "Invalid locale codes: zz", "code": "INVALID"}])
+    );
+    assert_no_staged_web_presences(&invalid_alternate_proxy);
 }
 
 #[test]
@@ -3705,7 +3873,18 @@ fn product_metafields_set_stages_product_owned_readbacks() {
             _ => unreachable!(),
         })
         .unwrap();
-        let mut proxy = snapshot_proxy();
+        let needs_owner_hydration = fixture["mutation"]["variables"]["metafields"]
+            .as_array()
+            .is_some_and(|inputs| {
+                inputs
+                    .iter()
+                    .any(|input| input["compareDigest"].as_str().is_some())
+            });
+        let mut proxy = if needs_owner_hydration {
+            owner_metafield_hydration_proxy(fixture.clone())
+        } else {
+            snapshot_proxy()
+        };
 
         let mutation = proxy.process_request(json_graphql_request(
             mutation_query,
@@ -3796,7 +3975,10 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
         let response = if query.contains("OwnerMetafieldsHydrateNodes")
             || query.contains("ProductsHydrateNodes")
         {
-            fixture["upstreamCalls"][0]["response"]["body"].clone()
+            fixture["upstreamCalls"][0]["response"]
+                .get("body")
+                .cloned()
+                .unwrap_or_else(|| fixture["upstreamCalls"][0]["response"].clone())
         } else {
             json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
         };

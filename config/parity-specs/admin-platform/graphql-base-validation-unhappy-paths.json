@@ -1,0 +1,110 @@
+{
+  "scenarioId": "graphql-base-validation-unhappy-paths",
+  "operationNames": ["shop", "products", "productCreate", "pubSubWebhookSubscriptionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "schema-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/graphql-base-validation-unhappy-paths.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-invalid-syntax.graphql",
+    "variablesCapturePath": "$.cases.invalidSyntax.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-syntax-errors",
+        "capturePath": "$.cases.invalidSyntax.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-invalid-syntax.graphql",
+          "variablesCapturePath": "$.cases.invalidSyntax.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "missing-subselection-errors",
+        "capturePath": "$.cases.missingSubselection.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql",
+          "variablesCapturePath": "$.cases.missingSubselection.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "missing-required-variable-errors",
+        "capturePath": "$.cases.missingRequiredVariable.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql",
+          "variablesCapturePath": "$.cases.missingRequiredVariable.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "missing-required-root-argument-errors",
+        "capturePath": "$.cases.missingRequiredArgument.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-argument.graphql",
+          "variablesCapturePath": "$.cases.missingRequiredArgument.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-query-root-errors",
+        "capturePath": "$.cases.unknownQueryRoot.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql",
+          "variablesCapturePath": "$.cases.unknownQueryRoot.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-mutation-root-errors",
+        "capturePath": "$.cases.unknownMutationRoot.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql",
+          "variablesCapturePath": "$.cases.unknownMutationRoot.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-product-field-errors",
+        "capturePath": "$.cases.unknownProductField.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql",
+          "variablesCapturePath": "$.cases.unknownProductField.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "missing-input-required-property-errors",
+        "capturePath": "$.cases.missingInputRequiredProperty.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-input-required-property.graphql",
+          "variablesCapturePath": "$.cases.missingInputRequiredProperty.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live Admin GraphQL base validation behavior for parse errors, object subselection rules, omitted required variables, missing root arguments, unknown roots/fields, and missing required input-object properties. Targets compare copied expected bodies instead of response payload paths so the parity runner does not install a cassette fallback; a proxy passthrough to Shopify fails these checks instead of masking missing local validation."
+}

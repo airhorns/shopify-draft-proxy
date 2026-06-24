@@ -22,5 +22,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL evidence that productCreateMedia exposes deprecated `userErrors` and canonical `mediaUserErrors` together, with identical error arrays for the same invalid media input."
+  "notes": "Live Admin GraphQL evidence that productCreateMedia exposes deprecated `userErrors` and canonical typed `mediaUserErrors` together for the same invalid media input. `userErrors` is plain `UserError` and carries field/message only; `mediaUserErrors` carries the typed `code` enum."
 }

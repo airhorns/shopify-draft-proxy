@@ -35,6 +35,28 @@
         "proxyPath": "$.data"
       },
       {
+        "name": "fulfillment-constraint-rule-unknown-function-user-errors",
+        "capturePath": "$.unknownFunction.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-unknown-function.graphql",
+          "variablesCapturePath": "$.unknownFunction.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.unknownHandle.userErrors[0].message",
+            "matcher": "regex:^Function definitely-missing-fulfillment-constraint not found\\. Ensure that it is released in the current app \\([0-9]+\\), and that the app is installed\\.$",
+            "reason": "The app id interpolated into Shopify's shared functions.function_not_found message is shop/app-specific; compare the stable template and supplied handle while allowing the numeric app id to vary."
+          },
+          {
+            "path": "$.unknownId.userErrors[0].message",
+            "matcher": "regex:^Function gid://shopify/ShopifyFunction/999999999999 not found\\. Ensure that it is released in the current app \\([0-9]+\\), and that the app is installed\\.$",
+            "reason": "The app id interpolated into Shopify's shared functions.function_not_found message is shop/app-specific; compare the stable template and supplied function id while allowing the numeric app id to vary."
+          }
+        ]
+      },
+      {
         "name": "fulfillment-constraint-rules-empty-read",
         "capturePath": "$.readEmpty.response.payload.data",
         "proxyPath": "$.data",
@@ -46,5 +68,5 @@
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, fulfillmentConstraintRuleDelete unknown id, and an empty fulfillmentConstraintRules read. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
+  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, unknown functionId/functionHandle, fulfillmentConstraintRuleDelete unknown id, and an empty fulfillmentConstraintRules read. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
 }

@@ -11,7 +11,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
             "quantity": 4,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }
@@ -25,7 +25,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
             "quantity": 4,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }

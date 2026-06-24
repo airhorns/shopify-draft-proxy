@@ -1,0 +1,85 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10220355289394",
+      "mediaIds": ["gid://shopify/MediaImage/43929165365554"]
+    },
+    "response": {
+      "data": {
+        "productDeleteMedia": {
+          "deletedMediaIds": ["gid://shopify/MediaImage/43929165365554"],
+          "deletedProductImageIds": ["gid://shopify/ProductImage/53879297147186"],
+          "mediaUserErrors": [],
+          "product": {
+            "id": "gid://shopify/Product/10220355289394",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43929165791538",
+                  "alt": "Valid in mixed create",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY",
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+                    }
+                  },
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 28,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10220355289394",
+        "media": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43929165791538",
+              "alt": "Valid in mixed create",
+              "mediaContentType": "IMAGE",
+              "status": "READY",
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+                }
+              },
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

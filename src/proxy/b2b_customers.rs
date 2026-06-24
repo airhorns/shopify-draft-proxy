@@ -1579,6 +1579,10 @@ impl DraftProxy {
                 ])));
                 continue;
             }
+            if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
+                user_errors.push(b2b_bulk_role_already_assigned_error(index));
+                continue;
+            }
             assignments.push(self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id));
         }
         let status = if assignments.is_empty() && !user_errors.is_empty() {
@@ -2367,10 +2371,8 @@ impl DraftProxy {
                 ));
                 continue;
             }
-            if let Some(existing) =
-                self.b2b_role_assignment_for(&location_id, &contact_id, &role_id)
-            {
-                assignments.push(existing);
+            if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
+                user_errors.push(b2b_bulk_role_already_assigned_error(index));
                 continue;
             }
             let assignment_id = self.next_proxy_synthetic_gid("CompanyContactRoleAssignment");
@@ -6752,7 +6754,15 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let metafields = if input.loyalty.is_null() {
         json!({ "nodes": [], "pageInfo": empty_page_info() })
     } else {
-        json!({ "nodes": [input.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+        json!({
+            "nodes": [input.loyalty.clone()],
+            "pageInfo": connection_page_info(
+                false,
+                false,
+                Some("cursor:customer-metafield:1".to_string()),
+                Some("cursor:customer-metafield:1".to_string())
+            )
+        })
     };
     let default_address = input.addresses.first().cloned().unwrap_or(Value::Null);
     let start_cursor = input.addresses.first().and_then(customer_address_cursor);
@@ -6788,7 +6798,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "addressesV2": {
             "nodes": input.addresses,
             "edges": address_edges,
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": start_cursor, "endCursor": end_cursor }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         },
         "createdAt": input.created_at,
         "updatedAt": input.updated_at
@@ -7053,12 +7063,7 @@ fn customer_rebuild_addresses(customer: &mut Value, nodes: Vec<Value>, default_i
             json!({
                 "nodes": nodes,
                 "edges": edges,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": start_cursor,
-                    "endCursor": end_cursor
-                }
+                "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
             }),
         );
     }
@@ -8000,7 +8005,7 @@ fn b2b_address_input_errors(
         if let Some(value) = resolved_string_field(address, field_name) {
             let invalid = b2b_contains_html_tags(&value)
                 || b2b_contains_emoji(&value)
-                || (reject_url && b2b_contains_url_substring(&value));
+                || (reject_url && customer_address_contains_url(&value));
             if invalid {
                 let mut field = prefix.to_vec();
                 field.push(field_name);
@@ -8149,11 +8154,6 @@ fn b2b_contains_emoji(value: &str) -> bool {
             || (0xfe00..=0xfe0f).contains(&code)
             || code == 0x200d
     })
-}
-
-fn b2b_contains_url_substring(value: &str) -> bool {
-    let lowered = value.to_ascii_lowercase();
-    lowered.contains("http://") || lowered.contains("https://") || lowered.contains("www.")
 }
 
 /// Canada subdivision (province/territory) catalog.
@@ -8385,6 +8385,15 @@ fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) 
         "message": message,
         "code": code
     })
+}
+
+fn b2b_bulk_role_already_assigned_error(index: usize) -> Value {
+    b2b_indexed_user_error(
+        "rolesToAssign",
+        index,
+        "Company contact has already been assigned a role in that company location.",
+        "LIMIT_REACHED",
+    )
 }
 
 fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
@@ -9422,12 +9431,7 @@ fn nodes_connection(nodes: Vec<Value>) -> Value {
     let end_cursor = nodes.last().map(node_connection_cursor);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": start_cursor,
-            "endCursor": end_cursor
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 

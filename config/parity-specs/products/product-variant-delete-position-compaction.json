@@ -1,0 +1,162 @@
+{
+  "scenarioId": "product-variant-delete-position-compaction",
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkCreate",
+    "productVariantDelete",
+    "productVariantsBulkDelete",
+    "product"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variant-delete-position-compaction.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-variant-position-compaction-create.graphql",
+    "variablesCapturePath": "$.singleDelete.create.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 evidence for Shopify's variant-position janitor after deleting middle variants. The live schema does not expose the legacy productVariantDelete compatibility root, so the single-delete compatibility target compares local productVariantDelete read-after-write behavior against the equivalent live productVariantsBulkDelete one-id janitor output. The bulk target captures a multi-id productVariantsBulkDelete call and verifies the same contiguous survivor positions.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy creates a local setup product with a synthetic Shopify Product GID while the fixture records a real dev-store product."
+      },
+      {
+        "path": "$.product.variants.nodes[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy creates local setup variants with synthetic Shopify ProductVariant GIDs while the fixture records real dev-store variants."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy creates a local setup product with a synthetic Shopify Product GID while the fixture records a real dev-store product."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy creates local setup variants with synthetic Shopify ProductVariant GIDs while the fixture records real dev-store variants."
+      }
+    ],
+    "targets": [
+      {
+        "name": "single-product-create",
+        "capturePath": "$.singleDelete.create.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "single-bulk-create-variants",
+        "capturePath": "$.singleDelete.bulkCreate.response.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-bulk-create.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "single-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.singleDelete.bulkCreate.request.variables.variants"
+            }
+          }
+        }
+      },
+      {
+        "name": "single-delete-user-errors",
+        "capturePath": "$.singleDelete.delete.response.data.productVariantsBulkDelete.userErrors",
+        "proxyPath": "$.data.productVariantDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-single-delete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "single-bulk-create-variants",
+              "path": "$.data.productVariantsBulkCreate.productVariants[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "single-delete-readback-positions",
+        "capturePath": "$.singleDelete.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "single-product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "bulk-product-create",
+        "capturePath": "$.bulkDelete.create.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-create.graphql",
+          "variablesCapturePath": "$.bulkDelete.create.request.variables"
+        }
+      },
+      {
+        "name": "bulk-create-variants",
+        "capturePath": "$.bulkDelete.bulkCreate.response.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-bulk-create.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "bulk-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.bulkDelete.bulkCreate.request.variables.variants"
+            }
+          }
+        }
+      },
+      {
+        "name": "bulk-delete-middle-variants",
+        "capturePath": "$.bulkDelete.delete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-bulk-delete.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "bulk-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantsIds": [
+              {
+                "fromProxyResponse": "bulk-create-variants",
+                "path": "$.data.productVariantsBulkCreate.productVariants[0].id"
+              },
+              {
+                "fromProxyResponse": "bulk-create-variants",
+                "path": "$.data.productVariantsBulkCreate.productVariants[1].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "bulk-delete-readback-positions",
+        "capturePath": "$.bulkDelete.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-position-compaction-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "bulk-product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

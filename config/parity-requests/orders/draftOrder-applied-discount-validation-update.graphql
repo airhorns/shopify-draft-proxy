@@ -1,0 +1,126 @@
+mutation DraftOrderAppliedDiscountValidationUpdate(
+  $id: ID!
+  $orderPercentageAboveMax: DraftOrderInput!
+  $orderPercentageNegative: DraftOrderInput!
+  $orderValueTooPrecise: DraftOrderInput!
+  $linePercentageAboveMax: DraftOrderInput!
+  $linePercentageNegative: DraftOrderInput!
+  $lineValueTooPrecise: DraftOrderInput!
+  $validOrderPercentage: DraftOrderInput!
+  $validLinePercentage: DraftOrderInput!
+) {
+  orderPercentageAboveMax: draftOrderUpdate(id: $id, input: $orderPercentageAboveMax) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderPercentageNegative: draftOrderUpdate(id: $id, input: $orderPercentageNegative) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderValueTooPrecise: draftOrderUpdate(id: $id, input: $orderValueTooPrecise) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageAboveMax: draftOrderUpdate(id: $id, input: $linePercentageAboveMax) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageNegative: draftOrderUpdate(id: $id, input: $linePercentageNegative) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  lineValueTooPrecise: draftOrderUpdate(id: $id, input: $lineValueTooPrecise) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validOrderPercentage: draftOrderUpdate(id: $id, input: $validOrderPercentage) {
+    draftOrder {
+      id
+      appliedDiscount {
+        value
+        valueType
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validLinePercentage: draftOrderUpdate(id: $id, input: $validLinePercentage) {
+    draftOrder {
+      id
+      lineItems(first: 5) {
+        nodes {
+          appliedDiscount {
+            value
+            valueType
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

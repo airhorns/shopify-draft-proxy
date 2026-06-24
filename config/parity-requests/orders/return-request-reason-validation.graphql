@@ -1,0 +1,12 @@
+mutation ReturnRequestReasonValidation($input: ReturnRequestInput!) {
+  returnRequest(input: $input) {
+    return {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

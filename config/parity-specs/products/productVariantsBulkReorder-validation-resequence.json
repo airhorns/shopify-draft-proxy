@@ -1,0 +1,74 @@
+{
+  "scenarioId": "product-variants-bulk-reorder-validation-resequence",
+  "operationNames": ["productVariantsBulkReorder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "atomicity-parity",
+    "downstream-read-parity",
+    "sort-order-semantics"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-reorder-validation-resequence.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "notes": "Live 2025-01 capture for productVariantsBulkReorder validation and three-variant position resequencing. The fixture records invalid position, duplicate variant id, unknown variant id, and successful reorder with contiguous position readback. Public 2025-01 and 2026-04 ProductVariantsBulkInput do not expose a position input for productVariantsBulkUpdate, so that compatibility branch is runtime-test-backed rather than a public parity target.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-position-user-errors",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "duplicate-variant-id-user-errors",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-variant-user-errors",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "success-resequence-mutation",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "success-resequence-downstream-read",
+        "capturePath": "$.reorderDownstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkReorder-position-read.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "success-resequence-mutation",
+              "path": "$.data.productVariantsBulkReorder.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

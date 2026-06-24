@@ -257,6 +257,8 @@ struct BaseState {
     localization_product_ids: BTreeSet<String>,
 }
 
+type MetafieldDefinitionKey = (String, String, String);
+
 #[derive(Clone)]
 struct StagedState {
     products: StagedRecords<ProductRecord>,
@@ -393,7 +395,7 @@ struct StagedState {
     product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
-    metafield_definitions: BTreeMap<(String, String), Value>,
+    metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
     online_store_integrations: BTreeMap<String, Value>,
@@ -927,6 +929,10 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
     records
 }
 
+fn product_variant_position(variant: &ProductVariantRecord) -> Option<i64> {
+    variant.extra_fields.get("position").and_then(Value::as_i64)
+}
+
 fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> usize {
     base.records
         .keys()
@@ -1343,10 +1349,25 @@ impl Store {
     }
 
     fn product_variants_for_product(&self, product_id: &str) -> Vec<ProductVariantRecord> {
-        effective_records(&self.base.product_variants, &self.staged.product_variants)
-            .into_iter()
-            .filter(|variant| variant.product_id == product_id)
-            .collect()
+        let mut variants =
+            effective_records(&self.base.product_variants, &self.staged.product_variants)
+                .into_iter()
+                .filter(|variant| variant.product_id == product_id)
+                .collect::<Vec<_>>();
+        if variants.len() > 1
+            && variants
+                .iter()
+                .all(|variant| product_variant_position(variant).is_some())
+        {
+            let mut indexed = variants.into_iter().enumerate().collect::<Vec<_>>();
+            indexed.sort_by(|left, right| {
+                product_variant_position(&left.1)
+                    .cmp(&product_variant_position(&right.1))
+                    .then(left.0.cmp(&right.0))
+            });
+            variants = indexed.into_iter().map(|(_, variant)| variant).collect();
+        }
+        variants
     }
 
     fn product_media_by_id(&self, product_id: &str, media_id: &str) -> Option<Value> {
@@ -1363,6 +1384,75 @@ impl Store {
         self.staged
             .product_variants
             .stage(variant.id.clone(), variant);
+    }
+
+    fn compact_product_variant_positions(&mut self, product_id: &str) {
+        let variants = self.product_variants_for_product(product_id);
+        let mut positioned_variants = variants
+            .into_iter()
+            .enumerate()
+            .map(|(index, variant)| {
+                let position = variant
+                    .extra_fields
+                    .get("position")
+                    .and_then(|value| value.as_i64().or_else(|| value.as_u64().map(|v| v as i64)))
+                    .unwrap_or((index + 1) as i64);
+                (position, index, variant)
+            })
+            .collect::<Vec<_>>();
+        positioned_variants.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+
+        let ordered_ids = positioned_variants
+            .iter()
+            .map(|(_, _, variant)| variant.id.clone())
+            .collect::<Vec<_>>();
+        let mut positions_by_id = BTreeMap::new();
+        for (index, (_, _, mut variant)) in positioned_variants.into_iter().enumerate() {
+            let position = index + 1;
+            variant
+                .extra_fields
+                .insert("position".to_string(), json!(position));
+            positions_by_id.insert(variant.id.clone(), position);
+            self.stage_product_variant(variant);
+        }
+
+        let ordered_id_set = ordered_ids.iter().cloned().collect::<BTreeSet<_>>();
+        let mut reordered = Vec::new();
+        let mut inserted_product_block = false;
+        for id in self.staged.product_variants.order.iter() {
+            if ordered_id_set.contains(id) {
+                if !inserted_product_block {
+                    reordered.extend(ordered_ids.iter().cloned());
+                    inserted_product_block = true;
+                }
+            } else {
+                reordered.push(id.clone());
+            }
+        }
+        if !inserted_product_block {
+            reordered.extend(ordered_ids.iter().cloned());
+        }
+        self.staged.product_variants.order =
+            normalized_order(self.staged.product_variants.records.keys(), reordered);
+
+        if let Some(mut product) = self.product_by_id(product_id).cloned() {
+            let mut changed = false;
+            for variant in &mut product.variants {
+                let Some(id) = variant.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(position) = positions_by_id.get(id) else {
+                    continue;
+                };
+                if variant.get("position").and_then(Value::as_u64) != Some(*position as u64) {
+                    variant["position"] = json!(position);
+                    changed = true;
+                }
+            }
+            if changed {
+                self.stage_product(product);
+            }
+        }
     }
 
     /// Detach the given media ids from product/variant owner state. Removes the
@@ -1431,11 +1521,16 @@ impl Store {
                     self.stage_product(product);
                 }
             }
+            self.compact_product_variant_positions(&product_id);
         }
         existed
     }
 
-    fn reorder_product_variants(&mut self, product_id: &str, ordered_ids: &[String]) {
+    fn reorder_product_variants(
+        &mut self,
+        product_id: &str,
+        ordered_ids: &[String],
+    ) -> Vec<ProductVariantRecord> {
         let variants = self.product_variants_for_product(product_id);
         let mut by_id = variants
             .iter()
@@ -1456,13 +1551,43 @@ impl Store {
             }
         }
 
+        let mut reordered_variants = Vec::new();
         for id in staged_order.iter().cloned() {
-            if let Some(variant) = by_id.remove(&id) {
-                self.staged.product_variants.stage(id, variant);
+            if let Some(mut variant) = by_id.remove(&id) {
+                variant
+                    .extra_fields
+                    .insert("position".to_string(), json!(reordered_variants.len() + 1));
+                self.staged.product_variants.stage(id, variant.clone());
+                reordered_variants.push(variant);
             }
         }
         self.staged.product_variants.order =
             normalized_order(self.staged.product_variants.records.keys(), staged_order);
+        reordered_variants
+    }
+
+    fn move_product_variants_to_positions(
+        &mut self,
+        product_id: &str,
+        moves: &[(String, i64, usize)],
+    ) -> Vec<ProductVariantRecord> {
+        let mut ordered_ids = self
+            .product_variants_for_product(product_id)
+            .into_iter()
+            .map(|variant| variant.id)
+            .collect::<Vec<_>>();
+        let mut sorted_moves = moves.to_vec();
+        sorted_moves.sort_by(|left, right| left.1.cmp(&right.1).then(left.2.cmp(&right.2)));
+        for (variant_id, position, _) in sorted_moves {
+            ordered_ids.retain(|id| id != &variant_id);
+            let insert_at = if position <= 1 {
+                0
+            } else {
+                (position - 1) as usize
+            };
+            ordered_ids.insert(insert_at.min(ordered_ids.len()), variant_id);
+        }
+        self.reorder_product_variants(product_id, &ordered_ids)
     }
 
     fn selling_plan_group_by_id(&self, id: &str) -> Option<&SellingPlanGroupRecord> {

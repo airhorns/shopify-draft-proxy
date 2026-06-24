@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -19,15 +19,17 @@ const productsDir = path.join('config', 'parity-requests', 'products');
 const specsDir = path.join('config', 'parity-specs', 'products');
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 
+const hydrateDocumentPath = path.join(productsDir, 'products-hydrate-nodes-observation.graphql');
 const createDocumentPath = path.join(productsDir, 'collectionCreate-and-add-products-create.graphql');
 const addDocumentPath = path.join(productsDir, 'collectionCreate-and-add-products-add.graphql');
 const removeDocumentPath = path.join(productsDir, 'collectionCreate-and-add-products-remove.graphql');
 const readDocumentPath = path.join(productsDir, 'collectionCreate-and-add-products-count-read.graphql');
 const specPath = path.join(specsDir, 'collectionCreate-and-add-products-parity.json');
 const fixturePath = path.join(fixtureDir, 'collection-create-and-add-products-parity.json');
+const productsHydrateNodesObservationDocument = await readFile(hydrateDocumentPath, 'utf8');
 
 const seedProductsQuery = `#graphql
-query HAR594SeedProduct {
+query CollectionMembershipSeedProduct {
   products(first: 1, sortKey: UPDATED_AT, reverse: true) {
     nodes {
       id
@@ -39,7 +41,7 @@ query HAR594SeedProduct {
 }
 `;
 
-const createDocument = `mutation HAR594CollectionCreate($input: CollectionInput!) {
+const createDocument = `mutation CollectionMembershipCreate($input: CollectionInput!) {
   collectionCreate(input: $input) {
     collection {
       id
@@ -67,7 +69,7 @@ const createDocument = `mutation HAR594CollectionCreate($input: CollectionInput!
 }
 `;
 
-const addDocument = `mutation HAR594CollectionAddProducts($id: ID!, $productIds: [ID!]!) {
+const addDocument = `mutation CollectionMembershipAddProducts($id: ID!, $productIds: [ID!]!) {
   collectionAddProducts(id: $id, productIds: $productIds) {
     collection {
       id
@@ -87,7 +89,7 @@ const addDocument = `mutation HAR594CollectionAddProducts($id: ID!, $productIds:
 }
 `;
 
-const removeDocument = `mutation HAR594CollectionRemoveProducts($id: ID!, $productIds: [ID!]!) {
+const removeDocument = `mutation CollectionMembershipRemoveProducts($id: ID!, $productIds: [ID!]!) {
   collectionRemoveProducts(id: $id, productIds: $productIds) {
     job {
       id
@@ -101,7 +103,7 @@ const removeDocument = `mutation HAR594CollectionRemoveProducts($id: ID!, $produ
 }
 `;
 
-const readDocument = `query HAR594CollectionProductsCount($id: ID!) {
+const readDocument = `query CollectionMembershipProductsCount($id: ID!) {
   collection(id: $id) {
     id
     productsCount {
@@ -120,7 +122,7 @@ const readDocument = `query HAR594CollectionProductsCount($id: ID!) {
 `;
 
 const deleteDocument = `#graphql
-mutation HAR594CleanupCollection($input: CollectionDeleteInput!) {
+mutation CollectionMembershipCleanup($input: CollectionDeleteInput!) {
   collectionDelete(input: $input) {
     deletedCollectionId
     userErrors {
@@ -157,7 +159,7 @@ function firstSeedProduct(payload: GraphqlPayload) {
     typeof product['handle'] !== 'string' ||
     typeof product['status'] !== 'string'
   ) {
-    throw new Error('Need at least one live product to capture HAR-594 collection parity.');
+    throw new Error('Need at least one live product to capture collection membership parity.');
   }
   return {
     id: product['id'],
@@ -195,7 +197,7 @@ function productHydrationCassette(seedProduct: ReturnType<typeof firstSeedProduc
     variables: {
       ids: [seedProduct.id],
     },
-    query: 'hand-synthesized from HAR-594 live seed product for mutation hydration',
+    query: productsHydrateNodesObservationDocument,
     response: {
       status: 200,
       body: {
@@ -244,23 +246,23 @@ const createdIds: string[] = [];
 
 try {
   const longTitleVariables = { input: { title: 'T'.repeat(256) } };
-  const reservedLikeVariables = { input: { title: `Frontpage HAR-594 ${runId}` } };
+  const reservedLikeVariables = { input: { title: `Frontpage collection membership ${runId}` } };
   const invalidSortVariables = {
     input: {
-      title: `HAR-594 invalid sort ${runId}`,
+      title: `Collection membership invalid sort ${runId}`,
       sortOrder: 'INVALID_VALUE',
     },
   };
   const smartCreateVariables = {
     input: {
-      title: `HAR-594 Smart ${runId}`,
+      title: `Collection membership Smart ${runId}`,
       ruleSet: {
         appliedDisjunctively: false,
-        rules: [{ column: 'TITLE', relation: 'CONTAINS', condition: 'HAR-594' }],
+        rules: [{ column: 'TITLE', relation: 'CONTAINS', condition: 'Collection membership' }],
       },
     },
   };
-  const customCreateVariables = { input: { title: `HAR-594 Custom ${runId}` } };
+  const customCreateVariables = { input: { title: `Collection membership Custom ${runId}` } };
 
   const longTitle = await runGraphqlPayload(createDocument, longTitleVariables);
   const reservedLike = await runGraphqlPayload(createDocument, reservedLikeVariables);
@@ -290,6 +292,8 @@ try {
 
   const customAddVariables = { id: customId, productIds: [seedProduct.id] };
   const customAdd = await runGraphqlPayload(addDocument, customAddVariables);
+  const customDuplicateAddVariables = { id: customId, productIds: [seedProduct.id] };
+  const customDuplicateAdd = await runGraphqlPayload(addDocument, customDuplicateAddVariables);
   const customReadVariables = { id: customId };
   const customRead = await runGraphqlPayload(readDocument, customReadVariables);
 
@@ -305,6 +309,7 @@ try {
     smartRemove: { variables: smartAddVariables, response: smartRemove },
     customCreate: { variables: customCreateVariables, response: customCreate },
     customAdd: { variables: customAddVariables, response: customAdd },
+    customDuplicateAdd: { variables: customDuplicateAddVariables, response: customDuplicateAdd },
     customRead: { variables: customReadVariables, response: customRead },
     upstreamCalls: [productHydrationCassette(seedProduct)],
   };
@@ -326,7 +331,7 @@ try {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'HAR-594 executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, and productsCount read-after-add behavior. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.',
+      'Executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, productsCount read-after-add behavior, and collectionAddProducts duplicate-membership no-op success. The duplicate target creates a custom collection, adds the seed product, then adds the same product again; Shopify returns the collection with empty userErrors. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [
@@ -422,6 +427,21 @@ try {
         {
           name: 'custom-add-products',
           capturePath: '$.customAdd.response.data',
+          proxyRequest: {
+            documentPath: addDocumentPath,
+            variables: {
+              id: {
+                fromProxyResponse: 'custom-create',
+                path: '$.data.collectionCreate.collection.id',
+              },
+              productIds: [{ fromCapturePath: '$.seedProduct.id' }],
+            },
+          },
+          proxyPath: '$.data',
+        },
+        {
+          name: 'custom-duplicate-add-products-noop-success',
+          capturePath: '$.customDuplicateAdd.response.data',
           proxyRequest: {
             documentPath: addDocumentPath,
             variables: {

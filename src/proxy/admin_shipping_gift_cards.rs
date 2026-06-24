@@ -48,6 +48,7 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // locally, to learn whether the target is the shop's default profile (which
 // cannot be deleted) from real store state rather than guessing.
 const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
+const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -733,8 +734,8 @@ impl DraftProxy {
                         (
                             Value::Null,
                             vec![json!({
-                                "field": ["cappedAmount"],
-                                "message": "Only usage-pricing line items support cappedAmount updates"
+                                "field": null,
+                                "message": "Only variable subscriptions can be updated."
                             })],
                         )
                     } else {
@@ -1089,8 +1090,7 @@ impl DraftProxy {
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let api_client_id = request_api_client_id(request);
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
@@ -1135,8 +1135,7 @@ impl DraftProxy {
             });
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
         let caller_token = request_access_token(request).unwrap_or_default();
-        let caller_api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let caller_api_client_id = request_api_client_id(request);
 
         let mut status = false;
         let mut user_errors = Vec::new();
@@ -1303,7 +1302,7 @@ impl DraftProxy {
 
         let name = arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let price = match arguments.get("price") {
             Some(ResolvedValue::Object(price)) => price.clone(),
@@ -1517,7 +1516,10 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Vec<String>) {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(mut profile) = self.delivery_profile_for_read(&id) else {
+        let Some(mut profile) = self
+            .delivery_profile_for_read(&id)
+            .or_else(|| self.delivery_profile_hydrate_for_update(&id, request))
+        else {
             return (
                 delivery_profile_payload_json(
                     Value::Null,
@@ -1530,19 +1532,6 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
-        if profile["default"].as_bool() == Some(true) {
-            return (
-                delivery_profile_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Profile could not be updated."
-                    })],
-                ),
-                Vec::new(),
-            );
-        }
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
         let user_errors = delivery_profile_update_user_errors(&profile_input);
@@ -1553,8 +1542,10 @@ impl DraftProxy {
             );
         }
 
-        if let Some(name) = resolved_string_field(&profile_input, "name") {
-            profile["name"] = json!(name);
+        if profile["default"].as_bool() != Some(true) {
+            if let Some(name) = resolved_string_field(&profile_input, "name") {
+                profile["name"] = json!(name);
+            }
         }
         let version = profile["version"].as_i64().unwrap_or(1) + 1;
         profile["version"] = json!(version);
@@ -1975,6 +1966,38 @@ impl DraftProxy {
             .unwrap_or(false)
     }
 
+    fn delivery_profile_hydrate_for_update(&self, id: &str, request: &Request) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid || id.is_empty() {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        let mut profile = response
+            .body
+            .pointer("/data/deliveryProfile")
+            .or_else(|| response.body.pointer("/data/node"))
+            .filter(|profile| profile.get("id").and_then(Value::as_str) == Some(id))?
+            .clone();
+        if profile.get("profileLocationGroups").is_none() {
+            profile["profileLocationGroups"] = json!([]);
+        }
+        if profile.get("profileItems").is_none() {
+            profile["profileItems"] = json!([]);
+        }
+        if profile.get("sellingPlanGroups").is_none() {
+            profile["sellingPlanGroups"] = json!([]);
+        }
+        if profile.get("unassignedLocations").is_none() {
+            profile["unassignedLocations"] = json!([]);
+        }
+        Some(profile)
+    }
+
     fn stage_delivery_profile(&mut self, profile: Value) {
         let Some(id) = profile
             .get("id")
@@ -2086,12 +2109,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3195,7 +3213,47 @@ impl DraftProxy {
                 "message": "Your shop has reached its location limit."
             })];
         }
+        if self.location_has_non_unique_active_name(location) {
+            return vec![json!({
+                "field": ["locationId"],
+                "code": "HAS_NON_UNIQUE_NAME",
+                "message": "This location currently cannot be activated because there exists an active location with the same name."
+            })];
+        }
         Vec::new()
+    }
+
+    fn location_has_non_unique_active_name(&self, location: &Value) -> bool {
+        if location.get("isActive").and_then(Value::as_bool) == Some(true) {
+            return false;
+        }
+        let Some(target_id) = location.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        let Some(target_name) = location.get("name").and_then(Value::as_str) else {
+            return false;
+        };
+
+        let mut location_ids = BTreeSet::new();
+        for (id, _) in self.store.staged.locations.iter() {
+            location_ids.insert(id.clone());
+        }
+        for id in self.store.staged.observed_shipping_locations.keys() {
+            location_ids.insert(id.clone());
+        }
+        for (id, _) in self.store.staged.fulfillment_service_locations.iter() {
+            location_ids.insert(id.clone());
+        }
+
+        location_ids.iter().any(|id| {
+            if id == target_id {
+                return false;
+            }
+            self.location_for_read(id).is_some_and(|candidate| {
+                candidate.get("isActive").and_then(Value::as_bool) == Some(true)
+                    && candidate.get("name").and_then(Value::as_str) == Some(target_name)
+            })
+        })
     }
 
     /// Hydrates a baseline location from upstream for lifecycle mutations
@@ -3460,12 +3518,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -4507,23 +4560,28 @@ impl DraftProxy {
             .and_then(|order| order["status"].as_str().map(str::to_string))
             .unwrap_or_default();
         let invalid = match (root_field, current_status.as_str()) {
+            ("fulfillmentOrderOpen", "SCHEDULED" | "IN_PROGRESS") => None,
+            ("fulfillmentOrderOpen", "OPEN") => Some((
+                "Expected fulfillment order status to be valid but it was open.",
+                Value::Null,
+            )),
             ("fulfillmentOrderOpen", "CLOSED" | "CANCELLED" | "ON_HOLD") => {
-                Some("Fulfillment order must be scheduled.")
+                Some(("Fulfillment order must be scheduled.", json!(["id"])))
             }
             (
                 "fulfillmentOrderReportProgress",
                 "SCHEDULED" | "CLOSED" | "CANCELLED" | "ON_HOLD",
-            ) => Some("Fulfillment order must be in progress."),
+            ) => Some(("Fulfillment order must be in progress.", json!(["id"]))),
             _ => None,
         };
-        if let Some(message) = invalid {
+        if let Some((message, field)) = invalid {
             return ok_json(json!({
                 "data": {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
                         vec![json!({
-                            "field": ["id"],
+                            "field": field,
                             "message": message,
                             "code": "INVALID_FULFILLMENT_ORDER_STATUS"
                         })]
@@ -5690,7 +5748,9 @@ impl DraftProxy {
                             vec![segment_user_error(json!(["id"]), "Segment does not exist")],
                             Vec::new(),
                         )
-                    } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
+                    } else if !segment_update_attribute_present(&arguments, "name")
+                        && !segment_update_attribute_present(&arguments, "query")
+                    {
                         (
                             Value::Null,
                             Value::Null,
@@ -5816,7 +5876,7 @@ impl DraftProxy {
             let value = field
                 .arguments
                 .get("id")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
                 .and_then(|id| {
                     self.store
                         .staged
@@ -5928,7 +5988,7 @@ impl DraftProxy {
                     let value = field
                         .arguments
                         .get("id")
-                        .and_then(resolved_as_string)
+                        .and_then(resolved_value_string)
                         .and_then(|id| {
                             if self.store.staged.fulfillment_services.is_tombstoned(&id) {
                                 None
@@ -5941,7 +6001,7 @@ impl DraftProxy {
                     data.insert(field.response_key.clone(), value);
                 }
                 "location" => {
-                    let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+                    let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
                         continue;
                     };
                     if self
@@ -6080,12 +6140,12 @@ impl DraftProxy {
         let name = field
             .arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let callback_url = field
             .arguments
             .get("callbackUrl")
-            .and_then(resolved_as_string);
+            .and_then(resolved_value_string);
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
             user_errors.push(user_error_omit_code(["name"], "Name can't be blank", None));
@@ -6158,7 +6218,7 @@ impl DraftProxy {
     ) -> (Value, Vec<String>) {
         let service_selection =
             selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
-        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
             return (
                 fulfillment_service_not_found_payload(&field.selection),
                 vec![],
@@ -6173,14 +6233,14 @@ impl DraftProxy {
         let name = field
             .arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .or_else(|| existing["serviceName"].as_str().map(str::to_string))
             .unwrap_or_default();
         let callback_url = if field.arguments.contains_key("callbackUrl") {
             field
                 .arguments
                 .get("callbackUrl")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
         } else {
             existing
                 .get("callbackUrl")
@@ -6287,16 +6347,16 @@ impl DraftProxy {
         let id = field
             .arguments
             .get("id")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let inventory_action = field
             .arguments
             .get("inventoryAction")
-            .and_then(resolved_as_string);
+            .and_then(resolved_value_string);
         let destination_location_id = field
             .arguments
             .get("destinationLocationId")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .filter(|value| !value.trim().is_empty());
         if !self.store.staged.fulfillment_services.contains_key(&id) {
             return (
@@ -6395,7 +6455,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
             return Value::Null;
         };
         if self.store.staged.carrier_services.is_tombstoned(&id) {
@@ -6413,7 +6473,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let query = field.arguments.get("query").and_then(resolved_as_string);
+        let query = field.arguments.get("query").and_then(resolved_value_string);
         let active_filter = match query.as_deref() {
             Some("active:true") => Some(true),
             Some("active:false") => Some(false),
@@ -6652,7 +6712,7 @@ impl DraftProxy {
         let id = field
             .arguments
             .get("id")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         if !self.store.staged.carrier_services.contains_key(&id) {
             return carrier_service_delete_payload(
@@ -7417,11 +7477,9 @@ fn location_edit_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7436,11 +7494,9 @@ fn location_delete_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationDeleteUserErrors" | "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7517,11 +7573,9 @@ fn location_add_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7540,11 +7594,9 @@ fn location_local_pickup_enable_payload_selected_json(
             } else {
                 selected_json(&settings, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7559,11 +7611,9 @@ fn location_local_pickup_disable_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "locationId" => Some(json!(location_id)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7594,11 +7644,9 @@ fn location_activate_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "location" => Some(location_selected_json(&location, &selection.selection)),
-            "locationActivateUserErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationActivateUserErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7672,12 +7720,7 @@ fn location_metafields_connection_json(location: &Value, selection: &SelectedFie
     selected_json(
         &json!({
             "nodes": metafields,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         &selection.selection,
     )
@@ -8660,6 +8703,15 @@ fn segment_name_suffix_base(name: &str) -> (&str, u32) {
         return (name, 2);
     };
     (base, number + 1)
+}
+
+fn segment_update_attribute_present(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    attribute: &str,
+) -> bool {
+    arguments
+        .get(attribute)
+        .is_some_and(|value| !matches!(value, ResolvedValue::Null))
 }
 
 fn segment_required_argument_error(

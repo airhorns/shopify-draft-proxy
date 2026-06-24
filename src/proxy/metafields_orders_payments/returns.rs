@@ -1,20 +1,9 @@
 use super::*;
 
-fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(response_key.to_string(), value);
-    json!({ "data": Value::Object(data) })
-}
-
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
+        "pageInfo": empty_page_info()
     })
 }
 
@@ -33,6 +22,62 @@ fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Val
 
 fn return_status_invalid_error() -> Value {
     return_user_error(&["id"], "return_request_status_invalid", "INVALID")
+}
+
+fn blank_return_line_string(value: Option<String>) -> bool {
+    value.as_deref().is_none_or(|raw| raw.trim().is_empty())
+}
+
+fn validate_return_line_item_reason(
+    input_name: &str,
+    index: usize,
+    item: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let reason = resolved_string_field(item, "returnReason");
+    let reason_definition_id = resolved_string_field(item, "returnReasonDefinitionId");
+    let reason_missing = blank_return_line_string(reason.clone());
+    let definition_missing = blank_return_line_string(reason_definition_id);
+    if reason_missing && definition_missing {
+        return Some(match input_name {
+            "returnInput" => return_user_error_owned(
+                vec![
+                    "returnInput".to_string(),
+                    "returnLineItems".to_string(),
+                    index.to_string(),
+                ],
+                "Return line items Either return reason or return reason definition must be provided",
+                "NOT_FOUND",
+            ),
+            _ => return_user_error_owned(
+                vec![
+                    "input".to_string(),
+                    "returnLineItems".to_string(),
+                    index.to_string(),
+                    "returnReason".to_string(),
+                ],
+                "Return reason can't be blank",
+                "BLANK",
+            ),
+        });
+    }
+
+    if input_name == "returnInput"
+        && reason.as_deref() == Some("OTHER")
+        && blank_return_line_string(resolved_string_field(item, "returnReasonNote"))
+    {
+        return Some(return_user_error_owned(
+            vec![
+                "returnInput".to_string(),
+                "returnLineItems".to_string(),
+                index.to_string(),
+                "returnReasonNote".to_string(),
+            ],
+            "Return line items return reason note The note is required when the return reason is \"Other\"",
+            "BLANK",
+        ));
+    }
+
+    None
 }
 
 /// The returns embedded in an order graph, accepting either a bare array
@@ -234,61 +279,61 @@ impl DraftProxy {
         match root_field {
             "returnCreate" => {
                 let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnRequest" => {
                 let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.approve_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.decline_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnClose" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnReopen" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnCancel" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "removeFromReturn" => {
                 let value = self.remove_from_return(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryCreateWithShipping" => {
                 let value = self.stage_reverse_delivery(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryShippingUpdate" => {
                 let id = resolved_string_arg(&field.arguments, "reverseDeliveryId")?;
                 let value = self.update_reverse_delivery(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseFulfillmentOrderDispose" => {
                 let value = self.dispose_reverse_fulfillment_order(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnProcess" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "returnId"))?;
                 let value = self.process_return(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             _ => None,
         }
@@ -373,18 +418,6 @@ impl DraftProxy {
         status: &str,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
-        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
-        // The order a return runs against is a precondition that may not have been
-        // created locally in this scenario; forward+observe it on a cold miss so
-        // line validation and quantity caps run against real store state.
-        self.hydrate_order_for_return(request, &order_id);
-        let order = self
-            .store
-            .staged
-            .orders
-            .get(&order_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let items = resolved_object_list_field(&input, "returnLineItems");
         if items.is_empty() {
             return selected_json(
@@ -399,9 +432,32 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        let reason_errors = items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| validate_return_line_item_reason(input_name, index, item))
+            .collect::<Vec<_>>();
+        if !reason_errors.is_empty() {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": reason_errors }),
+                &field.selection,
+            );
+        }
         // Validate every line first, allocating return-line-item ids only for
         // valid lines (matching the reference fold). Any error short-circuits
         // the mutation with a null return and no state change.
+        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        // The order a return runs against is a precondition that may not have been
+        // created locally in this scenario; forward+observe it on a cold miss so
+        // line validation and quantity caps run against real store state.
+        self.hydrate_order_for_return(request, &order_id);
+        let order = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .unwrap_or(Value::Null);
         let mut line_items: Vec<Value> = Vec::new();
         let mut user_errors: Vec<Value> = Vec::new();
         for (index, item) in items.iter().enumerate() {
@@ -698,20 +754,28 @@ impl DraftProxy {
         )
     }
 
-    /// `removeFromReturn`: validate each removal against the return's removable
-    /// quantity (current minus processed) before mutating; on success reduce or
-    /// drop the affected return line items, recompute the total, and rebuild the
-    /// reverse fulfillment order's line items from the surviving return lines.
-    /// On any validation error the return is left null with the error payload.
+    /// `removeFromReturn`: validate the return is still editable, then validate
+    /// each removal against the return's removable quantity (current minus
+    /// processed) before mutating; on success reduce or drop the affected return
+    /// line items, recompute the total, and rebuild the reverse fulfillment
+    /// order's line items from the surviving return lines. On any validation
+    /// error the return is left null with the error payload.
     fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
-        let removals = list_object_arg(&field.arguments, "returnLineItems");
+        let removals = list_object_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
             return selected_json(
                 &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
                 &field.selection,
             );
         };
+        let status = record["status"].as_str().unwrap_or_default();
+        if !matches!(status, "OPEN" | "REQUESTED") {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return status is invalid.", "INVALID_STATE")] }),
+                &field.selection,
+            );
+        }
         let mut nodes = record["returnLineItems"]["nodes"]
             .as_array()
             .cloned()
@@ -876,22 +940,63 @@ impl DraftProxy {
         let reverse_order_id =
             resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
         let id = self.next_synthetic_gid("ReverseDelivery");
-        let line_id = self.next_synthetic_gid("ReverseDeliveryLineItem");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
+        let rfo_lines = self
+            .store
+            .staged
+            .reverse_fulfillment_orders
+            .get(&reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        let input_lines = list_object_field(&field.arguments, "reverseDeliveryLineItems");
+        let delivery_line_sources = if input_lines.is_empty() {
+            rfo_lines
+                .iter()
+                .map(|line| (line.clone(), line["totalQuantity"].as_i64().unwrap_or(0)))
+                .collect::<Vec<_>>()
+        } else {
+            input_lines
+                .iter()
+                .map(|input| {
+                    let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
+                        .unwrap_or_default();
+                    let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+                    let line = rfo_lines
+                        .iter()
+                        .find(|line| line["id"].as_str() == Some(line_id.as_str()))
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            json!({
+                                "id": line_id,
+                                "totalQuantity": Value::Null,
+                                "remainingQuantity": Value::Null
+                            })
+                        });
+                    (line, quantity)
+                })
+                .collect::<Vec<_>>()
+        };
+        let reverse_delivery_line_items = delivery_line_sources
+            .into_iter()
+            .map(|(line, quantity)| {
+                json!({
+                    "id": self.next_synthetic_gid("ReverseDeliveryLineItem"),
+                    "quantity": quantity,
+                    "reverseFulfillmentOrderLineItem": {
+                        "id": line["id"].clone(),
+                        "totalQuantity": line["totalQuantity"].clone(),
+                        "remainingQuantity": line["remainingQuantity"].clone()
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
         let delivery = json!({
             "id": id,
             "reverseFulfillmentOrder": { "id": reverse_order_id },
             "reverseDeliveryLineItems": {
-                "nodes": [{
-                    "id": line_id,
-                    "quantity": 1,
-                    "reverseFulfillmentOrderLineItem": {
-                        "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
-                        "totalQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "totalQuantity"),
-                        "remainingQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "remainingQuantity")
-                    }
-                }]
+                "nodes": reverse_delivery_line_items
             },
             "deliverable": {
                 "__typename": "ReverseDeliveryShippingDeliverable",
@@ -916,38 +1021,21 @@ impl DraftProxy {
             .reverse_fulfillment_orders
             .get_mut(&reverse_order_id)
         {
-            reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            if let Some(nodes) = reverse_order["reverseDeliveries"]["nodes"].as_array_mut() {
+                if !nodes
+                    .iter()
+                    .any(|node| node["id"].as_str() == Some(id.as_str()))
+                {
+                    nodes.push(json!({ "id": id }));
+                }
+            } else {
+                reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            }
         }
         selected_json(
             &json!({ "reverseDelivery": delivery, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn first_reverse_fulfillment_order_line_id(&self, reverse_order_id: &str) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node["id"].clone())
-            .unwrap_or(Value::Null)
-    }
-
-    fn first_reverse_fulfillment_order_line_field(
-        &self,
-        reverse_order_id: &str,
-        field: &str,
-    ) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node[field].clone())
-            .unwrap_or(Value::Null)
     }
 
     fn update_reverse_delivery(&mut self, id: &str, field: &RootFieldSelection) -> Value {
@@ -977,7 +1065,7 @@ impl DraftProxy {
     }
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
-        let inputs = list_object_arg(&field.arguments, "dispositionInputs");
+        let inputs = list_object_field(&field.arguments, "dispositionInputs");
         if inputs.is_empty() {
             return selected_json(
                 &json!({

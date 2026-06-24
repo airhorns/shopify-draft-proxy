@@ -151,6 +151,20 @@ accepted payment terms, and later rapid attempts hit Shopify's order-create rate
 guard. The checked-in paid-update anchor is
 `config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
 
+## Current: Draft-order percentage discounts accept negative values
+
+Admin GraphQL 2025-01 and 2026-04 probes against
+`harry-test-heelo.myshopify.com` accepted `DraftOrderAppliedDiscountInput` with
+`valueType: PERCENTAGE` and `value: -5` for order-level and line-item discounts
+across draft-order create/update/calculate flows. The same 2026-04 capture
+rejected percentages above 100 and values with more than two decimal places,
+and rejected missing or invalid `valueType` during GraphQL variable coercion.
+
+Practical rule: do not add a local `value >= 0` rejection for draft-order
+applied discounts unless a newer public Admin capture shows Shopify changed this
+branch. The checked-in anchor is
+`config/parity-specs/orders/draftOrder-applied-discount-validation.json`.
+
 ## Current: productCreate legacy ProductInput key guard differs from internal notes
 
 A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed
@@ -1399,7 +1413,7 @@ Takeaway:
 
 Public Shopify docs for the real mutations already force two different local semantics:
 
-- `collectionAddProducts` is atomic for duplicate membership: if any requested product is already in the collection, return a `userErrors` entry and add none of them
+- `collectionAddProducts` treats duplicate membership as a no-op success: already-member products remain in place, no duplicate-member `userErrors` are emitted, and any not-yet-member products in the same request are still added
 - `collectionAddProducts` ignores product IDs that do not resolve to products, while still adding known products from the same request and returning the updated collection payload
 - refreshed live capture showed default `collection.products(first: ...)` for a newly-created manual collection returning a multi-product add batch in reverse request order; keep the mutation payload and downstream `collection(id:)` read on the same staged membership ordering instead of patching one response shape
 - `collectionAddProducts` returns `collection: null` plus an `id`-scoped user error for unknown collections and smart collections; smart collections cannot be manually managed through this mutation
@@ -1533,6 +1547,19 @@ Useful behavior:
 - immediate downstream reads after delete returned `metafieldDefinition: null`, an empty matching `metafieldDefinitions` connection, and `product.metafield(namespace:, key:)`: `null`
 
 The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
+
+## 19d. Metafield definition uniqueness is owner-type scoped, and duplicate create prefixes the key label
+
+The 2025-01 owner-scoped duplicate capture in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-owner-scoped-duplicates.json` created a disposable PRODUCT definition in the `custom` namespace, retried the same owner/namespace/key, then created a CUSTOMER definition with the same namespace/key.
+
+Useful behavior:
+
+- duplicate create is scoped to `(ownerType, namespace, key)`: a second PRODUCT create returned `createdDefinition: null` and a single `MetafieldDefinitionCreateUserError`
+- the public GraphQL error message included the field label and a humanized owner type: `Key is in use for Product metafields on the 'custom' namespace.`
+- creating a CUSTOMER definition with the same namespace/key succeeded
+- `metafieldDefinition(identifier:)` and `metafieldDefinitions(ownerType:, namespace:, key:)` read back separate PRODUCT and CUSTOMER definitions
+
+Keep local storage keyed by owner type as well as namespace/key; filtering by owner type after a namespace/key lookup is not enough.
 
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
@@ -1699,6 +1726,7 @@ Fresh live capture for `productVariantsBulkCreate` / `productVariantsBulkUpdate`
   - option realization arrives via `optionValues[{ optionName, name }]`
   - `inventoryQuantities` is accepted on create, not update
 - `productVariantsBulkUpdate` rejected `inventoryQuantities` with a fielded user error directing callers to `inventoryAdjustQuantities`
+- `productVariantsBulkCreate` inventory validation has two separate count guards: total submitted `inventoryQuantities` entries above 50,000 returns a payload `INVALID_INPUT` at `["variants"]`, while one variant with more than `shop.resourceLimits.locationLimit` inventory quantity entries returns `TOO_MANY_INVENTORY_LOCATIONS` at `["variants", "0"]`. On `harry-test-heelo.myshopify.com` the captured `locationLimit` was 200, and repeated entries for the same valid live location still counted toward the per-variant guard.
 - updating merchandising fields without a separate inventory adjustment still left `inventoryQuantity` at `0` in the live mutation payload and immediate follow-up read
 - immediate downstream `product.variants` reflected the bulk writes, but sku-filtered `products(query: "sku:...")` and `productsCount(query: "sku:...")` remained empty immediately after the same writes
 
@@ -2099,6 +2127,11 @@ That distinction matters:
 - `fileCreate` takes store-level `FileCreateInput` records and creates Files API assets from URLs or staged uploads
 - current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
 - the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment
+- omitted `contentType` inference is not the same as explicit media creation:
+  Shopify's auto-detector maps image-like results to `MediaImage`, video-like
+  results to `Video`, and everything else to `GenericFile`. 3D model extensions
+  such as `.glb`, `.gltf`, and `.usdz` do not auto-create `Model3d`; callers
+  must pass `contentType: MODEL_3D` explicitly for that type.
 
 The matching generic media delete worklist item maps to `fileDelete`, not
 `productDeleteMedia`.
@@ -2412,6 +2445,7 @@ Live evidence refreshed on this host:
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
+- A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; a supplied but unknown collection id instead returns payload `userErrors[{ field: null, message: "Collection does not exist" }]`.
@@ -2529,7 +2563,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API. Liquid syntax parsing is a privacy-policy-only Core validation: `PRIVACY_POLICY` body `{% unknownTag %}` returns `shopPolicy: null`, `field: ["shopPolicy", "body"]`, message `Body Liquid syntax error: Unknown tag 'unknownTag'`, and `code: null`; other policy types do not run this Liquid parse branch.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -2559,6 +2593,7 @@ Live evidence refreshed on this host:
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
 - activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
+- activating an inactive location whose name exactly matches another active location returns `HAS_NON_UNIQUE_NAME` at `["locationId"]` with message `This location currently cannot be activated because there exists an active location with the same name.`; the reproducible setup deactivates a disposable target location, creates a second active disposable location with the same name, then attempts to reactivate the target
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:
@@ -2767,6 +2802,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
 - On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
@@ -3064,12 +3100,13 @@ Practical rule:
 
 ## 61. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
 
-HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
+HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, invalid compare digest for a missing row, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
 
 Important captured behavior:
 
 - `compareDigest` is an opaque CAS token on Shopify. Local staged metafields use deterministic draft digests instead, and parity treats the digest strings as opaque non-empty values for staged writes.
 - A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
+- A string `compareDigest` for an absent `(ownerId, namespace, key)` row returns `INVALID_COMPARE_DIGEST` at `['metafields', '0']`, leaves `metafields: []`, and does not create the submitted row.
 - `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
 - More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
 - Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
@@ -3146,12 +3183,23 @@ Captured validation branches:
 
 Local support now uses the captured template slice as a bounded local catalog. Successful proxy calls stage a normalized `MetafieldDefinition` record, honor the selected owner type/access/capability/pin inputs that are represented in the local model, and make downstream definition reads observe the staged record without a live Shopify write.
 
+Admin GraphQL 2026-04 live capture for the PRODUCT `descriptors` / `subtitle`
+template recorded idempotent re-enable behavior: enabling the template,
+re-enabling it, and re-enabling it with `pin: true` all returned the same
+`MetafieldDefinition` id. After the capture temporarily created 20 disposable
+pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
+`pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
+`metafieldDefinition(id:)` by the original id still resolved the definition.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
 - when broader fidelity needs a success fixture, set up and clean up the disposable test shop instead of treating Shopify side effects as a capture blocker
 - commit replay should apply the original raw staged mutation to Shopify so the real schema side effect can happen at the intentional commit boundary
 - do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice
+- on the already-enabled standard path, preserve the existing definition id and
+  do not apply the ordinary owner-type pin-cap error; use the captured next
+  pinned position behavior for `pin: true`
 
 ## 65. Discount redeem-code bulk support is narrow by design
 
@@ -3667,6 +3715,9 @@ Observed behavior:
   accepted by the public API in the captured probe
 - duplicate `US` countries across two `zonesToCreate` entries in an update were
   accepted by the public API in the captured probe
+- a name-input update against the shop default delivery profile returned empty
+  `userErrors` and incremented `version`, but the selected public payload kept
+  the default profile display name as `General profile`
 
 Practical rule:
 
@@ -3674,6 +3725,9 @@ Practical rule:
   keep ticket-required local guardrails for `profileLocationGroups` unknown
   locations and overlapping zone countries covered by runtime tests unless newer
   public evidence shows a different update-side rejection shape
+- do not reject default-profile updates just because the profile is default;
+  for the public name-input branch, preserve the hydrated default display name
+  while staging Shopify's accepted payload shape
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 
@@ -3722,3 +3776,22 @@ Practical rule:
 - a real live success-path fixture needs a disposable billing-capable app/store
   credential that can use Shopify's Billing API and safely approve test charges;
   do not hand-author a live billing success fixture from local proxy output
+
+## 87. Mobile platform applications are not unique per shop/platform
+
+Shopify Core does not enforce a one-Android and one-Apple mobile platform
+application limit per shop. The model validates platform-specific identifiers,
+Android certificate fingerprints, and app-clip fields, but does not validate
+platform uniqueness; the GraphQL create mutation unconditionally creates a
+record; and the table has no unique index on `(shop_id, platform)`.
+
+Practical rule:
+
+- do not fabricate `TAKEN` userErrors for repeated
+  `mobilePlatformApplicationCreate` calls with the same platform
+- stage every valid create as a distinct record and make
+  `mobilePlatformApplications` reads expose all staged records
+- the current conformance credential still lacks
+  `read_mobile_platform_applications` and `write_mobile_platform_applications`,
+  so repeated-create parity must wait for a scope-capable dev-store credential
+  rather than being replaced with local-runtime evidence

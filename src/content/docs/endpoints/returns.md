@@ -42,6 +42,13 @@ Local staged mutations:
   cap as `returnCreate`. When `notifyCustomer: true` is supplied, the proxy validates the hidden
   `tmp_notify_customer.email_address` input with the shared basic email guard but does not send notification side
   effects.
+- `returnCreate` / `returnRequest` validate return-line reasons before order hydration, return staging, or mutation-log
+  append. Public 2026-04 capture shows root-specific missing-reason shapes: `returnCreate` returns `NOT_FOUND` on
+  `["returnInput", "returnLineItems", "0"]`, while `returnRequest` returns `BLANK` on
+  `["input", "returnLineItems", "0", "returnReason"]`. `returnCreate` rejects legacy `returnReason: OTHER` without a
+  note on `["returnInput", "returnLineItems", "0", "returnReasonNote"]`; captured public `returnRequest` accepts legacy
+  `OTHER` and the public `other-reason` `returnReasonDefinitionId` without a note on this shop/API version. Invalid
+  legacy `returnReason` variable values are rejected at the GraphQL variable-coercion layer with `INVALID_VARIABLE`.
 - `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
   reverse fulfillment order with line work for the approved return line quantities. Approving a return whose status is no
   longer `REQUESTED` returns `INVALID` on `["id"]` with `return_request_status_invalid`, does not change the return, and
@@ -66,18 +73,22 @@ Local staged mutations:
   Returns with processed or refunded return-line quantities produce `INVALID_STATE` on `["id"]` with Shopify's captured
   `Return is not cancelable.` message and do not mutate local state.
 - `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
-  reverse fulfillment order line quantities. Return line removal quantities must be positive and no greater than the
-  removable quantity for that return line. Exchange-line removal remains explicitly unsupported until exchange fixtures
-  exist.
+  reverse fulfillment order line quantities only while the return is `OPEN` or `REQUESTED`. Closed, canceled, declined,
+  and processed returns return `INVALID_STATE` on `["returnId"]` with Shopify's captured `Return status is invalid.`
+  message and leave return lines, totals, and reverse fulfillment order work unchanged. Return line removal quantities
+  must be positive and no greater than the removable quantity for that return line. Exchange-line removal remains
+  explicitly unsupported until exchange fixtures exist.
 - `returnProcess` updates processed quantities for local return line items and closes the return for subsequent reads when
   all lines are processed. Captured 2026-04 behavior returns the mutation payload with status `OPEN`, then exposes
   `CLOSED` on immediate downstream `return(id:)` / `Order.returns` reads; local staging mirrors that split. Refund duties,
   refund shipping, financial transfers, exchange processing, and notification behavior are not emulated beyond local
   metadata and validation boundaries.
-- `reverseDeliveryCreateWithShipping` treats an empty `reverseDeliveryLineItems` input as Shopify documents it: the proxy
-  creates one local reverse delivery line for each line item on the reverse fulfillment order. `ReverseDeliveryLabelInput`
-  accepts Shopify's `fileUrl` field and preserves it as the downstream `label.publicFileUrl`; legacy local fixture aliases
-  `publicFileUrl` and `url` are still accepted for older recorded runtime fixtures.
+- `reverseDeliveryCreateWithShipping` builds staged reverse delivery lines from `reverseDeliveryLineItems`. Explicit
+  entries preserve input order, quantity, and the requested reverse fulfillment order line item; an empty input follows
+  Shopify's documented expansion rule and creates one local reverse delivery line for each reverse fulfillment order line
+  at that line's total quantity. `ReverseDeliveryLabelInput` accepts Shopify's `fileUrl` field and preserves it as the
+  downstream `label.publicFileUrl`; legacy local fixture aliases `publicFileUrl` and `url` are still accepted for older
+  recorded runtime fixtures.
 - Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
@@ -105,8 +116,9 @@ Local staged mutations:
   shipping update, reverse-fulfillment disposal, return processing, and downstream reads from staged return and
   reverse-logistics records. Exchange processing, carrier label creation, notification sends, refund transfers, duties,
   and inventory/location movement remain explicit unsupported fidelity gaps.
-- Executable parity covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success transitions,
-  idempotent no-op branches, and processed-return cancel rejection in
+- Executable parity covers `returnClose`, `returnReopen`, `returnCancel`, and `removeFromReturn` status preconditions,
+  success transitions, idempotent no-op branches, remove-from-closed-return rejection/readback, and processed-return
+  cancel rejection in
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
 - Executable parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
   `unprocessed`, plus read-after-write `Return.returnShippingFees` / `Order.returns.returnShippingFees`, in
@@ -147,7 +159,9 @@ Local staged mutations:
   replays the same store-backed mutation/read flow with unrelated client operation names to guard against
   document-marker dispatch. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`; the live
+  recorder creates one two-line return for empty-array expansion and a second two-line return for explicit multi-line
+  input so both reverse delivery payloads are captured against real reverse fulfillment order state.
 - Reverse fulfillment disposal validation parity:
   `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-dispose-validation.json`
@@ -158,6 +172,9 @@ Local staged mutations:
 - Return shipping fee parity:
   `config/parity-specs/orders/return-shipping-fee-recorded.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json`.
+- Return reason validation parity:
+  `config/parity-specs/orders/return-reason-validation.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json`.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

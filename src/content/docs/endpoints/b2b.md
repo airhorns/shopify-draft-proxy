@@ -112,8 +112,12 @@ location, and returns indexed `RESOURCE_NOT_FOUND` errors at
 `companyLocationAssignRoles` and `companyLocationRevokeRoles` stage
 company-contact role assignments for locations. Assignment validates that the
 staged contact and role exist and returns indexed `RESOURCE_NOT_FOUND` errors at
-`["rolesToAssign", i]`; revoke returns indexed missing-assignment errors at
-`["rolesToRevoke", i]`.
+`["rolesToAssign", i]`. Bulk role assignment also enforces Shopify's one
+role-per-contact-per-location rule: an entry whose contact already holds any
+role at the target location returns indexed `LIMIT_REACHED` at
+`["rolesToAssign", i]`, while valid sibling entries in the same request still
+stage and return in `roleAssignments`. Revoke returns indexed
+missing-assignment errors at `["rolesToRevoke", i]`.
 
 `companyLocationTaxSettingsUpdate` stages `taxExempt`, tax-exemption assignment
 and removal, nullable input validation, and unknown-location user errors.
@@ -153,6 +157,8 @@ the covered request shape, including `editableShippingAddress`,
 - Contact/location-role parity:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
   `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`
+- Bulk duplicate role-assignment parity:
+  `config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json`
 - Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 

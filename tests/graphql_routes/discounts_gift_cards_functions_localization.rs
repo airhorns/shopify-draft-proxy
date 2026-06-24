@@ -19,6 +19,29 @@ fn assert_synthetic_gid(id: &str, resource_type: &str) {
     );
 }
 
+fn assert_datetime_string(value: &Value, context: &str) {
+    let timestamp = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a string, got {value}"));
+    assert!(
+        timestamp.contains('T') && timestamp.ends_with('Z'),
+        "{context} should be an ISO-8601 DateTime-shaped string, got {timestamp}"
+    );
+}
+
+fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, input_arg: &str) {
+    assert_eq!(data[alias][node_field], json!(null));
+    assert_eq!(
+        data[alias]["userErrors"],
+        json!([{
+            "field": [input_arg, "startsAt"],
+            "message": "Starts at can't be blank",
+            "code": "BLANK",
+            "extraInfo": null
+        }])
+    );
+}
+
 #[test]
 fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_alias() {
     let hits = Arc::new(Mutex::new(0usize));
@@ -129,6 +152,182 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
             .unwrap()
             .contains("mutation CreateDiscount"),
         true
+    );
+}
+
+fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
+    let mut variables = json!({
+        "basicCode": {
+            "title": "StartsAt required code basic",
+            "code": "STARTSAT-BASIC",
+            "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        },
+        "bxgyCode": {
+            "title": "StartsAt required code BXGY",
+            "code": "STARTSAT-BXGY",
+            "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+        },
+        "freeShippingCode": {
+            "title": "StartsAt required code free shipping",
+            "code": "STARTSAT-SHIP",
+            "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "destination": { "all": true }
+        },
+        "automaticBasic": {
+            "title": "StartsAt required automatic basic",
+            "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        },
+        "automaticBxgy": {
+            "title": "StartsAt required automatic BXGY",
+            "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+        },
+        "automaticFreeShipping": {
+            "title": "StartsAt required automatic free shipping",
+            "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "destination": { "all": true }
+        }
+    });
+    if let Some(starts_at) = starts_at {
+        for key in [
+            "basicCode",
+            "bxgyCode",
+            "freeShippingCode",
+            "automaticBasic",
+            "automaticBxgy",
+            "automaticFreeShipping",
+        ] {
+            variables[key]["startsAt"] = starts_at.clone();
+        }
+    }
+    variables
+}
+
+#[test]
+fn discount_native_create_requires_starts_at_for_all_roots() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation DiscountStartsAtRequiredValidation(
+          $basicCode: DiscountCodeBasicInput!
+          $bxgyCode: DiscountCodeBxgyInput!
+          $freeShippingCode: DiscountCodeFreeShippingInput!
+          $automaticBasic: DiscountAutomaticBasicInput!
+          $automaticBxgy: DiscountAutomaticBxgyInput!
+          $automaticFreeShipping: DiscountAutomaticFreeShippingInput!
+        ) {
+          basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasic) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgy) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticFreeShipping: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticFreeShipping) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+
+    for variables in [
+        starts_at_required_variables(None),
+        starts_at_required_variables(Some(Value::Null)),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200);
+        let data = &response.body["data"];
+        assert_starts_at_required_error(data, "basicCode", "codeDiscountNode", "basicCodeDiscount");
+        assert_starts_at_required_error(data, "bxgyCode", "codeDiscountNode", "bxgyCodeDiscount");
+        assert_starts_at_required_error(
+            data,
+            "freeShippingCode",
+            "codeDiscountNode",
+            "freeShippingCodeDiscount",
+        );
+        assert_starts_at_required_error(
+            data,
+            "automaticBasic",
+            "automaticDiscountNode",
+            "automaticBasicDiscount",
+        );
+        assert_starts_at_required_error(
+            data,
+            "automaticBxgy",
+            "automaticDiscountNode",
+            "automaticBxgyDiscount",
+        );
+        assert_starts_at_required_error(
+            data,
+            "automaticFreeShipping",
+            "automaticDiscountNode",
+            "freeShippingAutomaticDiscount",
+        );
+    }
+}
+
+#[test]
+fn discount_native_update_preserves_existing_starts_at_when_omitted() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { startsAt } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Preserve startsAt",
+            "code": "PRESERVE-STARTS-AT",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let id = json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "created code discount id",
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDiscount($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title startsAt } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": id, "input": {
+            "title": "Preserved startsAt renamed",
+            "code": "PRESERVE-STARTS-AT",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]["title"],
+        json!("Preserved startsAt renamed")
+    );
+    assert_eq!(
+        update.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["startsAt"],
+        json!("2026-04-27T19:31:14Z")
     );
 }
 
@@ -1364,7 +1563,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
           }
         }
         "#,
-        json!({ "input": { "title": "HAR-390 automatic customer context 1777346878525", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
+        json!({ "input": { "title": "HAR-390 automatic customer context 1777346878525", "startsAt": "2026-04-25T00:00:00Z", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
     ));
     let discount_id = json_string(
         &create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
@@ -1880,6 +2079,46 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
 fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafields() {
     let mut proxy = snapshot_proxy();
 
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformUnknownId { cartTransformCreate(functionId: "00000000-0000-0000-0000-000000000000") { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_id.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionId"], "message": "Function 00000000-0000-0000-0000-000000000000 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.", "code": "FUNCTION_NOT_FOUND" }]
+        })
+    );
+    let read_after_unknown_id = proxy.process_request(json_graphql_request(
+        r#"query CartTransformsAfterUnknownId { cartTransforms(first: 5) { nodes { id functionId } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_unknown_id.body["data"]["cartTransforms"],
+        json!({ "nodes": [] })
+    );
+
+    let unknown_handle = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformUnknownHandle { cartTransformCreate(functionHandle: "missing-cart-transform") { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_handle.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionHandle"], "message": "Could not find function with handle: missing-cart-transform.", "code": "FUNCTION_NOT_FOUND" }]
+        })
+    );
+    let read_after_unknown_handle = proxy.process_request(json_graphql_request(
+        r#"query CartTransformsAfterUnknownHandle { cartTransforms(first: 5) { nodes { id functionId } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_unknown_handle.body["data"]["cartTransforms"],
+        json!({ "nodes": [] })
+    );
+
     let api_mismatch = proxy.process_request(json_graphql_request(
         r#"mutation CartTransformApiMismatch { cartTransformCreate(functionHandle: "conformance-validation") { cartTransform { id } userErrors { field message code } } }"#,
         json!({}),
@@ -2147,7 +2386,14 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
             fulfillmentConstraintRule { id }
             userErrors { code field message }
           }
-          unknownFunction: fulfillmentConstraintRuleCreate(
+          unknownId: fulfillmentConstraintRuleCreate(
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleCreate(
             functionHandle: "definitely-missing-fulfillment-constraint"
             deliveryMethodTypes: [SHIPPING]
           ) {
@@ -2199,12 +2445,20 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
                     "message": "Delivery method types cannot be empty."
                 }]
             },
-            "unknownFunction": {
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
                 "fulfillmentConstraintRule": null,
                 "userErrors": [{
                     "code": "FUNCTION_NOT_FOUND",
                     "field": ["functionHandle"],
-                    "message": "Could not find function with handle: definitely-missing-fulfillment-constraint."
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
                 }]
             },
             "wrongApi": {
@@ -2231,6 +2485,94 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identifiers() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageFulfillmentConstraintRuleForUpdateErrors {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let rule_id = create.body["data"]["fulfillmentConstraintRuleCreate"]
+        ["fulfillmentConstraintRule"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintRuleUpdateUnknownFunction($id: ID!) {
+          unknownId: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionHandle: "definitely-missing-fulfillment-constraint"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+
+    assert_eq!(
+        update.body["data"],
+        json!({
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionHandle"],
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleAfterUnknownFunctionUpdate { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": rule_id,
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": { "handle": "fulfillment-constraint-local" }
+        }])
+    );
 }
 
 #[test]
@@ -2691,7 +3033,7 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     }
 
     let registered = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
         json!({
             "resourceId": resource_id,
             "translations": [
@@ -2703,9 +3045,17 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     assert_eq!(
         registered.body["data"]["translationsRegister"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
+    );
+    assert_datetime_string(
+        &registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        "registered title translation updatedAt",
+    );
+    assert_datetime_string(
+        &registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"],
+        "registered body translation updatedAt",
     );
     assert_eq!(
         registered.body["data"]["translationsRegister"]["userErrors"],
@@ -2713,19 +3063,19 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     );
 
     let downstream = proxy.process_request(json_graphql_request(
-        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
         json!({ "resourceId": resource_id }),
     ));
     assert_eq!(
         downstream.body["data"]["translatableResource"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
     );
 
     let mixed = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
         json!({
             "resourceId": resource_id,
             "translations": [
@@ -2738,9 +3088,17 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     assert_eq!(
         mixed.body["data"]["translationsRegister"]["translations"],
         json!([
-            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null },
-            { "key": "title", "value": "Titulo local", "locale": "es", "outdated": false, "market": null }
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "title", "value": "Titulo local", "locale": "es", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
+    );
+    assert_datetime_string(
+        &mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        "mixed seo translation updatedAt",
+    );
+    assert_datetime_string(
+        &mixed.body["data"]["translationsRegister"]["translations"][1]["updatedAt"],
+        "mixed es title translation updatedAt",
     );
     assert_eq!(
         mixed.body["data"]["translationsRegister"]["userErrors"][0]["field"],
@@ -2748,15 +3106,46 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     );
 
     let downstream_after_mixed = proxy.process_request(json_graphql_request(
-        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
         json!({ "resourceId": resource_id }),
     ));
     assert_eq!(
         downstream_after_mixed.body["data"]["translatableResource"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null },
-            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null },
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null }
+        ])
+    );
+    let original_title_updated_at =
+        registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"].clone();
+    let reregister = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre local rafraichi", "translatableContentDigest": title_digest }
+            ]
+        }),
+    ));
+    let refreshed_title_updated_at =
+        reregister.body["data"]["translationsRegister"]["translations"][0]["updatedAt"].clone();
+    assert_datetime_string(
+        &refreshed_title_updated_at,
+        "reregistered title translation updatedAt",
+    );
+    assert_ne!(refreshed_title_updated_at, original_title_updated_at);
+
+    let downstream_after_reregister = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        downstream_after_reregister.body["data"]["translatableResource"]["translations"],
+        json!([
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null },
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "title", "value": "Titre local rafraichi", "locale": "fr", "outdated": false, "updatedAt": refreshed_title_updated_at, "market": null }
         ])
     );
 }
@@ -4196,6 +4585,160 @@ fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
             }
         })
     );
+}
+
+#[test]
+fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_trip() {
+    let mut proxy = snapshot_proxy();
+
+    let plain_create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreatePlain {
+          plain: giftCardCreate(input: { initialValue: "25" }) {
+            giftCard {
+              id
+              note
+              expiresOn
+              customer { id }
+              templateSuffix
+              recipientAttributes {
+                message
+                preferredName
+                sendNotificationAt
+                recipient { id }
+              }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(plain_create.status, 200);
+    assert_eq!(
+        plain_create.body["data"]["plain"],
+        json!({
+            "giftCard": {
+                "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                "note": null,
+                "expiresOn": null,
+                "customer": null,
+                "templateSuffix": null,
+                "recipientAttributes": null
+            },
+            "giftCardCode": "giftcard00000001",
+            "userErrors": []
+        })
+    );
+
+    let plain_read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCreatePlainRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            expiresOn
+            customer { id }
+            templateSuffix
+            recipientAttributes {
+              message
+              preferredName
+              sendNotificationAt
+              recipient { id }
+            }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(plain_read.status, 200);
+    assert_eq!(
+        plain_read.body["data"]["giftCard"],
+        json!({
+            "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "note": null,
+            "expiresOn": null,
+            "customer": null,
+            "templateSuffix": null,
+            "recipientAttributes": null
+        })
+    );
+
+    let supplied_create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateSupplied($recipientId: ID!, $sendAt: DateTime!) {
+          supplied: giftCardCreate(input: {
+            initialValue: "30"
+            note: "Requested gift card note"
+            expiresOn: "2028-01-31"
+            recipientAttributes: {
+              id: $recipientId
+              preferredName: "Requested Recipient"
+              message: "Requested recipient message"
+              sendNotificationAt: $sendAt
+            }
+          }) {
+            giftCard {
+              id
+              note
+              expiresOn
+              customer { id }
+              templateSuffix
+              recipientAttributes {
+                message
+                preferredName
+                sendNotificationAt
+                recipient { id }
+              }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "recipientId": "gid://shopify/Customer/10587888714034",
+            "sendAt": "2026-07-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(supplied_create.status, 200);
+    let supplied_card = json!({
+        "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic",
+        "note": "Requested gift card note",
+        "expiresOn": "2028-01-31",
+        "customer": null,
+        "templateSuffix": null,
+        "recipientAttributes": {
+            "message": "Requested recipient message",
+            "preferredName": "Requested Recipient",
+            "sendNotificationAt": "2026-07-01T00:00:00Z",
+            "recipient": { "id": "gid://shopify/Customer/10587888714034" }
+        }
+    });
+    assert_eq!(
+        supplied_create.body["data"]["supplied"],
+        json!({
+            "giftCard": supplied_card,
+            "giftCardCode": "giftcard00000002",
+            "userErrors": []
+        })
+    );
+
+    let supplied_read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCreateSuppliedRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            expiresOn
+            customer { id }
+            templateSuffix
+            recipientAttributes {
+              message
+              preferredName
+              sendNotificationAt
+              recipient { id }
+            }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(supplied_read.status, 200);
+    assert_eq!(supplied_read.body["data"]["giftCard"], supplied_card);
 }
 
 #[test]

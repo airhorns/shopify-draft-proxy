@@ -27,9 +27,23 @@ impl DraftProxy {
         } else {
             BTreeSet::new()
         };
-        let mut user_errors = metafields_set_input_errors(&inputs, |id| {
+        if inputs.len() <= 25 {
+            self.hydrate_owner_metafield_ids(
+                request,
+                inputs
+                    .iter()
+                    .filter_map(|input| resolved_string_field(input, "ownerId"))
+                    .collect(),
+            );
+        }
+        let mut user_errors = if inputs.len() <= 25 {
+            self.metafields_set_compare_digest_errors(&inputs)
+        } else {
+            Vec::new()
+        };
+        user_errors.extend(metafields_set_input_errors(&inputs, |id| {
             self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
-        });
+        }));
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
@@ -45,13 +59,6 @@ impl DraftProxy {
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
             ));
         }
-        self.hydrate_owner_metafield_ids(
-            request,
-            inputs
-                .iter()
-                .filter_map(|input| resolved_string_field(input, "ownerId"))
-                .collect(),
-        );
         let mut metafields = Vec::new();
         let mut staged_owner_ids = Vec::new();
         for input in inputs {
@@ -65,10 +72,11 @@ impl DraftProxy {
                     self.store
                         .staged
                         .metafield_definitions
-                        .get(&(namespace.clone(), key.clone()))
-                        .filter(|definition| {
-                            definition["ownerType"].as_str() == Some(owner_type_from_gid(&owner_id))
-                        })
+                        .get(&metafield_definition_store_key(
+                            owner_type_from_gid(&owner_id),
+                            &namespace,
+                            &key,
+                        ))
                         .and_then(|definition| definition["type"]["name"].as_str())
                         .map(str::to_string)
                 })
@@ -84,53 +92,21 @@ impl DraftProxy {
                 + metafields.len()
                 + 1;
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
-            let id = existing
-                .as_ref()
-                .and_then(|metafield| metafield.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index));
             let metafield = if let Some(mut record) =
                 custom_data_metafield_type_matrix_record(&namespace, &key)
             {
                 record["owner"] = owner_reference_from_gid(&owner_id);
                 record
             } else {
-                let compare_digest = existing
-                    .as_ref()
-                    .filter(|metafield| {
-                        metafield.get("value").and_then(Value::as_str) == Some(value.as_str())
-                    })
-                    .and_then(|metafield| metafield.get("compareDigest"))
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                    .unwrap_or_else(|| format!("local-metafield-digest-{index}"));
-                let timestamp = owner_metafield_timestamp(index as u64);
-                let created_at = existing
-                    .as_ref()
-                    .and_then(|metafield| metafield.get("createdAt"))
-                    .and_then(Value::as_str)
-                    .unwrap_or(&timestamp);
-                let updated_at = existing
-                    .as_ref()
-                    .filter(|metafield| {
-                        metafield.get("value").and_then(Value::as_str) == Some(value.as_str())
-                    })
-                    .and_then(|metafield| metafield.get("updatedAt"))
-                    .and_then(Value::as_str)
-                    .unwrap_or(&timestamp);
-                json!({
-                    "id": id,
-                    "namespace": namespace,
-                    "key": key,
-                    "type": metafield_type,
-                    "value": normalize_metafield_value_string(&metafield_type, &value),
-                    "jsonValue": metafield_json_value(&metafield_type, &value),
-                    "compareDigest": compare_digest,
-                    "createdAt": created_at,
-                    "updatedAt": updated_at,
-                    "ownerType": owner_type_from_gid(&owner_id),
-                    "owner": owner_reference_from_gid(&owner_id),
+                owner_metafield_record(OwnerMetafieldRecordArgs {
+                    owner_id: &owner_id,
+                    namespace: &namespace,
+                    key: &key,
+                    metafield_type: &metafield_type,
+                    value: &value,
+                    index,
+                    existing: existing.as_ref(),
+                    include_owner: true,
                 })
             };
             self.store.staged.deleted_owner_metafields.remove(&(
@@ -237,6 +213,55 @@ impl DraftProxy {
             ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
             LogDraft::staged("metafieldsDelete", "products", staged_owner_ids),
         )
+    }
+
+    fn metafields_set_compare_digest_errors(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                let compare_digest = input.get("compareDigest")?;
+                let owner_id = resolved_string_field(input, "ownerId")?;
+                let namespace = canonical_app_metafield_namespace(
+                    resolved_string_field(input, "namespace").as_deref(),
+                );
+                let key = resolved_string_field(input, "key")?;
+                let existing = self.owner_metafield(&owner_id, &namespace, &key);
+                match compare_digest {
+                    ResolvedValue::String(supplied) => {
+                        let Some(existing) = existing else {
+                            return Some(metafields_set_row_user_error(
+                                index,
+                                "INVALID_COMPARE_DIGEST",
+                                "Invalid `compareDigest` value.",
+                            ));
+                        };
+                        let current_digest =
+                            owner_metafield_compare_digest(&existing).unwrap_or_default();
+                        if supplied == &current_digest {
+                            None
+                        } else {
+                            Some(metafields_set_row_user_error(
+                                index,
+                                "STALE_OBJECT",
+                                "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                            ))
+                        }
+                    }
+                    ResolvedValue::Null => existing.map(|_| {
+                        metafields_set_row_user_error(
+                            index,
+                            "STALE_OBJECT",
+                            "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                        )
+                    }),
+                    _ => None,
+                }
+            })
+            .collect()
     }
 
     pub(in crate::proxy) fn should_handle_owner_metafields_read(
@@ -663,6 +688,11 @@ impl DraftProxy {
             return;
         }
         record["owner"] = owner_reference_from_gid(owner_id);
+        if record.get("compareDigest").is_none() {
+            if let Some(value) = record.get("value").and_then(Value::as_str) {
+                record["compareDigest"] = json!(metafield_compare_digest(value));
+            }
+        }
         // Metafields not backed by a definition return `definition: null`; hydration
         // and metafieldsSet inputs never carry one, so default it so singular
         // `metafield(namespace:, key:) { definition }` reads emit null, not undefined.
@@ -718,18 +748,15 @@ impl DraftProxy {
                 .map(Vec::len)
                 .sum::<usize>()
                 + 1;
-            let timestamp = owner_metafield_timestamp(index as u64);
-            let record = json!({
-                "id": format!("gid://shopify/Metafield/{index}"),
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": normalize_metafield_value_string(&metafield_type, &value),
-                "jsonValue": metafield_json_value(&metafield_type, &value),
-                "compareDigest": format!("local-metafield-digest-{index}"),
-                "createdAt": timestamp,
-                "updatedAt": timestamp,
-                "ownerType": owner_type_from_gid(owner_id),
+            let record = owner_metafield_record(OwnerMetafieldRecordArgs {
+                owner_id,
+                namespace: &namespace,
+                key: &key,
+                metafield_type: &metafield_type,
+                value: &value,
+                index,
+                existing: None,
+                include_owner: false,
             });
             self.upsert_owner_metafield_record(owner_id, record);
         }
@@ -916,9 +943,6 @@ impl DraftProxy {
 
         let (entries, page_info) =
             connection_window(&entries, &selection.arguments, |entry| entry.id.clone());
-        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
-        let page_info_selection = nested_selected_fields(&selection.selection, &["pageInfo"]);
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
@@ -944,34 +968,13 @@ impl DraftProxy {
                     )
                 }
             };
-        let mut connection = serde_json::Map::new();
-        for selected in &selection.selection {
-            let value = match selected.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    entries
-                        .iter()
-                        .map(|entry| render_variant(entry, &node_selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    entries
-                        .iter()
-                        .map(|entry| {
-                            json!({
-                                "cursor": entry.id,
-                                "node": render_variant(entry, &edge_node_selection)
-                            })
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(&page_info, &page_info_selection)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                connection.insert(selected.response_key.clone(), value);
-            }
-        }
-        Value::Object(connection)
+        selected_typed_connection_with_page_info(
+            &entries,
+            &selection.selection,
+            render_variant,
+            |entry| entry.id.clone(),
+            page_info,
+        )
     }
 
     fn owner_field_selects_metafields_at_root(
@@ -1039,6 +1042,9 @@ impl DraftProxy {
         if self.owner_metafield_has_local_effect(owner_id, &namespace, &key) {
             return self.selected_owner_metafield(owner_id, selection);
         }
+        if let Some(metafield) = base_owner_metafield(base, &namespace, &key) {
+            return selected_json(&metafield, &selection.selection);
+        }
         base.get(selection.response_key.as_str())
             .or_else(|| base.get(selection.name.as_str()))
             .cloned()
@@ -1077,35 +1083,15 @@ impl DraftProxy {
             }
         }
 
-        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
-        let nodes = records
-            .iter()
-            .map(|metafield| selected_json(metafield, &node_selection))
-            .collect::<Vec<_>>();
-        let edges = records
-            .iter()
-            .map(|metafield| {
-                let cursor = metafield_cursor(metafield).unwrap_or_default();
-                json!({
-                    "cursor": cursor,
-                    "node": selected_json(metafield, &edge_node_selection)
-                })
-            })
-            .collect::<Vec<_>>();
         let start_cursor = records.first().and_then(metafield_cursor);
         let end_cursor = records.last().and_then(metafield_cursor);
-        let connection = json!({
-            "nodes": nodes,
-            "edges": edges,
-            "pageInfo": metafield_connection_page_info(
-                start_cursor,
-                end_cursor,
-                has_next_page,
-                has_previous_page
-            )
-        });
-        selected_json(&connection, &selection.selection)
+        selected_typed_connection_with_page_info(
+            &records,
+            &selection.selection,
+            selected_json,
+            |metafield| metafield_cursor(metafield).unwrap_or_default(),
+            connection_page_info(has_next_page, has_previous_page, start_cursor, end_cursor),
+        )
     }
 
     fn selected_owner_metafields_connection_overlay(
@@ -1227,19 +1213,15 @@ impl DraftProxy {
                 .map(Vec::len)
                 .sum::<usize>()
                 + 1;
-            let timestamp = owner_metafield_timestamp(index as u64);
-            let metafield = json!({
-                "id": format!("gid://shopify/Metafield/{index}"),
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": normalize_metafield_value_string(&metafield_type, &value),
-                "jsonValue": metafield_json_value(&metafield_type, &value),
-                "compareDigest": format!("local-metafield-digest-{index}"),
-                "createdAt": timestamp,
-                "updatedAt": timestamp,
-                "ownerType": owner_type_from_gid(owner_id),
-                "owner": owner_reference_from_gid(owner_id),
+            let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+                owner_id,
+                namespace: &namespace,
+                key: &key,
+                metafield_type: &metafield_type,
+                value: &value,
+                index,
+                existing: None,
+                include_owner: true,
             });
             self.store.staged.deleted_owner_metafields.remove(&(
                 owner_id.to_string(),
@@ -1256,11 +1238,116 @@ impl DraftProxy {
     }
 }
 
+struct OwnerMetafieldRecordArgs<'a> {
+    owner_id: &'a str,
+    namespace: &'a str,
+    key: &'a str,
+    metafield_type: &'a str,
+    value: &'a str,
+    index: usize,
+    existing: Option<&'a Value>,
+    include_owner: bool,
+}
+
+fn owner_metafield_record(
+    OwnerMetafieldRecordArgs {
+        owner_id,
+        namespace,
+        key,
+        metafield_type,
+        value,
+        index,
+        existing,
+        include_owner,
+    }: OwnerMetafieldRecordArgs<'_>,
+) -> Value {
+    let normalized_value = normalize_metafield_value_string(metafield_type, value);
+    let timestamp = owner_metafield_timestamp(index as u64);
+    let created_at = existing
+        .and_then(|metafield| metafield.get("createdAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(&timestamp);
+    let updated_at = existing
+        .filter(|metafield| metafield.get("value").and_then(Value::as_str) == Some(value))
+        .and_then(|metafield| metafield.get("updatedAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(&timestamp);
+    let mut record = json!({
+        "id": existing
+            .and_then(|metafield| metafield.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("gid://shopify/Metafield/{index}")),
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type,
+        "value": normalized_value,
+        "jsonValue": metafield_json_value(metafield_type, value),
+        "compareDigest": metafield_compare_digest(&normalized_value),
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "ownerType": owner_type_from_gid(owner_id),
+    });
+    if include_owner {
+        record["owner"] = owner_reference_from_gid(owner_id);
+    }
+    record
+}
+
 fn owner_reference_from_gid(owner_id: &str) -> Value {
     json!({
         "__typename": owner_typename_from_gid(owner_id),
         "id": owner_id
     })
+}
+
+fn base_owner_metafield(base: &Value, namespace: &str, key: &str) -> Option<Value> {
+    fn matches_metafield(value: &Value, namespace: &str, key: &str) -> bool {
+        value.get("namespace").and_then(Value::as_str) == Some(namespace)
+            && value.get("key").and_then(Value::as_str) == Some(key)
+    }
+
+    if let Some(record) = base
+        .as_object()
+        .into_iter()
+        .flat_map(|object| object.values())
+        .find(|value| matches_metafield(value, namespace, key))
+    {
+        return Some(record.clone());
+    }
+
+    if let Some(record) = base
+        .get("metafields")
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flat_map(|nodes| nodes.iter())
+        .find(|value| matches_metafield(value, namespace, key))
+    {
+        return Some(record.clone());
+    }
+
+    base.get("metafields")
+        .and_then(|connection| connection.get("edges"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flat_map(|edges| edges.iter())
+        .filter_map(|edge| edge.get("node"))
+        .find(|value| matches_metafield(value, namespace, key))
+        .cloned()
+}
+
+fn owner_metafield_compare_digest(metafield: &Value) -> Option<String> {
+    metafield
+        .get("compareDigest")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            metafield
+                .get("value")
+                .and_then(Value::as_str)
+                .map(metafield_compare_digest)
+        })
 }
 
 fn metafields_set_product_owner_ids(
@@ -1465,20 +1552,6 @@ fn metafield_cursor(metafield: &Value) -> Option<String> {
     } else {
         Some(id.to_string())
     }
-}
-
-fn metafield_connection_page_info(
-    start_cursor: Option<String>,
-    end_cursor: Option<String>,
-    has_next_page: bool,
-    has_previous_page: bool,
-) -> Value {
-    json!({
-        "hasNextPage": has_next_page,
-        "hasPreviousPage": has_previous_page,
-        "startCursor": start_cursor,
-        "endCursor": end_cursor
-    })
 }
 
 fn owner_typename_from_root(root_field: &str) -> &'static str {

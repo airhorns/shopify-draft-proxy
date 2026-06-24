@@ -1,0 +1,11 @@
+query SellingPlanGroupSummaryRead($id: ID!) {
+  sellingPlanGroup(id: $id) {
+    id
+    summary
+    sellingPlans(first: 10) {
+      nodes {
+        id
+      }
+    }
+  }
+}

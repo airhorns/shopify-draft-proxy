@@ -520,8 +520,11 @@ impl DraftProxy {
                     .staged
                     .metafield_definitions
                     .iter()
-                    .map(|((namespace, key), definition)| {
-                        (format!("{namespace}\u{1f}{key}"), definition.clone())
+                    .map(|((owner_type, namespace, key), definition)| {
+                        (
+                            format!("{owner_type}\u{1f}{namespace}\u{1f}{key}"),
+                            definition.clone(),
+                        )
                     })
                     .collect::<serde_json::Map<_, _>>(),
             );
@@ -757,15 +760,8 @@ impl DraftProxy {
                     .into_iter()
                     .collect(),
             );
-        self.store.staged.collection_jobs = state["stagedState"]
-            .get("collectionJobs")
-            .and_then(Value::as_object)
-            .map(|jobs| {
-                jobs.iter()
-                    .map(|(id, job)| (id.clone(), job.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.collection_jobs =
+            value_map_from_json(state["stagedState"].get("collectionJobs"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
         self.store.staged.online_store_blogs =
@@ -824,16 +820,8 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.bulk_operations = state["stagedState"]
-            .get("bulkOperations")
-            .and_then(Value::as_object)
-            .map(|operations| {
-                operations
-                    .iter()
-                    .map(|(id, operation)| (id.clone(), operation.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.bulk_operations =
+            value_map_from_json(state["stagedState"].get("bulkOperations"));
         self.store.staged.bulk_operation_staged_uploads = state["stagedState"]
             .get("bulkOperationStagedUploads")
             .and_then(Value::as_object)
@@ -934,14 +922,8 @@ impl DraftProxy {
             string_array_from_json(&state["stagedState"]["createdPublicationIds"])
                 .into_iter()
                 .collect();
-        self.store.staged.publications = state["stagedState"]["publications"]
-            .as_object()
-            .map(|map| {
-                map.iter()
-                    .map(|(id, record)| (id.clone(), record.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.publications =
+            value_map_from_json(state["stagedState"].get("publications"));
         self.store.staged.resource_publications = state["stagedState"]["resourcePublications"]
             .as_object()
             .map(|map| {
@@ -997,15 +979,8 @@ impl DraftProxy {
                     .filter_map(|value| value.as_str().map(str::to_string))
                     .collect(),
             );
-        self.store.staged.customer_addresses = state["stagedState"]["customerAddresses"]
-            .as_object()
-            .map(|addresses| {
-                addresses
-                    .iter()
-                    .map(|(id, address)| (id.clone(), address.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.customer_addresses =
+            value_map_from_json(state["stagedState"].get("customerAddresses"));
         self.store.staged.customer_address_order = state["stagedState"]["customerAddressOrder"]
             .as_object()
             .map(|addresses_by_customer| {
@@ -1061,25 +1036,10 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.customer_merge_requests = state["stagedState"]["customerMergeRequests"]
-            .as_object()
-            .map(|requests| {
-                requests
-                    .iter()
-                    .map(|(id, request)| (id.clone(), request.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.customer_data_erasure_requests = state["stagedState"]
-            ["customerDataErasureRequests"]
-            .as_object()
-            .map(|requests| {
-                requests
-                    .iter()
-                    .map(|(id, request)| (id.clone(), request.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.customer_merge_requests =
+            value_map_from_json(state["stagedState"].get("customerMergeRequests"));
+        self.store.staged.customer_data_erasure_requests =
+            value_map_from_json(state["stagedState"].get("customerDataErasureRequests"));
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         let store_credit_accounts =
@@ -1092,16 +1052,8 @@ impl DraftProxy {
             .staged
             .store_credit_accounts
             .replace_with_order(store_credit_accounts, store_credit_account_order);
-        self.store.staged.store_credit_transactions = state["stagedState"]
-            ["storeCreditTransactions"]
-            .as_object()
-            .map(|transactions| {
-                transactions
-                    .iter()
-                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.store_credit_transactions =
+            value_map_from_json(state["stagedState"].get("storeCreditTransactions"));
         self.store.staged.store_credit_transaction_order = state["stagedState"]
             .get("storeCreditTransactionOrder")
             .map(string_array_from_json)
@@ -1123,24 +1075,9 @@ impl DraftProxy {
             .and_then(Value::as_u64)
             .filter(|id| *id > 0)
             .unwrap_or(1);
-        self.store.staged.gift_cards = state["stagedState"]["giftCards"]
-            .as_object()
-            .map(|cards| {
-                cards
-                    .iter()
-                    .map(|(id, card)| (id.clone(), card.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
-            .as_object()
-            .map(|resources| {
-                resources
-                    .iter()
-                    .map(|(id, resource)| (id.clone(), resource.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.gift_cards = value_map_from_json(state["stagedState"].get("giftCards"));
+        self.store.staged.taggable_resources =
+            value_map_from_json(state["stagedState"].get("taggableResources"));
         self.store.staged.customer_payment_methods =
             value_map_from_json(state["stagedState"].get("customerPaymentMethods"));
         self.store.staged.customer_payment_method_customer_index = state["stagedState"]
@@ -1268,15 +1205,7 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.returns = state["stagedState"]["returns"]
-            .as_object()
-            .map(|returns| {
-                returns
-                    .iter()
-                    .map(|(id, return_record)| (id.clone(), return_record.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.returns = value_map_from_json(state["stagedState"].get("returns"));
         self.store.staged.returns_by_order = state["stagedState"]["returnsByOrder"]
             .as_object()
             .map(|returns_by_order| {
@@ -1296,35 +1225,12 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.reverse_deliveries = state["stagedState"]["reverseDeliveries"]
-            .as_object()
-            .map(|deliveries| {
-                deliveries
-                    .iter()
-                    .map(|(id, delivery)| (id.clone(), delivery.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.reverse_fulfillment_orders = state["stagedState"]
-            ["reverseFulfillmentOrders"]
-            .as_object()
-            .map(|orders| {
-                orders
-                    .iter()
-                    .map(|(id, order)| (id.clone(), order.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.observed_shipping_locations = state["stagedState"]
-            .get("observedShippingLocations")
-            .and_then(Value::as_object)
-            .map(|locations| {
-                locations
-                    .iter()
-                    .map(|(id, location)| (id.clone(), location.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.reverse_deliveries =
+            value_map_from_json(state["stagedState"].get("reverseDeliveries"));
+        self.store.staged.reverse_fulfillment_orders =
+            value_map_from_json(state["stagedState"].get("reverseFulfillmentOrders"));
+        self.store.staged.observed_shipping_locations =
+            value_map_from_json(state["stagedState"].get("observedShippingLocations"));
         self.store.staged.observed_shipping_location_order = state["stagedState"]
             .get("observedShippingLocationOrder")
             .map(string_array_from_json)
@@ -1533,9 +1439,24 @@ impl DraftProxy {
                 definitions
                     .iter()
                     .filter_map(|(encoded_key, definition)| {
-                        encoded_key.split_once('\u{1f}').map(|(namespace, key)| {
-                            ((namespace.to_string(), key.to_string()), definition.clone())
-                        })
+                        let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                        match parts.as_slice() {
+                            [owner_type, namespace, key] => Some((
+                                metafield_definition_store_key(owner_type, namespace, key),
+                                definition.clone(),
+                            )),
+                            [namespace, key] => {
+                                let owner_type = definition
+                                    .get("ownerType")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("PRODUCT");
+                                Some((
+                                    metafield_definition_store_key(owner_type, namespace, key),
+                                    definition.clone(),
+                                ))
+                            }
+                            _ => None,
+                        }
                     })
                     .collect()
             })
@@ -1620,61 +1541,14 @@ impl DraftProxy {
                 .filter_map(|value| value.as_str().map(str::to_string))
                 .collect(),
         );
-        self.store.staged.discount_redeem_code_bulk_creations = state["stagedState"]
-            ["discountRedeemCodeBulkCreations"]
-            .as_object()
-            .map(|creations| {
-                creations
-                    .iter()
-                    .map(|(id, creation)| (id.clone(), creation.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.b2b_companies = state["stagedState"]
-            .get("b2bCompanies")
-            .and_then(Value::as_object)
-            .map(|companies| {
-                companies
-                    .iter()
-                    .map(|(id, company)| (id.clone(), company.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let b2b_locations = value_map_from_json(state["stagedState"].get("b2bLocations"));
-        let b2b_location_order = state["stagedState"]
-            .get("b2bLocationOrder")
-            .map(string_array_from_json)
-            .unwrap_or_else(|| b2b_locations.keys().cloned().collect());
-        self.store
-            .staged
-            .b2b_locations
-            .replace_with_order(b2b_locations, b2b_location_order);
-        self.store.staged.b2b_contacts = state["stagedState"]
-            .get("b2bContacts")
-            .and_then(Value::as_object)
-            .map(|contacts| {
-                contacts
-                    .iter()
-                    .map(|(id, contact)| (id.clone(), contact.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.discount_redeem_code_bulk_creations =
+            value_map_from_json(state["stagedState"].get("discountRedeemCodeBulkCreations"));
         self.store.staged.deleted_b2b_contact_ids = state["stagedState"]
             .get("deletedB2bContactIds")
             .map(string_array_from_json)
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.b2b_contact_roles = state["stagedState"]
-            .get("b2bContactRoles")
-            .and_then(Value::as_object)
-            .map(|roles| {
-                roles
-                    .iter()
-                    .map(|(id, role)| (id.clone(), role.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
         self.store.staged.b2b_contact_role_assignments = state["stagedState"]
             .get("b2bContactRoleAssignments")
             .and_then(Value::as_object)
@@ -1708,46 +1582,11 @@ impl DraftProxy {
             .max(1);
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
-        self.store.staged.markets = state["stagedState"]
-            .get("markets")
-            .and_then(Value::as_object)
-            .map(|markets| {
-                markets
-                    .iter()
-                    .map(|(id, market)| (id.clone(), market.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.catalogs = state["stagedState"]
-            .get("catalogs")
-            .and_then(Value::as_object)
-            .map(|catalogs| {
-                catalogs
-                    .iter()
-                    .map(|(id, catalog)| (id.clone(), catalog.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.price_lists = state["stagedState"]
-            .get("priceLists")
-            .and_then(Value::as_object)
-            .map(|price_lists| {
-                price_lists
-                    .iter()
-                    .map(|(id, price_list)| (id.clone(), price_list.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.web_presences = state["stagedState"]
-            .get("webPresences")
-            .and_then(Value::as_object)
-            .map(|presences| {
-                presences
-                    .iter()
-                    .map(|(id, presence)| (id.clone(), presence.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
+        self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
+        self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
+        self.store.staged.web_presences =
+            value_map_from_json(state["stagedState"].get("webPresences"));
         self.store.staged.shop_locales = state["stagedState"]
             .get("stagedShopLocales")
             .and_then(Value::as_object)
@@ -1778,16 +1617,8 @@ impl DraftProxy {
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
-        self.store.staged.function_fulfillment_constraint_rules = state["stagedState"]
-            ["functionFulfillmentConstraintRules"]
-            .as_object()
-            .map(|rules| {
-                rules
-                    .iter()
-                    .map(|(id, rule)| (id.clone(), rule.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.function_fulfillment_constraint_rules =
+            value_map_from_json(state["stagedState"].get("functionFulfillmentConstraintRules"));
         self.store.staged.function_fulfillment_constraint_rule_order = state["stagedState"]
             .get("functionFulfillmentConstraintRuleOrder")
             .map(string_array_from_json)

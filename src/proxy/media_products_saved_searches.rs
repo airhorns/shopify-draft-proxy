@@ -13,6 +13,10 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+
+const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
+const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
+
 impl DraftProxy {
     pub(in crate::proxy) fn record_passthrough_log_entry(
         &mut self,
@@ -627,7 +631,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         product_id: &str,
     ) -> Option<(Vec<Value>, ProductVariantRecord)> {
-        let product_options = Self::resolved_object_list_arg(input, "productOptions");
+        let product_options = list_object_field(input, "productOptions");
         if product_options.is_empty() {
             return None;
         }
@@ -635,7 +639,7 @@ impl DraftProxy {
         let mut selected_options = Vec::new();
         for (index, option) in product_options.iter().enumerate() {
             let name = resolved_string_field(option, "name").unwrap_or_default();
-            let value_names: Vec<String> = Self::resolved_object_list_arg(option, "values")
+            let value_names: Vec<String> = list_object_field(option, "values")
                 .iter()
                 .filter_map(|value| resolved_string_field(value, "name"))
                 .collect();
@@ -1266,11 +1270,9 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -1572,7 +1574,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         if variants_input.len() > 2048 {
             return MutationOutcome::response(Self::product_variant_bulk_input_size_error(
                 &field,
@@ -1595,6 +1597,17 @@ impl DraftProxy {
                 )],
             ));
         };
+        if let Some(error) =
+            Self::product_variant_bulk_inventory_quantities_limit_user_error(&variants_input)
+        {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                None,
+                Some(Vec::new()),
+                vec![error],
+            ));
+        }
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
@@ -1722,7 +1735,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         // Hydrate the product together with the variants referenced by the update so
         // a cold backend stages both before the update is applied, matching the
         // node hydration the proxy records during capture.
@@ -1762,6 +1775,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let mut updated_variants = Vec::new();
+        let mut position_moves = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
             let prefix = ["variants".to_string(), index.to_string()];
             let Some(variant_id) = resolved_string_field(input, "id") else {
@@ -1804,6 +1818,9 @@ impl DraftProxy {
             let mut variant = existing;
             apply_product_variant_input(&mut variant, input);
             Self::normalize_bulk_variant_title(&mut variant);
+            if let Some(position) = resolved_int_field(input, "position") {
+                position_moves.push((variant.id.clone(), position, index));
+            }
             updated_variants.push(variant);
         }
         if !user_errors.is_empty() {
@@ -1821,6 +1838,14 @@ impl DraftProxy {
         }
         for (variant, input) in updated_variants.iter().zip(variants_input.iter()) {
             self.stage_input_variant_metafields(&variant.id, input);
+        }
+        if !position_moves.is_empty() {
+            self.store
+                .move_product_variants_to_positions(&product.id, &position_moves);
+            updated_variants = updated_variants
+                .iter()
+                .filter_map(|variant| self.store.product_variant_by_id(&variant.id).cloned())
+                .collect();
         }
         let mut staged_ids = vec![product.id.clone()];
         staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
@@ -1932,7 +1957,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let positions = Self::resolved_object_list_arg(&field.arguments, "positions");
+        let positions = list_object_field(&field.arguments, "positions");
         let position_variant_ids = positions
             .iter()
             .filter_map(|position| resolved_string_field(position, "id"))
@@ -1960,15 +1985,25 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let mut ordered_positions = Vec::new();
+        let mut seen_variant_ids = BTreeSet::new();
         for (index, position) in positions.iter().enumerate() {
             let Some(variant_id) = resolved_string_field(position, "id") else {
                 user_errors.push(Self::bulk_user_error(
                     &["positions", &index.to_string(), "id"],
                     "Product variant is missing ID attribute",
-                    Some("PRODUCT_VARIANT_ID_MISSING"),
+                    Some("MISSING_VARIANT"),
                 ));
                 continue;
             };
+            let position_value =
+                resolved_int_field(position, "position").unwrap_or((index + 1) as i64);
+            if position_value < 1 {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions", &index.to_string(), "position"],
+                    "Position can not be zero or negative number",
+                    Some("INVALID_POSITION"),
+                ));
+            }
             if self
                 .store
                 .product_variant_by_id(&variant_id)
@@ -1977,11 +2012,18 @@ impl DraftProxy {
                 user_errors.push(Self::bulk_user_error(
                     &["positions", &index.to_string(), "id"],
                     "Product variant does not exist",
-                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                    Some("MISSING_VARIANT"),
                 ));
                 continue;
             }
-            let position_value = resolved_int_field(position, "position").unwrap_or(index as i64);
+            if !seen_variant_ids.insert(variant_id.clone()) {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions"],
+                    "Product variant IDs must be unique",
+                    Some("DUPLICATED_VARIANT_ID"),
+                ));
+                continue;
+            }
             ordered_positions.push((position_value, index, variant_id));
         }
         if !user_errors.is_empty() {
@@ -2074,11 +2116,9 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -2202,11 +2242,9 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &error_selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &error_selection,
                 )),
                 _ => None,
             }
@@ -2221,22 +2259,6 @@ impl DraftProxy {
         root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_field)
-    }
-
-    fn resolved_object_list_arg(
-        arguments: &BTreeMap<String, ResolvedValue>,
-        name: &str,
-    ) -> Vec<BTreeMap<String, ResolvedValue>> {
-        match arguments.get(name) {
-            Some(ResolvedValue::List(values)) => values
-                .iter()
-                .filter_map(|value| match value {
-                    ResolvedValue::Object(object) => Some(object.clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        }
     }
 
     fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
@@ -2266,6 +2288,24 @@ impl DraftProxy {
                 .map(|code| Value::String(code.to_string()))
                 .unwrap_or(Value::Null),
         })
+    }
+
+    fn product_variant_bulk_inventory_quantities_limit_user_error(
+        variants_input: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let quantity_count: usize = variants_input
+            .iter()
+            .map(|input| resolved_object_list_field(input, "inventoryQuantities").len())
+            .sum();
+        if quantity_count > PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT {
+            Some(Self::bulk_user_error(
+                &["variants"],
+                "Inventory quantity input exceeds the limit of 50000. Consider using separate `inventorySetQuantities` mutations.",
+                Some("INVALID_INPUT"),
+            ))
+        } else {
+            None
+        }
     }
 
     fn product_variant_bulk_option_user_errors(
@@ -2404,18 +2444,23 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         index: usize,
     ) -> Vec<Value> {
+        let inventory_quantities = resolved_object_list_field(input, "inventoryQuantities");
+        if inventory_quantities.len() > self.product_variant_bulk_inventory_location_limit() {
+            return vec![Self::bulk_user_error(
+                &["variants", &index.to_string()],
+                "Inventory locations cannot exceed the allowed resource limit",
+                Some("TOO_MANY_INVENTORY_LOCATIONS"),
+            )];
+        }
         let variant_title = resolved_product_variant_selected_options(input)
             .iter()
             .map(|option| option.value.as_str())
             .collect::<Vec<_>>()
             .join(" / ");
-        if resolved_object_list_field(input, "inventoryQuantities")
-            .iter()
-            .any(|quantity| {
-                resolved_string_field(quantity, "locationId")
-                    .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
-            })
-        {
+        if inventory_quantities.iter().any(|quantity| {
+            resolved_string_field(quantity, "locationId")
+                .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
+        }) {
             vec![Self::bulk_user_error(
                 &["variants", &index.to_string(), "inventoryQuantities"],
                 &format!(
@@ -2431,6 +2476,18 @@ impl DraftProxy {
         } else {
             Vec::new()
         }
+    }
+
+    fn product_variant_bulk_inventory_location_limit(&self) -> usize {
+        self.store
+            .base
+            .shop
+            .get("resourceLimits")
+            .and_then(|limits| limits.get("locationLimit"))
+            .and_then(Value::as_u64)
+            .and_then(|limit| usize::try_from(limit).ok())
+            .filter(|limit| *limit > 0)
+            .unwrap_or(PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT)
     }
 
     fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
@@ -2518,12 +2575,7 @@ impl DraftProxy {
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &error_selection))
-                            .collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -2800,7 +2852,7 @@ impl DraftProxy {
         id: &str,
         request: &Request,
     ) -> Option<ProductRecord> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
         let response = self.upstream_post(
@@ -3009,7 +3061,7 @@ impl DraftProxy {
             .as_ref()
             .is_some_and(product_publication_state_known);
         let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
+            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
             .unwrap_or_else(|| {
                 let timestamp = default_product_timestamp(&product_id);
                 ProductRecord {
@@ -3074,8 +3126,8 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3090,35 +3142,6 @@ impl DraftProxy {
         } else {
             MutationOutcome::response(response)
         }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
     }
 
     fn product_publication_user_errors(
@@ -3218,7 +3241,7 @@ pub(in crate::proxy) fn metafields_mutation_inputs(
         .map(|field| list_object_field(&field.arguments, "metafields"))
         .unwrap_or_default();
     if from_field.is_empty() {
-        list_object_arg(variables, "metafields")
+        list_object_field(variables, "metafields")
     } else {
         from_field
     }
@@ -3339,18 +3362,6 @@ fn product_publication_input_entries(
         .collect()
 }
 
-fn selected_product_publication_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
-}
-
 fn product_publication_publish_date_is_before_1970(value: &str) -> bool {
     value
         .get(..4)
@@ -3367,5 +3378,156 @@ fn product_variant_media_is_image(media: &Value) -> bool {
             .get("id")
             .and_then(Value::as_str)
             .is_some_and(|id| id.starts_with("gid://shopify/MediaImage/")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    fn seed_product(id: &str) -> ProductRecord {
+        ProductRecord {
+            id: id.to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+            title: "Seeded product".to_string(),
+            handle: "seeded-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+            ..ProductRecord::default()
+        }
+    }
+
+    fn test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(|_| panic!("product variant tests should not call upstream"))
+    }
+
+    fn create_variant(proxy: &mut DraftProxy, sku: &str, price: &str) -> Value {
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation CreateLegacyVariantForTest($input: ProductVariantInput!) {
+              productVariantCreate(input: $input) {
+                productVariant { id sku price }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "productId": "gid://shopify/Product/1",
+                    "title": sku,
+                    "sku": sku,
+                    "price": price
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productVariantCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["productVariantCreate"]["productVariant"].clone()
+    }
+
+    #[test]
+    fn bulk_update_legacy_position_handler_reorders_connection_and_positions() {
+        let mut proxy = test_proxy();
+        let red = create_variant(&mut proxy, "RED", "10.00");
+        let blue = create_variant(&mut proxy, "BLUE", "11.00");
+        let green = create_variant(&mut proxy, "GREEN", "12.00");
+        let red_id = red["id"].as_str().unwrap().to_string();
+        let blue_id = blue["id"].as_str().unwrap().to_string();
+        let green_id = green["id"].as_str().unwrap().to_string();
+
+        let query = r#"
+            mutation MoveVariantWithBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                product {
+                  variants(first: 10) {
+                    nodes { id sku position }
+                  }
+                }
+                productVariants { id sku position }
+                userErrors { field message code }
+              }
+            }
+            "#;
+        let request = test_request(
+            query,
+            json!({
+                "productId": "gid://shopify/Product/1",
+                "variants": [
+                    { "id": green_id, "position": 1 }
+                ]
+            }),
+        );
+        let parsed = parse_graphql_request_body(&request.body).unwrap();
+        let response = proxy
+            .product_variants_bulk_update(&request, &parsed.query, &parsed.variables)
+            .response;
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+            json!([{ "id": green_id, "sku": "GREEN", "position": 1 }])
+        );
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"],
+            json!([
+                { "id": green_id, "sku": "GREEN", "position": 1 },
+                { "id": red_id, "sku": "RED", "position": 2 },
+                { "id": blue_id, "sku": "BLUE", "position": 3 }
+            ])
+        );
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query VariantPositions($productId: ID!) {
+              product(id: $productId) {
+                variants(first: 10) {
+                  nodes { sku position }
+                }
+              }
+            }
+            "#,
+            json!({ "productId": "gid://shopify/Product/1" }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"],
+            json!([
+                { "sku": "GREEN", "position": 1 },
+                { "sku": "RED", "position": 2 },
+                { "sku": "BLUE", "position": 3 }
+            ])
+        );
     }
 }

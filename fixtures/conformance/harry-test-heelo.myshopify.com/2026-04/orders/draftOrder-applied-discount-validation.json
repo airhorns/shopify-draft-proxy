@@ -1,0 +1,1487 @@
+{
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-06-24T00:46:49.093Z",
+    "description": "DraftOrderAppliedDiscountInput value/valueType validation for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate."
+  },
+  "invalidRootNames": [
+    "orderPercentageAboveMax",
+    "orderPercentageNegative",
+    "orderValueTooPrecise",
+    "linePercentageAboveMax",
+    "linePercentageNegative",
+    "lineValueTooPrecise"
+  ],
+  "validRootNames": ["validOrderPercentage", "validLinePercentage"],
+  "setupCreate": {
+    "variables": {
+      "input": {
+        "email": "draft-discount-setup-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112715058"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createValidation": {
+    "variables": {
+      "orderPercentageAboveMax": {
+        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 150,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderPercentageNegative": {
+        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": -5,
+          "amount": 0,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderValueTooPrecise": {
+        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.345,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "linePercentageAboveMax": {
+        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 150,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "linePercentageNegative": {
+        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": -5,
+              "amount": 0,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "lineValueTooPrecise": {
+        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.345,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "validOrderPercentage": {
+        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.34,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "validLinePercentage": {
+        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.34,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "orderPercentageAboveMax": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "orderPercentageNegative": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112747826"
+          },
+          "userErrors": []
+        },
+        "orderValueTooPrecise": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "linePercentageAboveMax": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "linePercentageNegative": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112780594"
+          },
+          "userErrors": []
+        },
+        "lineValueTooPrecise": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "validOrderPercentage": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112813362",
+            "appliedDiscount": {
+              "value": 12.34,
+              "valueType": "PERCENTAGE",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "1.23",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "1.23",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "validLinePercentage": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112846130",
+            "lineItems": {
+              "nodes": [
+                {
+                  "appliedDiscount": {
+                    "value": 12.34,
+                    "valueType": "PERCENTAGE",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "1.23",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  "totalDiscountSet": {
+                    "shopMoney": {
+                      "amount": "1.23",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "1.23",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 89,
+          "actualQueryCost": 85,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1915,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateValidation": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1270112715058",
+      "orderPercentageAboveMax": {
+        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 150,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderPercentageNegative": {
+        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": -5,
+          "amount": 0,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderValueTooPrecise": {
+        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.345,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "linePercentageAboveMax": {
+        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 150,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "linePercentageNegative": {
+        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": -5,
+              "amount": 0,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "lineValueTooPrecise": {
+        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.345,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "validOrderPercentage": {
+        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.34,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "validLinePercentage": {
+        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.34,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "orderPercentageAboveMax": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["input", "appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "orderPercentageNegative": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112715058"
+          },
+          "userErrors": []
+        },
+        "orderValueTooPrecise": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["input", "appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "linePercentageAboveMax": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["input", "lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "linePercentageNegative": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112715058"
+          },
+          "userErrors": []
+        },
+        "lineValueTooPrecise": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["input", "lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "validOrderPercentage": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112715058",
+            "appliedDiscount": {
+              "value": 12.34,
+              "valueType": "PERCENTAGE",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "1.23",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "1.23",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "validLinePercentage": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1270112715058",
+            "lineItems": {
+              "nodes": [
+                {
+                  "appliedDiscount": {
+                    "value": 12.34,
+                    "valueType": "PERCENTAGE",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "1.23",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  "totalDiscountSet": {
+                    "shopMoney": {
+                      "amount": "1.23",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "2.31",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 89,
+          "actualQueryCost": 85,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1915,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "calculateValidation": {
+    "variables": {
+      "orderPercentageAboveMax": {
+        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 150,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderPercentageNegative": {
+        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": -5,
+          "amount": 0,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "orderValueTooPrecise": {
+        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.345,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "linePercentageAboveMax": {
+        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 150,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "linePercentageNegative": {
+        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": -5,
+              "amount": 0,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "lineValueTooPrecise": {
+        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.345,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      },
+      "validOrderPercentage": {
+        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 12.34,
+          "amount": 10,
+          "valueType": "PERCENTAGE"
+        }
+      },
+      "validLinePercentage": {
+        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 12.34,
+              "amount": 10,
+              "valueType": "PERCENTAGE"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "orderPercentageAboveMax": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": ["appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "orderPercentageNegative": {
+          "calculatedDraftOrder": {
+            "currencyCode": "CAD"
+          },
+          "userErrors": []
+        },
+        "orderValueTooPrecise": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": ["appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "linePercentageAboveMax": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": ["lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value must be less than or equal to 100%"
+            }
+          ]
+        },
+        "linePercentageNegative": {
+          "calculatedDraftOrder": {
+            "currencyCode": "CAD"
+          },
+          "userErrors": []
+        },
+        "lineValueTooPrecise": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": ["lineItems", "0", "appliedDiscount", "value"],
+              "message": "Applied discount value can have at most 2 digits after decimal point"
+            }
+          ]
+        },
+        "validOrderPercentage": {
+          "calculatedDraftOrder": {
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "1.23",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "validLinePercentage": {
+          "calculatedDraftOrder": {
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "1.23",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": [
+              {
+                "appliedDiscount": {
+                  "value": 12.34,
+                  "valueType": "PERCENTAGE",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "1.23",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "totalDiscountSet": {
+                  "shopMoney": {
+                    "amount": "1.23",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 82,
+          "actualQueryCost": 82,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1918,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingValueTypeValidation": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1270112715058",
+      "createOrderMissingValueType": {
+        "email": "draft-discount-create-order-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10
+        }
+      },
+      "createLineMissingValueType": {
+        "email": "draft-discount-create-line-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10
+            }
+          }
+        ]
+      },
+      "updateOrderMissingValueType": {
+        "email": "draft-discount-update-order-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10
+        }
+      },
+      "updateLineMissingValueType": {
+        "email": "draft-discount-update-line-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10
+            }
+          }
+        ]
+      },
+      "calculateOrderMissingValueType": {
+        "email": "draft-discount-calculate-order-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10
+        }
+      },
+      "calculateLineMissingValueType": {
+        "email": "draft-discount-calculate-line-missing-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10
+            }
+          }
+        ]
+      },
+      "createOrderInvalidValueType": {
+        "email": "draft-discount-create-order-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10,
+          "valueType": "BOGUS"
+        }
+      },
+      "createLineInvalidValueType": {
+        "email": "draft-discount-create-line-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10,
+              "valueType": "BOGUS"
+            }
+          }
+        ]
+      },
+      "updateOrderInvalidValueType": {
+        "email": "draft-discount-update-order-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10,
+          "valueType": "BOGUS"
+        }
+      },
+      "updateLineInvalidValueType": {
+        "email": "draft-discount-update-line-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10,
+              "valueType": "BOGUS"
+            }
+          }
+        ]
+      },
+      "calculateOrderInvalidValueType": {
+        "email": "draft-discount-calculate-order-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false
+          }
+        ],
+        "appliedDiscount": {
+          "title": "Applied discount validation 20260624004644",
+          "description": "Draft order applied discount validation capture",
+          "value": 10,
+          "amount": 10,
+          "valueType": "BOGUS"
+        }
+      },
+      "calculateLineInvalidValueType": {
+        "email": "draft-discount-calculate-line-invalid-type-20260624004644@example.com",
+        "lineItems": [
+          {
+            "title": "Applied discount item 20260624004644",
+            "quantity": 1,
+            "originalUnitPrice": "10.00",
+            "requiresShipping": false,
+            "appliedDiscount": {
+              "title": "Applied discount validation 20260624004644",
+              "description": "Draft order applied discount validation capture",
+              "value": 10,
+              "amount": 10,
+              "valueType": "BOGUS"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $createOrderMissingValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 3,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-create-order-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $createLineMissingValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 4,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-create-line-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $updateOrderMissingValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 5,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-update-order-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $updateLineMissingValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 6,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-update-line-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $calculateOrderMissingValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 7,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-calculate-order-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $calculateLineMissingValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 8,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-calculate-line-missing-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $createOrderInvalidValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 9,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-create-order-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10,
+                "valueType": "BOGUS"
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $createLineInvalidValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 10,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-create-line-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10,
+                    "valueType": "BOGUS"
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $updateOrderInvalidValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 11,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-update-order-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10,
+                "valueType": "BOGUS"
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $updateLineInvalidValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 12,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-update-line-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10,
+                    "valueType": "BOGUS"
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $calculateOrderInvalidValueType of type DraftOrderInput! was provided invalid value for appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 13,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-calculate-order-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Applied discount validation 20260624004644",
+                "description": "Draft order applied discount validation capture",
+                "value": 10,
+                "amount": 10,
+                "valueType": "BOGUS"
+              }
+            },
+            "problems": [
+              {
+                "path": ["appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        },
+        {
+          "message": "Variable $calculateLineInvalidValueType of type DraftOrderInput! was provided invalid value for lineItems.0.appliedDiscount.valueType (Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE)",
+          "locations": [
+            {
+              "line": 14,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "email": "draft-discount-calculate-line-invalid-type-20260624004644@example.com",
+              "lineItems": [
+                {
+                  "title": "Applied discount item 20260624004644",
+                  "quantity": 1,
+                  "originalUnitPrice": "10.00",
+                  "requiresShipping": false,
+                  "appliedDiscount": {
+                    "title": "Applied discount validation 20260624004644",
+                    "description": "Draft order applied discount validation capture",
+                    "value": 10,
+                    "amount": 10,
+                    "valueType": "BOGUS"
+                  }
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["lineItems", 0, "appliedDiscount", "valueType"],
+                "explanation": "Expected \"BOGUS\" to be one of: FIXED_AMOUNT, PERCENTAGE"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}
