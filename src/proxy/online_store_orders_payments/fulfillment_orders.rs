@@ -764,17 +764,13 @@ impl DraftProxy {
             record
         };
 
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentOrderSubmitFulfillmentRequest",
-            staged_resource_ids: vec![order_id, id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentOrderSubmitFulfillmentRequest in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentOrderSubmitFulfillmentRequest",
+            vec![order_id, id],
+        );
 
         fulfillment_order_request_payload_json(
             &field.name,
@@ -1047,17 +1043,13 @@ impl DraftProxy {
             }));
         }
 
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentOrderSplit",
-            staged_resource_ids: staged_ids,
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentOrderSplit in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentOrderSplit",
+            staged_ids,
+        );
         fulfillment_order_split_payload_json(
             Value::Array(split_results),
             &field.selection,
@@ -1277,17 +1269,13 @@ impl DraftProxy {
             merge_results.push(json!({ "fulfillmentOrder": target }));
         }
 
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentOrderMerge",
-            staged_resource_ids: staged_ids,
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentOrderMerge in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentOrderMerge",
+            staged_ids,
+        );
         fulfillment_order_merge_payload_json(
             Value::Array(merge_results),
             &field.selection,
@@ -1526,17 +1514,13 @@ impl DraftProxy {
             .staged
             .orders
             .insert(order_id.clone(), order.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentCreate",
-            staged_resource_ids: vec![order_id, fulfillment_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentCreate in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentCreate",
+            vec![order_id, fulfillment_id],
+        );
 
         selected_json(
             &json!({ "fulfillment": fulfillment, "userErrors": [] }),
@@ -1659,17 +1643,13 @@ impl DraftProxy {
             .staged
             .orders
             .insert(order_id.clone(), order.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentEventCreate",
-            staged_resource_ids: vec![order_id, fulfillment_id, event_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentEventCreate in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentEventCreate",
+            vec![order_id, fulfillment_id, event_id],
+        );
         selected_json(
             &json!({ "fulfillmentEvent": event, "userErrors": [] }),
             &field.selection,
@@ -1713,17 +1693,13 @@ impl DraftProxy {
             .staged
             .orders
             .insert(order_id.clone(), order.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentTrackingInfoUpdate",
-            staged_resource_ids: vec![order_id, fulfillment_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentTrackingInfoUpdate in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentTrackingInfoUpdate",
+            vec![order_id, fulfillment_id],
+        );
         Some(selected_json(
             &json!({ "fulfillment": updated, "userErrors": [] }),
             &field.selection,
@@ -1771,17 +1747,13 @@ impl DraftProxy {
             .staged
             .orders
             .insert(order_id.clone(), order.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "fulfillmentCancel",
-            staged_resource_ids: vec![order_id, fulfillment_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged fulfillmentCancel in shopify-draft-proxy.",
-            },
-        });
+            "fulfillmentCancel",
+            vec![order_id, fulfillment_id],
+        );
         Some(selected_json(
             &json!({ "fulfillment": cancelled, "userErrors": [] }),
             &field.selection,

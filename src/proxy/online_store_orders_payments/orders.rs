@@ -1328,17 +1328,13 @@ impl DraftProxy {
                 }
             }
         }
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "orderUpdate",
-            staged_resource_ids: vec![order_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged orderUpdate in shopify-draft-proxy.",
-            },
-        });
+            "orderUpdate",
+            vec![order_id],
+        );
 
         Some(selected_json(
             &json!({ "order": order, "userErrors": [] }),
@@ -1384,17 +1380,13 @@ impl DraftProxy {
                 .or_default()
                 .push(order.clone());
         }
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "orderCreate",
-            staged_resource_ids: vec![order_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged orderCreate in shopify-draft-proxy.",
-            },
-        });
+            "orderCreate",
+            vec![order_id],
+        );
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
@@ -2004,6 +1996,28 @@ impl DraftProxy {
         }));
     }
 
+    pub(super) fn record_staged_orders_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+    ) {
+        let notes = format!("Locally staged {root_field} in shopify-draft-proxy.");
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field,
+            staged_resource_ids,
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: &notes,
+            },
+        });
+    }
+
     pub(in crate::proxy) fn remaining_order_local_data(
         &mut self,
         request: &Request,
@@ -2306,11 +2320,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
         // When the variant is already on the order and the caller did not opt
         // into duplicates, Shopify rejects the add: every payload resource is
@@ -2435,11 +2445,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
             None => {
@@ -2497,11 +2503,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let title = resolved_string_arg(&field.arguments, "title").unwrap_or_default();
         if title.trim().is_empty() {
             return order_edit_error_response(
@@ -2606,11 +2608,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let line_item_id = resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
@@ -2746,11 +2744,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let shipping_line =
             resolved_object_field(&field.arguments, "shippingLine").unwrap_or_default();
         let title = resolved_string_field(&shipping_line, "title");
@@ -2819,11 +2813,7 @@ impl DraftProxy {
             .order_edit_existing_calculated_order
             .clone()
             .unwrap_or_else(|| json!({}));
-        let currency = session
-            .get("currency")
-            .and_then(Value::as_str)
-            .unwrap_or("CAD")
-            .to_string();
+        let currency = oe_session_currency(&session).to_string();
         let shipping_line_id =
             resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
         let index = match oe_shipping_index(&session, &shipping_line_id) {
@@ -3020,17 +3010,13 @@ impl DraftProxy {
         }
 
         self.delete_staged_order(&order_id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "orderDelete",
-            staged_resource_ids: vec![order_id.clone()],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged orderDelete in shopify-draft-proxy.",
-            },
-        });
+            "orderDelete",
+            vec![order_id.clone()],
+        );
         Some(selected_json(
             &json!({
                 "deletedId": order_id,
@@ -3402,17 +3388,13 @@ impl DraftProxy {
                     }
                 }
             }
-            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            self.record_staged_orders_log_entry(
                 request,
                 query,
                 variables,
-                root_field: "orderCancel",
-                staged_resource_ids: vec![order_id],
-                outcome: OrdersLocalLogOutcome {
-                    status: "staged",
-                    notes: "Locally staged orderCancel in shopify-draft-proxy.",
-                },
-            });
+                "orderCancel",
+                vec![order_id],
+            );
             return Some(selected_json(
                 &json!({
                     "order": order,
@@ -3462,17 +3444,13 @@ impl DraftProxy {
             .staged
             .order_customer_orders
             .insert(order_id.clone(), order.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "orderCancel",
-            staged_resource_ids: vec![order_id.clone()],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged orderCancel in shopify-draft-proxy.",
-            },
-        });
+            "orderCancel",
+            vec![order_id.clone()],
+        );
         Some(selected_json(
             &json!({
                 "order": order,
