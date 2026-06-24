@@ -1699,7 +1699,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
-      'productVariantsBulkCreate scalar and option validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
+      'productVariantsBulkCreate scalar, option, and inventory validation for price, compareAtPrice, weight, per-quantity bounds, cumulative inventoryQuantities count, per-variant inventory location count, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,

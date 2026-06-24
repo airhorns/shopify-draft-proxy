@@ -1698,6 +1698,7 @@ Fresh live capture for `productVariantsBulkCreate` / `productVariantsBulkUpdate`
   - option realization arrives via `optionValues[{ optionName, name }]`
   - `inventoryQuantities` is accepted on create, not update
 - `productVariantsBulkUpdate` rejected `inventoryQuantities` with a fielded user error directing callers to `inventoryAdjustQuantities`
+- `productVariantsBulkCreate` inventory validation has two separate count guards: total submitted `inventoryQuantities` entries above 50,000 returns a payload `INVALID_INPUT` at `["variants"]`, while one variant with more than `shop.resourceLimits.locationLimit` inventory quantity entries returns `TOO_MANY_INVENTORY_LOCATIONS` at `["variants", "0"]`. On `harry-test-heelo.myshopify.com` the captured `locationLimit` was 200, and repeated entries for the same valid live location still counted toward the per-variant guard.
 - updating merchandising fields without a separate inventory adjustment still left `inventoryQuantity` at `0` in the live mutation payload and immediate follow-up read
 - immediate downstream `product.variants` reflected the bulk writes, but sku-filtered `products(query: "sku:...")` and `productsCount(query: "sku:...")` remained empty immediately after the same writes
 
