@@ -1,0 +1,28 @@
+mutation FulfillmentConstraintRuleUnknownFunction {
+  unknownId: fulfillmentConstraintRuleCreate(
+    functionId: "gid://shopify/ShopifyFunction/999999999999"
+    deliveryMethodTypes: [SHIPPING]
+  ) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  unknownHandle: fulfillmentConstraintRuleCreate(
+    functionHandle: "definitely-missing-fulfillment-constraint"
+    deliveryMethodTypes: [SHIPPING]
+  ) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

@@ -1727,15 +1727,6 @@ fn resource_join_leave_payload(
     }))
 }
 
-fn selected_user_errors(user_errors: &[Value], selections: &[SelectedField]) -> Value {
-    Value::Array(
-        user_errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
-}
-
 fn group_does_not_exist_error() -> Value {
     user_error(
         ["id"],

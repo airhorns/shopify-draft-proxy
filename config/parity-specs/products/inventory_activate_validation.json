@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-linkage-parity.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventoryActivate-parity-plan.graphql",
     "variablesCapturePath": "$.inventoryActivateUnknownLocation.variables"
@@ -31,6 +31,15 @@
         }
       },
       {
+        "name": "inventory-bulk-toggle-unknown-location-user-errors",
+        "capturePath": "$.inventoryBulkToggleUnknownLocation.response.data.inventoryBulkToggleActivation.userErrors",
+        "proxyPath": "$.data.inventoryBulkToggleActivation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryBulkToggleActivation-parity-plan.graphql",
+          "variablesCapturePath": "$.inventoryBulkToggleUnknownLocation.variables"
+        }
+      },
+      {
         "name": "inventory-deactivate-only-location",
         "capturePath": "$.inventoryDeactivateOnlyLocationError.response.data",
         "proxyPath": "$.data",
@@ -41,5 +50,5 @@
       }
     ]
   },
-  "notes": "Covers captured Shopify validation for unknown inventoryActivate location, unknown inventoryBulkToggleActivation location, and the minimum-one-active-location inventoryDeactivate guard. Runtime tests cover staged duplicate activation and negative quantity branches because checked-in live capture evidence records already-active inventoryActivate as a no-op/available-conflict flow rather than TAKEN."
+  "notes": "Covers captured Shopify validation for unknown inventoryActivate location, unknown inventoryBulkToggleActivation location, and the minimum-one-active-location inventoryDeactivate guard. The bulk-toggle unknown-location capture uses a disposable product inventory item and a fabricated missing location id (`gid://shopify/Location/999999999999`) to trigger Core's typed userError `{ field: [\"inventoryItemUpdates\", \"0\", \"locationId\"], code: \"LOCATION_NOT_FOUND\", message: \"The quantity couldn't be updated because the location was not found.\" }`; the userErrors-only target keeps that contract strict. Runtime tests cover staged duplicate activation and bulk-toggle local branches that do not have real Core typed userErrors because checked-in live capture evidence records already-active inventoryActivate as a no-op/available-conflict flow rather than TAKEN."
 }

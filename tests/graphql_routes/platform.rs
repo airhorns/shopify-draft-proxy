@@ -2400,6 +2400,171 @@ fn generic_location_activate_stages_state_and_scope_guards() {
 }
 
 #[test]
+fn generic_location_activate_rejects_non_unique_active_name() {
+    let active_duplicate_id = "gid://shopify/Location/active-duplicate-name";
+    let target_id = "gid://shopify/Location/inactive-duplicate-name";
+    let duplicate_name = "Duplicate Activation Name";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            if body["query"].as_str().is_some_and(|query| {
+                query.contains("locationsAvailableForDeliveryProfilesConnection")
+            }) {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": [{
+                                    "id": active_duplicate_id,
+                                    "name": duplicate_name,
+                                    "isActive": true,
+                                    "isFulfillmentService": false
+                                }],
+                                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                            }
+                        }
+                    }),
+                }
+            } else if body["variables"]["id"] == target_id {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": target_id,
+                                "legacyResourceId": "inactive-duplicate-name",
+                                "name": duplicate_name,
+                                "activatable": true,
+                                "addressVerified": true,
+                                "createdAt": "2026-06-24T00:00:00Z",
+                                "deactivatable": true,
+                                "deactivatedAt": "2026-06-24T00:00:00Z",
+                                "deletable": true,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isActive": false,
+                                "isFulfillmentService": false,
+                                "isPrimary": false,
+                                "shipsInventory": false,
+                                "updatedAt": "2026-06-24T00:00:00Z",
+                                "fulfillmentService": null,
+                                "address": null,
+                                "suggestedAddresses": [],
+                                "metafield": null,
+                                "metafields": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": null,
+                                        "endCursor": null
+                                    }
+                                },
+                                "inventoryLevels": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": null,
+                                        "endCursor": null
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+
+    let observe = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveActiveDuplicate($first: Int!) {
+          locationsAvailableForDeliveryProfilesConnection(first: $first) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "first": 1 }),
+    ));
+    assert_eq!(
+        observe.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0],
+        json!({
+            "id": active_duplicate_id,
+            "name": duplicate_name,
+            "isActive": true,
+            "isFulfillmentService": false
+        })
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDuplicateName($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id name isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "locationId": target_id,
+            "idempotencyKey": "activate-duplicate-name"
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["locationActivate"],
+        json!({
+            "location": {
+                "id": target_id,
+                "name": duplicate_name,
+                "isActive": false
+            },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "HAS_NON_UNIQUE_NAME",
+                "message": "This location currently cannot be activated because there exists an active location with the same name."
+            }]
+        })
+    );
+
+    let target_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRejectedDuplicateNameActivation($id: ID!) {
+          location(id: $id) { id name isActive }
+        }
+        "#,
+        json!({ "id": target_id }),
+    ));
+    assert_eq!(
+        target_read.body["data"]["location"],
+        json!({
+            "id": target_id,
+            "name": duplicate_name,
+            "isActive": false
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"],
+        json!([]),
+        "rejected activation must not append a staged mutation log entry"
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
 fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
     let mut proxy = snapshot_proxy();
     let target_add = proxy.process_request(json_graphql_request(
@@ -4262,6 +4427,91 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
                 "title": "Privacy Policy",
                 "body": "<p>New</p>",
                 "url": "https://policies.example.com/policies/222.html?locale=en"
+            }
+        ])
+    );
+}
+
+#[test]
+fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
+    let mut proxy = snapshot_proxy();
+    let update_query = r#"
+        mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type body }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query ShopPolicyRead {
+          shop { shopPolicies { type body } }
+        }
+    "#;
+
+    let invalid_privacy = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": "{% unknownTag %}" } }),
+    ));
+    assert_eq!(invalid_privacy.status, 200);
+    assert_eq!(
+        invalid_privacy.body["data"]["shopPolicyUpdate"],
+        json!({
+            "shopPolicy": null,
+            "userErrors": [{
+                "field": ["shopPolicy", "body"],
+                "message": "Body Liquid syntax error: Unknown tag 'unknownTag'",
+                "code": null
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        read_after_invalid.body["data"]["shop"]["shopPolicies"],
+        json!([])
+    );
+
+    let refund = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "REFUND_POLICY", "body": "{% unknownTag %}" } }),
+    ));
+    assert_eq!(refund.status, 200);
+    assert_eq!(
+        refund.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        refund.body["data"]["shopPolicyUpdate"]["shopPolicy"]["body"],
+        json!("{% unknownTag %}")
+    );
+
+    let valid_privacy_body = "Line one {{ shop.name }}";
+    let valid_privacy = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": valid_privacy_body } }),
+    ));
+    assert_eq!(valid_privacy.status, 200);
+    assert_eq!(
+        valid_privacy.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid_privacy.body["data"]["shopPolicyUpdate"]["shopPolicy"]["body"],
+        json!(valid_privacy_body)
+    );
+
+    let read = proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        read.body["data"]["shop"]["shopPolicies"],
+        json!([
+            {
+                "type": "REFUND_POLICY",
+                "body": "{% unknownTag %}"
+            },
+            {
+                "type": "PRIVACY_POLICY",
+                "body": valid_privacy_body
             }
         ])
     );

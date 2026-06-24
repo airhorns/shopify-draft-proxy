@@ -1,0 +1,16 @@
+#graphql
+mutation PaymentTermsUpdateMissingTemplateIdSetup($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+    paymentTerms {
+      id
+      paymentTermsName
+      paymentTermsType
+      dueInDays
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

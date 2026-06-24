@@ -1,0 +1,28 @@
+{
+  "scenarioId": "web-presence-create-italian-default-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[39].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "italian-default-locale-is-accepted",
+        "capturePath": "$.cases[39].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": ["$.webPresence.defaultLocale.locale", "$.webPresence.defaultLocale.name", "$.userErrors"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL capture proves webPresenceCreate accepts Italian as a default locale outside the proxy's former six-language allowlist. The selected comparison avoids volatile ids and rootUrl formatting already covered by dedicated web-presence lifecycle parity."
+}

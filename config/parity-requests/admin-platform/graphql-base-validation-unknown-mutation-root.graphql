@@ -1,0 +1,5 @@
+mutation GraphqlBaseValidationUnknownMutationRoot {
+  definitelyNotAShopifyMutationRoot(input: {}) {
+    id
+  }
+}
