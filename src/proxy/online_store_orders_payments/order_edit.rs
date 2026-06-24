@@ -43,15 +43,12 @@ pub(super) fn oe_format_cents(cents: i64) -> String {
 }
 
 pub(super) fn oe_shop_money(cents: i64, currency: &str) -> Value {
-    json!({ "shopMoney": { "amount": oe_format_cents(cents), "currencyCode": currency } })
+    money_set(&oe_format_cents(cents), currency)
 }
 
 pub(super) fn oe_shop_presentment_money(cents: i64, currency: &str) -> Value {
     let amount = oe_format_cents(cents);
-    json!({
-        "shopMoney": { "amount": amount, "currencyCode": currency },
-        "presentmentMoney": { "amount": amount, "currencyCode": currency }
-    })
+    money_set_pair(&amount, currency, &amount, currency)
 }
 
 pub(super) fn oe_int(value: &Value, key: &str) -> i64 {

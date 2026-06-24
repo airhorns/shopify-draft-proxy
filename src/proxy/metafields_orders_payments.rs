@@ -2295,7 +2295,7 @@ fn payment_schedule_node(
             _ => None,
         },
     };
-    let money = json!({ "amount": normalize_money_amount(amount), "currencyCode": currency });
+    let money = money_value(&normalize_money_amount(amount), currency);
     json!({
         "id": schedule_id,
         "issuedAt": issued_at.map(Value::String).unwrap_or(Value::Null),
@@ -3801,31 +3801,32 @@ impl DraftProxy {
             })
             .and_then(|line| resolved_object_field(&line, "priceSet"))
             .map(|price_set| {
-                json!({
-                    "shopMoney": {
-                        "amount": resolved_object_field(&price_set, "shopMoney")
-                            .and_then(|money| resolved_string_field(&money, "amount"))
-                            .unwrap_or_else(|| "42.50".to_string()),
-                        "currencyCode": resolved_object_field(&price_set, "shopMoney")
-                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
-                            .unwrap_or_else(|| "USD".to_string())
-                    },
-                    "presentmentMoney": {
-                        "amount": resolved_object_field(&price_set, "presentmentMoney")
-                            .and_then(|money| resolved_string_field(&money, "amount"))
-                            .unwrap_or_else(|| "57.00".to_string()),
-                        "currencyCode": resolved_object_field(&price_set, "presentmentMoney")
-                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
-                            .unwrap_or_else(|| "CAD".to_string())
-                    }
-                })
+                let shop_money = resolved_object_field(&price_set, "shopMoney");
+                let shop_amount = shop_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "amount"))
+                    .unwrap_or_else(|| "42.50".to_string());
+                let shop_currency = shop_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "currencyCode"))
+                    .unwrap_or_else(|| "USD".to_string());
+                let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
+                let presentment_amount = presentment_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "amount"))
+                    .unwrap_or_else(|| "57.00".to_string());
+                let presentment_currency = presentment_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "currencyCode"))
+                    .unwrap_or_else(|| "CAD".to_string());
+                money_set_pair(
+                    &shop_amount,
+                    &shop_currency,
+                    &presentment_amount,
+                    &presentment_currency,
+                )
             })
-            .unwrap_or_else(|| {
-                json!({
-                    "shopMoney": { "amount": "57.00", "currencyCode": "CAD" },
-                    "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
-                })
-            });
+            .unwrap_or_else(|| money_set_pair("57.00", "CAD", "57.00", "CAD"));
         let order = json!({
             "id": id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),

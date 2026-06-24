@@ -3294,7 +3294,7 @@ fn discount_customer_gets_from_input(
     ) {
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": amount, "currencyCode": "CAD" },
+            "amount": money_value(&amount, "CAD"),
             "appliesOnEachItem": false
         })
     } else {
@@ -3342,7 +3342,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
     ) {
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": amount, "currencyCode": "CAD" },
+            "amount": money_value(&amount, "CAD"),
             "appliesOnEachItem": false
         })
     } else {
@@ -3449,7 +3449,7 @@ fn discount_destination_selection_from_input(input: &BTreeMap<String, ResolvedVa
 
 fn discount_maximum_shipping_price_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
     resolved_decimal_text_path(input, &["maximumShippingPrice"])
-        .map(|amount| json!({ "amount": amount, "currencyCode": "CAD" }))
+        .map(|amount| money_value(&amount, "CAD"))
         .unwrap_or(Value::Null)
 }
 
@@ -3638,8 +3638,8 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
         "templateSuffix": null,
         "createdAt": "2026-04-29T09:31:02Z",
         "updatedAt": "2026-04-29T09:31:02Z",
-        "initialValue": { "amount": "5.0", "currencyCode": "CAD" },
-        "balance": { "amount": "5.0", "currencyCode": "CAD" },
+        "initialValue": money_value("5.0", "CAD"),
+        "balance": money_value("5.0", "CAD"),
         "customer": { "id": "gid://shopify/Customer/10552623464754" },
         "recipientAttributes": {
             "message": "HAR-464 recipient message",
@@ -3657,8 +3657,8 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
 
 pub(in crate::proxy) fn gift_card_configuration_record() -> Value {
     json!({
-        "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
-        "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+        "issueLimit": money_value("3000.0", "CAD"),
+        "purchaseLimit": money_value("14000.0", "CAD")
     })
 }
 

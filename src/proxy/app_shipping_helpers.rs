@@ -411,7 +411,7 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
                     "id": default_id,
                     "plan": { "pricingDetails": {
                         "__typename": "AppRecurringPricing",
-                        "price": { "amount": price_amount, "currencyCode": price_currency }
+                        "price": money_value(&price_amount, &price_currency)
                     }}
                 });
             }
@@ -433,8 +433,8 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
         "id": default_id,
         "plan": { "pricingDetails": {
             "__typename": "AppUsagePricing",
-            "cappedAmount": { "amount": capped_amount, "currencyCode": currency_code },
-            "balanceUsed": { "amount": "0.0", "currencyCode": currency_code },
+            "cappedAmount": money_value(&capped_amount, &currency_code),
+            "balanceUsed": money_value("0.0", &currency_code),
             "interval": "EVERY_30_DAYS",
             "terms": terms
         }}

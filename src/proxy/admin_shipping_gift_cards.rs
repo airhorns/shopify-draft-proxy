@@ -961,7 +961,7 @@ impl DraftProxy {
                 usage_record = json!({
                     "id": "gid://shopify/AppUsageRecord/expected",
                     "description": description,
-                    "price": { "amount": amount, "currencyCode": currency },
+                    "price": money_value(&amount, &currency),
                     "idempotencyKey": idempotency_key,
                     "apiClientId": request_api_client_id(request),
                     "subscriptionLineItem": subscription_line_item
@@ -1352,7 +1352,7 @@ impl DraftProxy {
             "status": "ACTIVE",
             "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
             "createdAt": "2024-01-01T00:00:00.000Z",
-            "price": { "amount": amount, "currencyCode": currency_code }
+            "price": money_value(&amount, &currency_code)
         });
         self.store
             .staged

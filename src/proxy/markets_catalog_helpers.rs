@@ -352,7 +352,7 @@ pub(in crate::proxy) fn fixed_price_money_payload(
     let currency_code = fixed_price_input_currency(input, field)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| currency.to_string());
-    json!({"amount": amount, "currencyCode": currency_code})
+    money_value(&amount, &currency_code)
 }
 
 pub(in crate::proxy) fn fixed_price_product_payload(product: &ProductRecord) -> Value {
