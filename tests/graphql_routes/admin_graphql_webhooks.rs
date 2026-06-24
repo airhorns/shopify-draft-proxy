@@ -94,34 +94,68 @@ fn admin_graphql_rejects_non_json_or_missing_query_bodies() {
 }
 
 #[test]
-fn admin_graphql_reports_parse_and_dispatch_errors_with_existing_envelopes() {
+fn admin_graphql_reports_base_validation_errors_before_dispatch() {
     let mut proxy = snapshot_proxy();
 
-    let parse_error = proxy.process_request(graphql_request("POST", r#"{"query":""}"#));
-    assert_eq!(parse_error.status, 400);
+    let parse_error = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":""}"#,
+    ));
+    assert_eq!(parse_error.status, 200);
     assert_eq!(
         parse_error.body,
-        json!({ "errors": [{ "message": "Could not parse GraphQL operation" }] })
+        json!({
+            "errors": [{
+                "message": "syntax error, unexpected end of file at [1, 1]",
+                "locations": [{ "line": 1, "column": 1 }],
+                "extensions": { "code": "PARSE_ERROR" }
+            }]
+        })
     );
 
-    let unknown_query = proxy.process_request(graphql_request(
+    let unknown_query = proxy.process_request(request_with_body(
         "POST",
+        "/admin/api/2025-01/graphql.json",
         r#"{"query":"query Named { definitelyUnknownRoot { id } }"}"#,
     ));
-    assert_eq!(unknown_query.status, 400);
+    assert_eq!(unknown_query.status, 200);
     assert_eq!(
         unknown_query.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyUnknownRoot' doesn't exist on type 'QueryRoot'",
+                "locations": [{ "line": 1, "column": 15 }],
+                "path": ["query Named", "definitelyUnknownRoot"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "QueryRoot",
+                    "fieldName": "definitelyUnknownRoot"
+                }
+            }]
+        })
     );
 
-    let unknown_mutation = proxy.process_request(graphql_request(
+    let unknown_mutation = proxy.process_request(request_with_body(
         "POST",
+        "/admin/api/2025-01/graphql.json",
         r#"{"query":"mutation { definitelyUnknownMutation { ok } }"}"#,
     ));
-    assert_eq!(unknown_mutation.status, 400);
+    assert_eq!(unknown_mutation.status, 200);
     assert_eq!(
         unknown_mutation.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: definitelyUnknownMutation" }] })
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyUnknownMutation' doesn't exist on type 'Mutation'",
+                "locations": [{ "line": 1, "column": 12 }],
+                "path": ["mutation", "definitelyUnknownMutation"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "Mutation",
+                    "fieldName": "definitelyUnknownMutation"
+                }
+            }]
+        })
     );
 }
 
@@ -129,24 +163,50 @@ fn admin_graphql_reports_parse_and_dispatch_errors_with_existing_envelopes() {
 fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
     let mut proxy = snapshot_proxy();
 
-    let aliased_query = proxy.process_request(graphql_request(
+    let aliased_query = proxy.process_request(request_with_body(
         "POST",
+        "/admin/api/2025-01/graphql.json",
         r#"{"query":"query Named { visibleAlias: definitelyUnknownRoot { id } }"}"#,
     ));
-    assert_eq!(aliased_query.status, 400);
+    assert_eq!(aliased_query.status, 200);
     assert_eq!(
-        aliased_query.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+        aliased_query.body["errors"][0]["message"],
+        json!("Field 'definitelyUnknownRoot' doesn't exist on type 'QueryRoot'")
+    );
+    assert_eq!(
+        aliased_query.body["errors"][0]["path"],
+        json!(["query Named", "visibleAlias"])
+    );
+    assert_eq!(
+        aliased_query.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "QueryRoot",
+            "fieldName": "definitelyUnknownRoot"
+        })
     );
 
-    let fragment_before_operation = proxy.process_request(graphql_request(
+    let fragment_before_operation = proxy.process_request(request_with_body(
         "POST",
+        "/admin/api/2025-01/graphql.json",
         r#"{"query":"fragment Fields on Product { id } query Named { definitelyUnknownRoot { ...Fields } }"}"#,
     ));
-    assert_eq!(fragment_before_operation.status, 400);
+    assert_eq!(fragment_before_operation.status, 200);
     assert_eq!(
-        fragment_before_operation.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+        fragment_before_operation.body["errors"][0]["message"],
+        json!("Field 'definitelyUnknownRoot' doesn't exist on type 'QueryRoot'")
+    );
+    assert_eq!(
+        fragment_before_operation.body["errors"][0]["path"],
+        json!(["query Named", "definitelyUnknownRoot"])
+    );
+    assert_eq!(
+        fragment_before_operation.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "QueryRoot",
+            "fieldName": "definitelyUnknownRoot"
+        })
     );
 }
 

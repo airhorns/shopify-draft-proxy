@@ -74,5 +74,5 @@
       }
     ]
   },
-  "notes": "HAR-586 umbrella userError shape parity. Public Admin GraphQL 2025-01 exposes `code` on typed product option and bulk reorder userError objects, but productCreate, collectionCreate, and inventoryActivate still expose the generic UserError type, so those strict targets compare public fields while runtime tests cover local code projection when the proxy query asks for it. inventoryActivate's live message names the selected shop location, so the umbrella target compares the stable field path and leaves local code/message projection to focused runtime coverage."
+  "notes": "Umbrella userError shape parity. Public Admin GraphQL 2025-01 exposes `code` on typed product option and bulk reorder userError objects, but productCreate, collectionCreate, and inventoryActivate expose the generic UserError type, so those strict targets compare public fields while focused runtime coverage verifies local code selections do not synthesize a code field for generic inventory roots. inventoryActivate's live message names the selected shop location, so the umbrella target compares the stable field path and leaves local message projection to focused runtime coverage."
 }

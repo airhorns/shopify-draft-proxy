@@ -3,12 +3,7 @@ use super::*;
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
+        "pageInfo": empty_page_info()
     })
 }
 
@@ -759,20 +754,28 @@ impl DraftProxy {
         )
     }
 
-    /// `removeFromReturn`: validate each removal against the return's removable
-    /// quantity (current minus processed) before mutating; on success reduce or
-    /// drop the affected return line items, recompute the total, and rebuild the
-    /// reverse fulfillment order's line items from the surviving return lines.
-    /// On any validation error the return is left null with the error payload.
+    /// `removeFromReturn`: validate the return is still editable, then validate
+    /// each removal against the return's removable quantity (current minus
+    /// processed) before mutating; on success reduce or drop the affected return
+    /// line items, recompute the total, and rebuild the reverse fulfillment
+    /// order's line items from the surviving return lines. On any validation
+    /// error the return is left null with the error payload.
     fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
-        let removals = list_object_arg(&field.arguments, "returnLineItems");
+        let removals = list_object_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
             return selected_json(
                 &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
                 &field.selection,
             );
         };
+        let status = record["status"].as_str().unwrap_or_default();
+        if !matches!(status, "OPEN" | "REQUESTED") {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return status is invalid.", "INVALID_STATE")] }),
+                &field.selection,
+            );
+        }
         let mut nodes = record["returnLineItems"]["nodes"]
             .as_array()
             .cloned()
@@ -937,22 +940,63 @@ impl DraftProxy {
         let reverse_order_id =
             resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
         let id = self.next_synthetic_gid("ReverseDelivery");
-        let line_id = self.next_synthetic_gid("ReverseDeliveryLineItem");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
+        let rfo_lines = self
+            .store
+            .staged
+            .reverse_fulfillment_orders
+            .get(&reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        let input_lines = list_object_field(&field.arguments, "reverseDeliveryLineItems");
+        let delivery_line_sources = if input_lines.is_empty() {
+            rfo_lines
+                .iter()
+                .map(|line| (line.clone(), line["totalQuantity"].as_i64().unwrap_or(0)))
+                .collect::<Vec<_>>()
+        } else {
+            input_lines
+                .iter()
+                .map(|input| {
+                    let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
+                        .unwrap_or_default();
+                    let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+                    let line = rfo_lines
+                        .iter()
+                        .find(|line| line["id"].as_str() == Some(line_id.as_str()))
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            json!({
+                                "id": line_id,
+                                "totalQuantity": Value::Null,
+                                "remainingQuantity": Value::Null
+                            })
+                        });
+                    (line, quantity)
+                })
+                .collect::<Vec<_>>()
+        };
+        let reverse_delivery_line_items = delivery_line_sources
+            .into_iter()
+            .map(|(line, quantity)| {
+                json!({
+                    "id": self.next_synthetic_gid("ReverseDeliveryLineItem"),
+                    "quantity": quantity,
+                    "reverseFulfillmentOrderLineItem": {
+                        "id": line["id"].clone(),
+                        "totalQuantity": line["totalQuantity"].clone(),
+                        "remainingQuantity": line["remainingQuantity"].clone()
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
         let delivery = json!({
             "id": id,
             "reverseFulfillmentOrder": { "id": reverse_order_id },
             "reverseDeliveryLineItems": {
-                "nodes": [{
-                    "id": line_id,
-                    "quantity": 1,
-                    "reverseFulfillmentOrderLineItem": {
-                        "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
-                        "totalQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "totalQuantity"),
-                        "remainingQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "remainingQuantity")
-                    }
-                }]
+                "nodes": reverse_delivery_line_items
             },
             "deliverable": {
                 "__typename": "ReverseDeliveryShippingDeliverable",
@@ -977,38 +1021,21 @@ impl DraftProxy {
             .reverse_fulfillment_orders
             .get_mut(&reverse_order_id)
         {
-            reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            if let Some(nodes) = reverse_order["reverseDeliveries"]["nodes"].as_array_mut() {
+                if !nodes
+                    .iter()
+                    .any(|node| node["id"].as_str() == Some(id.as_str()))
+                {
+                    nodes.push(json!({ "id": id }));
+                }
+            } else {
+                reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            }
         }
         selected_json(
             &json!({ "reverseDelivery": delivery, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn first_reverse_fulfillment_order_line_id(&self, reverse_order_id: &str) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node["id"].clone())
-            .unwrap_or(Value::Null)
-    }
-
-    fn first_reverse_fulfillment_order_line_field(
-        &self,
-        reverse_order_id: &str,
-        field: &str,
-    ) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node[field].clone())
-            .unwrap_or(Value::Null)
     }
 
     fn update_reverse_delivery(&mut self, id: &str, field: &RootFieldSelection) -> Value {
@@ -1038,7 +1065,7 @@ impl DraftProxy {
     }
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
-        let inputs = list_object_arg(&field.arguments, "dispositionInputs");
+        let inputs = list_object_field(&field.arguments, "dispositionInputs");
         if inputs.is_empty() {
             return selected_json(
                 &json!({

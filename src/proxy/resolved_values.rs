@@ -66,6 +66,13 @@ pub(in crate::proxy) fn resolved_object_string(
     }
 }
 
+pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
 pub(in crate::proxy) fn resolved_string_arg(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,
@@ -75,6 +82,8 @@ pub(in crate::proxy) fn resolved_string_arg(
         _ => None,
     }
 }
+
+pub(in crate::proxy) use self::resolved_string_arg as resolved_string_field;
 
 pub(in crate::proxy) fn resolved_nullable_string_field(
     input: &BTreeMap<String, ResolvedValue>,
@@ -102,43 +111,13 @@ pub(in crate::proxy) fn list_object_field(
     }
 }
 
+pub(in crate::proxy) use self::list_object_field as resolved_object_list_field;
+
 pub(in crate::proxy) fn list_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Vec<String> {
     match input.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-pub(in crate::proxy) fn list_object_arg(
-    variables: &BTreeMap<String, ResolvedValue>,
-    key: &str,
-) -> Vec<BTreeMap<String, ResolvedValue>> {
-    match variables.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::Object(object) => Some(object.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-pub(in crate::proxy) fn list_string_arg(
-    variables: &BTreeMap<String, ResolvedValue>,
-    key: &str,
-) -> Vec<String> {
-    match variables.get(key) {
         Some(ResolvedValue::List(items)) => items
             .iter()
             .filter_map(|item| match item {
@@ -159,6 +138,8 @@ pub(in crate::proxy) fn resolved_i64_field(
         _ => None,
     }
 }
+
+pub(in crate::proxy) use self::resolved_i64_field as resolved_int_field;
 
 pub(in crate::proxy) fn resolved_number_field(
     input: &BTreeMap<String, ResolvedValue>,

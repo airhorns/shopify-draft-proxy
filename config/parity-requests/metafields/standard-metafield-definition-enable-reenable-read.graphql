@@ -1,0 +1,8 @@
+query StandardMetafieldDefinitionEnableReenableRead($definitionId: ID!) {
+  definitionByOriginalId: metafieldDefinition(id: $definitionId) {
+    id
+    namespace
+    key
+    pinnedPosition
+  }
+}

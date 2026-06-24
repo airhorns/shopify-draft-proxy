@@ -1,0 +1,77 @@
+mutation DiscountStartsAtRequiredValidation(
+  $basicCode: DiscountCodeBasicInput!
+  $bxgyCode: DiscountCodeBxgyInput!
+  $freeShippingCode: DiscountCodeFreeShippingInput!
+  $automaticBasic: DiscountAutomaticBasicInput!
+  $automaticBxgy: DiscountAutomaticBxgyInput!
+  $automaticFreeShipping: DiscountAutomaticFreeShippingInput!
+) {
+  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasic) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgy) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShipping: discountAutomaticFreeShippingCreate(
+    freeShippingAutomaticDiscount: $automaticFreeShipping
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -38,6 +38,8 @@ const filesReadDocumentPath = path.join(requestDir, 'file-create-content-type-in
 const videoNodeDocumentPath = path.join(requestDir, 'file-create-content-type-inference-video-node.graphql');
 const genericNodeDocumentPath = path.join(requestDir, 'file-create-content-type-inference-generic-node.graphql');
 const videoFixtureSource = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+const modelFixtureSource =
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb';
 const stagedUploadsCreateDocument = `#graphql
   mutation MediaFileCreateContentTypeInferenceStagedUpload($input: [StagedUploadInput!]!) {
     stagedUploadsCreate(input: $input) {
@@ -289,6 +291,11 @@ const createVariables = {
       filename: `${runId}-extensionless`,
       alt: `${runId} extensionless`,
     },
+    {
+      originalSource: modelFixtureSource,
+      filename: `${runId}-model.glb`,
+      alt: `${runId} model glb`,
+    },
   ],
 };
 
@@ -302,12 +309,14 @@ try {
   const videoId = assertCreatedType(files, 1, 'Video', 'gid://shopify/Video/');
   const documentId = assertCreatedType(files, 2, 'GenericFile', 'gid://shopify/GenericFile/');
   const extensionlessId = assertCreatedType(files, 3, 'GenericFile', 'gid://shopify/GenericFile/');
-  createdFileIds.push(imageId, videoId, documentId, extensionlessId);
+  const modelId = assertCreatedType(files, 4, 'GenericFile', 'gid://shopify/GenericFile/');
+  createdFileIds.push(imageId, videoId, documentId, extensionlessId, modelId);
 
   const filesRead = await capture(filesReadDocument);
   const videoNode = await capture(videoNodeDocument, { id: videoId });
   const documentNode = await capture(genericNodeDocument, { id: documentId });
   const extensionlessNode = await capture(genericNodeDocument, { id: extensionlessId });
+  const modelNode = await capture(genericNodeDocument, { id: modelId });
 
   fixture = {
     capturedAt: new Date().toISOString(),
@@ -316,11 +325,12 @@ try {
     scenarioId: 'file_create_content_type_inference',
     notes: [
       'Captures fileCreate with omitted contentType for deterministic image, video, document, and extensionless source URLs.',
-      'Shopify derives image/video types from extension/MIME and defaults undetectable sources to GenericFile; this script uses extension-bearing URLs except the explicit extensionless branch to avoid relying on proxy-side network inference.',
+      'Shopify derives image/video types from extension/MIME and defaults document, 3D model, and undetectable sources to GenericFile; this script uses extension-bearing URLs except the explicit extensionless branch to avoid relying on proxy-side network inference.',
       'The video branch uploads a real MP4 to Shopify staged storage first, then passes a Shopify-accepted .mp4 staged-video URL with external_video_id to fileCreate without contentType.',
     ],
     setup: {
       videoFixtureSource,
+      modelFixtureSource,
       videoStagedUpload: videoSetup.stagedUpload,
       videoUpload: videoSetup.upload,
     },
@@ -330,6 +340,7 @@ try {
       videoNode,
       documentNode,
       extensionlessNode,
+      modelNode,
     },
     upstreamCalls: [],
   };

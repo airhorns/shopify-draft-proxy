@@ -1,0 +1,16 @@
+mutation GraphqlBaseValidationMissingInputRequiredProperty(
+  $webhookSubscription: PubSubWebhookSubscriptionInput!
+) {
+  pubSubWebhookSubscriptionCreate(
+    topic: ORDERS_CREATE
+    webhookSubscription: $webhookSubscription
+  ) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

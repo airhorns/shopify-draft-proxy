@@ -1,0 +1,44 @@
+{
+  "scenarioId": "location-activate-non-unique-name",
+  "operationNames": ["locationActivate", "locationsAvailableForDeliveryProfilesConnection"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "user-errors-parity",
+    "validation-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-non-unique-name.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-activate-non-unique-observed-active.graphql",
+    "variablesCapturePath": "$.proxyVariables.observeActiveDuplicate"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "observed-active-duplicate",
+        "capturePath": "$.workflow.observeActiveDuplicate.response.payload.data.locationsAvailableForDeliveryProfilesConnection",
+        "proxyPath": "$.data.locationsAvailableForDeliveryProfilesConnection"
+      },
+      {
+        "name": "has-non-unique-name-guard",
+        "capturePath": "$.workflow.activate.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
+          "variablesCapturePath": "$.proxyVariables.activate"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture for locationActivate against an inactive disposable Location whose name matches another active shop Location. Replay first observes the active duplicate through locationsAvailableForDeliveryProfilesConnection, then hydrates the inactive target through the same StorePropertiesLocationHydrate query used by the Rust lifecycle handler before asserting the HAS_NON_UNIQUE_NAME rejection."
+}

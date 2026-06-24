@@ -6754,7 +6754,15 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let metafields = if input.loyalty.is_null() {
         json!({ "nodes": [], "pageInfo": empty_page_info() })
     } else {
-        json!({ "nodes": [input.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+        json!({
+            "nodes": [input.loyalty.clone()],
+            "pageInfo": connection_page_info(
+                false,
+                false,
+                Some("cursor:customer-metafield:1".to_string()),
+                Some("cursor:customer-metafield:1".to_string())
+            )
+        })
     };
     let default_address = input.addresses.first().cloned().unwrap_or(Value::Null);
     let start_cursor = input.addresses.first().and_then(customer_address_cursor);
@@ -6790,7 +6798,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "addressesV2": {
             "nodes": input.addresses,
             "edges": address_edges,
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": start_cursor, "endCursor": end_cursor }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         },
         "createdAt": input.created_at,
         "updatedAt": input.updated_at
@@ -7055,12 +7063,7 @@ fn customer_rebuild_addresses(customer: &mut Value, nodes: Vec<Value>, default_i
             json!({
                 "nodes": nodes,
                 "edges": edges,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": start_cursor,
-                    "endCursor": end_cursor
-                }
+                "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
             }),
         );
     }
@@ -9428,12 +9431,7 @@ fn nodes_connection(nodes: Vec<Value>) -> Value {
     let end_cursor = nodes.last().map(node_connection_cursor);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": start_cursor,
-            "endCursor": end_cursor
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 

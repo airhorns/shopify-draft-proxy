@@ -232,12 +232,9 @@ impl DraftProxy {
         card["balance"] = card["initialValue"].clone();
         card["notify"] = json!(notify);
         card["source"] = json!("api_client");
-        if let Some(note) = resolved_string_field(&input, "note") {
-            card["note"] = json!(note);
-        }
-        if input.contains_key("expiresOn") {
-            card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
-        }
+        card["note"] = resolved_nullable_string_field(&input, "note");
+        card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
+        card["recipientAttributes"] = Value::Null;
         if input.contains_key("templateSuffix") {
             card["templateSuffix"] = gift_card_template_suffix_json(
                 resolved_nullable_string_field(&input, "templateSuffix"),
