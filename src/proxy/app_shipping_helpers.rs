@@ -2722,20 +2722,6 @@ fn valid_utc_date_time(
         && second <= 60
 }
 
-fn days_in_month(year: i32, month: u32) -> u32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => 0,
-    }
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-}
-
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
     request_header(request, "x-shopify-draft-proxy-api-client-id")
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())

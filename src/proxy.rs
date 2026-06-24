@@ -1802,6 +1802,7 @@ pub struct DraftProxy {
 mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
+mod civil_date;
 mod commit;
 mod connection;
 mod core;
@@ -1837,6 +1838,8 @@ pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
 pub(in crate::proxy) use self::app_shipping_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::b2b_customers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::civil_date::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::commit::*;
 #[allow(unused_imports)]
