@@ -1,0 +1,7 @@
+query SellingPlanGroupAppIdReadback($id: ID!) {
+  sellingPlanGroup(id: $id) {
+    id
+    appId
+    name
+  }
+}

@@ -1,0 +1,15 @@
+mutation InventoryMoveAdjustmentGroupShapeSet(
+  $input: InventorySetQuantitiesInput!
+  $idempotencyKey: String!
+) {
+  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      reason
+      referenceDocumentUri
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

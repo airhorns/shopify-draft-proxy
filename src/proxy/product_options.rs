@@ -53,26 +53,38 @@ impl DraftProxy {
         }
     }
 
+    fn load_product_option_owner<F>(
+        &mut self,
+        product_id: &str,
+        missing_response: F,
+    ) -> Result<ProductRecord, MutationOutcome>
+    where
+        F: FnOnce(&Self) -> Response,
+    {
+        self.hydrate_product_option_owner_state(product_id);
+        self.store
+            .product_staged_or_base(product_id)
+            .ok_or_else(|| MutationOutcome::response(missing_response(self)))
+    }
+
     fn product_options_create(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        self.hydrate_product_option_owner_state(&product_id);
-        let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
-            return MutationOutcome::response(self.product_option_payload_response(
+        let mut product = match self.load_product_option_owner(&product_id, |proxy| {
+            proxy.product_option_payload_response(
                 query,
                 "productOptionsCreate",
                 None,
                 None,
                 Vec::new(),
-                vec![ProductOptionUserError::new(
-                    json!(["productId"]),
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
+                vec![product_option_missing_product_error()],
+            )
+        }) {
+            Ok(product) => product,
+            Err(outcome) => return outcome,
         };
 
         let input_options = resolved_object_list_field(variables, "options");
@@ -306,20 +318,18 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        self.hydrate_product_option_owner_state(&product_id);
-        let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
-            return MutationOutcome::response(self.product_option_payload_response(
+        let mut product = match self.load_product_option_owner(&product_id, |proxy| {
+            proxy.product_option_payload_response(
                 query,
                 "productOptionUpdate",
                 None,
                 None,
                 Vec::new(),
-                vec![ProductOptionUserError::new(
-                    json!(["productId"]),
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
+                vec![product_option_missing_product_error()],
+            )
+        }) {
+            Ok(product) => product,
+            Err(outcome) => return outcome,
         };
         let mut graph = product_option_graph_from_product(&product);
         let option_input = resolved_object_field(variables, "option").unwrap_or_default();
@@ -434,20 +444,18 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        self.hydrate_product_option_owner_state(&product_id);
-        let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
-            return MutationOutcome::response(self.product_options_delete_response(
+        let mut product = match self.load_product_option_owner(&product_id, |proxy| {
+            proxy.product_options_delete_response(
                 query,
                 None,
                 None,
                 Vec::new(),
                 Vec::new(),
-                vec![ProductOptionUserError::new(
-                    json!(["productId"]),
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
+                vec![product_option_missing_product_error()],
+            )
+        }) {
+            Ok(product) => product,
+            Err(outcome) => return outcome,
         };
         let mut graph = product_option_graph_from_product(&product);
         let option_ids = resolved_string_list_arg(variables, "options");
@@ -514,20 +522,18 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        self.hydrate_product_option_owner_state(&product_id);
-        let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
-            return MutationOutcome::response(self.product_option_payload_response(
+        let mut product = match self.load_product_option_owner(&product_id, |proxy| {
+            proxy.product_option_payload_response(
                 query,
                 "productOptionsReorder",
                 None,
                 None,
                 Vec::new(),
-                vec![ProductOptionUserError::new(
-                    json!(["productId"]),
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
+                vec![product_option_missing_product_error()],
+            )
+        }) {
+            Ok(product) => product,
+            Err(outcome) => return outcome,
         };
         let graph = product_option_graph_from_product(&product);
         let reorder_inputs = resolved_object_list_field(variables, "options");
@@ -765,6 +771,14 @@ impl ProductOptionUserError {
         }
         value
     }
+}
+
+fn product_option_missing_product_error() -> ProductOptionUserError {
+    ProductOptionUserError::new(
+        json!(["productId"]),
+        "Product does not exist",
+        Some("PRODUCT_DOES_NOT_EXIST"),
+    )
 }
 
 fn product_option_graph_from_product(product: &ProductRecord) -> ProductOptionGraph {

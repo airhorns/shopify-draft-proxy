@@ -152,6 +152,13 @@ function assertUserErrors(step: CaptureStep, root: string, label: string): void 
   }
 }
 
+function assertNoUserErrors(step: CaptureStep, root: string, label: string): void {
+  const userErrors = readUserErrors(step, root);
+  if (userErrors.length !== 0) {
+    throw new Error(`${label} unexpectedly returned userErrors: ${JSON.stringify(userErrors, null, 2)}`);
+  }
+}
+
 function mediaStatuses(readStep: CaptureStep): string[] {
   const data = readObject(readStep.response, 'mediaRead.response');
   const product = readObject(readObject(data['data'], 'mediaRead.data')['product'], 'mediaRead.product');
@@ -221,8 +228,37 @@ try {
   const baseReadyMediaRead = await waitForReadyMedia(baseProductId, 1);
   const settleBaseReadyMedia = await runStep('settle base ready media', productUpdateMediaDocument, {
     productId: baseProductId,
-    media: [],
+    media: [{ id: baseReadyMediaId }],
   });
+
+  const createBaseSecondReadyMedia = await runStep('base second ready media setup', productCreateMediaDocument, {
+    productId: baseProductId,
+    media: [
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'https://placehold.co/640x480/png?text=variant-media-ready-base-second',
+        alt: 'Variant media validation ready base second',
+      },
+    ],
+  });
+  const baseSecondReadyMediaId = readCreatedMediaId(createBaseSecondReadyMedia, 'base second ready media');
+  const baseSecondReadyMediaRead = await waitForReadyMedia(baseProductId, 2);
+  const settleBaseSecondReadyMedia = await runStep('settle base second ready media', productUpdateMediaDocument, {
+    productId: baseProductId,
+    media: [{ id: baseSecondReadyMediaId }],
+  });
+
+  const createBaseExternalVideoMedia = await runStep('base external video media setup', productCreateMediaDocument, {
+    productId: baseProductId,
+    media: [
+      {
+        mediaContentType: 'EXTERNAL_VIDEO',
+        originalSource: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        alt: 'Variant media validation external video base',
+      },
+    ],
+  });
+  const baseExternalVideoMediaId = readCreatedMediaId(createBaseExternalVideoMedia, 'base external video media');
 
   const createOtherReadyMedia = await runStep('other ready media setup', productCreateMediaDocument, {
     productId: otherProductId,
@@ -238,7 +274,7 @@ try {
   const otherReadyMediaRead = await waitForReadyMedia(otherProductId, 1);
   const settleOtherReadyMedia = await runStep('settle other ready media', productUpdateMediaDocument, {
     productId: otherProductId,
-    media: [],
+    media: [{ id: otherReadyMediaId }],
   });
 
   const createBaseProcessingMedia = await runStep('base processing media setup', productCreateMediaDocument, {
@@ -253,6 +289,60 @@ try {
   });
   const baseProcessingMediaId = readCreatedMediaId(createBaseProcessingMedia, 'base processing media');
 
+  const appendProcessingMedia = await runStep('append processing media', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseProcessingMediaId] }],
+  });
+  assertUserErrors(appendProcessingMedia, 'productVariantAppendMedia', 'append processing media');
+
+  const appendTooManyPairs = await runStep('append too many variant-media pairs', appendDocument, {
+    productId: baseProductId,
+    variantMedia: Array.from({ length: 101 }, () => ({ variantId: baseVariantId, mediaIds: [baseReadyMediaId] })),
+  });
+  assertUserErrors(appendTooManyPairs, 'productVariantAppendMedia', 'append too many variant-media pairs');
+
+  const detachTooManyPairs = await runStep('detach too many variant-media pairs', detachDocument, {
+    productId: baseProductId,
+    variantMedia: Array.from({ length: 101 }, () => ({ variantId: baseVariantId, mediaIds: [baseReadyMediaId] })),
+  });
+  assertUserErrors(detachTooManyPairs, 'productVariantDetachMedia', 'detach too many variant-media pairs');
+
+  const appendTooManyMediaPerPair = await runStep('append too many media ids per pair', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseReadyMediaId, baseSecondReadyMediaId] }],
+  });
+  assertUserErrors(appendTooManyMediaPerPair, 'productVariantAppendMedia', 'append too many media ids per pair');
+
+  const detachTooManyMediaPerPair = await runStep('detach too many media ids per pair', detachDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseReadyMediaId, baseSecondReadyMediaId] }],
+  });
+  assertUserErrors(detachTooManyMediaPerPair, 'productVariantDetachMedia', 'detach too many media ids per pair');
+
+  const appendDuplicateVariant = await runStep('append duplicate variant input', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [
+      { variantId: baseVariantId, mediaIds: [baseReadyMediaId] },
+      { variantId: baseVariantId, mediaIds: [baseSecondReadyMediaId] },
+    ],
+  });
+  assertUserErrors(appendDuplicateVariant, 'productVariantAppendMedia', 'append duplicate variant input');
+
+  const detachDuplicateVariant = await runStep('detach duplicate variant input', detachDocument, {
+    productId: baseProductId,
+    variantMedia: [
+      { variantId: baseVariantId, mediaIds: [baseReadyMediaId] },
+      { variantId: baseVariantId, mediaIds: [baseSecondReadyMediaId] },
+    ],
+  });
+  assertUserErrors(detachDuplicateVariant, 'productVariantDetachMedia', 'detach duplicate variant input');
+
+  const appendInvalidMediaType = await runStep('append invalid media type', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseExternalVideoMediaId] }],
+  });
+  assertUserErrors(appendInvalidMediaType, 'productVariantAppendMedia', 'append invalid media type');
+
   const appendVariantFromOtherProduct = await runStep('append variant from other product', appendDocument, {
     productId: baseProductId,
     variantMedia: [{ variantId: otherVariantId, mediaIds: [baseReadyMediaId] }],
@@ -265,17 +355,23 @@ try {
   });
   assertUserErrors(appendMediaFromOtherProduct, 'productVariantAppendMedia', 'append media from other product');
 
-  const appendProcessingMedia = await runStep('append processing media', appendDocument, {
-    productId: baseProductId,
-    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseProcessingMediaId] }],
-  });
-  assertUserErrors(appendProcessingMedia, 'productVariantAppendMedia', 'append processing media');
-
   const detachUnattachedMedia = await runStep('detach unattached media', detachDocument, {
     productId: baseProductId,
     variantMedia: [{ variantId: baseVariantId, mediaIds: [baseReadyMediaId] }],
   });
   assertUserErrors(detachUnattachedMedia, 'productVariantDetachMedia', 'detach unattached media');
+
+  const appendBaseReadyMedia = await runStep('append base ready media success', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseReadyMediaId] }],
+  });
+  assertNoUserErrors(appendBaseReadyMedia, 'productVariantAppendMedia', 'append base ready media success');
+
+  const appendVariantAlreadyHasMedia = await runStep('append variant already has media', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseSecondReadyMediaId] }],
+  });
+  assertUserErrors(appendVariantAlreadyHasMedia, 'productVariantAppendMedia', 'append variant already has media');
 
   fixturePayload = {
     capturedAt: new Date().toISOString(),
@@ -291,14 +387,27 @@ try {
       createBaseReadyMedia,
       baseReadyMediaRead,
       settleBaseReadyMedia,
+      createBaseSecondReadyMedia,
+      baseSecondReadyMediaRead,
+      settleBaseSecondReadyMedia,
+      createBaseExternalVideoMedia,
       createOtherReadyMedia,
       otherReadyMediaRead,
       settleOtherReadyMedia,
       createBaseProcessingMedia,
+      appendTooManyPairs,
+      detachTooManyPairs,
+      appendTooManyMediaPerPair,
+      detachTooManyMediaPerPair,
+      appendDuplicateVariant,
+      detachDuplicateVariant,
+      appendInvalidMediaType,
       appendVariantFromOtherProduct,
       appendMediaFromOtherProduct,
       appendProcessingMedia,
       detachUnattachedMedia,
+      appendBaseReadyMedia,
+      appendVariantAlreadyHasMedia,
     },
     upstreamCalls: [],
     cleanup,
