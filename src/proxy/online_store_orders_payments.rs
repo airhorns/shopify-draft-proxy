@@ -278,14 +278,6 @@ const ORDERS_FULFILLMENT_LIFECYCLE_HYDRATE_QUERY: &str = "query OrdersFulfillmen
 // stage-one order.
 const ORDER_FULFILLMENT_LIFECYCLE_READ_QUERY: &str = "query OrderFulfillmentLifecycleRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    updatedAt\n    displayFulfillmentStatus\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      trackingInfo {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
-fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
-    mobile_app_error(
-        "TOO_LONG",
-        field,
-        "Application ID is too long (maximum is 100 characters)",
-    )
-}
-
 fn validate_mobile_app_clip_application_id(
     apple: &BTreeMap<String, ResolvedValue>,
     update_input: bool,
@@ -297,10 +289,9 @@ fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_none_or(|value| value.trim().is_empty())
     {
-        return Some(mobile_app_error(
-            "BLANK",
+        return Some(presence_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application can't be blank",
+            "App clip application",
         ));
     }
     if app_clips_enabled
@@ -308,10 +299,12 @@ fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_some_and(|value| value.len() > MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH)
     {
-        return Some(mobile_app_error(
-            "TOO_LONG",
+        return Some(length_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application is too long (maximum is 255 characters)",
+            "App clip application",
+            LengthUserErrorBound::TooLong {
+                maximum: MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH,
+            },
         ));
     }
     if update_input
@@ -319,10 +312,9 @@ fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_some_and(|value| value.trim().is_empty())
     {
-        return Some(mobile_app_error(
-            "BLANK",
+        return Some(presence_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application can't be blank",
+            "App clip application",
         ));
     }
     None
@@ -3780,13 +3772,12 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["mobilePlatformApplication", "android", "applicationId"],
                         if application_id.is_empty() {
-                            "Application can't be blank"
+                            "Application"
                         } else {
-                            "Application ID can't be blank"
+                            "Application ID"
                         },
                     )],
                 );
@@ -3795,21 +3786,22 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_application_id_too_long_error([
-                        "input",
-                        "android",
-                        "applicationId",
-                    ])],
+                    vec![length_user_error(
+                        ["input", "android", "applicationId"],
+                        "Application ID",
+                        LengthUserErrorBound::TooLong {
+                            maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                        },
+                    )],
                 );
             }
             if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints can't be blank",
+                        "Sha256 cert fingerprints",
                     )],
                 );
             }
@@ -3832,13 +3824,12 @@ impl DraftProxy {
             return mobile_app_payload(
                 &field.selection,
                 None,
-                vec![mobile_app_error(
-                    "BLANK",
+                vec![presence_user_error(
                     ["mobilePlatformApplication", "apple", "appId"],
                     if app_id.trim().is_empty() && app_id.len() > 1 {
-                        "App can't be blank"
+                        "App"
                     } else {
-                        "App ID can't be blank"
+                        "App ID"
                     },
                 )],
             );
@@ -3847,9 +3838,13 @@ impl DraftProxy {
             return mobile_app_payload(
                 &field.selection,
                 None,
-                vec![mobile_application_id_too_long_error([
-                    "input", "apple", "appId",
-                ])],
+                vec![length_user_error(
+                    ["input", "apple", "appId"],
+                    "Application ID",
+                    LengthUserErrorBound::TooLong {
+                        maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                    },
+                )],
             );
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
@@ -3930,10 +3925,9 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_app_error(
-                            "BLANK",
+                        vec![presence_user_error(
                             ["mobilePlatformApplication", "android", "applicationId"],
-                            "Application ID can't be blank",
+                            "Application ID",
                         )],
                     );
                 }
@@ -3941,11 +3935,13 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_application_id_too_long_error([
-                            "input",
-                            "android",
-                            "applicationId",
-                        ])],
+                        vec![length_user_error(
+                            ["input", "android", "applicationId"],
+                            "Application ID",
+                            LengthUserErrorBound::TooLong {
+                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                            },
+                        )],
                     );
                 }
                 record["applicationId"] = json!(application_id);
@@ -3958,10 +3954,9 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints can't be blank",
+                        "Sha256 cert fingerprints",
                     )],
                 );
             }
@@ -3973,10 +3968,9 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_app_error(
-                            "BLANK",
+                        vec![presence_user_error(
                             ["mobilePlatformApplication", "apple", "appId"],
-                            "App ID can't be blank",
+                            "App ID",
                         )],
                     );
                 }
@@ -3984,9 +3978,13 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_application_id_too_long_error([
-                            "input", "apple", "appId",
-                        ])],
+                        vec![length_user_error(
+                            ["input", "apple", "appId"],
+                            "Application ID",
+                            LengthUserErrorBound::TooLong {
+                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                            },
+                        )],
                     );
                 }
                 record["appId"] = json!(app_id);
@@ -4747,7 +4745,7 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input", "title"], "Title can't be blank", Some("BLANK"))]}),
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [presence_user_error(["input", "title"], "Title")]}),
                 &field.selection,
             );
         }
