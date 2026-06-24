@@ -9819,6 +9819,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-create-omitted-optional-fields',
+    scriptPath: 'scripts/capture-gift-card-create-omitted-optional-fields-conformance.ts',
+    purpose:
+      'Gift-card create behavior when note, expiresOn, customerId, templateSuffix, and recipientAttributes are omitted, including downstream readback.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-create-omitted-optional-fields.json`,
+      'config/parity-specs/gift-cards/gift-card-create-omitted-optional-fields.json',
+      'config/parity-requests/gift-cards/gift-card-create-omitted-optional-fields.graphql',
+      'config/parity-requests/gift-cards/gift-card-create-omitted-optional-fields-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card with only initialValue, records create payload and giftCard(id:) readback, and deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-template-suffix-prefix',
     scriptPath: 'scripts/capture-gift-card-template-suffix-prefix-conformance.ts',
     purpose:
