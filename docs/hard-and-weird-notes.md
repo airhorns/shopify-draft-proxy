@@ -926,12 +926,14 @@ HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
 - creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
 - `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
+- a 2026-04 public capture showed `requiresShippingMethod` has the surprising GraphQL-layer default `true`: omitting it on create stores `true`, and omitting it on update resets a previously `false` service back to `true`
 - `fulfillmentServiceDelete(inventoryAction: DELETE)` returned `deletedId` without the `?id=true` query suffix even when the service `id` contained that suffix, and downstream `fulfillmentService(id:)` plus `location(id:)` both returned `null`
 
 Practical rule:
 
 - model fulfillment-service writes as service-plus-location state changes, not as a service scalar patch
 - preserve the original service handle on update unless a broader capture proves a handle-changing input exists
+- treat omitted `requiresShippingMethod` as a defaulted `true` input for both create and update; do not preserve an existing `false` value across an update that omits the argument
 - do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
 
 ### Current: Carrier services are simple records, but their userErrors and callbacks are easy to over-model

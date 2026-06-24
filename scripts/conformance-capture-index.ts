@@ -8772,6 +8772,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-requires-shipping-method-default',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-requires-shipping-method-default-conformance.ts',
+    purpose:
+      'fulfillmentServiceCreate and fulfillmentServiceUpdate requiresShippingMethod default_value behavior when the argument is omitted.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-requires-shipping-method-default.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-requires-shipping-method-default.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-omitted.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-false.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-update-omitted.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable fulfillment services, records omitted create/update read-after-write behavior, then deletes both services.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-permits-sku-sharing-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-permits-sku-sharing-validation-conformance.ts',

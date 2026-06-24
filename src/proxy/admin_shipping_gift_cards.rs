@@ -6118,6 +6118,11 @@ impl DraftProxy {
 
         let service_id = self.next_proxy_synthetic_gid("FulfillmentService");
         let location_id = self.next_proxy_synthetic_gid("Location");
+        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false)
+        } else {
+            true
+        };
         let service = fulfillment_service_record(
             &service_id,
             &location_id,
@@ -6125,7 +6130,7 @@ impl DraftProxy {
             callback_url,
             resolved_bool_field(&field.arguments, "trackingSupport").unwrap_or(false),
             resolved_bool_field(&field.arguments, "inventoryManagement").unwrap_or(false),
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false),
+            requires_shipping_method,
         );
         let location = service["location"].clone();
         self.store
@@ -6248,6 +6253,15 @@ impl DraftProxy {
             .as_str()
             .unwrap_or_default()
             .to_string();
+        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
+                existing["requiresShippingMethod"]
+                    .as_bool()
+                    .unwrap_or(false)
+            })
+        } else {
+            true
+        };
         let mut service = fulfillment_service_record(
             &id,
             &location_id,
@@ -6257,11 +6271,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| existing["trackingSupport"].as_bool().unwrap_or(false)),
             resolved_bool_field(&field.arguments, "inventoryManagement")
                 .unwrap_or_else(|| existing["inventoryManagement"].as_bool().unwrap_or(false)),
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
-                existing["requiresShippingMethod"]
-                    .as_bool()
-                    .unwrap_or(false)
-            }),
+            requires_shipping_method,
         );
         if let Some(handle) = existing.get("handle").and_then(Value::as_str) {
             service["handle"] = json!(handle);
