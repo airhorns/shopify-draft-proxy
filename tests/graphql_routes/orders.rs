@@ -5992,6 +5992,99 @@ fn order_edit_existing_validation_unstaged_calculated_order_returns_user_error()
 }
 
 #[test]
+fn order_edit_shipping_line_and_remove_discount_unstaged_calculated_order_returns_invalid_code() {
+    let cases = [
+        (
+            "orderEditAddShippingLine",
+            r#"
+            mutation UnknownOrderEditAddShippingLine($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {
+              orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/CalculatedOrder/999999",
+                "shippingLine": {
+                    "title": "Unknown calculated order shipping",
+                    "price": { "amount": "9.99", "currencyCode": "CAD" }
+                }
+            }),
+        ),
+        (
+            "orderEditUpdateShippingLine",
+            r#"
+            mutation UnknownOrderEditUpdateShippingLine(
+              $id: ID!
+              $shippingLineId: ID!
+              $shippingLine: OrderEditUpdateShippingLineInput!
+            ) {
+              orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/CalculatedOrder/999999",
+                "shippingLineId": "gid://shopify/CalculatedShippingLine/1",
+                "shippingLine": {
+                    "title": "Updated unknown calculated order shipping",
+                    "price": { "amount": "19.99", "currencyCode": "CAD" }
+                }
+            }),
+        ),
+        (
+            "orderEditRemoveShippingLine",
+            r#"
+            mutation UnknownOrderEditRemoveShippingLine($id: ID!, $shippingLineId: ID!) {
+              orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/CalculatedOrder/999999",
+                "shippingLineId": "gid://shopify/CalculatedShippingLine/1"
+            }),
+        ),
+        (
+            "orderEditRemoveDiscount",
+            r#"
+            mutation UnknownOrderEditRemoveDiscount($id: ID!, $discountApplicationId: ID!) {
+              orderEditRemoveDiscount(id: $id, discountApplicationId: $discountApplicationId) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/CalculatedOrder/999999",
+                "discountApplicationId": "gid://shopify/DiscountApplication/1"
+            }),
+        ),
+    ];
+
+    for (root, document, variables) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(document, variables));
+        assert_eq!(response.status, 200, "{root} should stay locally handled");
+        assert_eq!(response.body["data"][root]["calculatedOrder"], Value::Null);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["id"],
+                "message": "The calculated order does not exist.",
+                "code": "INVALID"
+            }]),
+            "{root} should include the typed user error code"
+        );
+    }
+}
+
+#[test]
 fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"

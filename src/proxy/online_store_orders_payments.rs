@@ -8645,6 +8645,14 @@ impl DraftProxy {
     }
 
     fn require_calculated_order(&self, field: &RootFieldSelection) -> Result<String, Value> {
+        self.require_calculated_order_with_code(field, None)
+    }
+
+    fn require_calculated_order_with_code(
+        &self,
+        field: &RootFieldSelection,
+        code: Option<&str>,
+    ) -> Result<String, Value> {
         let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if self
             .store
@@ -8658,7 +8666,7 @@ impl DraftProxy {
                 vec![oe_user_error(
                     &["id"],
                     "The calculated order does not exist.",
-                    None,
+                    code,
                 )],
             ));
         }
@@ -9172,7 +9180,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let calculated_id = match self.require_calculated_order(field) {
+        let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };
@@ -9219,7 +9227,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let calculated_id = match self.require_calculated_order(field) {
+        let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };
@@ -9292,7 +9300,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let calculated_id = match self.require_calculated_order(field) {
+        let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };
@@ -9376,7 +9384,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let calculated_id = match self.require_calculated_order(field) {
+        let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };

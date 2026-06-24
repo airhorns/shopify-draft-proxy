@@ -1,0 +1,16 @@
+query ProductVariantsBulkReorderPositionRead($productId: ID!) {
+  product(id: $productId) {
+    id
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        position
+        selectedOptions {
+          name
+          value
+        }
+      }
+    }
+  }
+}

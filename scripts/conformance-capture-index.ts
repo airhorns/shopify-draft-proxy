@@ -1702,6 +1702,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variants-bulk-reorder-validation-resequence',
+    scriptPath: 'scripts/capture-product-variants-bulk-reorder-conformance.ts',
+    purpose:
+      'productVariantsBulkReorder invalid position, duplicate variant id, unknown variant validation, and successful three-variant resequencing/readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variants-bulk-reorder-validation-resequence.json`,
+      'config/parity-specs/products/productVariantsBulkReorder-validation-resequence.json',
+      'config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql',
+      'config/parity-requests/products/productVariantsBulkReorder-position-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product with a Color option and three variants, records rejected reorder branches, records successful reorder position branches and downstream reads, then deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
     purpose:
@@ -6306,16 +6323,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-shipping-line-validation-conformance.ts',
     purpose:
-      'orderEditAddShippingLine, orderEditUpdateShippingLine, orderEditRemoveShippingLine, and orderEditAddLineItemDiscount validation branches against a disposable order-edit session.',
+      'orderEditAddShippingLine, orderEditUpdateShippingLine, orderEditRemoveShippingLine, orderEditRemoveDiscount, and orderEditAddLineItemDiscount validation branches against a disposable order-edit session.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}orderEdit-shipping-line-validation.json`,
       'config/parity-specs/orders/orderEdit-shipping-line-validation.json',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-add-line-item-discount.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-add-missing-price.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-add.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-begin.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-discount-missing-currency.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-remove.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-remove-discount.graphql',
       'config/parity-requests/orders/orderEdit-shipping-line-validation-update.graphql',
     ],
     cleanupBehavior:

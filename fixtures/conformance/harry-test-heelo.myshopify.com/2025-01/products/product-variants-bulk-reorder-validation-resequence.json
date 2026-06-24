@@ -1,0 +1,768 @@
+{
+  "capturedAt": "2026-06-23T23:13:36.834Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "createProduct": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10220273172786",
+            "title": "Hermes Variant Reorder Branches 1782256414782"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "setupOptions": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10220273172786",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12777538552114",
+                "name": "Color",
+                "position": 1,
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8215251616050",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8215251648818",
+                    "name": "Blue",
+                    "hasVariants": false
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8215251681586",
+                    "name": "Green",
+                    "hasVariants": false
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51359154700594",
+                  "title": "Red",
+                  "position": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "bulkCreate": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10220273172786",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51359154700594",
+                  "title": "Red",
+                  "position": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51359154733362",
+                  "title": "Blue",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Blue"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51359154766130",
+                  "title": "Green",
+                  "position": 3,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Green"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51359154733362",
+              "title": "Blue",
+              "position": 2,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51359154766130",
+              "title": "Green",
+              "position": 3,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Green"
+                }
+              ]
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "Live product variant bulk reorder validation and resequence capture. Rejected reorder branches do not change the product; successful reorder resequences all variant position values contiguously.",
+  "cases": [
+    {
+      "name": "invalid-position",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10220273172786",
+          "positions": [
+            {
+              "id": "gid://shopify/ProductVariant/51359154766130",
+              "position": 0
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51359154700594",
+              "position": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkReorder": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["positions", "0", "position"],
+                  "message": "Position can not be zero or negative number",
+                  "code": "INVALID_POSITION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "duplicate-variant-id",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10220273172786",
+          "positions": [
+            {
+              "id": "gid://shopify/ProductVariant/51359154733362",
+              "position": 1
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51359154733362",
+              "position": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkReorder": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["positions"],
+                  "message": "Product variant IDs must be unique",
+                  "code": "DUPLICATED_VARIANT_ID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-variant",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10220273172786",
+          "positions": [
+            {
+              "id": "gid://shopify/ProductVariant/999999999999999999",
+              "position": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkReorder": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["positions", "0", "id"],
+                  "message": "Product variant does not exist",
+                  "code": "MISSING_VARIANT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "success-resequence",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10220273172786",
+          "positions": [
+            {
+              "id": "gid://shopify/ProductVariant/51359154766130",
+              "position": 1
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51359154700594",
+              "position": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkReorder": {
+              "product": {
+                "id": "gid://shopify/Product/10220273172786",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154766130",
+                      "title": "Green",
+                      "position": 1,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Green"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154700594",
+                      "title": "Red",
+                      "position": 2,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154733362",
+                      "title": "Blue",
+                      "position": 3,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "reorderDownstreamRead": {
+    "request": {
+      "variables": {
+        "productId": "gid://shopify/Product/10220273172786"
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10220273172786",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51359154766130",
+                "title": "Green",
+                "position": 1,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Green"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359154700594",
+                "title": "Red",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359154733362",
+                "title": "Blue",
+                "position": 3,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Blue"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/10220273172786",
+          "gid://shopify/ProductVariant/51359154700594",
+          "gid://shopify/ProductVariant/51359154766130"
+        ]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10220273172786",
+                "title": "Hermes Variant Reorder Branches 1782256414782",
+                "handle": "hermes-variant-reorder-branches-1782256414782",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": true,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154766130",
+                      "title": "Green",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Green"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53463980278066",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154700594",
+                      "title": "Red",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53463980212530",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51359154733362",
+                      "title": "Blue",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53463980245298",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359154700594",
+                "title": "Red",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53463980212530",
+                  "tracked": false,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10220273172786",
+                  "title": "Hermes Variant Reorder Branches 1782256414782",
+                  "handle": "hermes-variant-reorder-branches-1782256414782",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154766130",
+                        "title": "Green",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Green"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980278066",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154700594",
+                        "title": "Red",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980212530",
+                          "tracked": false,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154733362",
+                        "title": "Blue",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Blue"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980245298",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359154766130",
+                "title": "Green",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Green"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53463980278066",
+                  "tracked": true,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10220273172786",
+                  "title": "Hermes Variant Reorder Branches 1782256414782",
+                  "handle": "hermes-variant-reorder-branches-1782256414782",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154766130",
+                        "title": "Green",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Green"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980278066",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154700594",
+                        "title": "Red",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980212530",
+                          "tracked": false,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/51359154733362",
+                        "title": "Blue",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Blue"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53463980245298",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
