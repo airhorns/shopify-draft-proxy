@@ -583,6 +583,7 @@ fn common_scalar_field_name(field_name: &str) -> bool {
             | "tags"
             | "totalInventory"
             | "tracksInventory"
+            | "inventoryQuantity"
     )
 }
 

@@ -22,6 +22,14 @@ const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 
+// The parity runner (scripts/parity-run.ts) hydrates inventory state by sending
+// this exact `ProductsHydrateNodes` query and matching it against a recorded
+// upstream call. Synthetic hydration calls must carry the identical query text
+// (cassette matching is strict byte-for-byte), otherwise the runner cannot
+// rehydrate the levels and locally-served deactivate guards misfire.
+const hydrateInventoryNodesQuery =
+  'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }';
+
 const createProductMutation = `#graphql
   mutation InventoryDeactivateValidationProductCreate($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -291,7 +299,7 @@ function hydrateLevelCall(level, product) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [level.id] },
-    query: 'hydration fallback from live inventoryDeactivate validation capture',
+    query: hydrateInventoryNodesQuery,
     response: {
       status: 200,
       body: {
@@ -307,7 +315,7 @@ function hydrateItemCall(item, product) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [item.id] },
-    query: 'hydration fallback from live inventoryActivate validation capture',
+    query: hydrateInventoryNodesQuery,
     response: {
       status: 200,
       body: {
@@ -323,7 +331,7 @@ function hydrateMissingLevelCall(inventoryLevelId) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [inventoryLevelId] },
-    query: 'hydration fallback for fabricated inventoryLevelId capture',
+    query: hydrateInventoryNodesQuery,
     response: {
       status: 200,
       body: {

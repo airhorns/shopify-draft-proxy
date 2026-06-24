@@ -2280,7 +2280,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282"]
       },
-      "query": "hydration fallback from live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2429,7 +2429,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818"]
       },
-      "query": "hydration fallback from live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2578,7 +2578,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234"]
       },
-      "query": "hydration fallback from live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2692,7 +2692,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998"]
       },
-      "query": "hydration fallback for fabricated inventoryLevelId capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2707,7 +2707,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/999999999999?inventory_item_id=53464353407282"]
       },
-      "query": "hydration fallback for fabricated inventoryLevelId capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2722,7 +2722,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryItem/53464354685234"]
       },
-      "query": "hydration fallback from live inventoryActivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2801,7 +2801,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002"]
       },
-      "query": "hydration fallback from live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
