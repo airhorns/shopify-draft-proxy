@@ -7764,7 +7764,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-errors-conformance.ts',
     purpose:
-      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
+      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery/unknown-function userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
     requiredAuthScopes: [
       'read_fulfillment_constraint_rules for fulfillmentConstraintRules empty read',
       'write_fulfillment_constraint_rules for create/delete userError capture',
@@ -7774,6 +7774,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}functions-fulfillment-constraint-rule-errors.json`,
       'config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json',
       'config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rule-unknown-function.graphql',
       'config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql',
     ],
     cleanupBehavior:

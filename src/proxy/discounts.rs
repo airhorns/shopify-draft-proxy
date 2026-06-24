@@ -4817,12 +4817,12 @@ fn fulfillment_constraint_rule_function_not_found_error(
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Value {
-    let message = if let Some(handle) = function_handle {
-        format!("Could not find function with handle: {handle}.")
-    } else if let Some(id) = function_id {
-        format!("Could not find function with id: {id}.")
+    let message = if let Some(identifier) = function_id.as_deref().or(function_handle.as_deref()) {
+        format!(
+            "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+        )
     } else {
-        "Could not find function.".to_string()
+        "Function not found.".to_string()
     };
     fulfillment_constraint_rule_payload_error(function_user_error(
         vec![json!(field_name)],
@@ -5257,6 +5257,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let function_id = resolved_field_string_arg(field, "functionId");
+        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        if function_id.is_some() || function_handle.is_some() {
+            if let Some(payload) =
+                fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
+            {
+                return payload;
+            }
+        }
         let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
         if let Some(payload) =
             fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
@@ -5276,6 +5285,19 @@ impl DraftProxy {
                 Some("NOT_FOUND"),
             ));
         };
+        if function_id.is_some() || function_handle.is_some() {
+            let function = match fulfillment_constraint_rule_function_resolution_payload(
+                &function_id,
+                &function_handle,
+            ) {
+                Ok(function) => function,
+                Err(payload) => return payload,
+            };
+            rule["functionId"] = function["id"].clone();
+            rule["functionHandle"] = function["handle"].clone();
+            rule["function"] = function.clone();
+            rule["shopifyFunction"] = function;
+        }
         rule["deliveryMethodTypes"] = json!(delivery_method_types);
         self.stage_function_fulfillment_constraint_rule(rule.clone());
         json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
