@@ -1463,6 +1463,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
 - media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
 - unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
+- `productVariantAppendMedia` and `productVariantDetachMedia` validation field paths in the 2026-04 live capture stay rooted in public camel-case input names: the pair cap uses `["variantMedia"]`, per-pair media count uses `["variantMedia", "0", "mediaIds"]`, duplicate/already-attached variants use `["variantMedia", "0", "variantId"]`, and unattached detach still uses `["variantMedia", "0", "variantId"]`
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
 
