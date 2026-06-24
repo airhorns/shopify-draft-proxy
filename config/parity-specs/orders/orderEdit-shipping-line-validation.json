@@ -5,6 +5,7 @@
     "orderEditAddShippingLine",
     "orderEditUpdateShippingLine",
     "orderEditRemoveShippingLine",
+    "orderEditRemoveDiscount",
     "orderEditAddLineItemDiscount"
   ],
   "scenarioStatus": "captured",
@@ -18,7 +19,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Shopify Admin API 2026-04 order-edit shipping-line validation against a disposable CAD order-edit session. The scenario proves missing add-shipping price, shipping-line currency mismatch, update/remove unknown shippingLineId, and missing fixedValue.currencyCode for line-item discounts without staging local effects.",
+  "notes": "Captured Shopify Admin API 2026-04 order-edit shipping-line validation against a disposable CAD order-edit session. The scenario proves missing add-shipping price, shipping-line currency mismatch, update/remove unknown shippingLineId, unknown calculated-order INVALID userErrors for shipping-line/removeDiscount roots, and missing fixedValue.currencyCode for line-item discounts without staging local effects.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -96,6 +97,69 @@
           }
         },
         "proxyPath": "$.data.orderEditRemoveShippingLine"
+      },
+      {
+        "name": "add-shipping-unknown-calculated-order-invalid-user-error",
+        "capturePath": "$.cases.addUnknownCalculatedOrder.response.payload.data.orderEditAddShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-add.graphql",
+          "variables": {
+            "id": "gid://shopify/CalculatedOrder/999999999999",
+            "shippingLine": {
+              "title": "Unknown calculated order shipping",
+              "price": {
+                "amount": "9.99",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddShippingLine"
+      },
+      {
+        "name": "update-shipping-unknown-calculated-order-invalid-user-error",
+        "capturePath": "$.cases.updateUnknownCalculatedOrder.response.payload.data.orderEditUpdateShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-update.graphql",
+          "variables": {
+            "id": "gid://shopify/CalculatedOrder/999999999999",
+            "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999",
+            "shippingLine": {
+              "title": "Unknown calculated order update",
+              "price": {
+                "amount": "19.99",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditUpdateShippingLine"
+      },
+      {
+        "name": "remove-shipping-unknown-calculated-order-invalid-user-error",
+        "capturePath": "$.cases.removeUnknownCalculatedOrder.response.payload.data.orderEditRemoveShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-remove.graphql",
+          "variables": {
+            "id": "gid://shopify/CalculatedOrder/999999999999",
+            "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999"
+          }
+        },
+        "proxyPath": "$.data.orderEditRemoveShippingLine"
+      },
+      {
+        "name": "remove-discount-unknown-calculated-order-invalid-user-error",
+        "capturePath": "$.cases.removeDiscountUnknownCalculatedOrder.response.payload.data.orderEditRemoveDiscount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-remove-discount.graphql",
+          "variables": {
+            "id": "gid://shopify/CalculatedOrder/999999999999",
+            "discountApplicationId": {
+              "fromCapturePath": "$.cases.addLineItemDiscountForRemoveDiscountId.response.payload.data.orderEditAddLineItemDiscount.calculatedLineItem.calculatedDiscountAllocations[0].discountApplication.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditRemoveDiscount"
       },
       {
         "name": "discount-missing-fixed-value-currency-top-level-error",
