@@ -1,0 +1,750 @@
+{
+  "scenarioId": "location-activate-non-unique-name",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-24T14:39:37.728Z",
+  "setup": {
+    "duplicateName": "Non unique activation 20260624143937",
+    "targetLocationId": "gid://shopify/Location/113614520626",
+    "duplicateLocationId": "gid://shopify/Location/113614553394",
+    "plan": [
+      "Create a disposable target location.",
+      "Deactivate the target so a second active location can use the same name.",
+      "Create a second active disposable location with that name.",
+      "Record the active duplicate through locationsAvailableForDeliveryProfilesConnection.",
+      "Hydrate the inactive target through StorePropertiesLocationHydrate.",
+      "Activate the inactive target and capture HAS_NON_UNIQUE_NAME.",
+      "Deactivate and delete both disposable locations during cleanup."
+    ]
+  },
+  "proxyVariables": {
+    "observeActiveDuplicate": {
+      "first": 200
+    },
+    "activate": {
+      "locationId": "gid://shopify/Location/113614520626",
+      "idempotencyKey": "location-activate-non-unique-name-20260624143937"
+    }
+  },
+  "workflow": {
+    "targetCreate": {
+      "name": "targetCreate",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "Non unique activation 20260624143937",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "1 Non Unique Activation St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02108"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113614520626",
+                "name": "Non unique activation 20260624143937",
+                "isActive": true,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetDeactivate": {
+      "name": "targetDeactivate",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614520626",
+        "idempotencyKey": "location-activate-non-unique-name-target-deactivate-20260624143937"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113614520626",
+                "name": "Non unique activation 20260624143937",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "duplicateCreate": {
+      "name": "duplicateCreate",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "Non unique activation 20260624143937",
+          "fulfillsOnlineOrders": true,
+          "address": {
+            "address1": "2 Non Unique Activation St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02109"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113614553394",
+                "name": "Non unique activation 20260624143937",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "observeActiveDuplicate": {
+      "name": "observeActiveDuplicate",
+      "query": "query LocationActivateNonUniqueObservedActive($first: Int!) {\n  locationsAvailableForDeliveryProfilesConnection(first: $first) {\n    nodes {\n      id\n      name\n      isActive\n      isFulfillmentService\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "first": 200
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                },
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112829858098",
+                  "name": "HAR-571 transfer FS 20260505000731",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864887090",
+                  "name": "Inventory transfer conformance origin 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864919858",
+                  "name": "Inventory transfer conformance destination 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864952626",
+                  "name": "Inventory transfer conformance origin 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864985394",
+                  "name": "Inventory transfer conformance destination 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865116466",
+                  "name": "Inventory transfer conformance origin 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865149234",
+                  "name": "Inventory transfer conformance destination 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113491607858",
+                  "name": "Inventory transfer conformance origin 1781556548951",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113491640626",
+                  "name": "Inventory transfer conformance destination 1781556548951",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113614520626",
+                  "name": "Non unique activation 20260624143937",
+                  "isActive": false,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113614553394",
+                  "name": "Non unique activation 20260624143937",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetHydrate": {
+      "name": "targetHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/113614520626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/113614520626",
+              "legacyResourceId": "113614520626",
+              "name": "Non unique activation 20260624143937",
+              "activatable": false,
+              "addressVerified": true,
+              "createdAt": "2026-06-24T14:39:37Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-06-24T14:39:38Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-06-24T14:39:38Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Non Unique Activation St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Non Unique Activation St", "Boston MA 02108", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02108"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activate": {
+      "name": "activate",
+      "query": "mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {\n  locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n    location {\n      id\n      isActive\n    }\n    locationActivateUserErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614520626",
+        "idempotencyKey": "location-activate-non-unique-name-20260624143937"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationActivate": {
+              "location": {
+                "id": "gid://shopify/Location/113614520626",
+                "isActive": false
+              },
+              "locationActivateUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "code": "HAS_NON_UNIQUE_NAME",
+                  "message": "This location currently cannot be activated because there exists an active location with the same name."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocationActivateNonUniqueObservedActive",
+      "variables": {
+        "first": 200
+      },
+      "query": "query LocationActivateNonUniqueObservedActive($first: Int!) {\n  locationsAvailableForDeliveryProfilesConnection(first: $first) {\n    nodes {\n      id\n      name\n      isActive\n      isFulfillmentService\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                },
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112829858098",
+                  "name": "HAR-571 transfer FS 20260505000731",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864887090",
+                  "name": "Inventory transfer conformance origin 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864919858",
+                  "name": "Inventory transfer conformance destination 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864952626",
+                  "name": "Inventory transfer conformance origin 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864985394",
+                  "name": "Inventory transfer conformance destination 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865116466",
+                  "name": "Inventory transfer conformance origin 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865149234",
+                  "name": "Inventory transfer conformance destination 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113491607858",
+                  "name": "Inventory transfer conformance origin 1781556548951",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113491640626",
+                  "name": "Inventory transfer conformance destination 1781556548951",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113614520626",
+                  "name": "Non unique activation 20260624143937",
+                  "isActive": false,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113614553394",
+                  "name": "Non unique activation 20260624143937",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/113614520626"
+      },
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/113614520626",
+              "legacyResourceId": "113614520626",
+              "name": "Non unique activation 20260624143937",
+              "activatable": false,
+              "addressVerified": true,
+              "createdAt": "2026-06-24T14:39:37Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-06-24T14:39:38Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-06-24T14:39:38Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Non Unique Activation St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Non Unique Activation St", "Boston MA 02108", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02108"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614553394",
+        "idempotencyKey": "location-activate-non-unique-name-cleanup-deactivate-20260624143937-113614553394"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113614553394",
+                "name": "Non unique activation 20260624143937",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614553394"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113614553394",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614520626",
+        "idempotencyKey": "location-activate-non-unique-name-cleanup-deactivate-20260624143937-113614520626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113614520626",
+                "name": "Non unique activation 20260624143937",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationActivateNonUniqueDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113614520626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113614520626",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

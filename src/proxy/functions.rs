@@ -627,12 +627,7 @@ pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) 
         .map(|id| format!("cursor:{id}"));
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": start_cursor.map(Value::from).unwrap_or(Value::Null),
-            "endCursor": end_cursor.map(Value::from).unwrap_or(Value::Null)
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 
@@ -753,33 +748,7 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
     else {
         return record;
     };
-    let namespace = metafield_selection
-        .arguments
-        .get("namespace")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    let key = metafield_selection
-        .arguments
-        .get("key")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    if let (Some(namespace), Some(key)) = (namespace, key) {
-        let metafield = record["metafields"]["nodes"]
-            .as_array()
-            .and_then(|nodes| {
-                nodes.iter().find(|node| {
-                    node["namespace"].as_str() == Some(namespace)
-                        && node["key"].as_str() == Some(key)
-                })
-            })
-            .cloned()
-            .unwrap_or(Value::Null);
-        record["metafield"] = metafield;
-    }
+    apply_metafield_for_selection(&mut record, metafield_selection);
     record
 }
 
@@ -844,12 +813,12 @@ fn fulfillment_constraint_rule_function_not_found_error(
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Value {
-    let message = if let Some(handle) = function_handle {
-        format!("Could not find function with handle: {handle}.")
-    } else if let Some(id) = function_id {
-        format!("Could not find function with id: {id}.")
+    let message = if let Some(identifier) = function_id.as_deref().or(function_handle.as_deref()) {
+        format!(
+            "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+        )
     } else {
-        "Could not find function.".to_string()
+        "Function not found.".to_string()
     };
     fulfillment_constraint_rule_payload_error(function_user_error(
         vec![json!(field_name)],
@@ -937,6 +906,11 @@ pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
     let Some(metafield_selection) = selection.iter().find(|field| field.name == "metafield") else {
         return record;
     };
+    apply_metafield_for_selection(&mut record, metafield_selection);
+    record
+}
+
+fn apply_metafield_for_selection(record: &mut Value, metafield_selection: &SelectedField) {
     let namespace = metafield_selection
         .arguments
         .get("namespace")
@@ -964,7 +938,6 @@ pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
             .unwrap_or(Value::Null);
         record["metafield"] = metafield;
     }
-    record
 }
 
 impl DraftProxy {
@@ -1284,6 +1257,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let function_id = resolved_field_string_arg(field, "functionId");
+        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        if function_id.is_some() || function_handle.is_some() {
+            if let Some(payload) =
+                fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
+            {
+                return payload;
+            }
+        }
         let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
         if let Some(payload) =
             fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
@@ -1303,6 +1285,19 @@ impl DraftProxy {
                 Some("NOT_FOUND"),
             ));
         };
+        if function_id.is_some() || function_handle.is_some() {
+            let function = match fulfillment_constraint_rule_function_resolution_payload(
+                &function_id,
+                &function_handle,
+            ) {
+                Ok(function) => function,
+                Err(payload) => return payload,
+            };
+            rule["functionId"] = function["id"].clone();
+            rule["functionHandle"] = function["handle"].clone();
+            rule["function"] = function.clone();
+            rule["shopifyFunction"] = function;
+        }
         rule["deliveryMethodTypes"] = json!(delivery_method_types);
         self.stage_function_fulfillment_constraint_rule(rule.clone());
         json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
