@@ -3242,6 +3242,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-move-adjustment-group-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-move-adjustment-group-shape-conformance.ts',
+    purpose:
+      'inventoryMoveQuantities InventoryAdjustmentGroup id and createdAt payload shape, after a public inventorySetQuantities setup mutation.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-move-adjustment-group-shape.json`,
+      'config/parity-specs/products/inventory-move-adjustment-group-shape.json',
+      'config/parity-requests/products/inventory-move-adjustment-group-shape-set.graphql',
+      'config/parity-requests/products/inventory-move-adjustment-group-shape.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tracked product, captures set-plus-move inventory mutations at an active location, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-quantity-updated-at-and-after-change-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-quantity-updated-at-and-after-change-local-runtime.ts',

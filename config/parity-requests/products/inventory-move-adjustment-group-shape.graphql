@@ -1,0 +1,27 @@
+mutation InventoryMoveAdjustmentGroupShape(
+  $input: InventoryMoveQuantitiesInput!
+  $idempotencyKey: String!
+) {
+  inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      id
+      createdAt
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        quantityAfterChange
+        ledgerDocumentUri
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

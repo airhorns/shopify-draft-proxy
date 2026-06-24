@@ -2845,7 +2845,12 @@ impl DraftProxy {
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
         let mut changes = Vec::new();
+        let mut created_at = None;
         for change in changes_input {
+            let updated_at = self.next_inventory_quantity_timestamp();
+            if created_at.is_none() {
+                created_at = Some(updated_at.clone());
+            }
             let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
             let quantity = resolved_int_field(&change, "quantity").unwrap_or(0);
             let from = resolved_object_field(&change, "from").unwrap_or_default();
@@ -2855,7 +2860,6 @@ impl DraftProxy {
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
-            let updated_at = self.next_inventory_quantity_timestamp();
             let (from_after_change, to_after_change) = {
                 let level = self
                     .store
@@ -2899,10 +2903,13 @@ impl DraftProxy {
                 &location_name,
             ));
         }
+        let created_at = created_at.unwrap_or_else(|| self.next_inventory_quantity_timestamp());
         MutationFieldOutcome::staged(
             selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": created_at,
                         "reason": reason,
                         "referenceDocumentUri": reference,
                         "changes": changes
