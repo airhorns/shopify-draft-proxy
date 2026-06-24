@@ -1807,6 +1807,7 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod functions;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -1847,6 +1848,8 @@ pub(in crate::proxy) use self::core::*;
 pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::functions::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::json_helpers::*;
 #[allow(unused_imports)]
