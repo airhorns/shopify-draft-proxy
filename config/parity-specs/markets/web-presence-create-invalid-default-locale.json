@@ -1,0 +1,28 @@
+{
+  "scenarioId": "web-presence-create-invalid-default-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[40].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-default-locale-rejects-without-web-presence",
+        "capturePath": "$.cases[40].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": ["$.webPresence", "$.userErrors[0].field", "$.userErrors[0].code"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL capture proves a truly unsupported defaultLocale returns a MarketUserError on field [\"input\", \"defaultLocale\"] with code INVALID and no webPresence."
+}
