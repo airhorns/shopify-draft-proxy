@@ -92,46 +92,21 @@ impl DraftProxy {
                 + metafields.len()
                 + 1;
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
-            let id = existing
-                .as_ref()
-                .and_then(|metafield| metafield.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index));
             let metafield = if let Some(mut record) =
                 custom_data_metafield_type_matrix_record(&namespace, &key)
             {
                 record["owner"] = owner_reference_from_gid(&owner_id);
                 record
             } else {
-                let normalized_value = normalize_metafield_value_string(&metafield_type, &value);
-                let compare_digest = metafield_compare_digest(&normalized_value);
-                let timestamp = owner_metafield_timestamp(index as u64);
-                let created_at = existing
-                    .as_ref()
-                    .and_then(|metafield| metafield.get("createdAt"))
-                    .and_then(Value::as_str)
-                    .unwrap_or(&timestamp);
-                let updated_at = existing
-                    .as_ref()
-                    .filter(|metafield| {
-                        metafield.get("value").and_then(Value::as_str) == Some(value.as_str())
-                    })
-                    .and_then(|metafield| metafield.get("updatedAt"))
-                    .and_then(Value::as_str)
-                    .unwrap_or(&timestamp);
-                json!({
-                    "id": id,
-                    "namespace": namespace,
-                    "key": key,
-                    "type": metafield_type,
-                    "value": normalized_value,
-                    "jsonValue": metafield_json_value(&metafield_type, &value),
-                    "compareDigest": compare_digest,
-                    "createdAt": created_at,
-                    "updatedAt": updated_at,
-                    "ownerType": owner_type_from_gid(&owner_id),
-                    "owner": owner_reference_from_gid(&owner_id),
+                owner_metafield_record(OwnerMetafieldRecordArgs {
+                    owner_id: &owner_id,
+                    namespace: &namespace,
+                    key: &key,
+                    metafield_type: &metafield_type,
+                    value: &value,
+                    index,
+                    existing: existing.as_ref(),
+                    include_owner: true,
                 })
             };
             self.store.staged.deleted_owner_metafields.remove(&(
@@ -773,19 +748,15 @@ impl DraftProxy {
                 .map(Vec::len)
                 .sum::<usize>()
                 + 1;
-            let timestamp = owner_metafield_timestamp(index as u64);
-            let normalized_value = normalize_metafield_value_string(&metafield_type, &value);
-            let record = json!({
-                "id": format!("gid://shopify/Metafield/{index}"),
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": normalized_value,
-                "jsonValue": metafield_json_value(&metafield_type, &value),
-                "compareDigest": metafield_compare_digest(&normalized_value),
-                "createdAt": timestamp,
-                "updatedAt": timestamp,
-                "ownerType": owner_type_from_gid(owner_id),
+            let record = owner_metafield_record(OwnerMetafieldRecordArgs {
+                owner_id,
+                namespace: &namespace,
+                key: &key,
+                metafield_type: &metafield_type,
+                value: &value,
+                index,
+                existing: None,
+                include_owner: false,
             });
             self.upsert_owner_metafield_record(owner_id, record);
         }
@@ -1242,20 +1213,15 @@ impl DraftProxy {
                 .map(Vec::len)
                 .sum::<usize>()
                 + 1;
-            let timestamp = owner_metafield_timestamp(index as u64);
-            let normalized_value = normalize_metafield_value_string(&metafield_type, &value);
-            let metafield = json!({
-                "id": format!("gid://shopify/Metafield/{index}"),
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": normalized_value,
-                "jsonValue": metafield_json_value(&metafield_type, &value),
-                "compareDigest": metafield_compare_digest(&normalized_value),
-                "createdAt": timestamp,
-                "updatedAt": timestamp,
-                "ownerType": owner_type_from_gid(owner_id),
-                "owner": owner_reference_from_gid(owner_id),
+            let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+                owner_id,
+                namespace: &namespace,
+                key: &key,
+                metafield_type: &metafield_type,
+                value: &value,
+                index,
+                existing: None,
+                include_owner: true,
             });
             self.store.staged.deleted_owner_metafields.remove(&(
                 owner_id.to_string(),
@@ -1270,6 +1236,62 @@ impl DraftProxy {
                 .push(metafield);
         }
     }
+}
+
+struct OwnerMetafieldRecordArgs<'a> {
+    owner_id: &'a str,
+    namespace: &'a str,
+    key: &'a str,
+    metafield_type: &'a str,
+    value: &'a str,
+    index: usize,
+    existing: Option<&'a Value>,
+    include_owner: bool,
+}
+
+fn owner_metafield_record(
+    OwnerMetafieldRecordArgs {
+        owner_id,
+        namespace,
+        key,
+        metafield_type,
+        value,
+        index,
+        existing,
+        include_owner,
+    }: OwnerMetafieldRecordArgs<'_>,
+) -> Value {
+    let normalized_value = normalize_metafield_value_string(metafield_type, value);
+    let timestamp = owner_metafield_timestamp(index as u64);
+    let created_at = existing
+        .and_then(|metafield| metafield.get("createdAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(&timestamp);
+    let updated_at = existing
+        .filter(|metafield| metafield.get("value").and_then(Value::as_str) == Some(value))
+        .and_then(|metafield| metafield.get("updatedAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(&timestamp);
+    let mut record = json!({
+        "id": existing
+            .and_then(|metafield| metafield.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("gid://shopify/Metafield/{index}")),
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type,
+        "value": normalized_value,
+        "jsonValue": metafield_json_value(metafield_type, value),
+        "compareDigest": metafield_compare_digest(&normalized_value),
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "ownerType": owner_type_from_gid(owner_id),
+    });
+    if include_owner {
+        record["owner"] = owner_reference_from_gid(owner_id);
+    }
+    record
 }
 
 fn owner_reference_from_gid(owner_id: &str) -> Value {

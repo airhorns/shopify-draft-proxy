@@ -2852,7 +2852,7 @@ impl DraftProxy {
         id: &str,
         request: &Request,
     ) -> Option<ProductRecord> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
         let response = self.upstream_post(
@@ -3061,7 +3061,7 @@ impl DraftProxy {
             .as_ref()
             .is_some_and(product_publication_state_known);
         let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
+            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
             .unwrap_or_else(|| {
                 let timestamp = default_product_timestamp(&product_id);
                 ProductRecord {
@@ -3142,35 +3142,6 @@ impl DraftProxy {
         } else {
             MutationOutcome::response(response)
         }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
     }
 
     fn product_publication_user_errors(
