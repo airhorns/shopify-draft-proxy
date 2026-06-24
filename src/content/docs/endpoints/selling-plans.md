@@ -45,6 +45,13 @@ missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
 does not apply the create-only lower-bound to an empty
 `sellingPlansToCreate: []` list.
 
+`SellingPlanGroup.summary` is computed from staged selling plans, not from the
+group option labels. The local summary uses the selling-plan count,
+singular/plural `frequency` wording, percentage min/max ranges across all
+pricing policies, fixed-value min/max ranges using Shopify's whole-currency
+summary display, and joins mixed percentage/fixed pieces with `·`. A staged
+group with no remaining selling plans returns an empty summary string.
+
 Staged `sellingPlanGroupAddProducts`,
 `sellingPlanGroupRemoveProducts`, `sellingPlanGroupAddProductVariants`,
 `sellingPlanGroupRemoveProductVariants`, `productJoinSellingPlanGroups`,
@@ -78,6 +85,11 @@ parity evidence.
 ### Evidence
 
 - `tests/graphql_routes/selling_plans.rs`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json`
+- `config/parity-specs/selling-plans/sellingPlanGroup-summary.json`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql`
+- `scripts/capture-selling-plan-group-summary-conformance.ts`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
 - `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
 - `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
@@ -92,6 +104,7 @@ parity evidence.
 
 ### Validation
 
+- `corepack pnpm parity -- sellingPlanGroup-summary`
 - `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
 - `corepack pnpm conformance:check`
 - `corepack pnpm rust:test`

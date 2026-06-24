@@ -2592,6 +2592,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'selling-plans',
+    captureId: 'selling-plan-group-summary',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-summary-conformance.ts',
+    purpose:
+      'SellingPlanGroup.summary computed field after create/readback, including plan count, frequency pluralization, percentage range, fixed-value range, and mixed discount pieces.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-summary.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroup-summary.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql',
+      'config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable selling-plan group, reads it back, then deletes the group.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',

@@ -56,6 +56,39 @@ fn create_selling_plan_group(proxy: &mut DraftProxy, input: Value) -> Response {
     ))
 }
 
+fn create_selling_plan_group_with_summary(proxy: &mut DraftProxy, input: Value) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSellingPlanGroupForSummary($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup {
+              id
+              summary
+              sellingPlans(first: 10) {
+                nodes {
+                  id
+                  pricingPolicies {
+                    __typename
+                    ... on SellingPlanFixedPricingPolicy {
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                        ... on MoneyV2 { amount currencyCode }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ))
+}
+
 fn selling_plan_group_nodes(proxy: &mut DraftProxy) -> Value {
     proxy
         .process_request(json_graphql_request(
@@ -68,6 +101,27 @@ fn selling_plan_group_nodes(proxy: &mut DraftProxy) -> Value {
         ))
         .body["data"]["sellingPlanGroups"]["nodes"]
         .clone()
+}
+
+fn selling_plan_input_with_policy(
+    name: &str,
+    options: Vec<&str>,
+    adjustment_type: &str,
+    adjustment_value: Value,
+) -> Value {
+    json!({
+        "name": name,
+        "options": options,
+        "category": "SUBSCRIPTION",
+        "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+        "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+        "pricingPolicies": [{
+            "fixed": {
+                "adjustmentType": adjustment_type,
+                "adjustmentValue": adjustment_value
+            }
+        }]
+    })
 }
 
 #[test]
@@ -516,6 +570,206 @@ fn selling_plan_group_recurring_policy_ranges_validate_locally() {
                 }
             ]
         })
+    );
+}
+
+#[test]
+fn selling_plan_group_summary_matches_shopify_count_pluralization_and_discount_ranges() {
+    let mut proxy = snapshot_proxy();
+
+    let single_percentage = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Single percentage summary",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_policy(
+                    "Monthly",
+                    vec!["Monthly"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 12.5 }),
+                )
+            ]
+        }),
+    );
+    assert_eq!(single_percentage.status, 200);
+    assert_eq!(
+        single_percentage.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        single_percentage.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
+        json!("1 delivery frequency, 12.5% discount")
+    );
+
+    let percentage_range = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Percentage range summary",
+            "options": ["Delivery frequency", "Billing cadence"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_policy(
+                    "Monthly",
+                    vec!["Monthly", "Monthly billing"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 10 }),
+                ),
+                selling_plan_input_with_policy(
+                    "Quarterly",
+                    vec!["Quarterly", "Quarterly billing"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 15.5 }),
+                ),
+                selling_plan_input_with_policy(
+                    "Annual",
+                    vec!["Annual", "Annual billing"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 20 }),
+                )
+            ]
+        }),
+    );
+    assert_eq!(
+        percentage_range.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        percentage_range.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
+        json!("3 delivery frequencies, 10-20% discount")
+    );
+
+    let fixed_range = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Fixed range summary",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_policy(
+                    "Fixed low",
+                    vec!["Fixed low"],
+                    "FIXED_AMOUNT",
+                    json!({ "fixedValue": "5.0" }),
+                ),
+                selling_plan_input_with_policy(
+                    "Fixed high",
+                    vec!["Fixed high"],
+                    "FIXED_AMOUNT",
+                    json!({ "fixedValue": "7.5" }),
+                )
+            ]
+        }),
+    );
+    assert_eq!(
+        fixed_range.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        fixed_range.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
+        json!("2 delivery frequencies, $5-$8 discount")
+    );
+    assert_eq!(
+        fixed_range.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+            ["nodes"][0]["pricingPolicies"][0]["adjustmentValue"],
+        json!({
+            "__typename": "MoneyV2",
+            "amount": "5.0",
+            "currencyCode": "USD"
+        })
+    );
+
+    let mixed_range = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Mixed range summary",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_policy(
+                    "Percentage low",
+                    vec!["Percentage low"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 10 }),
+                ),
+                selling_plan_input_with_policy(
+                    "Percentage high",
+                    vec!["Percentage high"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 20 }),
+                ),
+                selling_plan_input_with_policy(
+                    "Fixed low",
+                    vec!["Fixed low"],
+                    "FIXED_AMOUNT",
+                    json!({ "fixedValue": "5.0" }),
+                ),
+                selling_plan_input_with_policy(
+                    "Fixed high",
+                    vec!["Fixed high"],
+                    "FIXED_AMOUNT",
+                    json!({ "fixedValue": "7.5" }),
+                )
+            ]
+        }),
+    );
+    assert_eq!(
+        mixed_range.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        mixed_range.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
+        json!("4 delivery frequencies, 10-20%·$5-$8 discount")
+    );
+
+    let zero_seed = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Zero summary seed",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_policy(
+                    "Monthly",
+                    vec!["Monthly"],
+                    "PERCENTAGE",
+                    json!({ "percentage": 10 }),
+                )
+            ]
+        }),
+    );
+    let group_id = zero_seed.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .expect("group id should be staged")
+        .to_string();
+    let plan_id = zero_seed.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
+        ["sellingPlans"]["nodes"][0]["id"]
+        .as_str()
+        .expect("plan id should be staged")
+        .to_string();
+
+    let zero_plan_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteLastSellingPlanForSummary($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id summary sellingPlans(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": { "sellingPlansToDelete": [plan_id] }
+        }),
+    ));
+    assert_eq!(
+        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["summary"],
+        json!("")
+    );
+    assert_eq!(
+        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["sellingPlans"]
+            ["nodes"],
+        json!([])
     );
 }
 
