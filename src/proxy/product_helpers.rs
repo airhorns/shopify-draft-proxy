@@ -325,29 +325,14 @@ fn product_publication_connection_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
     let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| product_publication_connection_node_json(product, entry, &node_selection))
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": product_publication_connection_node_json(product, entry, &edge_node_selection)
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &entries,
+        selections,
+        |entry, selections| product_publication_connection_node_json(product, entry, selections),
+        |entry| entry.publication_id.clone(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 fn resource_publication_connection_json(
@@ -355,36 +340,16 @@ fn resource_publication_connection_json(
     typename: &str,
     selections: &[SelectedField],
 ) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
     let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| {
-            resource_publication_connection_node_json(product, entry, typename, &node_selection)
-        })
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": resource_publication_connection_node_json(
-                    product,
-                    entry,
-                    typename,
-                    &edge_node_selection
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &entries,
+        selections,
+        |entry, selections| {
+            resource_publication_connection_node_json(product, entry, typename, selections)
+        },
+        |entry| entry.publication_id.clone(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 pub(in crate::proxy) fn product_publication_field_json(

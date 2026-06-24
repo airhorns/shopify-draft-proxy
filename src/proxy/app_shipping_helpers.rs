@@ -806,54 +806,13 @@ fn delivery_location_group_zones_connection_json(
     selections: &[SelectedField],
 ) -> Value {
     let nodes = limited_nodes(zones, arguments);
-    let connection = connection_json_with_cursor(
-        nodes,
-        |_, node| node["zone"]["id"].as_str().unwrap_or_default().to_string(),
-        connection_page_info(false, false, None, None),
-    );
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(
-            connection["nodes"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|node| delivery_location_group_zone_selected_json(node, &selection.selection))
-                .collect(),
-        )),
-        "edges" => Some(Value::Array(
-            connection["edges"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|edge| {
-                    let mut projected = serde_json::Map::new();
-                    for edge_field in &selection.selection {
-                        match edge_field.name.as_str() {
-                            "cursor" => {
-                                projected.insert(
-                                    edge_field.response_key.clone(),
-                                    edge["cursor"].clone(),
-                                );
-                            }
-                            "node" => {
-                                projected.insert(
-                                    edge_field.response_key.clone(),
-                                    delivery_location_group_zone_selected_json(
-                                        &edge["node"],
-                                        &edge_field.selection,
-                                    ),
-                                );
-                            }
-                            _ => {}
-                        }
-                    }
-                    Value::Object(projected)
-                })
-                .collect(),
-        )),
-        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &nodes,
+        selections,
+        delivery_location_group_zone_selected_json,
+        |node| node["zone"]["id"].as_str().unwrap_or_default().to_string(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 fn delivery_location_group_zone_selected_json(zone: &Value, selections: &[SelectedField]) -> Value {
@@ -895,54 +854,13 @@ fn delivery_method_definitions_connection_json(
     selections: &[SelectedField],
 ) -> Value {
     let nodes = limited_nodes(methods, arguments);
-    let connection = connection_json_with_cursor(
-        nodes,
-        |_, node| value_id_cursor(node),
-        connection_page_info(false, false, None, None),
-    );
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(
-            connection["nodes"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|node| delivery_method_definition_selected_json(node, &selection.selection))
-                .collect(),
-        )),
-        "edges" => Some(Value::Array(
-            connection["edges"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|edge| {
-                    let mut projected = serde_json::Map::new();
-                    for edge_field in &selection.selection {
-                        match edge_field.name.as_str() {
-                            "cursor" => {
-                                projected.insert(
-                                    edge_field.response_key.clone(),
-                                    edge["cursor"].clone(),
-                                );
-                            }
-                            "node" => {
-                                projected.insert(
-                                    edge_field.response_key.clone(),
-                                    delivery_method_definition_selected_json(
-                                        &edge["node"],
-                                        &edge_field.selection,
-                                    ),
-                                );
-                            }
-                            _ => {}
-                        }
-                    }
-                    Value::Object(projected)
-                })
-                .collect(),
-        )),
-        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &nodes,
+        selections,
+        delivery_method_definition_selected_json,
+        value_id_cursor,
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 fn delivery_method_definition_selected_json(method: &Value, selections: &[SelectedField]) -> Value {
