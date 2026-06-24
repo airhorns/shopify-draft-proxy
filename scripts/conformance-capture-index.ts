@@ -1851,6 +1851,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-linkage-parity.json`,
       `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
+      'config/parity-specs/products/inventory_activate_validation.json',
       'config/parity-specs/products/inventory-idempotency-directive-lifecycle-2026-04.json',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',

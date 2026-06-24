@@ -3160,7 +3160,9 @@ impl DraftProxy {
                 index.to_string(),
                 "locationId".to_string(),
             ];
-            if !self.inventory_location_exists(&location_id) {
+            if !self.inventory_location_exists(&location_id)
+                || !self.inventory_location_is_active(&location_id)
+            {
                 user_errors.push(inventory_bulk_toggle_user_error(
                     location_path.clone(),
                     "The quantity couldn't be updated because the location was not found.",
@@ -3173,41 +3175,6 @@ impl DraftProxy {
                     user_errors,
                 ));
             }
-            if !self.inventory_location_is_active(&location_id) {
-                user_errors.push(inventory_bulk_toggle_user_error(
-                    location_path.clone(),
-                    "The quantity couldn't be updated because the location is not active.",
-                    Some("LOCATION_NOT_ACTIVE"),
-                ));
-                return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                    None,
-                    None,
-                    &field.selection,
-                    user_errors,
-                ));
-            }
-            if let Some(quantity) = resolved_int_field(update, "available")
-                .or_else(|| resolved_int_field(update, "quantity"))
-            {
-                if quantity < 0 {
-                    user_errors.push(inventory_bulk_toggle_user_error(
-                        vec![
-                            "inventoryItemUpdates".to_string(),
-                            index.to_string(),
-                            "available".to_string(),
-                        ],
-                        "Available must be greater than or equal to 0",
-                        Some("NEGATIVE"),
-                    ));
-                    return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                        None,
-                        None,
-                        &field.selection,
-                        user_errors,
-                    ));
-                }
-            }
-
             let key = (inventory_item_id.clone(), location_id.clone());
             let is_active = self.store.staged.inventory_levels.contains_key(&key)
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
@@ -3222,24 +3189,6 @@ impl DraftProxy {
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
             if activate {
                 if !is_active {
-                    if !self.store.staged.inactive_inventory_levels.contains(&key)
-                        && self
-                            .active_inventory_levels_for_item(&inventory_item_id)
-                            .len()
-                            >= INVENTORY_MAX_ACTIVE_LEVELS
-                    {
-                        user_errors.push(inventory_bulk_toggle_user_error(
-                            location_path.clone(),
-                            "The quantity couldn't be updated because the product has reached the maximum number of inventory locations.",
-                            Some("TOO_MANY_INVENTORY_LEVELS"),
-                        ));
-                        return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                            None,
-                            None,
-                            &field.selection,
-                            user_errors,
-                        ));
-                    }
                     self.activate_inventory_level(&inventory_item_id, &location_id);
                 }
                 if let Some(level) = self.inventory_level_for_payload(
