@@ -150,11 +150,15 @@ pub(super) fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
     (subtotal, subtotal - discount + shipping, quantity)
 }
 
-pub(super) fn oe_calc_order_view(session: &Value) -> Value {
-    let currency = session
+pub(super) fn oe_session_currency(session: &Value) -> &str {
+    session
         .get("currency")
         .and_then(Value::as_str)
-        .unwrap_or("CAD");
+        .unwrap_or("CAD")
+}
+
+pub(super) fn oe_calc_order_view(session: &Value) -> Value {
+    let currency = oe_session_currency(session);
     let empty = Vec::new();
     let lines = session
         .get("lines")
@@ -323,25 +327,19 @@ pub(super) fn oe_shipping_index(session: &Value, shipping_id: &str) -> Option<us
 /// lines are materialised as new line items. Current totals, the edit history
 /// event, and per-line fulfillment orders are recomputed from the session.
 pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str>) -> Value {
-    let currency = session
-        .get("currency")
-        .and_then(Value::as_str)
-        .unwrap_or("CAD");
+    let currency = oe_session_currency(session);
     let empty = Vec::new();
     let lines = session
         .get("lines")
         .and_then(Value::as_array)
         .unwrap_or(&empty);
+    let (subtotal, total, quantity) = oe_session_totals(session);
     let mut line_nodes = Vec::new();
     let mut fulfillment_orders = Vec::new();
-    let mut subtotal = 0_i64;
-    let mut quantity = 0_i64;
     for (index, line) in lines.iter().enumerate() {
         let unit = oe_int(line, "unitCents");
         let historical = oe_int(line, "histQty");
         let current = oe_int(line, "curQty");
-        subtotal += unit * current;
-        quantity += current;
         let line_id = match line.get("orderLineId").and_then(Value::as_str) {
             Some(id) => id.to_string(),
             None => shopify_gid("LineItem", format_args!("oe-{index}")),
@@ -379,16 +377,6 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
             }));
         }
     }
-    let discount: i64 = lines
-        .iter()
-        .map(|line| oe_line_discount_per_unit(line) * oe_int(line, "curQty"))
-        .sum();
-    let shipping: i64 = session
-        .get("shippingLines")
-        .and_then(Value::as_array)
-        .map(|lines| lines.iter().map(|line| oe_int(line, "priceCents")).sum())
-        .unwrap_or(0);
-    let total = subtotal - discount + shipping;
     let message = author.map(|author| format!("{author} edited this order."));
     json!({
         "id": base.get("id").cloned().unwrap_or(Value::Null),

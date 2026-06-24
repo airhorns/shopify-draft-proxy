@@ -383,14 +383,7 @@ pub(in crate::proxy) fn draft_order_applied_discount(
     input: &BTreeMap<String, ResolvedValue>,
     line_total: f64,
 ) -> Value {
-    let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
-        return Value::Null;
-    };
-    draft_order_discount_record(
-        &discount,
-        &draft_order_input_currency(input),
-        draft_order_discount_amount_from_discount(&discount, line_total),
-    )
+    draft_order_applied_discount_from_line(input, &draft_order_input_currency(input), line_total)
 }
 
 pub(in crate::proxy) fn draft_order_applied_discount_from_line(
@@ -406,6 +399,20 @@ pub(in crate::proxy) fn draft_order_applied_discount_from_line(
         currency,
         draft_order_discount_amount_from_discount(&discount, line_total),
     )
+}
+
+fn draft_order_not_found_payload(resource_field: &str) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(resource_field.to_string(), Value::Null);
+    payload.insert(
+        "userErrors".to_string(),
+        json!([user_error(
+            ["id"],
+            "Draft order does not exist",
+            Some("NOT_FOUND")
+        )]),
+    );
+    Value::Object(payload)
 }
 
 pub(in crate::proxy) fn draft_order_discount_record(
@@ -1114,17 +1121,13 @@ impl DraftProxy {
             .draft_orders
             .insert(id.clone(), draft_order.clone());
         self.sync_draft_order_tags(&id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderCreate",
-            staged_resource_ids: vec![id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderCreate",
+            vec![id],
+        );
         selected_json(
             &json!({ "draftOrder": draft_order, "userErrors": [] }),
             &field.selection,
@@ -1148,10 +1151,7 @@ impl DraftProxy {
         }
         let Some(existing) = self.store.staged.draft_orders.get(&id).cloned() else {
             return selected_json(
-                &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
-                }),
+                &draft_order_not_found_payload("draftOrder"),
                 &field.selection,
             );
         };
@@ -1166,17 +1166,13 @@ impl DraftProxy {
             .draft_orders
             .insert(id.clone(), updated.clone());
         self.sync_draft_order_tags(&id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderUpdate",
-            staged_resource_ids: vec![id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderUpdate in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderUpdate",
+            vec![id],
+        );
         selected_json(
             &json!({ "draftOrder": updated, "userErrors": [] }),
             &field.selection,
@@ -1220,10 +1216,7 @@ impl DraftProxy {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let Some(source) = self.store.staged.draft_orders.get(&id).cloned() else {
             return selected_json(
-                &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
-                }),
+                &draft_order_not_found_payload("draftOrder"),
                 &field.selection,
             );
         };
@@ -1253,17 +1246,13 @@ impl DraftProxy {
             .draft_orders
             .insert(new_id.clone(), duplicate.clone());
         self.sync_draft_order_tags(&new_id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderDuplicate",
-            staged_resource_ids: vec![new_id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderDuplicate in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderDuplicate",
+            vec![new_id],
+        );
         selected_json(
             &json!({ "draftOrder": duplicate, "userErrors": [] }),
             &field.selection,
@@ -1283,25 +1272,18 @@ impl DraftProxy {
             .unwrap_or_default();
         if self.store.staged.draft_orders.remove(&id).is_none() {
             return selected_json(
-                &json!({
-                    "deletedId": Value::Null,
-                    "userErrors": [user_error(["id"], "Draft order does not exist", Some("NOT_FOUND"))]
-                }),
+                &draft_order_not_found_payload("deletedId"),
                 &field.selection,
             );
         }
         self.store.staged.draft_order_tags.remove(&id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderDelete",
-            staged_resource_ids: vec![id.clone()],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderDelete in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderDelete",
+            vec![id.clone()],
+        );
         selected_json(
             &json!({ "deletedId": id, "userErrors": [] }),
             &field.selection,
@@ -1331,17 +1313,13 @@ impl DraftProxy {
             }
         }
         if !deleted_ids.is_empty() {
-            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            self.record_staged_orders_log_entry(
                 request,
                 query,
                 variables,
-                root_field: "draftOrderBulkDelete",
-                staged_resource_ids: deleted_ids,
-                outcome: OrdersLocalLogOutcome {
-                    status: "staged",
-                    notes: "Locally staged draftOrderBulkDelete in shopify-draft-proxy.",
-                },
-            });
+                "draftOrderBulkDelete",
+                deleted_ids,
+            );
         }
         let job = self.next_draft_order_bulk_tag_job();
         selected_json(
@@ -1375,17 +1353,13 @@ impl DraftProxy {
             .draft_orders
             .insert(id.clone(), draft_order.clone());
         self.sync_draft_order_tags(&id);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderCreateFromOrder",
-            staged_resource_ids: vec![id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderCreateFromOrder in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderCreateFromOrder",
+            vec![id],
+        );
         selected_json(
             &json!({ "draftOrder": draft_order, "userErrors": [] }),
             &field.selection,
@@ -2168,17 +2142,13 @@ impl DraftProxy {
             .staged
             .draft_orders
             .insert(id.clone(), record.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_staged_orders_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderCreate",
-            staged_resource_ids: vec![id],
-            outcome: OrdersLocalLogOutcome {
-                status: "staged",
-                notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
-            },
-        });
+            "draftOrderCreate",
+            vec![id],
+        );
         selected_json(
             &json!({
                 "draftOrder": record,

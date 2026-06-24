@@ -794,17 +794,13 @@ impl DraftProxy {
         for field in fields {
             let (value, staged_ids) = self.stage_refund_create(request, query, variables, &field);
             if !staged_ids.is_empty() {
-                self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                self.record_staged_orders_log_entry(
                     request,
                     query,
                     variables,
-                    root_field: "refundCreate",
-                    staged_resource_ids: staged_ids,
-                    outcome: OrdersLocalLogOutcome {
-                        status: "staged",
-                        notes: "Locally staged refundCreate in shopify-draft-proxy.",
-                    },
-                });
+                    "refundCreate",
+                    staged_ids,
+                );
             }
             data.insert(field.response_key, value);
         }
