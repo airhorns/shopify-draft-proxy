@@ -938,7 +938,7 @@ fn gift_card_recipient_errors(
         )];
     }
     if resolved_string_field(&recipient, "preferredName")
-        .is_some_and(|value| gift_card_text_contains_html(&value))
+        .is_some_and(|value| b2b_contains_html_tags(&value))
     {
         return vec![gift_card_user_error(
             "giftCardCreate",
@@ -948,7 +948,7 @@ fn gift_card_recipient_errors(
         )];
     }
     if resolved_string_field(&recipient, "message")
-        .is_some_and(|value| gift_card_text_contains_html(&value))
+        .is_some_and(|value| b2b_contains_html_tags(&value))
     {
         return vec![gift_card_user_error(
             "giftCardCreate",
@@ -1010,10 +1010,6 @@ fn gift_card_processed_at_error(
 fn gift_card_synthetic_now_epoch_seconds() -> i64 {
     parse_rfc3339_epoch_seconds(GIFT_CARD_SYNTHETIC_NOW)
         .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
-}
-
-fn gift_card_text_contains_html(value: &str) -> bool {
-    value.contains('<') && value.contains('>')
 }
 
 fn gift_card_customer_id_is_missing(id: &str) -> bool {
@@ -1080,13 +1076,6 @@ fn gift_card_user_error_typename(root_field: &str) -> Option<&'static str> {
             Some("GiftCardSendNotificationToRecipientUserError")
         }
         _ => None,
-    }
-}
-
-fn resolved_nullable_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Value {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        _ => Value::Null,
     }
 }
 
