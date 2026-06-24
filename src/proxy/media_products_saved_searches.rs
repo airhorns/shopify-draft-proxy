@@ -1109,6 +1109,52 @@ impl DraftProxy {
         variant_media: &[BTreeMap<String, ResolvedValue>],
     ) -> Vec<Value> {
         let mut user_errors = Vec::new();
+        if variant_media.len() > 100 {
+            user_errors.push(product_variant_media_user_error(
+                &["variantMedia"],
+                "Exceeded 100 variant-media pairs per mutation.",
+                "MAXIMUM_VARIANT_MEDIA_PAIRS_EXCEEDED",
+            ));
+            return user_errors;
+        }
+
+        for (entry_index, item) in variant_media.iter().enumerate() {
+            let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
+            if media_ids.len() > 1 {
+                user_errors.push(product_variant_media_user_error(
+                    &["variantMedia", &entry_index.to_string(), "mediaIds"],
+                    "Only one mediaId is allowed per media input.",
+                    "TOO_MANY_MEDIA_PER_INPUT_PAIR",
+                ));
+            }
+        }
+        if !user_errors.is_empty() {
+            return user_errors;
+        }
+
+        let mut first_variant_indexes = BTreeMap::new();
+        let mut duplicate_error_indexes = BTreeSet::new();
+        for (entry_index, item) in variant_media.iter().enumerate() {
+            let Some(variant_id) = resolved_string_field(item, "variantId")
+                .filter(|variant_id| !variant_id.is_empty())
+            else {
+                continue;
+            };
+            if let Some(first_index) = first_variant_indexes.insert(variant_id, entry_index) {
+                duplicate_error_indexes.insert(first_index);
+            }
+        }
+        for entry_index in duplicate_error_indexes {
+            user_errors.push(product_variant_media_user_error(
+                &["variantMedia", &entry_index.to_string(), "variantId"],
+                "Variant was specified in more than one media input.",
+                "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES",
+            ));
+        }
+        if !user_errors.is_empty() {
+            return user_errors;
+        }
+
         for (entry_index, item) in variant_media.iter().enumerate() {
             let variant_id = resolved_string_field(item, "variantId").unwrap_or_default();
             let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
@@ -1128,22 +1174,35 @@ impl DraftProxy {
                 ));
                 continue;
             }
+            if root_field == "productVariantAppendMedia" && !variant.media_ids.is_empty() {
+                user_errors.push(product_variant_media_user_error(
+                    &["variantMedia", &entry_index.to_string(), "variantId"],
+                    "The given variant already has attached media.",
+                    "PRODUCT_VARIANT_ALREADY_HAS_MEDIA",
+                ));
+                continue;
+            }
             for media_id in media_ids {
-                let media = self.store.product_media_by_id(product_id, &media_id);
-                if media.is_none() {
+                let Some(media) = self.store.product_media_by_id(product_id, &media_id) else {
                     user_errors.push(product_variant_media_user_error(
                         &["variantMedia", &entry_index.to_string(), "mediaIds"],
                         "Media does not exist on the specified product.",
                         "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
                     ));
                     continue;
+                };
+                if root_field == "productVariantAppendMedia"
+                    && !product_variant_media_is_image(&media)
+                {
+                    user_errors.push(product_variant_media_user_error(
+                        &["variantMedia", &entry_index.to_string(), "mediaIds"],
+                        "Non-image media cannot be attached to variants.",
+                        "INVALID_MEDIA_TYPE",
+                    ));
+                    continue;
                 }
                 if root_field == "productVariantAppendMedia"
-                    && media
-                        .as_ref()
-                        .and_then(|media| media.get("status"))
-                        .and_then(Value::as_str)
-                        != Some("READY")
+                    && media.get("status").and_then(Value::as_str) != Some("READY")
                 {
                     user_errors.push(product_variant_media_user_error(
                         &["variantMedia", &entry_index.to_string(), "mediaIds"],
@@ -1549,6 +1608,12 @@ impl DraftProxy {
             user_errors
                 .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
         }
+        if user_errors.is_empty() {
+            user_errors.extend(Self::product_variant_bulk_duplicate_tuple_user_errors(
+                &variants_input,
+                &product,
+            ));
+        }
         if Self::product_variant_effective_count_after_create(
             &self.store,
             &product.id,
@@ -1689,13 +1754,9 @@ impl DraftProxy {
             return MutationOutcome::response(self.product_variants_bulk_response(
                 &field,
                 "productVariantsBulkUpdate",
-                None,
-                None,
-                vec![json!({
-                    "field": Value::Null,
-                    "message": "Something went wrong, please try again.",
-                    "code": Value::Null,
-                })],
+                Some(&product),
+                Some(Vec::new()),
+                Vec::new(),
             ));
         }
 
@@ -2247,6 +2308,32 @@ impl DraftProxy {
         let mut names = BTreeSet::new();
         let product_option_names = Self::product_option_names(product);
         for (option_index, option) in options.iter().enumerate() {
+            if option.contains_key("optionId") && option.contains_key("optionName") {
+                errors.push(Self::bulk_user_error(
+                    &[
+                        "variants",
+                        &index.to_string(),
+                        "optionValues",
+                        &option_index.to_string(),
+                    ],
+                    "cannot specify both `optionId` and `optionName`",
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            }
+            if option.contains_key("id") && option.contains_key("name") {
+                errors.push(Self::bulk_user_error(
+                    &[
+                        "variants",
+                        &index.to_string(),
+                        "optionValues",
+                        &option_index.to_string(),
+                    ],
+                    "cannot specify both `id` and `name`",
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            }
             let option_name = resolved_string_field(option, "optionName")
                 .or_else(|| resolved_string_field(option, "name"))
                 .unwrap_or_default();
@@ -2296,6 +2383,51 @@ impl DraftProxy {
         errors
     }
 
+    fn product_variant_bulk_duplicate_tuple_user_errors(
+        variants_input: &[BTreeMap<String, ResolvedValue>],
+        product: &ProductRecord,
+    ) -> Vec<Value> {
+        let option_order = Self::product_option_names_in_order(product);
+        let mut seen = BTreeSet::new();
+        for (index, input) in variants_input.iter().enumerate() {
+            let selected_options = resolved_product_variant_selected_options(input);
+            let tuple = if option_order.is_empty() {
+                selected_options
+                    .iter()
+                    .map(|option| option.value.clone())
+                    .collect::<Vec<_>>()
+            } else {
+                let selected_by_name: BTreeMap<&str, &str> = selected_options
+                    .iter()
+                    .map(|option| (option.name.as_str(), option.value.as_str()))
+                    .collect();
+                let mut ordered = Vec::new();
+                for option_name in &option_order {
+                    let Some(value) = selected_by_name.get(option_name.as_str()) else {
+                        ordered.clear();
+                        break;
+                    };
+                    ordered.push((*value).to_string());
+                }
+                ordered
+            };
+            if tuple.is_empty() {
+                continue;
+            }
+            if !seen.insert(tuple.clone()) {
+                return vec![Self::bulk_user_error(
+                    &["variants", &index.to_string()],
+                    &format!(
+                        "The variant '{}' already exists. Please change at least one option value.",
+                        tuple.join(" / ")
+                    ),
+                    Some("VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE"),
+                )];
+            }
+        }
+        Vec::new()
+    }
+
     fn product_variant_bulk_inventory_location_user_errors(
         &self,
         input: &BTreeMap<String, ResolvedValue>,
@@ -2341,7 +2473,13 @@ impl DraftProxy {
     }
 
     fn product_option_names(product: &ProductRecord) -> BTreeSet<String> {
-        product
+        Self::product_option_names_in_order(product)
+            .into_iter()
+            .collect()
+    }
+
+    fn product_option_names_in_order(product: &ProductRecord) -> Vec<String> {
+        let option_names = product
             .extra_fields
             .get("options")
             .and_then(Value::as_array)
@@ -2349,7 +2487,29 @@ impl DraftProxy {
             .flatten()
             .filter_map(|option| option.get("name").and_then(Value::as_str))
             .map(str::to_string)
-            .collect()
+            .collect::<Vec<_>>();
+        if !option_names.is_empty() {
+            return option_names;
+        }
+
+        let mut seen = BTreeSet::new();
+        let mut inferred_names = Vec::new();
+        for variant in &product.variants {
+            let selected_options = variant
+                .get("selectedOptions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten();
+            for selected_option in selected_options {
+                let Some(name) = selected_option.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                if seen.insert(name.to_string()) {
+                    inferred_names.push(name.to_string());
+                }
+            }
+        }
+        inferred_names
     }
 
     fn product_variant_effective_count_after_create(
@@ -3226,4 +3386,166 @@ fn product_publication_publish_date_is_before_1970(value: &str) -> bool {
         .and_then(|year| year.parse::<i32>().ok())
         .map(|year| year < 1970)
         .unwrap_or(false)
+}
+
+fn product_variant_media_is_image(media: &Value) -> bool {
+    match media.get("mediaContentType").and_then(Value::as_str) {
+        Some("IMAGE") => true,
+        Some(_) => false,
+        None => media
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("gid://shopify/MediaImage/")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    fn seed_product(id: &str) -> ProductRecord {
+        ProductRecord {
+            id: id.to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+            title: "Seeded product".to_string(),
+            handle: "seeded-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+            ..ProductRecord::default()
+        }
+    }
+
+    fn test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(|_| panic!("product variant tests should not call upstream"))
+    }
+
+    fn create_variant(proxy: &mut DraftProxy, sku: &str, price: &str) -> Value {
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation CreateLegacyVariantForTest($input: ProductVariantInput!) {
+              productVariantCreate(input: $input) {
+                productVariant { id sku price }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "productId": "gid://shopify/Product/1",
+                    "title": sku,
+                    "sku": sku,
+                    "price": price
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productVariantCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["productVariantCreate"]["productVariant"].clone()
+    }
+
+    #[test]
+    fn bulk_update_legacy_position_handler_reorders_connection_and_positions() {
+        let mut proxy = test_proxy();
+        let red = create_variant(&mut proxy, "RED", "10.00");
+        let blue = create_variant(&mut proxy, "BLUE", "11.00");
+        let green = create_variant(&mut proxy, "GREEN", "12.00");
+        let red_id = red["id"].as_str().unwrap().to_string();
+        let blue_id = blue["id"].as_str().unwrap().to_string();
+        let green_id = green["id"].as_str().unwrap().to_string();
+
+        let query = r#"
+            mutation MoveVariantWithBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                product {
+                  variants(first: 10) {
+                    nodes { id sku position }
+                  }
+                }
+                productVariants { id sku position }
+                userErrors { field message code }
+              }
+            }
+            "#;
+        let request = test_request(
+            query,
+            json!({
+                "productId": "gid://shopify/Product/1",
+                "variants": [
+                    { "id": green_id, "position": 1 }
+                ]
+            }),
+        );
+        let parsed = parse_graphql_request_body(&request.body).unwrap();
+        let response = proxy
+            .product_variants_bulk_update(&request, &parsed.query, &parsed.variables)
+            .response;
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+            json!([{ "id": green_id, "sku": "GREEN", "position": 1 }])
+        );
+        assert_eq!(
+            response.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"],
+            json!([
+                { "id": green_id, "sku": "GREEN", "position": 1 },
+                { "id": red_id, "sku": "RED", "position": 2 },
+                { "id": blue_id, "sku": "BLUE", "position": 3 }
+            ])
+        );
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query VariantPositions($productId: ID!) {
+              product(id: $productId) {
+                variants(first: 10) {
+                  nodes { sku position }
+                }
+              }
+            }
+            "#,
+            json!({ "productId": "gid://shopify/Product/1" }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"],
+            json!([
+                { "sku": "GREEN", "position": 1 },
+                { "sku": "RED", "position": 2 },
+                { "sku": "BLUE", "position": 3 }
+            ])
+        );
+    }
 }

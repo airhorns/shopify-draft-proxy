@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Admin GraphQL 2026-04 publicationUpdate/delete contract capture. The scenario creates a local publication through the public mutation, seeds the disposable captured Product through the public parity seed surface, then verifies Product add/remove success, missing Product validation, the 51-item update limit, not-found publication errors, and delete payload shape.",
+  "notes": "Live Admin GraphQL 2026-04 publicationUpdate/delete contract capture. The scenario creates a local publication through the public mutation, seeds the disposable captured Product through the public parity seed surface, then verifies Product add/remove success, ProductVariant-only and Product+ProductVariant top-level RESOURCE_NOT_FOUND behavior, missing Product validation, the 51-item update limit, not-found publication errors, and delete payload shape.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -70,6 +70,53 @@
               "publishablesToRemove": [
                 {
                   "fromCapturePath": "$.setup.product.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "publication-update-variant-resource-not-found",
+        "capturePath": "$.cases.updateAddVariant.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationUpdate-contract.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "input": {
+              "publishablesToAdd": [
+                {
+                  "fromCapturePath": "$.setup.product.variants.nodes[0].id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "publication-update-product-and-variant-resource-not-found",
+        "capturePath": "$.cases.updateAddProductAndVariant.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationUpdate-contract.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "input": {
+              "publishablesToAdd": [
+                {
+                  "fromCapturePath": "$.setup.product.id"
+                },
+                {
+                  "fromCapturePath": "$.setup.product.variants.nodes[0].id"
                 }
               ]
             }

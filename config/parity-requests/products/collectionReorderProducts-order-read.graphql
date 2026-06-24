@@ -1,0 +1,19 @@
+query CollectionReorderProductsOrderRead($collectionId: ID!) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    sortOrder
+    manualProducts: products(first: 10, sortKey: MANUAL) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

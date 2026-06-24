@@ -119,7 +119,7 @@ impl DraftProxy {
                 ok_json(json!({ "data": Value::Object(data) }))
             }
             "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
-            "job" => ok_json(json!({ "data": self.product_tail_job_query_data(&fields) })),
+            "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
                 if let Some(data) = self.local_node_query_data(&fields, false) {
                     ok_json(json!({ "data": data }))

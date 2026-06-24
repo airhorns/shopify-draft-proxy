@@ -1363,6 +1363,79 @@ fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
 }
 
 #[test]
+fn bulk_operation_cancel_preserves_hydrated_non_terminal_record_fields() {
+    let id = "gid://shopify/BulkOperation/8888888888888";
+    let query =
+        "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}";
+    let hydrated_operation = json!({
+        "id": id,
+        "status": "RUNNING",
+        "type": "QUERY",
+        "errorCode": null,
+        "createdAt": "2026-04-27T20:35:00Z",
+        "completedAt": "2026-04-27T20:35:30Z",
+        "objectCount": "4200",
+        "rootObjectCount": "4180",
+        "fileSize": "123456",
+        "url": "https://example.test/running-bulk.jsonl",
+        "partialDataUrl": null,
+        "query": query
+    });
+    let mut expected_canceling = hydrated_operation.clone();
+    expected_canceling["status"] = json!("CANCELING");
+
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = hydrated_operation.clone();
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelRunning($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(cancel.status, 200);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"],
+        expected_canceling
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCanceling($id: ID!) {
+          bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+          currentBulkOperation(type: QUERY) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+          bulkOperations(first: 5, query: "status:CANCELING operation_type:QUERY") {
+            nodes { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(read.body["data"]["bulkOperation"], expected_canceling);
+    assert_eq!(
+        read.body["data"]["currentBulkOperation"],
+        expected_canceling
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["nodes"],
+        json!([expected_canceling])
+    );
+}
+
+#[test]
 fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
     let older_id = "gid://shopify/BulkOperation/9999999999999";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
