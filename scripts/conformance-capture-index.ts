@@ -3419,6 +3419,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translation-updated-at',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-digest-mismatch-conformance.mts',
+    purpose:
+      'translationsRegister Translation.updatedAt payload presence and downstream translatableResource readback for a known Product resource.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translation-updated-at.json`,
+      'config/parity-specs/localization/localization-translation-updated-at.json',
+      'config/parity-requests/localization/localization-translation-updated-at-register.graphql',
+      'config/parity-requests/localization/localization-translation-updated-at-read.graphql',
+    ],
+    cleanupBehavior:
+      'Reuses the digest-mismatch known-product setup, registers a French title translation selecting updatedAt, reads it back with updatedAt, then deletes the disposable product and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-translations-invalid-key',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-invalid-key-conformance.mts',

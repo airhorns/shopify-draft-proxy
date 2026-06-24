@@ -3054,6 +3054,7 @@ impl DraftProxy {
 
             let mut translation = translation_from_input(translation_input);
             translation["resourceId"] = json!(resource_id);
+            translation["updatedAt"] = json!(self.next_localization_translation_timestamp());
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
@@ -3161,6 +3162,10 @@ impl DraftProxy {
             &json!({ "translations": removed, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn next_localization_translation_timestamp(&self) -> String {
+        product_mutation_timestamp(self.log_entries.len() as u64)
     }
 
     pub(in crate::proxy) fn localization_translatable_resource_selected(

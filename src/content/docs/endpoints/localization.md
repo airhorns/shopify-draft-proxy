@@ -69,7 +69,10 @@ translatable-key membership (`INVALID_KEY_FOR_MODEL`), digest mismatches,
 non-blank values, the 100-key mutation limit, market scope, and selected handle-normalization
 branches. Successful translations are staged in local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
-removed rows. `translationsRemove` removes every requested
+removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
+`updatedAt` value in the `translationsRegister` echo and in downstream
+`translatableResource(...).translations` reads; re-registering an existing row
+refreshes that timestamp. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
