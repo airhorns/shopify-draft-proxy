@@ -336,6 +336,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         }
     }
     errors.extend(product_media_variable_errors(&document));
+    errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
     errors
 }
@@ -621,6 +622,72 @@ fn media_content_type_enum_error(
         }));
     }
     None
+}
+
+const RETURN_REASON_VALUES: &str =
+    "SIZE_TOO_SMALL, SIZE_TOO_LARGE, UNWANTED, NOT_AS_DESCRIBED, WRONG_ITEM, DEFECTIVE, STYLE, COLOR, OTHER, UNKNOWN";
+
+fn return_reason_is_allowed(reason: &str) -> bool {
+    RETURN_REASON_VALUES
+        .split(", ")
+        .any(|value| value == reason)
+}
+
+fn return_reason_invalid_enum_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        let argument_name = match field.name.as_str() {
+            "returnCreate" => "returnInput",
+            "returnRequest" => "input",
+            _ => continue,
+        };
+        let Some(RawArgumentValue::Variable { name, value }) =
+            field.raw_arguments.get(argument_name)
+        else {
+            continue;
+        };
+        let Some(variable_value @ ResolvedValue::Object(input)) = value.as_ref() else {
+            continue;
+        };
+        let Some(ResolvedValue::List(line_items)) = input.get("returnLineItems") else {
+            continue;
+        };
+        let Some(variable_definition) = document.variable_definitions.get(name) else {
+            continue;
+        };
+        for (index, line_item) in line_items.iter().enumerate() {
+            let ResolvedValue::Object(line_item_fields) = line_item else {
+                continue;
+            };
+            let Some(ResolvedValue::String(reason)) = line_item_fields.get("returnReason") else {
+                continue;
+            };
+            if return_reason_is_allowed(reason) {
+                continue;
+            }
+            let explanation = format!("Expected \"{reason}\" to be one of: {RETURN_REASON_VALUES}");
+            errors.push(json!({
+                "message": format!(
+                    "Variable ${name} of type {} was provided invalid value for returnLineItems.{index}.returnReason ({explanation})",
+                    variable_definition.type_display
+                ),
+                "locations": [{
+                    "line": variable_definition.location.line,
+                    "column": variable_definition.location.column,
+                }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": resolved_value_json(variable_value),
+                    "problems": [{
+                        "path": ["returnLineItems", index, "returnReason"],
+                        "explanation": explanation,
+                    }],
+                },
+            }));
+            break;
+        }
+    }
+    errors
 }
 
 /// Valid values for the `MetaobjectCustomerAccountAccess` enum.

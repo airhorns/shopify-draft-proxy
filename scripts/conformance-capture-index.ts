@@ -8204,6 +8204,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-reason-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-reason-validation-conformance.mts',
+    purpose:
+      'returnCreate and returnRequest return line item returnReason required, OTHER note, reason-definition OTHER note, and invalid enum boundary validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-reason-validation.json`,
+      'config/parity-specs/orders/return-reason-validation.json',
+      'config/parity-requests/orders/return-create-reason-validation.graphql',
+      'config/parity-requests/orders/return-request-reason-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable order, records invalid returnCreate/returnRequest attempts that should not stage returns, then cancels and deletes the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-reverse-logistics-introspection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-reverse-logistics-introspection-conformance.ts',

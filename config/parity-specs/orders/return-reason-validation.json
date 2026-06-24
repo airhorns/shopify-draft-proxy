@@ -1,0 +1,156 @@
+{
+  "scenarioId": "return-reason-validation",
+  "operationNames": ["returnCreate", "returnRequest"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-side-effects", "schema-introspection"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL evidence for returnCreate/returnRequest return line item returnReason validation. Invalid validation targets run against isolated proxy state and assert the payload plus no staged returns, no returnsByOrder index rows, no order hydration, and no mutation-log entries. returnRequest explicit OTHER and public other-reason returnReasonDefinitionId are captured as valid no-note inputs because Shopify accepts them on this shop/API version.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-create-missing-reason-user-error",
+        "capturePath": "$.missingReasonCreate.response.payload.data.returnCreate",
+        "proxyPath": "$.data.returnCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-reason-validation.graphql",
+          "variablesCapturePath": "$.missingReasonCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-create-missing-reason-no-staged-returns",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returns",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-create-missing-reason-no-return-order-index",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returnsByOrder",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-create-missing-reason-no-order-hydration",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.orders",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-create-missing-reason-no-mutation-log",
+        "capturePath": "$.expected.emptyArray",
+        "proxyLogPath": "$.entries",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-request-missing-reason-user-error",
+        "capturePath": "$.missingReasonRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-reason-validation.graphql",
+          "variablesCapturePath": "$.missingReasonRequest.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-request-missing-reason-no-staged-returns",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returns",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-create-other-note-user-error",
+        "capturePath": "$.otherBlankNoteCreate.response.payload.data.returnCreate",
+        "proxyPath": "$.data.returnCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-reason-validation.graphql",
+          "variablesCapturePath": "$.otherBlankNoteCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-create-other-note-no-staged-returns",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returns",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-request-other-no-note-stages",
+        "capturePath": "$.otherBlankNoteRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "isolatedProxy": true,
+        "expectedDifferences": [
+          {
+            "path": "$.return.id",
+            "matcher": "shopify-gid:Return",
+            "reason": "Shopify and the proxy allocate independent return IDs for the accepted returnRequest OTHER request."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-reason-validation.graphql",
+          "variablesCapturePath": "$.otherBlankNoteRequest.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-request-other-definition-no-note-stages",
+        "capturePath": "$.otherDefinitionNoNoteRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "isolatedProxy": true,
+        "expectedDifferences": [
+          {
+            "path": "$.return.id",
+            "matcher": "shopify-gid:Return",
+            "reason": "Shopify and the proxy allocate independent return IDs for the accepted reason-definition request."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-reason-validation.graphql",
+          "variablesCapturePath": "$.otherDefinitionNoNoteRequest.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-create-invalid-reason-response",
+        "capturePath": "$.invalidReasonCreate.response.payload",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-reason-validation.graphql",
+          "variablesCapturePath": "$.invalidReasonCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-create-invalid-reason-no-staged-returns",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returns",
+        "preserveProxyState": true
+      },
+      {
+        "name": "return-request-invalid-reason-response",
+        "capturePath": "$.invalidReasonRequest.response.payload",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-reason-validation.graphql",
+          "variablesCapturePath": "$.invalidReasonRequest.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-request-invalid-reason-no-staged-returns",
+        "capturePath": "$.expected.emptyObject",
+        "proxyStatePath": "$.stagedState.returns",
+        "preserveProxyState": true
+      }
+    ]
+  }
+}

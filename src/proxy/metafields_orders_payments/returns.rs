@@ -35,6 +35,62 @@ fn return_status_invalid_error() -> Value {
     return_user_error(&["id"], "return_request_status_invalid", "INVALID")
 }
 
+fn blank_return_line_string(value: Option<String>) -> bool {
+    value.as_deref().is_none_or(|raw| raw.trim().is_empty())
+}
+
+fn validate_return_line_item_reason(
+    input_name: &str,
+    index: usize,
+    item: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let reason = resolved_string_field(item, "returnReason");
+    let reason_definition_id = resolved_string_field(item, "returnReasonDefinitionId");
+    let reason_missing = blank_return_line_string(reason.clone());
+    let definition_missing = blank_return_line_string(reason_definition_id);
+    if reason_missing && definition_missing {
+        return Some(match input_name {
+            "returnInput" => return_user_error_owned(
+                vec![
+                    "returnInput".to_string(),
+                    "returnLineItems".to_string(),
+                    index.to_string(),
+                ],
+                "Return line items Either return reason or return reason definition must be provided",
+                "NOT_FOUND",
+            ),
+            _ => return_user_error_owned(
+                vec![
+                    "input".to_string(),
+                    "returnLineItems".to_string(),
+                    index.to_string(),
+                    "returnReason".to_string(),
+                ],
+                "Return reason can't be blank",
+                "BLANK",
+            ),
+        });
+    }
+
+    if input_name == "returnInput"
+        && reason.as_deref() == Some("OTHER")
+        && blank_return_line_string(resolved_string_field(item, "returnReasonNote"))
+    {
+        return Some(return_user_error_owned(
+            vec![
+                "returnInput".to_string(),
+                "returnLineItems".to_string(),
+                index.to_string(),
+                "returnReasonNote".to_string(),
+            ],
+            "Return line items return reason note The note is required when the return reason is \"Other\"",
+            "BLANK",
+        ));
+    }
+
+    None
+}
+
 /// The returns embedded in an order graph, accepting either a bare array
 /// (`order.returns`) or a connection (`order.returns.nodes`) so seeded orders
 /// hydrated from either shape resolve.
@@ -373,18 +429,6 @@ impl DraftProxy {
         status: &str,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
-        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
-        // The order a return runs against is a precondition that may not have been
-        // created locally in this scenario; forward+observe it on a cold miss so
-        // line validation and quantity caps run against real store state.
-        self.hydrate_order_for_return(request, &order_id);
-        let order = self
-            .store
-            .staged
-            .orders
-            .get(&order_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let items = resolved_object_list_field(&input, "returnLineItems");
         if items.is_empty() {
             return selected_json(
@@ -399,9 +443,32 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        let reason_errors = items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| validate_return_line_item_reason(input_name, index, item))
+            .collect::<Vec<_>>();
+        if !reason_errors.is_empty() {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": reason_errors }),
+                &field.selection,
+            );
+        }
         // Validate every line first, allocating return-line-item ids only for
         // valid lines (matching the reference fold). Any error short-circuits
         // the mutation with a null return and no state change.
+        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        // The order a return runs against is a precondition that may not have been
+        // created locally in this scenario; forward+observe it on a cold miss so
+        // line validation and quantity caps run against real store state.
+        self.hydrate_order_for_return(request, &order_id);
+        let order = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .unwrap_or(Value::Null);
         let mut line_items: Vec<Value> = Vec::new();
         let mut user_errors: Vec<Value> = Vec::new();
         for (index, item) in items.iter().enumerate() {
