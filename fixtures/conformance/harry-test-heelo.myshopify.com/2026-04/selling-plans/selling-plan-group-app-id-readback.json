@@ -1,0 +1,252 @@
+{
+  "capturedAt": "2026-06-23T23:52:52.521Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "Captures Admin 2026-04 sellingPlanGroupCreate and sellingPlanGroupUpdate appId persistence.",
+    "The script creates one disposable selling-plan group, reads appId after create, updates appId, clears appId with explicit null, reads after each mutation, then deletes the group during cleanup."
+  ],
+  "groupId": "gid://shopify/SellingPlanGroup/3102015794",
+  "createAppId": "draft-proxy-create-mqrautdi",
+  "updateAppId": "draft-proxy-update-mqrautdi",
+  "scenarios": {
+    "createAppId": {
+      "label": "createAppId",
+      "query": "#graphql\n  mutation SellingPlanGroupCreateAppIdReadback($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        appId\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "App ID readback group mqrautdi",
+          "appId": "draft-proxy-create-mqrautdi",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3102015794",
+              "appId": "draft-proxy-create-mqrautdi",
+              "name": "App ID readback group mqrautdi"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterCreate": {
+      "label": "readAfterCreate",
+      "query": "#graphql\n  query SellingPlanGroupAppIdReadback($id: ID!) {\n    sellingPlanGroup(id: $id) {\n      id\n      appId\n      name\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "id": "gid://shopify/SellingPlanGroup/3102015794",
+            "appId": "draft-proxy-create-mqrautdi",
+            "name": "App ID readback group mqrautdi"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateAppId": {
+      "label": "updateAppId",
+      "query": "#graphql\n  mutation SellingPlanGroupUpdateAppIdReadback($id: ID!, $input: SellingPlanGroupInput!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup {\n        id\n        appId\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794",
+        "input": {
+          "appId": "draft-proxy-update-mqrautdi"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": [],
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3102015794",
+              "appId": "draft-proxy-update-mqrautdi",
+              "name": "App ID readback group mqrautdi"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "label": "readAfterUpdate",
+      "query": "#graphql\n  query SellingPlanGroupAppIdReadback($id: ID!) {\n    sellingPlanGroup(id: $id) {\n      id\n      appId\n      name\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "id": "gid://shopify/SellingPlanGroup/3102015794",
+            "appId": "draft-proxy-update-mqrautdi",
+            "name": "App ID readback group mqrautdi"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "clearAppId": {
+      "label": "clearAppId",
+      "query": "#graphql\n  mutation SellingPlanGroupUpdateAppIdReadback($id: ID!, $input: SellingPlanGroupInput!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup {\n        id\n        appId\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794",
+        "input": {
+          "appId": null
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": [],
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3102015794",
+              "appId": null,
+              "name": "App ID readback group mqrautdi"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterClear": {
+      "label": "readAfterClear",
+      "query": "#graphql\n  query SellingPlanGroupAppIdReadback($id: ID!) {\n    sellingPlanGroup(id: $id) {\n      id\n      appId\n      name\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "id": "gid://shopify/SellingPlanGroup/3102015794",
+            "appId": null,
+            "name": "App ID readback group mqrautdi"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup sellingPlanGroupDelete",
+      "query": "#graphql\n  mutation DeleteSellingPlanGroup($id: ID!) {\n    sellingPlanGroupDelete(id: $id) {\n      deletedSellingPlanGroupId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102015794"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3102015794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
