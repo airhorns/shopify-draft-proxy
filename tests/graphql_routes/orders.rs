@@ -120,6 +120,272 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     )
 }
 
+struct ReturnRemovalSetup {
+    order_id: Value,
+    return_id: Value,
+    return_line_item_id: Value,
+}
+
+fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReturnRemovalOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "return-removal-status@example.test",
+                "lineItems": [{
+                    "title": "Return removal status line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order_id = order["fulfillmentOrders"]["nodes"][0]["id"].clone();
+    let fulfillment_order_line_item_id =
+        order["fulfillmentOrders"]["nodes"][0]["lineItems"]["nodes"][0]["id"].clone();
+
+    let create_fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReturnRemovalFulfillment($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              status
+              fulfillmentLineItems(first: 5) {
+                nodes { id quantity lineItem { id title } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id,
+                    "fulfillmentOrderLineItems": [{
+                        "id": fulfillment_order_line_item_id,
+                        "quantity": 2
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_fulfillment.status, 200);
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    let fulfillment_line_item_id = create_fulfillment.body["data"]["fulfillmentCreate"]
+        ["fulfillment"]["fulfillmentLineItems"]["nodes"][0]["id"]
+        .clone();
+    (order_id, fulfillment_line_item_id)
+}
+
+fn return_removal_setup_from_payload(order_id: Value, payload: &Value) -> ReturnRemovalSetup {
+    assert_eq!(payload["userErrors"], json!([]));
+    ReturnRemovalSetup {
+        order_id,
+        return_id: payload["return"]["id"].clone(),
+        return_line_item_id: payload["return"]["returnLineItems"]["nodes"][0]["id"].clone(),
+    }
+}
+
+fn stage_open_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSetup {
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(proxy);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOpenReturnForRemoval($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 2,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    return_removal_setup_from_payload(order_id, &response.body["data"]["returnCreate"])
+}
+
+fn stage_requested_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSetup {
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(proxy);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRequestedReturnForRemoval($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 2,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    return_removal_setup_from_payload(order_id, &response.body["data"]["returnRequest"])
+}
+
+fn remove_from_return_for_test(
+    proxy: &mut DraftProxy,
+    return_id: Value,
+    return_line_item_id: Value,
+) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation RemoveFromReturnForStatus($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
+              removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
+                return {
+                  id
+                  status
+                  totalQuantity
+                  returnLineItems(first: 5) {
+                    nodes { id quantity processedQuantity unprocessedQuantity }
+                  }
+                  reverseFulfillmentOrders(first: 5) {
+                    nodes {
+                      id
+                      lineItems(first: 5) {
+                        nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                      }
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "returnId": return_id,
+                "returnLineItems": [{ "returnLineItemId": return_line_item_id, "quantity": 1 }]
+            }),
+        ))
+        .body["data"]["removeFromReturn"]
+        .clone()
+}
+
+fn read_return_removal_state(proxy: &mut DraftProxy, return_id: Value, order_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query ReadReturnRemovalState($returnId: ID!, $orderId: ID!) {
+              return(id: $returnId) {
+                id
+                status
+                totalQuantity
+                returnLineItems(first: 5) {
+                  nodes { id quantity processedQuantity unprocessedQuantity }
+                }
+                reverseFulfillmentOrders(first: 5) {
+                  nodes {
+                    id
+                    lineItems(first: 5) {
+                      nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                    }
+                  }
+                }
+              }
+              order(id: $orderId) {
+                id
+                returns(first: 5) {
+                  nodes {
+                    id
+                    status
+                    totalQuantity
+                    returnLineItems(first: 5) {
+                      nodes { id quantity processedQuantity unprocessedQuantity }
+                    }
+                    reverseFulfillmentOrders(first: 5) {
+                      nodes {
+                        id
+                        lineItems(first: 5) {
+                          nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "returnId": return_id, "orderId": order_id }),
+        ))
+        .body["data"]
+        .clone()
+}
+
 fn return_reason_validation_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json"
@@ -322,6 +588,101 @@ fn return_request_accepts_public_other_reason_inputs_without_note() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[test]
+fn remove_from_return_rejects_closed_return_without_state_changes() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_open_return_for_removal(&mut proxy);
+
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CloseBeforeRemoval($id: ID!) {
+          returnClose(id: $id) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": setup.return_id.clone() }),
+    ));
+    assert_eq!(close.status, 200);
+    assert_eq!(close.body["data"]["returnClose"]["userErrors"], json!([]));
+    let closed_return = close.body["data"]["returnClose"]["return"].clone();
+    assert_eq!(closed_return["status"], json!("CLOSED"));
+    assert_eq!(closed_return["totalQuantity"], json!(2));
+    let log_before = proxy.get_log_snapshot();
+
+    let rejected = remove_from_return_for_test(
+        &mut proxy,
+        setup.return_id.clone(),
+        setup.return_line_item_id,
+    );
+
+    assert_eq!(rejected["return"], Value::Null);
+    assert_eq!(
+        rejected["userErrors"],
+        json!([{
+            "field": ["returnId"],
+            "message": "Return status is invalid.",
+            "code": "INVALID_STATE"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+
+    let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
+    assert_eq!(read_after["return"], closed_return);
+    assert_eq!(read_after["order"]["returns"]["nodes"][0], closed_return);
+}
+
+#[test]
+fn remove_from_return_allows_requested_returns() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_requested_return_for_removal(&mut proxy);
+
+    let removed = remove_from_return_for_test(
+        &mut proxy,
+        setup.return_id.clone(),
+        setup.return_line_item_id,
+    );
+
+    assert_eq!(removed["userErrors"], json!([]));
+    assert_eq!(removed["return"]["status"], json!("REQUESTED"));
+    assert_eq!(removed["return"]["totalQuantity"], json!(1));
+    assert_eq!(
+        removed["return"]["returnLineItems"]["nodes"][0]["quantity"],
+        json!(1)
+    );
+    assert_eq!(
+        removed["return"]["returnLineItems"]["nodes"][0]["unprocessedQuantity"],
+        json!(1)
+    );
+    assert_eq!(
+        removed["return"]["reverseFulfillmentOrders"],
+        json!({ "nodes": [] })
+    );
+
+    let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
+    assert_eq!(read_after["return"], removed["return"]);
+    assert_eq!(
+        read_after["order"]["returns"]["nodes"][0],
+        removed["return"]
     );
 }
 
