@@ -1611,6 +1611,46 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
 fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafields() {
     let mut proxy = snapshot_proxy();
 
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformUnknownId { cartTransformCreate(functionId: "00000000-0000-0000-0000-000000000000") { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_id.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionId"], "message": "Function 00000000-0000-0000-0000-000000000000 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.", "code": "FUNCTION_NOT_FOUND" }]
+        })
+    );
+    let read_after_unknown_id = proxy.process_request(json_graphql_request(
+        r#"query CartTransformsAfterUnknownId { cartTransforms(first: 5) { nodes { id functionId } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_unknown_id.body["data"]["cartTransforms"],
+        json!({ "nodes": [] })
+    );
+
+    let unknown_handle = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformUnknownHandle { cartTransformCreate(functionHandle: "missing-cart-transform") { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_handle.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionHandle"], "message": "Could not find function with handle: missing-cart-transform.", "code": "FUNCTION_NOT_FOUND" }]
+        })
+    );
+    let read_after_unknown_handle = proxy.process_request(json_graphql_request(
+        r#"query CartTransformsAfterUnknownHandle { cartTransforms(first: 5) { nodes { id functionId } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_unknown_handle.body["data"]["cartTransforms"],
+        json!({ "nodes": [] })
+    );
+
     let api_mismatch = proxy.process_request(json_graphql_request(
         r#"mutation CartTransformApiMismatch { cartTransformCreate(functionHandle: "conformance-validation") { cartTransform { id } userErrors { field message code } } }"#,
         json!({}),

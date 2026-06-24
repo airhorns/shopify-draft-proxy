@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-cart-transform-create-validation",
-  "capturedAt": "2026-05-06T22:26:44.517Z",
+  "capturedAt": "2026-06-24T01:19:28.011Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "Cart transform create Function identifier validation, duplicate registration, multiple identifiers, and downstream read evidence.",
+  "summary": "Cart transform create Function identifier validation, duplicate registration, multiple identifiers, unresolved identifier errors, and downstream read evidence.",
   "shopifyFunctions": {
     "cartTransform": {
       "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
@@ -37,6 +37,130 @@
       }
     }
   },
+  "cartTransformCreateUnknownId": {
+    "query": "mutation CartTransformCreateUnknownId($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "00000000-0000-0000-0000-000000000000",
+      "blockOnFailure": false
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["functionId"],
+                "message": "Function 00000000-0000-0000-0000-000000000000 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.",
+                "code": "FUNCTION_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformsAfterUnknownId": {
+    "query": "query CartTransforms($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n    }\n  }\n}\n",
+    "variables": {
+      "first": 5
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateUnknownHandle": {
+    "query": "mutation CartTransformCreateUnknownHandle($functionHandle: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionHandle: $functionHandle, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionHandle": "missing-cart-transform",
+      "blockOnFailure": false
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["functionHandle"],
+                "message": "Could not find function with handle: missing-cart-transform.",
+                "code": "FUNCTION_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformsAfterUnknownHandle": {
+    "query": "query CartTransforms($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n    }\n  }\n}\n",
+    "variables": {
+      "first": 5
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "cartTransformCreateSetup": {
     "query": "mutation CartTransformCreateSetup($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
@@ -49,7 +173,7 @@
         "data": {
           "cartTransformCreate": {
             "cartTransform": {
-              "id": "gid://shopify/CartTransform/115179826",
+              "id": "gid://shopify/CartTransform/126583090",
               "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
               "blockOnFailure": false
             },
@@ -132,7 +256,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -188,7 +312,7 @@
           "cartTransforms": {
             "nodes": [
               {
-                "id": "gid://shopify/CartTransform/115179826",
+                "id": "gid://shopify/CartTransform/126583090",
                 "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
               }
             ]
@@ -211,7 +335,8 @@
   "captureNotes": [
     "The setup branch creates one disposable cart transform from the released cart-transform Function.",
     "The conflict branch reuses the same Function id and records duplicate-registration behavior.",
-    "The both-identifiers branch sends both Function id and handle for the same released Function."
+    "The both-identifiers branch sends both Function id and handle for the same released Function.",
+    "The unresolved identifier branches run before setup and each downstream read confirms no CartTransform was created."
   ],
   "upstreamCalls": [
     {

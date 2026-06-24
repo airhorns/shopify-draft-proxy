@@ -6,6 +6,7 @@ const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
+const MODELED_FUNCTION_APP_ID: &str = "347082227713";
 const SHOPIFY_FUNCTION_BY_ID_QUERY: &str = "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
 const SHOPIFY_FUNCTION_BY_HANDLE_QUERY: &str = "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const SHOP_SUBSCRIPTION_CAPABILITY_QUERY: &str =
@@ -1706,7 +1707,7 @@ impl DraftProxy {
             return Err(app_discount_user_error(
                 vec![json!(input_arg), json!(field_name)],
                 &format!(
-                    "Function {identifier} not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                    "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
                 ),
                 Some("INVALID"),
             ));
@@ -4354,6 +4355,27 @@ fn cart_transform_identifier_error(
     }
 }
 
+fn cart_transform_function_not_found_error(
+    field_name: &str,
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Value {
+    let message = if let Some(id) = function_id {
+        format!(
+            "Function {id} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+        )
+    } else if let Some(handle) = function_handle {
+        format!("Could not find function with handle: {handle}.")
+    } else {
+        "Function not found.".to_string()
+    };
+    cart_transform_payload_error(function_user_error(
+        vec![json!(field_name)],
+        &message,
+        Some("FUNCTION_NOT_FOUND"),
+    ))
+}
+
 fn validation_function_resolution_payload(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Result<Value, Value> {
@@ -4399,11 +4421,7 @@ fn cart_transform_function_resolution_payload(
     let field_name = function_payload_identifier_field(function_id);
     let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
         .ok_or_else(|| {
-            cart_transform_payload_error(function_user_error(
-                vec![json!(field_name)],
-                "Extension not found.",
-                Some("FUNCTION_NOT_FOUND"),
-            ))
+            cart_transform_function_not_found_error(field_name, function_id, function_handle)
         })?;
     if function["apiType"].as_str() != Some("CART_TRANSFORM") {
         let code = if function_id.is_some() {
