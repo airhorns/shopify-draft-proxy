@@ -5755,6 +5755,147 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
 }
 
 #[test]
+fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_explicit_model3d() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateModelExtensionInference($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              alt
+              fileStatus
+              filename
+              mimeType
+              ... on GenericFile { url }
+              ... on Model3d { mediaErrors mediaWarnings }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"originalSource": "https://cdn.example.com/model.glb", "alt": "Omitted GLB"},
+            {"originalSource": "https://cdn.example.com/explicit-model.glb", "filename": "explicit-model.glb", "contentType": "MODEL_3D", "alt": "Explicit model"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({"files": [
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/2",
+                "alt": "Omitted GLB",
+                "fileStatus": "UPLOADED",
+                "filename": "model.glb",
+                "mimeType": "model/gltf-binary",
+                "url": "https://cdn.example.com/model.glb"
+            },
+            {
+                "__typename": "Model3d",
+                "id": "gid://shopify/Model3d/3",
+                "alt": "Explicit model",
+                "fileStatus": "UPLOADED",
+                "filename": "explicit-model.glb",
+                "mimeType": "model/gltf-binary",
+                "mediaErrors": [],
+                "mediaWarnings": []
+            }
+        ], "userErrors": []})
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceFiles {
+          files(first: 10) {
+            nodes {
+              __typename
+              id
+              filename
+              ... on GenericFile { url }
+              ... on Model3d { mediaErrors mediaWarnings }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/2",
+                "filename": "model.glb",
+                "url": "https://cdn.example.com/model.glb"
+            },
+            {
+                "__typename": "Model3d",
+                "id": "gid://shopify/Model3d/3",
+                "filename": "explicit-model.glb",
+                "mediaErrors": [],
+                "mediaWarnings": []
+            }
+        ])
+    );
+
+    let generic_node = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceGenericNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on GenericFile { alt fileStatus filename mimeType url }
+            ... on Model3d { mediaErrors mediaWarnings }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/GenericFile/2"}),
+    ));
+    assert_eq!(
+        generic_node.body["data"]["node"],
+        json!({
+            "__typename": "GenericFile",
+            "id": "gid://shopify/GenericFile/2",
+            "alt": "Omitted GLB",
+            "fileStatus": "UPLOADED",
+            "filename": "model.glb",
+            "mimeType": "model/gltf-binary",
+            "url": "https://cdn.example.com/model.glb"
+        })
+    );
+
+    let model_node = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceModelNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on GenericFile { url }
+            ... on Model3d { alt fileStatus filename mimeType mediaErrors mediaWarnings }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Model3d/3"}),
+    ));
+    assert_eq!(
+        model_node.body["data"]["node"],
+        json!({
+            "__typename": "Model3d",
+            "id": "gid://shopify/Model3d/3",
+            "alt": "Explicit model",
+            "fileStatus": "UPLOADED",
+            "filename": "explicit-model.glb",
+            "mimeType": "model/gltf-binary",
+            "mediaErrors": [],
+            "mediaWarnings": []
+        })
+    );
+}
+
+#[test]
 fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
     let mutation = r#"

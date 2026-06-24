@@ -2114,6 +2114,11 @@ That distinction matters:
 - `fileCreate` takes store-level `FileCreateInput` records and creates Files API assets from URLs or staged uploads
 - current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
 - the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment
+- omitted `contentType` inference is not the same as explicit media creation:
+  Shopify's auto-detector maps image-like results to `MediaImage`, video-like
+  results to `Video`, and everything else to `GenericFile`. 3D model extensions
+  such as `.glb`, `.gltf`, and `.usdz` do not auto-create `Model3d`; callers
+  must pass `contentType: MODEL_3D` explicitly for that type.
 
 The matching generic media delete worklist item maps to `fileDelete`, not
 `productDeleteMedia`.

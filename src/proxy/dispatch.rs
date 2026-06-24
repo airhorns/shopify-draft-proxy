@@ -432,6 +432,16 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(file) = self.store.staged.media_files.get(id) {
+            return Some(selected_json(file, selection));
+        }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile")
+        ) && self.store.staged.media_files.is_tombstoned(id)
+        {
+            return Some(Value::Null);
+        }
         if let Some(b2b) = self.b2b_node_value_by_id(id, selection) {
             return Some(b2b);
         }
