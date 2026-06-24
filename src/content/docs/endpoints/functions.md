@@ -56,6 +56,7 @@ Cart transform behavior:
 - The proxy rejects non-Shopify argument shapes such as a `cartTransform: { ... }` wrapper or `title` argument as GraphQL validation errors before staging.
 - Valid create input resolves the referenced Function, persists cart-transform metadata locally, and stores valid metafields in input order.
 - Missing metafield values and malformed JSON values return `INVALID_METAFIELDS` userErrors without staging.
+- Truly unresolved Function identifiers return `FUNCTION_NOT_FOUND` without staging: `functionId` uses Shopify's current-app message, while `functionHandle` returns `Could not find function with handle: <handle>.`.
 - Known non-cart-transform Function references return the captured identifier-specific branch: `FUNCTION_NOT_FOUND` on `functionId`, `FUNCTION_DOES_NOT_IMPLEMENT` on `functionHandle`. For `functionId`, an already-staged Function instance takes precedence before API-type validation and returns `FUNCTION_ALREADY_REGISTERED`, including when the Function is already bound to a validation.
 - `cartTransformDelete` checks ownership against the staged transform's resolved `ShopifyFunction` owner and current app installation when that metadata exists. Missing installation, Function, or owner metadata returns `UNAUTHORIZED_APP_SCOPE`.
 - `CartTransform` reads expose the modeled Admin field set: `id`, `functionId`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and HasMetafields selections. Fabricated scalar fields such as `title`, `functionHandle`, `createdAt`, or `updatedAt` are not projected.
@@ -99,6 +100,7 @@ Function catalog and guardrails:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
@@ -115,6 +117,7 @@ Function catalog and guardrails:
 - `config/parity-specs/functions/validation-create-title-fallback-parity.json`
 - `config/parity-specs/functions/functions-validation-metafields-input-validation.json`
 - `config/parity-specs/functions/functions-validation-update-metafields-upsert.json`
+- `config/parity-specs/functions/functions-cart-transform-create-validation.json`
 - `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
 - `config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
@@ -125,6 +128,7 @@ Function catalog and guardrails:
 
 - `corepack pnpm parity -- functions-metadata-local-staging`
 - `corepack pnpm parity -- functions-validation-create-validation`
+- `corepack pnpm parity -- functions-cart-transform-create-validation`
 - `corepack pnpm parity -- functions-cart-transform-create-metafields`
 - `corepack pnpm parity -- functions-fulfillment-constraint-rule-errors`
 - `corepack pnpm conformance:check`

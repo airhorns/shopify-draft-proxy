@@ -7577,9 +7577,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/functions/functions-cart-transform-create-validation-conflict.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-validation-unknown-handle.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-validation-unknown-id.graphql',
     ],
     cleanupBehavior:
-      'Deletes pre-existing cartTransforms before capture, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
+      'Deletes pre-existing cartTransforms before capture, captures unresolved identifier branches with empty readbacks, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
