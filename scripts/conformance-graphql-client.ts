@@ -127,3 +127,54 @@ export function createAdminGraphqlClient(options: AdminGraphqlOptions): AdminGra
     runGraphqlRaw: runGraphqlRequest,
   };
 }
+
+export type StorefrontGraphqlOptions = {
+  /** Full store URL, e.g. https://my-store.myshopify.com */
+  storeOrigin: string;
+  apiVersion: string;
+  /** Storefront access token — sent as X-Shopify-Storefront-Access-Token */
+  storefrontAccessToken: string;
+  fetchImpl?: ConformanceGraphqlFetch;
+};
+
+export async function runStorefrontGraphqlRequest<TData = unknown>(
+  options: StorefrontGraphqlOptions,
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<ConformanceGraphqlResult<TData>> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const endpoint = `${options.storeOrigin}/api/${options.apiVersion}/graphql.json`;
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': options.storefrontAccessToken,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const payload = await readGraphqlPayload<TData>(response);
+  return { status: response.status, payload };
+}
+
+export async function runStorefrontGraphql<TData = unknown>(
+  options: StorefrontGraphqlOptions,
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<ConformanceGraphqlPayload<TData>> {
+  const result = await runStorefrontGraphqlRequest<TData>(options, query, variables);
+
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new ConformanceGraphqlError(result);
+  }
+
+  return result.payload;
+}
+
+export function createStorefrontGraphqlClient(options: StorefrontGraphqlOptions) {
+  return {
+    runGraphqlRequest: <TData = unknown>(query: string, variables: Record<string, unknown> = {}) =>
+      runStorefrontGraphqlRequest<TData>(options, query, variables),
+    runGraphql: <TData = unknown>(query: string, variables: Record<string, unknown> = {}) =>
+      runStorefrontGraphql<TData>(options, query, variables),
+  };
+}

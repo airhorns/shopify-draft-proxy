@@ -2,8 +2,19 @@ export const SHOPIFY_CONFORMANCE_AUTH_DIR: string;
 export const SHOPIFY_CONFORMANCE_AUTH_PATH: string;
 export const SHOPIFY_CONFORMANCE_PKCE_PATH: string;
 export const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH: string;
+export const SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH: string;
+
+export type StoredStorefrontAuth = {
+  shop: string;
+  storefront_access_token: string;
+  storefront_token_id: string;
+  storefront_token_title: string;
+  storefront_access_scopes: string[];
+  obtained_at: string;
+};
 
 export function buildAdminAuthHeaders(token: string): Record<string, string>;
+export function buildStorefrontRequestHeaders(storefrontToken: string): Record<string, string>;
 export function resolveDefaultAppRoot(options?: { repoRoot?: string }): string;
 export function resolveDefaultAppEnvPath(options?: { repoRoot?: string }): string;
 
@@ -20,6 +31,20 @@ export function getValidConformanceAccessToken(options?: {
   appEnvPath?: string;
   fetchImpl?: typeof fetch;
 }): Promise<string>;
+
+export function grantStorefrontAccessToken(options: {
+  adminOrigin: string;
+  apiVersion?: string;
+  title?: string;
+  credentialPath?: string;
+  storefrontCredentialPath?: string;
+  appEnvPath?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<StoredStorefrontAuth>;
+
+export function getStoredStorefrontAccessToken(options?: {
+  storefrontCredentialPath?: string;
+}): Promise<StoredStorefrontAuth>;
 
 export function createConformanceAuthRequest(options?: {
   storeDomain: string;
