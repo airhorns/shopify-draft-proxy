@@ -543,6 +543,14 @@ impl DraftProxy {
         let query = graphql_request.query;
         let variables = graphql_request.variables;
 
+        if let Some(response) = public_admin_graphql_validation_response(
+            &query,
+            &variables,
+            admin_graphql_version(&request.path),
+        ) {
+            return response;
+        }
+
         let Some(operation) = parse_operation(&query) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
