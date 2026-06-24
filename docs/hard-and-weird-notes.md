@@ -3775,3 +3775,22 @@ Practical rule:
 - a real live success-path fixture needs a disposable billing-capable app/store
   credential that can use Shopify's Billing API and safely approve test charges;
   do not hand-author a live billing success fixture from local proxy output
+
+## 87. Mobile platform applications are not unique per shop/platform
+
+Shopify Core does not enforce a one-Android and one-Apple mobile platform
+application limit per shop. The model validates platform-specific identifiers,
+Android certificate fingerprints, and app-clip fields, but does not validate
+platform uniqueness; the GraphQL create mutation unconditionally creates a
+record; and the table has no unique index on `(shop_id, platform)`.
+
+Practical rule:
+
+- do not fabricate `TAKEN` userErrors for repeated
+  `mobilePlatformApplicationCreate` calls with the same platform
+- stage every valid create as a distinct record and make
+  `mobilePlatformApplications` reads expose all staged records
+- the current conformance credential still lacks
+  `read_mobile_platform_applications` and `write_mobile_platform_applications`,
+  so repeated-create parity must wait for a scope-capable dev-store credential
+  rather than being replaced with local-runtime evidence
