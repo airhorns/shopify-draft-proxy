@@ -169,6 +169,23 @@ let schema validation reject unknown `ProductInput` fields such as `variants`.
 The checked-in anchor is
 `config/parity-specs/products/product-create-no-key-on-create.json`.
 
+## Current: publicationUpdate treats ProductVariant publishables as invalid IDs
+
+A 2026-04 `publicationUpdate` capture against `harry-test-heelo` showed that a
+ProductVariant GID can resolve through `node(id:)` and still be rejected by
+`publicationUpdate`. Both ProductVariant-only and Product+ProductVariant
+`publishablesToAdd` inputs returned `data.publicationUpdate: null` plus a
+top-level `RESOURCE_NOT_FOUND` error whose message is `Invalid id: <variant
+gid>`. Shopify did not return a payload `INVALID_PUBLISHABLE_ID` userError and
+did not use the source-described mixed Product/ProductVariant guardrail on this
+public dev store.
+
+Practical rule: model Product publication updates locally, but treat
+ProductVariant publishables as the captured top-level invalid-id boundary unless
+a newer version-specific capture proves the public Admin behavior changed. The
+checked-in anchor is
+`config/parity-specs/products/publication-update-delete-contract.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against
