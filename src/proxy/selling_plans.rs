@@ -160,7 +160,7 @@ impl DraftProxy {
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         let group = SellingPlanGroupRecord {
             id: id.clone(),
-            app_id: None,
+            app_id: resolved_string_field(&input, "appId"),
             merchant_code: resolved_string_field(&input, "merchantCode")
                 .unwrap_or_else(|| name.clone()),
             description: resolved_string_field(&input, "description").unwrap_or_default(),
@@ -224,6 +224,9 @@ impl DraftProxy {
 
         if let Some(name) = resolved_string_field(&input, "name") {
             group.name = name;
+        }
+        if input.contains_key("appId") {
+            group.app_id = resolved_string_field(&input, "appId");
         }
         if let Some(merchant_code) = resolved_string_field(&input, "merchantCode") {
             group.merchant_code = merchant_code;

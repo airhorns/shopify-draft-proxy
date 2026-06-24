@@ -1,0 +1,357 @@
+{
+  "capturedAt": "2026-06-24T00:20:03.549Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "operations": ["inventorySetQuantities", "inventoryMoveQuantities"],
+  "setup": {
+    "product": {
+      "productId": "gid://shopify/Product/10220291948850",
+      "variantId": "gid://shopify/ProductVariant/51359225348402",
+      "inventoryItemId": "gid://shopify/InventoryItem/53464051384626"
+    },
+    "location": {
+      "id": "gid://shopify/Location/106318430514",
+      "name": "Shop location"
+    },
+    "trackedInventory": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10220291948850",
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51359225348402",
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53464051384626",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "inventoryHydrate": {
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53464051384626"]
+      },
+      "response": {
+        "data": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryItem/53464051384626",
+              "tracked": true,
+              "requiresShipping": true,
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null,
+              "measurement": {
+                "weight": {
+                  "value": 0,
+                  "unit": "KILOGRAMS"
+                }
+              },
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51359225348402",
+                "title": "Default Title",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ],
+                "product": {
+                  "id": "gid://shopify/Product/10220291948850",
+                  "title": "Hermes Inventory Move Adjustment Group Shape 20260624002002",
+                  "handle": "hermes-inventory-move-adjustment-group-shape-20260624002002",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464051384626",
+                    "isActive": true,
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-06-24T00:20:02Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 0,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "seedSet": {
+      "variables": {
+        "idempotencyKey": "inventory-move-adjustment-group-shape-20260624002002-set",
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-move-adjustment-group-shape/20260624002002/set",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53464051384626",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 5,
+              "changeFromQuantity": 0
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-move-adjustment-group-shape/20260624002002/set"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "move": {
+    "variables": {
+      "idempotencyKey": "inventory-move-adjustment-group-shape-20260624002002-move",
+      "input": {
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://inventory-move-adjustment-group-shape/20260624002002/move",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53464051384626",
+            "quantity": 2,
+            "from": {
+              "locationId": "gid://shopify/Location/106318430514",
+              "name": "available",
+              "changeFromQuantity": 5
+            },
+            "to": {
+              "locationId": "gid://shopify/Location/106318430514",
+              "name": "damaged",
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "ledger://inventory-move-adjustment-group-shape/20260624002002/move"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "inventoryMoveQuantities": {
+          "inventoryAdjustmentGroup": {
+            "id": "gid://shopify/InventoryAdjustmentGroup/54626423308594",
+            "createdAt": "2026-06-24T00:20:03Z",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory-move-adjustment-group-shape/20260624002002/move",
+            "changes": [
+              {
+                "name": "available",
+                "delta": -2,
+                "quantityAfterChange": null,
+                "ledgerDocumentUri": null,
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              {
+                "name": "damaged",
+                "delta": 2,
+                "quantityAfterChange": null,
+                "ledgerDocumentUri": "ledger://inventory-move-adjustment-group-shape/20260624002002/move",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53464051384626"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53464051384626",
+                "tracked": true,
+                "requiresShipping": true,
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null,
+                "measurement": {
+                  "weight": {
+                    "value": 0,
+                    "unit": "KILOGRAMS"
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51359225348402",
+                  "title": "Default Title",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/10220291948850",
+                    "title": "Hermes Inventory Move Adjustment Group Shape 20260624002002",
+                    "handle": "hermes-inventory-move-adjustment-group-shape-20260624002002",
+                    "status": "DRAFT",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  }
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464051384626",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-06-24T00:20:02Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

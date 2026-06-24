@@ -1,0 +1,59 @@
+mutation DiscountCodeAppTitleCreate(
+  $blank: DiscountCodeAppInput!
+  $missing: DiscountCodeAppInput!
+  $tooLong: DiscountCodeAppInput!
+  $automaticBlank: DiscountAutomaticAppInput!
+) {
+  blankTitle: discountCodeAppCreate(codeAppDiscount: $blank) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  missingTitle: discountCodeAppCreate(codeAppDiscount: $missing) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  tooLongTitle: discountCodeAppCreate(codeAppDiscount: $tooLong) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBlankTitle: discountAutomaticAppCreate(automaticAppDiscount: $automaticBlank) {
+    automaticAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

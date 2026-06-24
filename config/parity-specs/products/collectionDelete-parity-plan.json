@@ -4,23 +4,55 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-delete-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-delete-shop-payload.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/collectionDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/products/collectionDelete-parity-plan.variables.json",
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.success.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live 2026-04 fixture variables. The payload selects shop { id } on both the successful delete and not-found userError branches; shop.id is treated as store-specific identity while preserving the required non-null shop object.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "mutation-data",
-        "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "name": "success-payload-includes-shop",
+        "capturePath": "$.success.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionDelete.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The live capture uses the dev store's shop gid; an otherwise empty local proxy returns its stable synthetic shop gid while preserving the non-null Shop payload."
+          }
+        ]
+      },
+      {
+        "name": "not-found-payload-includes-shop",
+        "capturePath": "$.notFound.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionDelete-parity-plan.graphql",
+          "variablesCapturePath": "$.notFound.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionDelete.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The live capture uses the dev store's shop gid; an otherwise empty local proxy returns its stable synthetic shop gid while preserving the non-null Shop payload."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-after-delete",
+        "capturePath": "$.downstreamRead.response.data.collection",
+        "proxyPath": "$.data.collection",
+        "proxyRequest": {
+          "documentCapturePath": "$.downstreamRead.document",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
       }
     ]
   }

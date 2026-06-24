@@ -1,0 +1,14 @@
+mutation SellingPlanGroupCreateAppIdReadback($input: SellingPlanGroupInput!) {
+  sellingPlanGroupCreate(input: $input) {
+    sellingPlanGroup {
+      id
+      appId
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

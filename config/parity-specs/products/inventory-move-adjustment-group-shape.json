@@ -1,0 +1,45 @@
+{
+  "scenarioId": "inventory-move-adjustment-group-shape",
+  "operationNames": ["inventorySetQuantities", "inventoryMoveQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-move-adjustment-group-shape.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-move-adjustment-group-shape-set.graphql",
+    "variablesCapturePath": "$.setup.seedSet.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence for inventoryMoveQuantities adjustment-group payload shape. The setup request stages an available quantity locally; the move request proves Shopify and the proxy both expose InventoryAdjustmentGroup.id and createdAt while allowing the concrete generated values to differ.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "move-adjustment-group-id-created-at-shape",
+        "capturePath": "$.move.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-move-adjustment-group-shape.graphql",
+          "variablesCapturePath": "$.move.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.id",
+            "matcher": "shopify-gid:InventoryAdjustmentGroup",
+            "reason": "Shopify returns a real adjustment-group GID; the proxy returns a synthetic adjustment-group GID with the same shape."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy generate operation timestamps independently; parity requires ISO-8601 timestamp shape."
+          }
+        ]
+      }
+    ]
+  }
+}

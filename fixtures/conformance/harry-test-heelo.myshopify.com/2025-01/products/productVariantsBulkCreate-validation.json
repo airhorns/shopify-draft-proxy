@@ -1,12 +1,12 @@
 {
   "notes": [
-    "HAR-574 productVariantsBulkCreate scalar validation capture.",
+    "productVariantsBulkCreate scalar and option validation capture.",
     "Each rejected branch was captured against a disposable product with Color/Size options.",
     "atomicNoWrite compares before/after product reads and must remain true for each captured rejection."
   ],
   "run": {
-    "runId": "har-574-1777938491793",
-    "productId": "gid://shopify/Product/10176778862898",
+    "runId": "variant-validation-1782258923548",
+    "productId": "gid://shopify/Product/10220285034802",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2025-01"
   },
@@ -15,7 +15,7 @@
       "query": "#graphql\n  mutation ProductVariantScalarValidationCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "har-574-1777938491793 Product Variant Scalar Validation",
+          "title": "variant-validation-1782258923548 Product Variant Scalar Validation",
           "status": "DRAFT"
         }
       },
@@ -25,8 +25,8 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10176778862898",
-                "title": "har-574-1777938491793 Product Variant Scalar Validation",
+                "id": "gid://shopify/Product/10220285034802",
+                "title": "variant-validation-1782258923548 Product Variant Scalar Validation",
                 "status": "DRAFT"
               },
               "userErrors": []
@@ -47,9 +47,9 @@
       }
     },
     "setupOptions": {
-      "query": "#graphql\n  mutation ProductVariantScalarValidationOptions($productId: ID!, $options: [OptionCreateInput!]!) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation ProductVariantScalarValidationOptions($productId: ID!, $options: [OptionCreateInput!]!) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      product {\n        options {\n          id\n          name\n          optionValues {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "options": [
           {
             "name": "Color",
@@ -80,16 +80,48 @@
         "payload": {
           "data": {
             "productOptionsCreate": {
+              "product": {
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12777557262642",
+                    "name": "Color",
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8215328522546",
+                        "name": "Red"
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8215328555314",
+                        "name": "Blue"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/ProductOption/12777557295410",
+                    "name": "Size",
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8215328588082",
+                        "name": "Small"
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8215328620850",
+                        "name": "Large"
+                      }
+                    ]
+                  }
+                ]
+              },
               "userErrors": []
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -100,7 +132,7 @@
     "priceNull": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": null,
@@ -150,7 +182,7 @@
     "priceNegative": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "-5",
@@ -200,7 +232,7 @@
     "priceTooLarge": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "1000000000000000000",
@@ -250,7 +282,7 @@
     "compareAtPriceTooLarge": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -301,7 +333,7 @@
     "weightNegative": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -359,7 +391,7 @@
     "weightTooLarge": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -417,7 +449,7 @@
     "inventoryTooHigh": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -473,7 +505,7 @@
     "skuTooLong": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -531,7 +563,7 @@
     "barcodeTooLong": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -582,7 +614,7 @@
     "optionValueTooLong": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "10",
@@ -629,10 +661,233 @@
       },
       "atomicNoWrite": true
     },
+    "optionsAndOptionValues": {
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10220285034802",
+        "variants": [
+          {
+            "options": ["Blue", "Large"],
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Blue"
+              },
+              {
+                "optionName": "Size",
+                "name": "Large"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $variants of type [ProductVariantsBulkInput!]! was provided invalid value for 0.options (Field is not defined on ProductVariantsBulkInput)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 63
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "options": ["Blue", "Large"],
+                    "optionValues": [
+                      {
+                        "optionName": "Color",
+                        "name": "Blue"
+                      },
+                      {
+                        "optionName": "Size",
+                        "name": "Large"
+                      }
+                    ]
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "options"],
+                    "explanation": "Field is not defined on ProductVariantsBulkInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "atomicNoWrite": true
+    },
+    "optionIdAndOptionName": {
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10220285034802",
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionId": "gid://shopify/ProductOption/12777557262642",
+                "optionName": "Color",
+                "name": "Blue"
+              },
+              {
+                "optionName": "Size",
+                "name": "Large"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "optionValues", "0"],
+                  "message": "cannot specify both `optionId` and `optionName`",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true
+    },
+    "optionValueIdAndName": {
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10220285034802",
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "id": "gid://shopify/ProductOptionValue/8215328555314",
+                "name": "Blue"
+              },
+              {
+                "optionName": "Size",
+                "name": "Large"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "optionValues", "0"],
+                  "message": "cannot specify both `id` and `name`",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true
+    },
+    "duplicateOptionTuple": {
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10220285034802",
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Blue"
+              },
+              {
+                "optionName": "Size",
+                "name": "Large"
+              }
+            ]
+          },
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Blue"
+              },
+              {
+                "optionName": "Size",
+                "name": "Large"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "1"],
+                  "message": "The variant 'Blue / Large' already exists. Please change at least one option value.",
+                  "code": "VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true
+    },
     "maxInputSize": {
       "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176778862898",
+        "productId": "gid://shopify/Product/10220285034802",
         "variants": [
           {
             "price": "1"

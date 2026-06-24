@@ -1,0 +1,31 @@
+mutation DiscountCodeAppTitleSetup(
+  $codeInput: DiscountCodeAppInput!
+  $automaticInput: DiscountAutomaticAppInput!
+) {
+  codeSetup: discountCodeAppCreate(codeAppDiscount: $codeInput) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticSetup: discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+    automaticAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
