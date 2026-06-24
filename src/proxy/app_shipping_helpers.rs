@@ -521,11 +521,9 @@ pub(in crate::proxy) fn location_deactivate_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "location" => Some(selected_json(&location, &selection.selection)),
-            "locationDeactivateUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationDeactivateUserErrors" | "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1267,11 +1265,9 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
             "remainingFulfillmentOrder" => {
                 Some(nullable_selected_json(&remaining, &selection.selection))
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1298,11 +1294,9 @@ pub(in crate::proxy) fn fulfillment_order_hold_payload_json(
             "remainingFulfillmentOrder" => {
                 Some(nullable_selected_json(&remaining, &selection.selection))
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1320,11 +1314,9 @@ pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
                 &fulfillment_order,
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1346,11 +1338,9 @@ pub(in crate::proxy) fn fulfillment_order_cancel_payload_json(
             "replacementFulfillmentOrder" => {
                 Some(nullable_selected_json(&replacement, &selection.selection))
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1370,11 +1360,9 @@ pub(in crate::proxy) fn fulfillment_orders_reroute_payload_json(
                     .map(|order| selected_json(order, &selection.selection))
                     .collect(),
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1389,11 +1377,9 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "success" => Some(Value::Bool(success)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1515,11 +1501,9 @@ pub(in crate::proxy) fn publishable_payload_json(
         match selection.name.as_str() {
             "publishable" => Some(selected_json(&publishable, publishable_selection)),
             "shop" => Some(selected_json(&shop, &selection.selection)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1546,11 +1530,9 @@ pub(in crate::proxy) fn segment_payload_json(
             } else {
                 selected_json(&deleted_segment_id, deleted_segment_id_selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1578,11 +1560,9 @@ pub(in crate::proxy) fn customer_segment_members_query_payload_json(
             } else {
                 selected_json(&query_record, query_selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1755,11 +1735,9 @@ pub(in crate::proxy) fn carrier_service_payload_json(
             } else {
                 selected_json(&carrier, carrier_selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &user_error_selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &user_error_selection,
             )),
             _ => None,
         }
@@ -1791,11 +1769,9 @@ pub(in crate::proxy) fn carrier_service_delete_payload(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &user_error_selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &user_error_selection,
             )),
             _ => None,
         }

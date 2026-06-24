@@ -2111,12 +2111,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3485,12 +3480,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -7449,11 +7439,9 @@ fn location_edit_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7468,11 +7456,9 @@ fn location_delete_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationDeleteUserErrors" | "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7549,11 +7535,9 @@ fn location_add_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7572,11 +7556,9 @@ fn location_local_pickup_enable_payload_selected_json(
             } else {
                 selected_json(&settings, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7591,11 +7573,9 @@ fn location_local_pickup_disable_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "locationId" => Some(json!(location_id)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7626,11 +7606,9 @@ fn location_activate_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "location" => Some(location_selected_json(&location, &selection.selection)),
-            "locationActivateUserErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationActivateUserErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7704,12 +7682,7 @@ fn location_metafields_connection_json(location: &Value, selection: &SelectedFie
     selected_json(
         &json!({
             "nodes": metafields,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         &selection.selection,
     )

@@ -856,11 +856,9 @@ fn fulfillment_order_payload_json(
                 &fulfillment_order,
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -891,11 +889,9 @@ fn fulfillment_order_request_payload_json(
             "unsubmittedFulfillmentOrder" => {
                 Some(nullable_selected_json(&unsubmitted, &selection.selection))
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             name if root_field == "fulfillmentOrderSubmitFulfillmentRequest"
                 && name == "fulfillmentOrder" =>
@@ -928,11 +924,9 @@ fn fulfillment_order_split_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -960,11 +954,9 @@ fn fulfillment_order_merge_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -2309,22 +2301,17 @@ fn order_connection(nodes: Vec<Value>) -> Value {
         .first()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     let end_cursor = nodes
         .last()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if start_cursor.is_empty() { Value::Null } else { json!(start_cursor) },
-            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 

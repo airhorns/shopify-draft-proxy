@@ -1264,11 +1264,9 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -2112,11 +2110,9 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -2240,11 +2236,9 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &error_selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &error_selection,
                 )),
                 _ => None,
             }
@@ -2575,12 +2569,7 @@ impl DraftProxy {
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &error_selection))
-                            .collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -3131,8 +3120,8 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3394,18 +3383,6 @@ fn product_publication_input_entries(
             publish_date: resolved_string_field(&publication, "publishDate"),
         })
         .collect()
-}
-
-fn selected_product_publication_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
 }
 
 fn product_publication_publish_date_is_before_1970(value: &str) -> bool {
