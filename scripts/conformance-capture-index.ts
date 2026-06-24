@@ -6573,6 +6573,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-applied-discount-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-applied-discount-validation-conformance.ts',
+    purpose:
+      'DraftOrderAppliedDiscountInput percentage value bounds, decimal precision, and valueType coercion for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draftOrder-applied-discount-validation.json`,
+      'config/parity-specs/orders/draftOrder-applied-discount-validation.json',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-setup.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-create.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-update.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-calculate.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-value-type-required.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one setup draft order plus accepted validation branches, captures rejected validation/coercion branches, and deletes created draft orders after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live 2025-01 and 2026-04 probes accepted negative percentage discounts, so the parity-backed local validation intentionally does not reject them.',
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-safety',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',
