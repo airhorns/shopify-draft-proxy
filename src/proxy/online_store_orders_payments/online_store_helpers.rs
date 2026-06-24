@@ -88,14 +88,6 @@ pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) 
     scopes
 }
 
-pub(in crate::proxy) fn theme_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_omit_code(field, message, code)
-}
-
 pub(in crate::proxy) fn theme_file_nodes(theme: &Value) -> Vec<Value> {
     theme["files"]["nodes"]
         .as_array()

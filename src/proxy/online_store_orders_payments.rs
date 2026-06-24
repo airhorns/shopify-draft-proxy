@@ -4200,7 +4200,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -4251,13 +4251,13 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
         if theme.get("role").and_then(Value::as_str) == Some("LOCKED") {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
                 &field.selection,
             );
         }
@@ -4270,7 +4270,7 @@ impl DraftProxy {
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
                 return selected_json(
-                    &json!({"theme": null, "userErrors": [theme_user_error(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
+                    &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
                     &field.selection,
                 );
             }
@@ -4298,7 +4298,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -4314,7 +4314,7 @@ impl DraftProxy {
             .count();
         if theme.get("role").and_then(Value::as_str) == Some("MAIN") && main_count <= 1 {
             return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
+                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
                 &field.selection,
             );
         }

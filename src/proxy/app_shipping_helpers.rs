@@ -593,24 +593,23 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
         return vec![error];
     }
     if !resolved_string_list_field_unsorted(profile, "variantsToDissociate").is_empty() {
-        return vec![delivery_profile_user_error(
+        return vec![user_error_omit_code(
             Value::Null,
             "Cannot disassociate variants when creating a profile.",
+            None,
         )];
     }
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
         if !resolved_object_list_field(&group, "zonesToUpdate").is_empty() {
-            return vec![delivery_profile_user_error(
+            return vec![user_error_omit_code(
                 Value::Null,
                 "Cannot update zones when creating a profile.",
+                None,
             )];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
             if !resolved_object_list_field(&zone, "methodDefinitionsToUpdate").is_empty() {
-                return vec![delivery_profile_user_error(
-                    Value::Null,
-                    "Profile is invalid: Input cannot include method_definitions_to_update on create.",
-                )];
+                return vec![user_error_omit_code(Value::Null, "Profile is invalid: Input cannot include method_definitions_to_update on create.", None)];
             }
         }
     }
@@ -629,15 +628,17 @@ pub(in crate::proxy) fn delivery_profile_update_user_errors(
 fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let name = resolved_string_field(profile, "name")?;
     if name.is_empty() {
-        return Some(delivery_profile_user_error(
+        return Some(user_error_omit_code(
             json!(["profile", "name"]),
             "Add a profile name",
+            None,
         ));
     }
     if name.chars().count() >= 128 {
-        return Some(delivery_profile_user_error(
+        return Some(user_error_omit_code(
             json!(["profile", "name"]),
             "Profile name must be less than 128 characters long",
+            None,
         ));
     }
     None
@@ -655,9 +656,10 @@ fn delivery_profile_common_shape_user_errors(
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
             if delivery_profile_zone_countries_from_input(&zone).is_empty() {
-                return vec![delivery_profile_user_error(
+                return vec![user_error_omit_code(
                     Value::Null,
                     "Profile is invalid: cannot create LocationGroupZone without countries.",
+                    None,
                 )];
             }
         }
@@ -680,14 +682,11 @@ fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
-    delivery_profile_user_error(
+    user_error_omit_code(
         Value::Null,
         "The Location could not be found for this shop.",
+        None,
     )
-}
-
-fn delivery_profile_user_error(field: Value, message: &str) -> Value {
-    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn delivery_profile_selected_json(
@@ -2692,10 +2691,9 @@ fn resource_feedback_validation_error(
 ) -> Option<Value> {
     let messages = resolved_string_list_field_unsorted(input, "messages");
     if messages.is_empty() {
-        return Some(resource_feedback_user_error(
+        return Some(presence_user_error(
             feedback_field_path(feedback_index, "messages", None),
-            "Messages can't be blank",
-            "BLANK",
+            "Messages",
         ));
     }
 
@@ -2712,10 +2710,10 @@ fn resource_feedback_validation_error(
         .iter()
         .position(|message| message.chars().count() > 100)
         .map(|message_index| {
-            resource_feedback_user_error(
+            length_user_error(
                 feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message is too long (maximum is 100 characters)",
-                "TOO_LONG",
+                "Message",
+                LengthUserErrorBound::TooLong { maximum: 100 },
             )
         })
 }

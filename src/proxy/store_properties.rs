@@ -73,11 +73,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "shopPolicy": Value::Null,
-                        "userErrors": [shop_policy_user_error(
-                            vec!["shopPolicy"],
-                            "Shop policy is invalid",
-                            json!("INVALID")
-                        )]
+                        "userErrors": [user_error_with_code_value(vec!["shopPolicy"], "Shop policy is invalid", json!("INVALID"))]
                     }),
                     payload_selection,
                 );
@@ -89,11 +85,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopPolicy": Value::Null,
-                    "userErrors": [shop_policy_user_error(
-                        vec!["shopPolicy", "body"],
-                        "Purchase options cancellation policy required",
-                        Value::Null
-                    )]
+                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Purchase options cancellation policy required", Value::Null)]
                 }),
                 payload_selection,
             );
@@ -102,11 +94,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopPolicy": Value::Null,
-                    "userErrors": [shop_policy_user_error(
-                        vec!["shopPolicy", "body"],
-                        "Body is too big (maximum is 512 KB)",
-                        json!("TOO_BIG")
-                    )]
+                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Body is too big (maximum is 512 KB)", json!("TOO_BIG"))]
                 }),
                 payload_selection,
             );
@@ -447,8 +435,6 @@ fn shop_policy_update_invalid_variable_response(
         .as_ref()
         .map(|definition| definition.location)
         .unwrap_or(field.location);
-    let value_json = resolved_value_json(&ResolvedValue::Object(input.clone()));
-
     let mut problems = Vec::new();
     match input.get("type") {
         Some(ResolvedValue::String(policy_type))
@@ -484,35 +470,17 @@ fn shop_policy_update_invalid_variable_response(
     if problems.is_empty() {
         return None;
     }
-    let first_path = problems
-        .first()
-        .and_then(|problem| problem.get("path"))
-        .and_then(Value::as_array)
-        .and_then(|path| path.first())
-        .and_then(Value::as_str)
-        .unwrap_or("shopPolicy");
-    let first_explanation = problems
-        .first()
-        .and_then(|problem| problem.get("explanation"))
-        .and_then(Value::as_str)
-        .unwrap_or("Expected value to not be null");
     Some(ok_json(json!({
-        "errors": [{
-            "message": format!(
-                "Variable ${variable_name} of type {variable_type} was provided invalid value for {first_path} ({first_explanation})"
-            ),
-            "locations": [{ "line": location.line, "column": location.column }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": value_json,
-                "problems": problems
-            }
-        }]
+        "errors": [invalid_variable_error(
+            VariableValidationContext {
+                variable_name,
+                variable_type,
+                location,
+            },
+            &ResolvedValue::Object(input.clone()),
+            problems,
+        )]
     })))
-}
-
-fn shop_policy_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
-    user_error_with_code_value(field, message, code)
 }
 
 fn shop_policy_title(policy_type: &str) -> Option<&'static str> {
