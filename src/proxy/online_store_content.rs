@@ -1,5 +1,10 @@
 use super::*;
 
+mod online_store_helpers;
+mod sales_channel;
+
+pub(in crate::proxy) use self::online_store_helpers::*;
+
 const ONLINE_STORE_CONTENT_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;

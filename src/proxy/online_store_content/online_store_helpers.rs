@@ -264,3 +264,232 @@ pub(in crate::proxy) fn validate_script_src(
     }
     None
 }
+
+pub(in crate::proxy) const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
+pub(in crate::proxy) const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+pub(in crate::proxy) const THEME_FILES_MAX_FILE_INPUT: usize = 50;
+pub(in crate::proxy) const THEME_FILES_MAX_FILE_LIMIT: usize = 100;
+pub(in crate::proxy) const THEME_UNDELETABLE_FILES: &[&str] = &[
+    "config/settings_data.json",
+    "config/settings_schema.json",
+    "layout/theme.liquid",
+];
+pub(in crate::proxy) fn theme_file_user_error(
+    field: Vec<String>,
+    message: &str,
+    code: &str,
+) -> Value {
+    user_error(field, message, Some(code))
+}
+
+pub(in crate::proxy) fn theme_file_limit_error() -> Value {
+    theme_file_user_error(
+        vec!["files".to_string()],
+        "Exceeded maximum number of files",
+        "INVALID",
+    )
+}
+
+pub(in crate::proxy) fn theme_file_duplicate_error(index: usize, field_name: &str) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        "duplicate-file-input",
+        "INVALID",
+    )
+}
+
+pub(in crate::proxy) fn theme_file_field_error(
+    index: usize,
+    field_name: &str,
+    message: &str,
+    code: &str,
+) -> Value {
+    theme_file_user_error(
+        vec![
+            "files".to_string(),
+            index.to_string(),
+            field_name.to_string(),
+        ],
+        message,
+        code,
+    )
+}
+
+pub(in crate::proxy) fn theme_file_delete_error(index: usize, message: &str, code: &str) -> Value {
+    theme_file_user_error(vec!["files".to_string(), index.to_string()], message, code)
+}
+
+pub(in crate::proxy) fn theme_file_filename_allowed(filename: &str) -> bool {
+    let Some((root, rest)) = filename.split_once('/') else {
+        return false;
+    };
+    matches!(
+        root,
+        "assets" | "config" | "layout" | "locales" | "sections" | "snippets" | "templates"
+    ) && !rest.is_empty()
+        && !rest.ends_with('/')
+        && !rest.contains("//")
+        && !filename.split('/').any(|segment| segment == "..")
+}
+
+pub(in crate::proxy) fn theme_file_filename_error(index: usize, filename: &str) -> Option<Value> {
+    if filename.trim().is_empty() {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename can't be blank",
+            "INVALID",
+        ));
+    }
+    if filename == "_drafts" || filename.starts_with("_drafts/") || filename.contains("/_drafts/") {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Access denied",
+            "ACCESS_DENIED",
+        ));
+    }
+    if !theme_file_filename_allowed(filename) {
+        return Some(theme_file_field_error(
+            index,
+            "filename",
+            "Filename is invalid",
+            "INVALID",
+        ));
+    }
+    None
+}
+pub(in crate::proxy) fn mobile_application_id_too_long_error<const N: usize>(
+    field: [&str; N],
+) -> Value {
+    mobile_app_error(
+        "TOO_LONG",
+        field,
+        "Application ID is too long (maximum is 100 characters)",
+    )
+}
+
+pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
+    apple: &BTreeMap<String, ResolvedValue>,
+    update_input: bool,
+) -> Option<Value> {
+    let app_clips_enabled = resolved_bool_field(apple, "appClipsEnabled").unwrap_or(false);
+    let app_clip_application_id = resolved_string_field(apple, "appClipApplicationId");
+    if app_clips_enabled
+        && app_clip_application_id
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        return Some(mobile_app_error(
+            "BLANK",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application can't be blank",
+        ));
+    }
+    if app_clips_enabled
+        && app_clip_application_id
+            .as_deref()
+            .is_some_and(|value| value.len() > MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH)
+    {
+        return Some(mobile_app_error(
+            "TOO_LONG",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application is too long (maximum is 255 characters)",
+        ));
+    }
+    if update_input
+        && app_clip_application_id
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+    {
+        return Some(mobile_app_error(
+            "BLANK",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application can't be blank",
+        ));
+    }
+    None
+}
+/// Validates the arguments of a server-pixel endpoint mutation
+/// (`eventBridgeServerPixelUpdate` / `pubSubServerPixelUpdate`), returning the top-level
+/// GraphQL error Shopify raises before executing the mutation, if any.
+pub(in crate::proxy) fn server_pixel_endpoint_argument_error(
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    match field.name.as_str() {
+        "eventBridgeServerPixelUpdate" => match resolved_string_arg(&field.arguments, "arn") {
+            None => Some(server_pixel_missing_argument_error(field, "arn")),
+            Some(arn) if !is_valid_event_bridge_arn(&arn) => {
+                Some(server_pixel_arn_coercion_error(&arn))
+            }
+            Some(_) => None,
+        },
+        "pubSubServerPixelUpdate" => {
+            let project = resolved_string_arg(&field.arguments, "pubSubProject");
+            if project.is_none() {
+                return Some(server_pixel_missing_argument_error(field, "pubSubProject"));
+            }
+            let topic = resolved_string_arg(&field.arguments, "pubSubTopic");
+            if topic.is_none() {
+                return Some(server_pixel_missing_argument_error(field, "pubSubTopic"));
+            }
+            if project.as_deref().unwrap_or_default().trim().is_empty() {
+                return Some(server_pixel_blank_argument_error(field, "pubSubProject"));
+            }
+            if topic.as_deref().unwrap_or_default().trim().is_empty() {
+                return Some(server_pixel_blank_argument_error(field, "pubSubTopic"));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn is_valid_event_bridge_arn(arn: &str) -> bool {
+    !arn.trim().is_empty() && arn.starts_with("arn:aws:events:")
+}
+
+pub(in crate::proxy) fn server_pixel_missing_argument_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Value {
+    json!({
+        "message": format!(
+            "Field '{}' is missing required arguments: {}",
+            field.name, argument_name
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [field.response_key],
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": field.name,
+            "arguments": argument_name
+        }
+    })
+}
+
+pub(in crate::proxy) fn server_pixel_blank_argument_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Value {
+    json!({
+        "message": format!("{argument_name} can't be blank"),
+        "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+        "path": [field.response_key]
+    })
+}
+
+pub(in crate::proxy) fn server_pixel_arn_coercion_error(arn: &str) -> Value {
+    json!({
+        "message": format!("Invalid ARN '{arn}'"),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
+}
