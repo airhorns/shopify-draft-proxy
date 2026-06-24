@@ -208,7 +208,7 @@ fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {
         "canDelete": true,
         "loyalty": Value::Null,
         "metafield": Value::Null,
-        "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null } },
+        "metafields": { "nodes": [], "pageInfo": empty_page_info() },
         "defaultEmailAddress": { "emailAddress": email },
         "defaultPhoneNumber": Value::Null,
         "defaultAddress": Value::Null,

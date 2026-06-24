@@ -1389,6 +1389,213 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     assert_eq!(log["entries"][0]["status"], json!("staged"));
 }
 
+#[test]
+fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";
+    let location_id = "gid://shopify/Location/1";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-set", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": unknown_inventory_item_id, "locationId": location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-adjust", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": unknown_inventory_item_id, "locationId": location_id, "delta": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-move", "input": {"reason": "correction", "changes": [{
+            "inventoryItemId": unknown_inventory_item_id,
+            "quantity": 1,
+            "from": {"locationId": location_id, "name": "available", "changeFromQuantity": 0},
+            "to": {"locationId": location_id, "name": "damaged", "changeFromQuantity": 0, "ledgerDocumentUri": "ledger://inventory/unknown-item"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownInventoryItemRead($id: ID!) {
+          inventoryItem(id: $id) { id inventoryLevels(first: 5) { nodes { location { id } } } }
+        }
+        "#,
+        json!({"id": unknown_inventory_item_id}),
+    ));
+    assert_eq!(read.body["data"]["inventoryItem"], Value::Null);
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/store-backed";
+    let unknown_location_id = "gid://shopify/Location/999999999999";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-set", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": unknown_location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-adjust", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": inventory_item_id, "locationId": unknown_location_id, "delta": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-move", "input": {"reason": "correction", "changes": [{
+            "inventoryItemId": inventory_item_id,
+            "quantity": 1,
+            "from": {"locationId": unknown_location_id, "name": "available", "changeFromQuantity": 0},
+            "to": {"locationId": unknown_location_id, "name": "damaged", "changeFromQuantity": 0, "ledgerDocumentUri": "ledger://inventory/unknown-location"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+                {
+                    "field": ["input", "changes", "0", "from", "locationId"],
+                    "message": "The specified location could not be found.",
+                    "code": "INVALID_LOCATION"
+                },
+                {
+                    "field": ["input", "changes", "0", "to", "locationId"],
+                    "message": "The specified location could not be found.",
+                    "code": "INVALID_LOCATION"
+                }
+            ]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownLocationRead($id: ID!) {
+          inventoryItem(id: $id) {
+            id
+            inventoryLevels(first: 5) { nodes { location { id } } }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    let levels = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(!levels
+        .iter()
+        .any(|level| level["location"]["id"] == json!(unknown_location_id)));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
 fn inventory_activation_base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
@@ -1493,7 +1700,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
                 variant { id inventoryQuantity product { id totalInventory tracksInventory } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1525,7 +1732,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
         r#"
         mutation DeactivateInventoryLevel($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1724,7 +1931,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
             inventoryLevel { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1735,20 +1942,17 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         .unwrap();
     assert!(activate_errors.contains(&json!({
         "field": ["available"],
-        "message": "Available must be greater than or equal to 0",
-        "code": "NEGATIVE"
+        "message": "Available must be greater than or equal to 0"
     })));
     assert!(activate_errors.contains(&json!({
         "field": ["locationId"],
-        "message": "The product couldn't be stocked because the location wasn't found.",
-        "code": "NOT_FOUND"
+        "message": "The product couldn't be stocked because the location wasn't found."
     })));
-
     let duplicate_activate = proxy.process_request(json_graphql_request(
         r#"
         mutation DuplicateActivate($inventoryItemId: ID!, $locationId: ID!) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: 1) {
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1766,6 +1970,52 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         r#"
         mutation LastLocationDeactivate($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": level_id}),
+    ));
+    assert_eq!(
+        last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The product couldn't be unstocked from Source location because products need to be stocked at a minimum of 1 location."
+        }])
+    );
+
+    let activate_code_selection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
+    ));
+    assert_eq!(
+        activate_code_selection.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
+    );
+    assert_eq!(
+        activate_code_selection.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidActivateCodeSelection",
+            "inventoryActivate",
+            "userErrors",
+            "code"
+        ])
+    );
+
+    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
             userErrors { field message code }
           }
         }
@@ -1773,8 +2023,21 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         json!({"inventoryLevelId": level_id}),
     ));
     assert_eq!(
-        last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"][0]["code"],
-        json!("CANNOT_DEACTIVATE_LAST_LOCATION")
+        deactivate_code_selection.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
+    );
+    assert_eq!(
+        deactivate_code_selection.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidDeactivateCodeSelection",
+            "inventoryDeactivate",
+            "userErrors",
+            "code"
+        ])
     );
 
     let invalid_bulk = proxy.process_request(json_graphql_request(
@@ -2395,7 +2658,7 @@ fn stock_transfer_item_at_origin(
             available: $available
           ) {
             inventoryLevel { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2997,6 +3260,82 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
 }
 
 #[test]
+fn online_store_mobile_platform_application_create_accepts_repeated_platforms() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationRepeatedCreates {
+          androidOne: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.one", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+          androidTwo: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.two", appLinksEnabled: false, sha256CertFingerprints: ["CC:DD"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+          appleOne: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.one", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+          appleTwo: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.two", universalLinksEnabled: true, sharedWebCredentialsEnabled: true, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["androidOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["androidTwo"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
+
+    let android_one_id = create.body["data"]["androidOne"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let android_two_id = create.body["data"]["androidTwo"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let apple_one_id = create.body["data"]["appleOne"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let apple_two_id = create.body["data"]["appleTwo"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(android_one_id, android_two_id);
+    assert_ne!(apple_one_id, apple_two_id);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationRepeatedCreatesRead {
+          mobilePlatformApplications(first: 10) {
+            nodes {
+              __typename
+              ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints }
+              ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["mobilePlatformApplications"]["nodes"],
+        json!([
+            {"__typename": "AndroidApplication", "id": android_one_id, "applicationId": "com.example.android.one", "appLinksEnabled": true, "sha256CertFingerprints": ["AA:BB"]},
+            {"__typename": "AndroidApplication", "id": android_two_id, "applicationId": "com.example.android.two", "appLinksEnabled": false, "sha256CertFingerprints": ["CC:DD"]},
+            {"__typename": "AppleApplication", "id": apple_one_id, "appId": "com.example.apple.one", "universalLinksEnabled": false, "sharedWebCredentialsEnabled": false, "appClipsEnabled": false, "appClipApplicationId": ""},
+            {"__typename": "AppleApplication", "id": apple_two_id, "appId": "com.example.apple.two", "universalLinksEnabled": true, "sharedWebCredentialsEnabled": true, "appClipsEnabled": false, "appClipApplicationId": ""}
+        ])
+    );
+}
+
+#[test]
 fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -3021,13 +3360,7 @@ fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_c
     ));
     assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
     assert_eq!(create.body["data"]["android"]["userErrors"], json!([]));
-    // A shop may hold at most one Apple application, so the second apple create
-    // is rejected (see the recorded duplicate-platform capture). Only appleOne
-    // and android survive in the connection.
-    assert_eq!(
-        create.body["data"]["appleTwo"],
-        json!({"mobilePlatformApplication": null, "userErrors": [{"code": "TAKEN", "field": ["mobilePlatformApplication", "apple"], "message": "Apple has already been taken"}]})
-    );
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
 
     let first_page = proxy.process_request(json_graphql_request(
         r#"
@@ -3077,10 +3410,36 @@ fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_c
             "nodes": [{"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}],
             "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "node": {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}}],
             "pageInfo": {
-                "hasNextPage": false,
+                "hasNextPage": true,
                 "hasPreviousPage": true,
                 "startCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
                 "endCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let third_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!, $after: String!) {
+          mobilePlatformApplications(first: $first, after: $after) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 1, "after": second_page.body["data"]["mobilePlatformApplications"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        third_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [{"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}],
+            "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic"
             }
         })
     );
@@ -5815,6 +6174,147 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
     assert_eq!(
         success.body["data"]["fileCreate"],
         json!({"files": [{"id": "gid://shopify/MediaImage/2", "fileStatus": "UPLOADED"}], "userErrors": []})
+    );
+}
+
+#[test]
+fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_explicit_model3d() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateModelExtensionInference($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              alt
+              fileStatus
+              filename
+              mimeType
+              ... on GenericFile { url }
+              ... on Model3d { mediaErrors mediaWarnings }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"originalSource": "https://cdn.example.com/model.glb", "alt": "Omitted GLB"},
+            {"originalSource": "https://cdn.example.com/explicit-model.glb", "filename": "explicit-model.glb", "contentType": "MODEL_3D", "alt": "Explicit model"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({"files": [
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/2",
+                "alt": "Omitted GLB",
+                "fileStatus": "UPLOADED",
+                "filename": "model.glb",
+                "mimeType": "model/gltf-binary",
+                "url": "https://cdn.example.com/model.glb"
+            },
+            {
+                "__typename": "Model3d",
+                "id": "gid://shopify/Model3d/3",
+                "alt": "Explicit model",
+                "fileStatus": "UPLOADED",
+                "filename": "explicit-model.glb",
+                "mimeType": "model/gltf-binary",
+                "mediaErrors": [],
+                "mediaWarnings": []
+            }
+        ], "userErrors": []})
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceFiles {
+          files(first: 10) {
+            nodes {
+              __typename
+              id
+              filename
+              ... on GenericFile { url }
+              ... on Model3d { mediaErrors mediaWarnings }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/2",
+                "filename": "model.glb",
+                "url": "https://cdn.example.com/model.glb"
+            },
+            {
+                "__typename": "Model3d",
+                "id": "gid://shopify/Model3d/3",
+                "filename": "explicit-model.glb",
+                "mediaErrors": [],
+                "mediaWarnings": []
+            }
+        ])
+    );
+
+    let generic_node = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceGenericNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on GenericFile { alt fileStatus filename mimeType url }
+            ... on Model3d { mediaErrors mediaWarnings }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/GenericFile/2"}),
+    ));
+    assert_eq!(
+        generic_node.body["data"]["node"],
+        json!({
+            "__typename": "GenericFile",
+            "id": "gid://shopify/GenericFile/2",
+            "alt": "Omitted GLB",
+            "fileStatus": "UPLOADED",
+            "filename": "model.glb",
+            "mimeType": "model/gltf-binary",
+            "url": "https://cdn.example.com/model.glb"
+        })
+    );
+
+    let model_node = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateModelExtensionInferenceModelNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on GenericFile { url }
+            ... on Model3d { alt fileStatus filename mimeType mediaErrors mediaWarnings }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Model3d/3"}),
+    ));
+    assert_eq!(
+        model_node.body["data"]["node"],
+        json!({
+            "__typename": "Model3d",
+            "id": "gid://shopify/Model3d/3",
+            "alt": "Explicit model",
+            "fileStatus": "UPLOADED",
+            "filename": "explicit-model.glb",
+            "mimeType": "model/gltf-binary",
+            "mediaErrors": [],
+            "mediaWarnings": []
+        })
     );
 }
 

@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-06-24T14:49:27.266Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "invalidPrivacyLiquidValidation": {
+    "operationName": "ShopPolicyUpdate",
+    "query": "mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {\n  shopPolicyUpdate(shopPolicy: $shopPolicy) {\n    shopPolicy {\n      id\n      title\n      body\n      type\n      url\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "shopPolicy": {
+        "type": "PRIVACY_POLICY",
+        "body": "{% unknownTag %}"
+      }
+    },
+    "response": {
+      "data": {
+        "shopPolicyUpdate": {
+          "shopPolicy": null,
+          "userErrors": [
+            {
+              "field": ["shopPolicy", "body"],
+              "message": "Body Liquid syntax error: Unknown tag 'unknownTag'",
+              "code": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -18,6 +18,7 @@ url = "2"
 base64 = "0.22"
 md5 = "0.7"
 sha2 = "0.10"
+liquid = "0.26.11"
 
 [dev-dependencies]
 criterion = "0.5"

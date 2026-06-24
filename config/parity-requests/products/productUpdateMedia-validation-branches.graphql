@@ -6,9 +6,14 @@ mutation ProductUpdateMediaValidationBranches($productId: ID!, $media: [UpdateMe
       mediaContentType
       status
     }
+    userErrors {
+      field
+      message
+    }
     mediaUserErrors {
       field
       message
+      code
     }
   }
 }

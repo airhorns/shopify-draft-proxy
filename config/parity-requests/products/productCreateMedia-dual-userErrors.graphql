@@ -13,6 +13,7 @@ mutation ProductCreateMediaDualUserErrors($productId: ID!, $media: [CreateMediaI
     mediaUserErrors {
       field
       message
+      code
     }
   }
 }
