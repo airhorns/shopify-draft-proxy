@@ -16,7 +16,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-deactivate-validation-2026-04.json');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -65,7 +65,7 @@ const createProductMutation = `#graphql
 
 const locationsQuery = `#graphql
   query InventoryDeactivateValidationLocations {
-    locations(first: 10) {
+    locations(first: 100) {
       nodes { id name isActive }
     }
   }
@@ -125,6 +125,22 @@ const inventoryDeactivateMutation = `#graphql
   mutation InventoryDeactivateValidationDeactivate($inventoryLevelId: ID!, $idempotencyKey: String!) {
     inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
       userErrors { field message }
+    }
+  }
+`;
+
+const inventoryActivateCodeSelectionMutation = `#graphql
+  mutation InventoryDeactivateValidationActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int, $idempotencyKey: String!) {
+    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) @idempotent(key: $idempotencyKey) {
+      userErrors { field message code }
+    }
+  }
+`;
+
+const inventoryDeactivateCodeSelectionMutation = `#graphql
+  mutation InventoryDeactivateValidationDeactivateCodeSelection($inventoryLevelId: ID!, $idempotencyKey: String!) {
+    inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+      userErrors { field message code }
     }
   }
 `;
@@ -275,7 +291,7 @@ function hydrateLevelCall(level, product) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [level.id] },
-    query: 'hand-synthesized from HAR-591 live inventoryDeactivate validation capture',
+    query: 'hydration fallback from live inventoryDeactivate validation capture',
     response: {
       status: 200,
       body: {
@@ -291,7 +307,7 @@ function hydrateItemCall(item, product) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [item.id] },
-    query: 'hand-synthesized from HAR-591 live inventoryActivate validation capture',
+    query: 'hydration fallback from live inventoryActivate validation capture',
     response: {
       status: 200,
       body: {
@@ -307,7 +323,7 @@ function hydrateMissingLevelCall(inventoryLevelId) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables: { ids: [inventoryLevelId] },
-    query: 'hand-synthesized from HAR-591 fabricated inventoryLevelId capture',
+    query: 'hydration fallback for fabricated inventoryLevelId capture',
     response: {
       status: 200,
       body: {
@@ -381,7 +397,7 @@ async function createTemporaryProduct(title) {
 }
 
 async function trackedProductWithLocations(label, primaryLocation, secondaryLocation, runId) {
-  const created = await createTemporaryProduct(`hermes-har-591-${label}-${runId}`);
+  const created = await createTemporaryProduct(`hermes-inv-deactivate-validation-${label}-${runId}`);
   const variant = firstVariant(created);
   const item = firstInventoryItem(created);
   if (!variant?.id || !item?.id) {
@@ -406,7 +422,7 @@ async function trackedProductWithLocations(label, primaryLocation, secondaryLoca
     input: {
       name: 'available',
       reason: 'correction',
-      referenceDocumentUri: `logistics://har-591/${label}/primary/${runId}`,
+      referenceDocumentUri: `logistics://inv-deactivate-validation/${label}/primary/${runId}`,
       quantities: [
         {
           inventoryItemId: item.id,
@@ -416,7 +432,7 @@ async function trackedProductWithLocations(label, primaryLocation, secondaryLoca
         },
       ],
     },
-    idempotencyKey: `har-591-${label}-primary-${runId}`,
+    idempotencyKey: `inv-deactivate-validation-${label}-primary-${runId}`,
   };
   const setPrimaryQuantity = await runGraphql(inventorySetQuantitiesMutation, setPrimaryVariables);
 
@@ -429,7 +445,7 @@ async function trackedProductWithLocations(label, primaryLocation, secondaryLoca
       inventoryItemId: item.id,
       locationId: secondaryLocation.id,
       available: 0,
-      idempotencyKey: `har-591-${label}-activate-secondary-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-${label}-activate-secondary-${runId}`,
     };
     activateSecondary = await runGraphql(inventoryActivateMutation, activateSecondaryVariables);
 
@@ -437,7 +453,7 @@ async function trackedProductWithLocations(label, primaryLocation, secondaryLoca
       input: {
         name: 'available',
         reason: 'correction',
-        referenceDocumentUri: `logistics://har-591/${label}/secondary/${runId}`,
+        referenceDocumentUri: `logistics://inv-deactivate-validation/${label}/secondary/${runId}`,
         quantities: [
           {
             inventoryItemId: item.id,
@@ -447,7 +463,7 @@ async function trackedProductWithLocations(label, primaryLocation, secondaryLoca
           },
         ],
       },
-      idempotencyKey: `har-591-${label}-secondary-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-${label}-secondary-${runId}`,
     };
     setSecondaryQuantity = await runGraphql(inventorySetQuantitiesMutation, setSecondaryVariables);
   }
@@ -498,9 +514,9 @@ async function createReadyTransfer({
     input: {
       originLocationId,
       destinationLocationId,
-      referenceName: `HAR-591-${label}-${runId}`,
-      note: `HAR-591 ${label}`,
-      tags: ['har-591', label],
+      referenceName: `Inventory deactivate validation-${label}-${runId}`,
+      note: `Inventory deactivate validation ${label}`,
+      tags: ['inv-deactivate-validation', label],
       lineItems: [
         {
           inventoryItemId,
@@ -508,7 +524,7 @@ async function createReadyTransfer({
         },
       ],
     },
-    idempotencyKey: `har-591-transfer-${label}-${runId}`,
+    idempotencyKey: `inv-deactivate-validation-transfer-${label}-${runId}`,
   };
   const response = await runGraphql(inventoryTransferCreateReadyMutation, variables);
   return { variables, response };
@@ -519,9 +535,9 @@ async function createInTransitShipment({ movementId, inventoryItemId, quantity, 
     input: {
       movementId,
       trackingInput: {
-        trackingNumber: `HAR591${runId}`,
+        trackingNumber: `INVDEACT${runId}`,
         company: 'Hermes',
-        trackingUrl: 'https://example.test/har-591',
+        trackingUrl: 'https://example.test/inv-deactivate-validation',
         arrivesAt: '2026-06-01T00:00:00.000Z',
       },
       lineItems: [
@@ -531,7 +547,7 @@ async function createInTransitShipment({ movementId, inventoryItemId, quantity, 
         },
       ],
     },
-    idempotencyKey: `har-591-shipment-${label}-${runId}`,
+    idempotencyKey: `inv-deactivate-validation-shipment-${label}-${runId}`,
   };
   const response = await runGraphql(inventoryShipmentCreateInTransitMutation, variables);
   return { variables, response };
@@ -540,14 +556,14 @@ async function createInTransitShipment({ movementId, inventoryItemId, quantity, 
 async function createCommittedOrder({ variantId, quantity, label, runId }) {
   const variables = {
     order: {
-      email: `har-591-${label}-${runId}@example.com`,
+      email: `inv-deactivate-validation-${label}-${runId}@example.com`,
       test: true,
       currency: 'CAD',
       lineItems: [
         {
           variantId,
           quantity,
-          title: `HAR-591 ${label}`,
+          title: `Inventory deactivate validation ${label}`,
           priceSet: {
             shopMoney: {
               amount: '1.00',
@@ -615,7 +631,7 @@ async function main() {
     preferredSecondary ?? activeLocationNodes.find((location) => location?.id !== primaryLocation?.id) ?? null;
   if (!primaryLocation?.id || !secondaryLocation?.id) {
     throw new Error(
-      `HAR-591 capture requires at least two active locations: ${JSON.stringify(locationNodes, null, 2)}`,
+      `Inventory deactivate validation capture requires at least two active locations: ${JSON.stringify(locationNodes, null, 2)}`,
     );
   }
 
@@ -636,7 +652,7 @@ async function main() {
     const committedLevel = levelForLocation(committedProduct, primaryLocation.id);
     const deactivateCommittedVariables = {
       inventoryLevelId: committedLevel.id,
-      idempotencyKey: `har-591-deactivate-committed-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-committed-${runId}`,
     };
     const deactivateCommitted = await runGraphql(inventoryDeactivateMutation, deactivateCommittedVariables);
 
@@ -679,7 +695,7 @@ async function main() {
     const incomingReservedLevel = levelForLocation(incomingReservedProduct, primaryLocation.id);
     const deactivateIncomingReservedVariables = {
       inventoryLevelId: incomingReservedLevel.id,
-      idempotencyKey: `har-591-deactivate-incoming-reserved-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-incoming-reserved-${runId}`,
     };
     const deactivateIncomingReserved = await runGraphql(
       inventoryDeactivateMutation,
@@ -690,14 +706,14 @@ async function main() {
     cleanupProducts.push(onlyLocation.product);
     const deactivateOnlyLocationVariables = {
       inventoryLevelId: onlyLocation.primaryLevel.id,
-      idempotencyKey: `har-591-deactivate-only-location-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-only-location-${runId}`,
     };
     const deactivateOnlyLocation = await runGraphql(inventoryDeactivateMutation, deactivateOnlyLocationVariables);
 
     const fabricatedInventoryLevelId = 'gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998';
     const deactivateMissingVariables = {
       inventoryLevelId: fabricatedInventoryLevelId,
-      idempotencyKey: `har-591-deactivate-missing-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-missing-${runId}`,
     };
     const deactivateMissing = await runGraphql(inventoryDeactivateMutation, deactivateMissingVariables);
 
@@ -705,7 +721,7 @@ async function main() {
     const deletedLocationInventoryLevelId = `gid://shopify/InventoryLevel/999999999999?inventory_item_id=${committedItemLegacyId}`;
     const deactivateDeletedLocationVariables = {
       inventoryLevelId: deletedLocationInventoryLevelId,
-      idempotencyKey: `har-591-deactivate-deleted-location-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-deleted-location-${runId}`,
     };
     const deactivateDeletedLocation = await runGraphql(inventoryDeactivateMutation, deactivateDeletedLocationVariables);
 
@@ -713,22 +729,40 @@ async function main() {
       inventoryItemId: onlyLocation.inventoryItem.id,
       locationId: primaryLocation.id,
       available: 7,
-      idempotencyKey: `har-591-activate-active-available-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-activate-active-available-${runId}`,
     };
     const activateActiveAvailable = await runGraphql(inventoryActivateMutation, activateActiveVariables);
+    const activateCodeSelectionVariables = {
+      inventoryItemId: onlyLocation.inventoryItem.id,
+      locationId: primaryLocation.id,
+      available: 7,
+      idempotencyKey: `inv-deactivate-validation-activate-code-selection-${runId}`,
+    };
+    const activateCodeSelection = await runGraphqlRequest(
+      inventoryActivateCodeSelectionMutation,
+      activateCodeSelectionVariables,
+    );
+    const deactivateCodeSelectionVariables = {
+      inventoryLevelId: onlyLocation.primaryLevel.id,
+      idempotencyKey: `inv-deactivate-validation-deactivate-code-selection-${runId}`,
+    };
+    const deactivateCodeSelection = await runGraphqlRequest(
+      inventoryDeactivateCodeSelectionMutation,
+      deactivateCodeSelectionVariables,
+    );
 
     const reactivate = await trackedProductWithLocations('reactivate', primaryLocation, secondaryLocation, runId);
     cleanupProducts.push(reactivate.product);
     const deactivateForReactivateVariables = {
       inventoryLevelId: reactivate.secondaryLevel.id,
-      idempotencyKey: `har-591-deactivate-before-reactivate-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-deactivate-before-reactivate-${runId}`,
     };
     const deactivateForReactivate = await runGraphql(inventoryDeactivateMutation, deactivateForReactivateVariables);
     const reactivateVariables = {
       inventoryItemId: reactivate.inventoryItem.id,
       locationId: secondaryLocation.id,
       available: 7,
-      idempotencyKey: `har-591-reactivate-inactive-available-${runId}`,
+      idempotencyKey: `inv-deactivate-validation-reactivate-inactive-available-${runId}`,
     };
     const reactivateInactiveAvailable = await runGraphql(inventoryActivateMutation, reactivateVariables);
 
@@ -736,7 +770,14 @@ async function main() {
       capturedAt: new Date().toISOString(),
       storeDomain,
       apiVersion,
-      locations: locationNodes,
+      notes: [
+        'Creates disposable tracked products and uses only-location / already-active inventory states to capture inventoryActivate and inventoryDeactivate userErrors.',
+        'The code-selection probes intentionally select userErrors { code } for inventoryActivate and inventoryDeactivate to preserve Shopify schema validation errors for these generic UserError roots.',
+      ],
+      locations: {
+        primary: primaryLocation,
+        secondary: secondaryLocation,
+      },
       setup: {
         committed: committed.setup,
         incomingReserved: incomingReserved.setup,
@@ -776,6 +817,14 @@ async function main() {
       inventoryActivateActiveAvailable: {
         variables: activateActiveVariables,
         response: activateActiveAvailable,
+      },
+      inventoryActivateCodeSelection: {
+        variables: activateCodeSelectionVariables,
+        response: activateCodeSelection,
+      },
+      inventoryDeactivateCodeSelection: {
+        variables: deactivateCodeSelectionVariables,
+        response: deactivateCodeSelection,
       },
       inventoryDeactivateBeforeReactivate: {
         variables: deactivateForReactivateVariables,

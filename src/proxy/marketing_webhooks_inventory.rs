@@ -2939,7 +2939,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["inventoryItemId"],
                 "The product couldn't be stocked because it wasn't found.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2951,14 +2950,12 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Available must be greater than or equal to 0",
-                Some("NEGATIVE"),
             ));
         }
         if !self.inventory_location_exists(&location_id) {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location wasn't found.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2970,7 +2967,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location is not active.",
-                Some("LOCATION_NOT_ACTIVE"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2992,7 +2988,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
-                None,
             ));
             let level = self.inventory_level_for_payload(
                 &inventory_item_id,
@@ -3014,7 +3009,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because it has reached the maximum number of inventory locations.",
-                Some("TOO_MANY_INVENTORY_LEVELS"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -3078,7 +3072,6 @@ impl DraftProxy {
         else {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the product was deleted.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(
                 self.inventory_deactivate_payload(&field.selection, user_errors),
@@ -3088,12 +3081,10 @@ impl DraftProxy {
         if !self.inventory_item_exists(&inventory_item_id) {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the product was deleted.",
-                Some("NOT_FOUND"),
             ));
         } else if self.inventory_level_id_is_missing(&inventory_level_id) {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the location was deleted.",
-                Some("LOCATION_NOT_FOUND"),
             ));
         } else if !self.store.staged.inventory_levels.contains_key(&key) {
             self.ensure_default_inventory_level(&inventory_item_id, &location_id);
@@ -3110,7 +3101,6 @@ impl DraftProxy {
                     "The product couldn't be unstocked from {} because products need to be stocked at a minimum of 1 location.",
                     self.inventory_location_display_name(&location_id)
                 ),
-                Some("CANNOT_DEACTIVATE_LAST_LOCATION"),
             ));
         }
         if !user_errors.is_empty() {
@@ -6154,12 +6144,12 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
     quantities
 }
 
-fn inventory_activate_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(field, message, code)
+fn inventory_activate_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
-fn inventory_deactivate_user_error(message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(Value::Null, message, code)
+fn inventory_deactivate_user_error(message: &str) -> Value {
+    user_error_omit_code(Value::Null, message, None)
 }
 
 fn inventory_bulk_toggle_user_error(

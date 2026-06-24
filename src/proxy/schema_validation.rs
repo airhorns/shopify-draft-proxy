@@ -350,6 +350,9 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
+    errors.extend(inventory_activation_user_error_code_selection_errors(
+        query, &document,
+    ));
     errors
 }
 
@@ -707,6 +710,73 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
         _ => return None,
     };
     Some(OutputFieldType { named_type })
+}
+
+fn inventory_activation_user_error_code_selection_errors(
+    query: &str,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if !matches!(
+            field.name.as_str(),
+            "inventoryActivate" | "inventoryDeactivate"
+        ) {
+            continue;
+        }
+        let Some(user_errors_selection) = field
+            .selection
+            .iter()
+            .find(|selection| selection.name == "userErrors")
+        else {
+            continue;
+        };
+        for selection in &user_errors_selection.selection {
+            if selection.name != "code" {
+                continue;
+            }
+            let location = inventory_user_error_code_selection_location(
+                query,
+                field,
+                user_errors_selection,
+                selection,
+            )
+            .unwrap_or(SourceLocation { line: 1, column: 1 });
+            errors.push(json!({
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": location.line, "column": location.column }],
+                "path": [
+                    document.operation_path,
+                    field.response_key,
+                    user_errors_selection.response_key,
+                    selection.response_key
+                ],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }));
+        }
+    }
+    errors
+}
+
+fn inventory_user_error_code_selection_location(
+    query: &str,
+    field: &RootFieldSelection,
+    user_errors_selection: &SelectedField,
+    code_selection: &SelectedField,
+) -> Option<SourceLocation> {
+    let root_offset = byte_offset_for_location(query, field.location)?;
+    let user_errors_offset =
+        find_graphql_name_after(query, root_offset, &user_errors_selection.name)?;
+    let code_offset = find_graphql_name_after(
+        query,
+        user_errors_offset + user_errors_selection.name.len(),
+        &code_selection.name,
+    )?;
+    source_location_for_byte_offset(query, code_offset)
 }
 
 fn admin_platform_node_global_id_errors(
@@ -2043,6 +2113,25 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
             return Some(candidate);
         }
         search_start = after_name;
+    }
+    None
+}
+
+fn find_graphql_name_after(query: &str, start: usize, name: &str) -> Option<usize> {
+    let bytes = query.as_bytes();
+    let mut search_start = start.min(query.len());
+    while search_start < query.len() {
+        let relative = query[search_start..].find(name)?;
+        let candidate = search_start + relative;
+        let before_ok = candidate == 0 || !is_graphql_name_byte(bytes[candidate - 1]);
+        let after = candidate + name.len();
+        let after_ok = bytes
+            .get(after)
+            .is_none_or(|next| !is_graphql_name_byte(*next));
+        if before_ok && after_ok {
+            return Some(candidate);
+        }
+        search_start = after;
     }
     None
 }
