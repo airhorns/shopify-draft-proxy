@@ -6,6 +6,7 @@ mutation PubSubWebhookSubscriptionCreateParity(
     webhookSubscription {
       id
       topic
+      callbackUrl
       uri
       format
       includeFields

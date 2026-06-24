@@ -507,7 +507,10 @@ impl DraftProxy {
         request: &Request,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
-        let uri = record["callbackUrl"].as_str().unwrap_or_default();
+        let uri = record["uri"]
+            .as_str()
+            .or_else(|| record["callbackUrl"].as_str())
+            .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
         if uri.trim().is_empty() {
             errors.push(json!({
@@ -642,7 +645,10 @@ impl DraftProxy {
             .any(|(existing_id, existing)| {
                 existing_id != id
                     && existing["topic"].as_str() == Some(topic)
-                    && existing["callbackUrl"].as_str() == Some(uri)
+                    && existing["uri"]
+                        .as_str()
+                        .or_else(|| existing["callbackUrl"].as_str())
+                        == Some(uri)
                     && existing["format"].as_str() == Some(format)
                     && webhook_subscription_optional_string_key(existing, "filter")
                         == webhook_subscription_optional_string_key(record, "filter")
@@ -732,13 +738,17 @@ impl DraftProxy {
             .or(dedicated_pubsub_uri)
             .or_else(|| resolved_string_field(&webhook_input, "arn"))
             .or_else(|| {
-                existing
-                    .as_ref()
-                    .and_then(|record| record["callbackUrl"].as_str().map(ToString::to_string))
+                existing.as_ref().and_then(|record| {
+                    record["uri"]
+                        .as_str()
+                        .or_else(|| record["callbackUrl"].as_str())
+                        .map(ToString::to_string)
+                })
             })
             .unwrap_or_default()
             .trim()
             .to_string();
+        let callback_url = webhook_subscription_callback_url(&uri);
         let format = resolved_string_field(&webhook_input, "format")
             .or_else(|| {
                 existing
@@ -852,7 +862,7 @@ impl DraftProxy {
             "topic": topic,
             "format": format,
             "uri": uri,
-            "callbackUrl": uri,
+            "callbackUrl": callback_url,
             "name": name,
             "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
