@@ -5779,6 +5779,82 @@ fn customer_segment_members_query_create_validates_stages_and_reads_node() {
 }
 
 #[test]
+fn customer_segment_members_query_create_coerces_segment_id_before_resolver_errors() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {
+          customerSegmentMembersQueryCreate(input: $input) {
+            customerSegmentMembersQuery { id }
+            userErrors { field code message }
+          }
+        }
+    "#;
+
+    for segment_id in ["not-a-gid", ""] {
+        let response = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "input": { "segmentId": segment_id } }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body.get("data"), None);
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!(
+                "Variable $input of type CustomerSegmentMembersQueryInput! was provided invalid value for segmentId (Invalid global id '{segment_id}')"
+            ))
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("INVALID_VARIABLE")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["problems"][0]["path"],
+            json!(["segmentId"])
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["problems"][0]["message"],
+            json!(format!("Invalid global id '{segment_id}'"))
+        );
+    }
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Customer/1" } }),
+    ));
+    assert_eq!(wrong_type.status, 200);
+    assert_eq!(
+        wrong_type.body["errors"],
+        json!([{
+            "message": "invalid id",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["customerSegmentMembersQueryCreate"]
+        }])
+    );
+    assert_eq!(
+        wrong_type.body["data"]["customerSegmentMembersQueryCreate"],
+        Value::Null
+    );
+
+    let unknown_segment = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Segment/999999999999" } }),
+    ));
+    assert_eq!(
+        unknown_segment.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "Invalid segment ID."
+            }]
+        })
+    );
+}
+
+#[test]
 fn saved_search_create_stages_and_reads_back_selection_aware_results() {
     let mut proxy = snapshot_proxy();
 
