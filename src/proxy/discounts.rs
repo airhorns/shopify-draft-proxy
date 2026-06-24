@@ -3133,27 +3133,11 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
     true
 }
 
-fn resolved_string_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<String> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
-
 fn resolved_non_blank_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
 ) -> Option<String> {
     resolved_string_field(input, field).filter(|value| !value.trim().is_empty())
-}
-
-fn resolved_f64_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<f64> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::Float(value)) => Some(*value),
-        Some(ResolvedValue::Int(value)) => Some(*value as f64),
-        Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
-        _ => None,
-    }
 }
 
 fn resolved_decimal_path_at_or_above(
@@ -3508,29 +3492,6 @@ fn resolved_scalar_text_path(
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         Some(ResolvedValue::Int(value)) => Some(value.to_string()),
         Some(ResolvedValue::Float(value)) => Some(value.to_string()),
-        _ => None,
-    }
-}
-
-fn resolved_string_list_path(
-    input: &BTreeMap<String, ResolvedValue>,
-    path: &[&str],
-) -> Vec<String> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::List(values)) => values
-            .iter()
-            .filter_map(|value| match value {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn resolved_bool_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<bool> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::Bool(value)) => Some(*value),
         _ => None,
     }
 }
@@ -4142,37 +4103,8 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
     None
 }
 
-pub(in crate::proxy) fn resolved_i64_path(
-    input: &BTreeMap<String, ResolvedValue>,
-    path: &[&str],
-) -> Option<i64> {
-    resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path).and_then(resolved_i64)
-}
-
-pub(in crate::proxy) fn resolved_i64(value: &ResolvedValue) -> Option<i64> {
-    match value {
-        ResolvedValue::Int(n) => Some(*n),
-        ResolvedValue::String(raw) => raw.parse::<i64>().ok(),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     user_error_with_extra_info(field, message, Some(code), Value::Null)
-}
-
-pub(in crate::proxy) fn resolved_object_path<'a>(
-    value: Option<&'a ResolvedValue>,
-    path: &[&str],
-) -> Option<&'a ResolvedValue> {
-    let mut current = value?;
-    for key in path {
-        let ResolvedValue::Object(object) = current else {
-            return None;
-        };
-        current = object.get(*key)?;
-    }
-    Some(current)
 }
 
 pub(in crate::proxy) fn function_by_id_or_handle(
