@@ -16,7 +16,7 @@
     "variablesCapturePath": "$.longTitle.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-594 executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, and productsCount read-after-add behavior. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.",
+  "notes": "Executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, productsCount read-after-add behavior, and collectionAddProducts duplicate-membership no-op success. The duplicate target creates a custom collection, adds the seed product, then adds the same product again; Shopify returns the collection with empty userErrors. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -120,6 +120,25 @@
       {
         "name": "custom-add-products",
         "capturePath": "$.customAdd.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "custom-duplicate-add-products-noop-success",
+        "capturePath": "$.customDuplicateAdd.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
           "variables": {

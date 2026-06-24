@@ -2,7 +2,7 @@
   "scenarioId": "app-subscription-line-item-update-validation",
   "operationNames": ["appSubscriptionCreate", "appSubscriptionLineItemUpdate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough", "core-source-derived"],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json"
   ],
@@ -98,5 +98,5 @@
       }
     ]
   },
-  "notes": "Covers validation branches for recurring line items, cappedAmount currency mismatch, non-increasing cappedAmount, and the default approval-required success response retaining the pre-approval cappedAmount. Admin GraphQL 2026-04 public schema does not expose the internal requireApproval argument, so this parity spec does not fabricate live coverage for the hidden requireApproval: false branch. Live Shopify billing mutation capture is blocked for the configured conformance app by Shopify's `Custom apps cannot use the Billing API` response, so this executable local-runtime fixture is paired with runtime tests rather than claiming fresh live billing parity."
+  "notes": "Covers validation branches for recurring line items, cappedAmount currency mismatch, non-increasing cappedAmount, and the default approval-required success response retaining the pre-approval cappedAmount. The recurring-line-item rejection payload is Core-source-derived from Billing::Subscriptions::Update raising billing.graphql.subscription.non_variable as a base userError: field null and message `Only variable subscriptions can be updated.`. Admin GraphQL 2026-04 public schema does not expose the internal requireApproval argument, so this parity spec does not fabricate live coverage for the hidden requireApproval: false branch. Live Shopify billing mutation capture is blocked for the configured conformance app by Shopify's `Custom apps cannot use the Billing API` response; a 2026-04 setup probe on 2026-06-24 returned that blocker before appSubscriptionLineItemUpdate could be exercised, so this executable local-runtime fixture is paired with runtime tests rather than claiming fresh live billing parity."
 }

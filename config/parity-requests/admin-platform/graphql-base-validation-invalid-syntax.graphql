@@ -1,0 +1,3 @@
+query GraphqlBaseValidationInvalidSyntax {
+  shop {
+    id

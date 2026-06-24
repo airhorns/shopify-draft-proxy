@@ -332,6 +332,188 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     assert_eq!(reordered[1]["status"], json!("PROCESSING"));
 }
 
+fn missing_product_hydrate_response() -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": { "nodes": [Value::Null] } }),
+    }
+}
+
+#[test]
+fn product_media_missing_product_errors_use_media_user_error_code() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| missing_product_hydrate_response());
+
+    let cases = [
+        (
+            "productCreateMedia",
+            r#"
+            mutation MissingProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+              productCreateMedia(productId: $productId, media: $media) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": "gid://shopify/Product/999999999999",
+                "media": [{
+                    "mediaContentType": "IMAGE",
+                    "originalSource": "https://placehold.co/640x480/png",
+                    "alt": "Unknown product"
+                }]
+            }),
+        ),
+        (
+            "productUpdateMedia",
+            r#"
+            mutation MissingProductUpdateMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
+              productUpdateMedia(productId: $productId, media: $media) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": "gid://shopify/Product/999999999999",
+                "media": [{ "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown product" }]
+            }),
+        ),
+        (
+            "productDeleteMedia",
+            r#"
+            mutation MissingProductDeleteMedia($productId: ID!, $mediaIds: [ID!]!) {
+              productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": "gid://shopify/Product/999999999999",
+                "mediaIds": ["gid://shopify/MediaImage/999999999999"]
+            }),
+        ),
+        (
+            "productReorderMedia",
+            r#"
+            mutation MissingProductReorderMedia($id: ID!, $moves: [MoveInput!]!) {
+              productReorderMedia(id: $id, moves: $moves) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/Product/999999999999",
+                "moves": [{ "id": "gid://shopify/MediaImage/999999999999", "newPosition": "0" }]
+            }),
+        ),
+    ];
+
+    for (root, query, variables) in cases {
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200, "{root} should return a payload");
+        let payload = &response.body["data"][root];
+        let expected = json!([{
+            "field": if root == "productReorderMedia" { json!(["id"]) } else { json!(["productId"]) },
+            "message": "Product does not exist",
+            "code": "PRODUCT_DOES_NOT_EXIST"
+        }]);
+        assert_eq!(
+            payload["mediaUserErrors"], expected,
+            "{root} mediaUserErrors"
+        );
+        assert_eq!(payload["userErrors"], expected, "{root} userErrors");
+    }
+}
+
+#[test]
+fn product_media_missing_media_errors_use_media_user_error_code_and_captured_message() {
+    let product_id = "gid://shopify/Product/1";
+    let missing_media_id = "gid://shopify/MediaImage/999999999999";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("media validation should use local product state"));
+
+    let cases = [
+        (
+            "productUpdateMedia",
+            r#"
+            mutation MissingMediaUpdate($productId: ID!, $media: [UpdateMediaInput!]!) {
+              productUpdateMedia(productId: $productId, media: $media) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "productId": product_id, "media": [{ "id": missing_media_id, "alt": "Missing" }] }),
+            json!(["media"]),
+        ),
+        (
+            "productDeleteMedia",
+            r#"
+            mutation MissingMediaDelete($productId: ID!, $mediaIds: [ID!]!) {
+              productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+                userErrors { field message code }
+                mediaUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "productId": product_id, "mediaIds": [missing_media_id] }),
+            json!(["mediaIds"]),
+        ),
+    ];
+
+    for (root, query, variables, field) in cases {
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200, "{root} should return a payload");
+        let payload = &response.body["data"][root];
+        let expected = json!([{
+            "field": field,
+            "message": format!("Media id {missing_media_id} does not exist"),
+            "code": "MEDIA_DOES_NOT_EXIST"
+        }]);
+        assert_eq!(
+            payload["mediaUserErrors"], expected,
+            "{root} mediaUserErrors"
+        );
+        assert_eq!(payload["userErrors"], expected, "{root} userErrors");
+    }
+}
+
+#[test]
+fn product_reorder_media_unknown_media_id_returns_async_job_without_immediate_error() {
+    let product_id = "gid://shopify/Product/1";
+    let missing_media_id = "gid://shopify/MediaImage/999999999999";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("reorder validation should use local product state"));
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingMediaReorder($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message code }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "moves": [{ "id": missing_media_id, "newPosition": "0" }] }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"]["productReorderMedia"];
+    assert!(payload["job"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Job/")));
+    assert_eq!(payload["job"]["done"], json!(false));
+    assert_eq!(payload["mediaUserErrors"], json!([]));
+    assert_eq!(payload["userErrors"], json!([]));
+}
+
 fn append_variant_media_for_test(
     proxy: &mut DraftProxy,
     product_id: &str,
@@ -7452,14 +7634,27 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         }),
     ));
     assert_eq!(
-        add.body["data"]["collectionAddProducts"],
-        json!({
-            "collection": null,
-            "userErrors": [{
-                "field": ["productIds"],
-                "message": "Product is already included in this collection"
-            }]
-        })
+        add.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/first",
+                "title": "First Product",
+                "handle": "first-product"
+            },
+            {
+                "id": "gid://shopify/Product/second",
+                "title": "Second Product",
+                "handle": "second-product"
+            }
+        ])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["hasFirst"],
+        json!(true)
     );
 
     let add = proxy.process_request(json_graphql_request(
@@ -7482,11 +7677,23 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         }),
     ));
     assert_eq!(
-        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
+        add.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/first",
+                "title": "First Product",
+                "handle": "first-product"
+            },
+            {
+                "id": "gid://shopify/Product/second",
+                "title": "Second Product",
+                "handle": "second-product"
+            }
+        ])
     );
     assert_eq!(
         add.body["data"]["collectionAddProducts"]["collection"]["hasFirst"],

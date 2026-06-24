@@ -59,3 +59,18 @@ eval "$(mise env)" && corepack pnpm parity -- --all
   ticket workpad and repository guidance, usually including
   `corepack pnpm conformance:check`, `corepack pnpm rust:test`, and
   `corepack pnpm typecheck`.
+
+## Setup State Guardrail
+
+Do not repair a parity failure by adding or restoring pre-seeded proxy state.
+Specs and fixtures must not introduce `proxyRequest.localSetups`, `baseState`,
+`stagedState`, setup-state JSON, hidden runner hooks, or private `DraftProxy`
+store patching.
+
+When a scenario needs existing Shopify resources, use the production-like path:
+model the prerequisite through public GraphQL requests, or have the operation
+handler fetch the needed upstream slice and record that call in the fixture's
+`upstreamCalls` cassette with `corepack pnpm parity:record <scenario-id>`.
+`dumpState`, `restoreState`, and `POST /__meta/restore` are valid only for
+their documented meta API/runtime-test surfaces, not as parity fixture setup
+shortcuts.
