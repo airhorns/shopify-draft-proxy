@@ -1627,6 +1627,164 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
 }
 
 #[test]
+fn b2b_bulk_role_assign_rejects_duplicate_contact_location_and_keeps_valid_siblings() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let first_location_id = create_b2b_location(&mut proxy, &company_id, "Duplicate HQ");
+    let second_location_id = create_b2b_location(&mut proxy, &company_id, "Valid HQ");
+    let second_contact_id = create_b2b_company_contact(&mut proxy, &company_id, "Second Buyer");
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BBulkDuplicateRoleSetup($id: ID!) {
+          company(id: $id) {
+            contacts(first: 5) { nodes { id } }
+            contactRoles(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    let first_contact_id = company.body["data"]["company"]["contacts"]["nodes"][0]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let role_id = company.body["data"]["company"]["contactRoles"]["nodes"][0]["id"]
+        .as_str()
+        .expect("role id")
+        .to_string();
+
+    let initial_assign = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBulkDuplicateSeedAssign(
+          $companyContactId: ID!
+          $companyContactRoleId: ID!
+          $companyLocationId: ID!
+        ) {
+          companyContactAssignRole(
+            companyContactId: $companyContactId
+            companyContactRoleId: $companyContactRoleId
+            companyLocationId: $companyLocationId
+          ) {
+            companyContactRoleAssignment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": first_contact_id,
+            "companyContactRoleId": role_id,
+            "companyLocationId": first_location_id
+        }),
+    ));
+    assert_eq!(
+        initial_assign.body["data"]["companyContactAssignRole"]["userErrors"],
+        json!([])
+    );
+
+    let contact_bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBulkDuplicateContactAssignRoles(
+          $companyContactId: ID!
+          $rolesToAssign: [CompanyContactRoleAssign!]!
+        ) {
+          companyContactAssignRoles(
+            companyContactId: $companyContactId
+            rolesToAssign: $rolesToAssign
+          ) {
+            roleAssignments {
+              id
+              companyContact { id }
+              role { id }
+              companyLocation { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": first_contact_id,
+            "rolesToAssign": [
+                { "companyContactRoleId": role_id, "companyLocationId": first_location_id },
+                { "companyContactRoleId": role_id, "companyLocationId": second_location_id }
+            ]
+        }),
+    ));
+    assert_eq!(contact_bulk.status, 200);
+    let contact_assignments = contact_bulk.body["data"]["companyContactAssignRoles"]
+        ["roleAssignments"]
+        .as_array()
+        .expect("contact bulk assignments");
+    assert_eq!(contact_assignments.len(), 1);
+    assert_eq!(
+        contact_assignments[0]["companyContact"]["id"],
+        json!(first_contact_id)
+    );
+    assert_eq!(
+        contact_assignments[0]["companyLocation"]["id"],
+        json!(second_location_id)
+    );
+    assert_eq!(
+        contact_bulk.body["data"]["companyContactAssignRoles"]["userErrors"],
+        json!([{
+            "field": ["rolesToAssign", "0"],
+            "message": "Company contact has already been assigned a role in that company location.",
+            "code": "LIMIT_REACHED"
+        }])
+    );
+
+    let location_bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBulkDuplicateLocationAssignRoles(
+          $companyLocationId: ID!
+          $rolesToAssign: [CompanyLocationRoleAssign!]!
+        ) {
+          companyLocationAssignRoles(
+            companyLocationId: $companyLocationId
+            rolesToAssign: $rolesToAssign
+          ) {
+            roleAssignments {
+              id
+              companyContact { id }
+              role { id }
+              companyLocation { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyLocationId": second_location_id,
+            "rolesToAssign": [
+                { "companyContactId": first_contact_id, "companyContactRoleId": role_id },
+                { "companyContactId": second_contact_id, "companyContactRoleId": role_id }
+            ]
+        }),
+    ));
+    assert_eq!(location_bulk.status, 200);
+    let location_assignments = location_bulk.body["data"]["companyLocationAssignRoles"]
+        ["roleAssignments"]
+        .as_array()
+        .expect("location bulk assignments");
+    assert_eq!(location_assignments.len(), 1);
+    assert_eq!(
+        location_assignments[0]["companyContact"]["id"],
+        json!(second_contact_id)
+    );
+    assert_eq!(
+        location_assignments[0]["companyLocation"]["id"],
+        json!(second_location_id)
+    );
+    assert_eq!(
+        location_bulk.body["data"]["companyLocationAssignRoles"]["userErrors"],
+        json!([{
+            "field": ["rolesToAssign", "0"],
+            "message": "Company contact has already been assigned a role in that company location.",
+            "code": "LIMIT_REACHED"
+        }])
+    );
+}
+
+#[test]
 fn b2b_contact_revoke_role_singular_stages_and_reads_back() {
     let mut proxy = snapshot_proxy();
     let company = proxy.process_request(json_graphql_request(

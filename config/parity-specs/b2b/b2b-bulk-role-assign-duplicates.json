@@ -1,0 +1,308 @@
+{
+  "scenarioId": "b2b-bulk-role-assign-duplicates",
+  "operationNames": [
+    "companyCreate",
+    "companyContactCreate",
+    "companyContactAssignRole",
+    "companyContactAssignRoles",
+    "companyLocationAssignRoles",
+    "companyLocationCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "business-rule-precondition", "partial-success", "role-assignment"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-bulk-role-assign-duplicates.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Live Shopify 2026-04 evidence for bulk role-assignment duplicate contact/location LIMIT_REACHED behavior. The scenario creates a disposable company, seeds one contact/location role assignment, then proves both companyContactAssignRoles and companyLocationAssignRoles reject the duplicate indexed entry while staging and returning the valid sibling assignment.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-setup",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different automatic role assignment IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default location IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].roleAssignments.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different automatic role assignment IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].roleAssignments.nodes[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].roleAssignments.nodes[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default location IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-location-create-setup",
+        "capturePath": "$.duplicateLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.duplicateLocationCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "valid-location-create-setup",
+        "capturePath": "$.validLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.validLocationCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "second-contact-create-setup",
+        "capturePath": "$.secondContactCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-bulk-role-assign-duplicate-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.secondContactCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.companyContact.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy contact is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "seed-role-assignment-setup",
+        "capturePath": "$.seedAssign.response.data.companyContactAssignRole",
+        "proxyPath": "$.data.companyContactAssignRole",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-assign-role.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyContactRoleId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id" },
+            "companyLocationId": {
+              "fromProxyResponse": "duplicate-location-create-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContactRoleAssignment.id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          },
+          {
+            "path": "$.companyContactRoleAssignment.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy assignment targets the locally staged contact ID."
+          },
+          {
+            "path": "$.companyContactRoleAssignment.role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy assignment targets the locally staged role ID."
+          },
+          {
+            "path": "$.companyContactRoleAssignment.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy assignment targets the locally staged location ID."
+          }
+        ]
+      },
+      {
+        "name": "contact-bulk-duplicate-limit-reached",
+        "capturePath": "$.duplicateContactAssignRoles.response.data.companyContactAssignRoles",
+        "proxyPath": "$.data.companyContactAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-assign-roles.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "rolesToAssign": [
+              {
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                },
+                "companyLocationId": {
+                  "fromProxyResponse": "duplicate-location-create-setup",
+                  "path": "$.data.companyLocationCreate.companyLocation.id"
+                }
+              },
+              {
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                },
+                "companyLocationId": {
+                  "fromProxyResponse": "valid-location-create-setup",
+                  "path": "$.data.companyLocationCreate.companyLocation.id"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          },
+          {
+            "path": "$.roleAssignments[*].companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy assignment targets the locally staged contact ID."
+          },
+          {
+            "path": "$.roleAssignments[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy assignment targets the locally staged role ID."
+          },
+          {
+            "path": "$.roleAssignments[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy assignment targets the locally staged location ID."
+          }
+        ]
+      },
+      {
+        "name": "location-bulk-duplicate-limit-reached",
+        "capturePath": "$.duplicateLocationAssignRoles.response.data.companyLocationAssignRoles",
+        "proxyPath": "$.data.companyLocationAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-assign-roles.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "valid-location-create-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "rolesToAssign": [
+              {
+                "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                }
+              },
+              {
+                "companyContactId": {
+                  "fromProxyResponse": "second-contact-create-setup",
+                  "path": "$.data.companyContactCreate.companyContact.id"
+                },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          },
+          {
+            "path": "$.roleAssignments[*].companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy assignment targets the locally staged contact ID."
+          },
+          {
+            "path": "$.roleAssignments[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy assignment targets the locally staged role ID."
+          },
+          {
+            "path": "$.roleAssignments[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy assignment targets the locally staged location ID."
+          }
+        ]
+      }
+    ]
+  }
+}

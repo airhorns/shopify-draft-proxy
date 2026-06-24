@@ -1579,6 +1579,10 @@ impl DraftProxy {
                 ])));
                 continue;
             }
+            if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
+                user_errors.push(b2b_bulk_role_already_assigned_error(index));
+                continue;
+            }
             assignments.push(self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id));
         }
         let status = if assignments.is_empty() && !user_errors.is_empty() {
@@ -2367,10 +2371,8 @@ impl DraftProxy {
                 ));
                 continue;
             }
-            if let Some(existing) =
-                self.b2b_role_assignment_for(&location_id, &contact_id, &role_id)
-            {
-                assignments.push(existing);
+            if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
+                user_errors.push(b2b_bulk_role_already_assigned_error(index));
                 continue;
             }
             let assignment_id = self.next_proxy_synthetic_gid("CompanyContactRoleAssignment");
@@ -8385,6 +8387,15 @@ fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) 
         "message": message,
         "code": code
     })
+}
+
+fn b2b_bulk_role_already_assigned_error(index: usize) -> Value {
+    b2b_indexed_user_error(
+        "rolesToAssign",
+        index,
+        "Company contact has already been assigned a role in that company location.",
+        "LIMIT_REACHED",
+    )
 }
 
 fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
