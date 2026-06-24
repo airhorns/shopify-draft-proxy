@@ -1667,11 +1667,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'products',
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
-    purpose: 'Bulk variant validation atomicity for create/update/delete.',
+    purpose:
+      'Bulk variant validation atomicity for create/update/delete, including public-schema options-key rejection.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-validation-atomicity.json`,
       'config/parity-specs/products/product-variants-bulk-validation-atomicity.json',
+      'config/parity-requests/products/productVariantsBulkUpdate-validation-options.graphql',
     ],
     cleanupBehavior: 'Creates disposable products and removes them after validation probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1681,7 +1683,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
-      'productVariantsBulkCreate scalar validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, and max input size.',
+      'productVariantsBulkCreate scalar and option validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,
