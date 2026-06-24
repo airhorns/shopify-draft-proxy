@@ -58,7 +58,7 @@ Cancel behavior:
 - `bulkOperationCancel(id:)` looks up the target job from effective BulkOperation state before deciding the response.
 - Unknown valid BulkOperation GIDs return `bulkOperation: null` with `field: ["id"]` userErrors and do not stage a record or append a mutation-log entry.
 - Terminal jobs (`COMPLETED`, `CANCELED`, `FAILED`, and `EXPIRED`) return the existing job unchanged plus a `field: null` userError and do not append a mutation-log entry.
-- Non-terminal jobs stage a `CANCELING` overlay, return selected job payloads with empty `userErrors`, and append the original raw mutation body plus the staged BulkOperation ID to the mutation log for commit replay and observability.
+- Non-terminal jobs stage a status-only `CANCELING` overlay, preserving the stored job's counters, artifact fields, timestamps, query, and type, then return selected job payloads with empty `userErrors` and append the original raw mutation body plus the staged BulkOperation ID to the mutation log for commit replay and observability.
 - LiveHybrid can hydrate a cold known job before applying the same stored-status cancel decision locally.
 
 Meta API behavior:

@@ -611,11 +611,6 @@ impl DraftProxy {
 
         let mut operation = existing_operation;
         operation["status"] = json!("CANCELING");
-        operation["completedAt"] = Value::Null;
-        operation["objectCount"] = json!("0");
-        operation["rootObjectCount"] = json!("0");
-        operation["fileSize"] = Value::Null;
-        operation["url"] = Value::Null;
         self.store
             .staged
             .bulk_operations
