@@ -1387,13 +1387,25 @@ fn pricing_policies_json(policies: &[BTreeMap<String, ResolvedValue>]) -> Vec<Va
         .filter_map(|policy| {
             let fixed = resolved_object_field(policy, "fixed")?;
             let adjustment_value = resolved_object_field(&fixed, "adjustmentValue").unwrap_or_default();
+            let adjustment_type = resolved_string_field(&fixed, "adjustmentType")
+                .unwrap_or_else(|| "PERCENTAGE".to_string());
+            let adjustment_value_json =
+                if let Some(fixed_value) = resolved_decimal_text_field(&adjustment_value, "fixedValue") {
+                    json!({
+                        "__typename": "MoneyV2",
+                        "amount": fixed_value,
+                        "currencyCode": "USD"
+                    })
+                } else {
+                    json!({
+                        "__typename": "SellingPlanPricingPolicyPercentageValue",
+                        "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
+                    })
+                };
             Some(json!({
                 "__typename": "SellingPlanFixedPricingPolicy",
-                "adjustmentType": resolved_string_field(&fixed, "adjustmentType").unwrap_or_else(|| "PERCENTAGE".to_string()),
-                "adjustmentValue": {
-                    "__typename": "SellingPlanPricingPolicyPercentageValue",
-                    "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
-                }
+                "adjustmentType": adjustment_type,
+                "adjustmentValue": adjustment_value_json
             }))
         })
         .collect()
@@ -1423,25 +1435,130 @@ fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> 
 }
 
 fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
-    let discount = group
+    let plan_count = group.selling_plans.len();
+    if plan_count == 0 {
+        return String::new();
+    }
+
+    let mut percentages = Vec::new();
+    let mut fixed_values = Vec::new();
+    for policy in group
         .selling_plans
-        .first()
-        .and_then(|plan| plan.pricing_policies.first())
-        .and_then(|policy| policy.pointer("/adjustmentValue/percentage"))
-        .and_then(Value::as_f64)
-        .map(|percentage| {
-            if percentage.fract() == 0.0 {
-                format!("{percentage:.0}%")
-            } else {
-                format!("{percentage}%")
-            }
-        })
-        .unwrap_or_default();
+        .iter()
+        .flat_map(|plan| plan.pricing_policies.iter())
+    {
+        if let Some(percentage) = policy
+            .pointer("/adjustmentValue/percentage")
+            .and_then(Value::as_f64)
+        {
+            percentages.push(percentage);
+        }
+        if let Some(fixed_value) = policy
+            .pointer("/adjustmentValue/amount")
+            .and_then(json_number_value)
+        {
+            fixed_values.push(fixed_value);
+        }
+    }
+
+    let mut discount_pieces = Vec::new();
+    if let Some(piece) = percentage_summary_piece(&percentages) {
+        discount_pieces.push(piece);
+    }
+    if let Some(piece) = fixed_value_summary_piece(&fixed_values) {
+        discount_pieces.push(piece);
+    }
+    let discount = discount_pieces.join("·");
+    let frequencies = if plan_count == 1 {
+        "frequency"
+    } else {
+        "frequencies"
+    };
     format!(
-        "{} delivery frequency, {} discount",
-        group.options.len(),
-        discount
+        "{} delivery {}, {} discount",
+        plan_count, frequencies, discount
     )
+}
+
+fn resolved_decimal_text_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Option<String> {
+    match input.get(key) {
+        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
+        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
+        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
+        _ => None,
+    }
+}
+
+fn shopify_decimal_text(value: &str) -> String {
+    let Ok(parsed) = value.parse::<f64>() else {
+        return value.to_string();
+    };
+    let mut formatted = parsed.to_string();
+    if !formatted.contains('.') {
+        formatted.push_str(".0");
+    }
+    formatted
+}
+
+fn json_number_value(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(number) => number.as_f64(),
+        Value::String(value) => value.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+fn percentage_summary_piece(values: &[f64]) -> Option<String> {
+    let (min, max) = min_max(values)?;
+    if (min - max).abs() < f64::EPSILON {
+        Some(format!("{}%", format_summary_percentage(min)))
+    } else {
+        Some(format!(
+            "{}-{}%",
+            format_summary_percentage(min),
+            format_summary_percentage(max)
+        ))
+    }
+}
+
+fn fixed_value_summary_piece(values: &[f64]) -> Option<String> {
+    let (min, max) = min_max(values)?;
+    if (min - max).abs() < f64::EPSILON {
+        Some(format_summary_currency(min))
+    } else {
+        Some(format!(
+            "{}-{}",
+            format_summary_currency(min),
+            format_summary_currency(max)
+        ))
+    }
+}
+
+fn min_max(values: &[f64]) -> Option<(f64, f64)> {
+    let mut values = values.iter().copied();
+    let first = values.next()?;
+    Some(values.fold((first, first), |(min, max), value| {
+        (min.min(value), max.max(value))
+    }))
+}
+
+fn format_summary_percentage(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    let mut formatted = format!("{rounded:.2}");
+    while formatted.contains('.') && formatted.ends_with('0') {
+        formatted.pop();
+    }
+    if formatted.ends_with('.') {
+        formatted.pop();
+    }
+    formatted
+}
+
+fn format_summary_currency(value: f64) -> String {
+    format!("${:.0}", value.round())
 }
 
 fn selling_plan_group_summary_json(
