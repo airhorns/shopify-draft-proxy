@@ -2123,6 +2123,60 @@ fn extend_shipping_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_payments_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "PaymentTermsCreateInput".to_string(),
+        BTreeMap::from([
+            (
+                "paymentTermsTemplateId".to_string(),
+                input_field(non_null("ID")),
+            ),
+            (
+                "paymentSchedules".to_string(),
+                input_field(list_of_non_null("PaymentScheduleInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "PaymentTermsInput".to_string(),
+        BTreeMap::from([
+            (
+                "paymentTermsTemplateId".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "paymentSchedules".to_string(),
+                input_field(list_of_non_null("PaymentScheduleInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "PaymentTermsUpdateInput".to_string(),
+        BTreeMap::from([
+            ("paymentTermsId".to_string(), input_field(non_null("ID"))),
+            (
+                "paymentTermsAttributes".to_string(),
+                input_field(non_null("PaymentTermsInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "paymentTermsCreate".to_string(),
+        BTreeMap::from([
+            ("referenceId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "paymentTermsAttributes".to_string(),
+                mutation_arg(non_null("PaymentTermsCreateInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "paymentTermsUpdate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("PaymentTermsUpdateInput")),
+        )]),
+    );
+
     // customerPaymentMethodCreditCardCreate on Admin API 2026-04 takes three
     // required (non-null) field arguments: `customerId`, `billingAddress`, and
     // `sessionId`. Omitting any of them must surface a top-level
@@ -2591,7 +2645,7 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("phone".to_string(), input_field(named("String"))),
             (
                 "paymentTerms".to_string(),
-                input_field(named("PaymentTermsInput")),
+                input_field(named("DraftOrderPaymentTermsInput")),
             ),
             (
                 "purchasingEntity".to_string(),

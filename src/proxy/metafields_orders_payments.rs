@@ -2359,13 +2359,6 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     unsuccessful_code: &str,
 ) -> Option<Value> {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId");
-    if template_id.is_none() {
-        return Some(payment_terms_user_error(
-            json!(["paymentTermsAttributes", "paymentTermsTemplateId"]),
-            "Payment terms template is required.",
-            "REQUIRED",
-        ));
-    }
 
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {

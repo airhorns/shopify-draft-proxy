@@ -7951,6 +7951,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-create-missing-template-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-missing-template-id-conformance.ts',
+    purpose:
+      'paymentTermsCreate omitted paymentTermsTemplateId GraphQL variable coercion and paymentTermsUpdate omitted template success behavior.',
+    requiredAuthScopes: ['read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-missing-template-id.json`,
+      'config/parity-specs/payments/payment-terms-create-missing-template-id.json',
+      'config/parity-requests/payments/payment-terms-create-missing-template-id.graphql',
+      'config/parity-requests/payments/payment-terms-update-missing-template-id-setup.graphql',
+      'config/parity-requests/payments/payment-terms-update-missing-template-id.graphql',
+    ],
+    cleanupBehavior:
+      'Create omission is validation-only. Update omission creates a disposable draft order and Net 30 payment terms, captures update success, then deletes both resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-create-template-reprojection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-template-reprojection-conformance.ts',
