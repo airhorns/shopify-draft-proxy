@@ -1,0 +1,71 @@
+{
+  "scenarioId": "payment-terms-create-missing-template-id",
+  "operationNames": ["paymentTermsCreate", "paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-coercion-parity", "top-level-errors-parity", "payload-shape", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-missing-template-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-update-missing-template-id-setup.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.updateMissingTemplateId.setup.paymentTermsCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-valid-payment-terms",
+        "capturePath": "$.cases.updateMissingTemplateId.setup.paymentTermsCreate.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs for setup."
+          }
+        ]
+      },
+      {
+        "name": "create-omitted-template-id-top-level-error",
+        "capturePath": "$.cases.createMissingTemplateId.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-missing-template-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.createMissingTemplateId.request.variables"
+        }
+      },
+      {
+        "name": "update-omitted-template-id-success",
+        "capturePath": "$.cases.updateMissingTemplateId.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/payments/payment-terms-update-missing-template-id.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromProxyResponse": "setup-valid-payment-terms",
+                "path": "$.data.paymentTermsCreate.paymentTerms.id"
+              },
+              "paymentTermsAttributes": {
+                "fromCapturePath": "$.cases.updateMissingTemplateId.request.variables.input.paymentTermsAttributes"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy update independently generated payment terms IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for omitted standalone payment terms template ids. paymentTermsCreate.paymentTermsAttributes.paymentTermsTemplateId is non-null and fails during GraphQL variable coercion with no mutation payload/userErrors. paymentTermsUpdate.input.paymentTermsAttributes.paymentTermsTemplateId is nullable in the public schema; omitting it against an existing Net 30 term succeeds and recomputes the schedule from the supplied issuedAt."
+}

@@ -1,29 +1,22 @@
 {
+  "capturedAt": "2026-06-24T04:52:35.082Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-04-25T23:08:00Z",
-  "operations": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia"],
-  "notes": [
-    "Captured against a disposable draft product and cleaned up after capture.",
-    "Empty create/update/delete inputs return successful empty payloads.",
-    "Mixed create partially creates valid media and reports invalid entries.",
-    "Mixed update/delete reject the batch and preserve the existing product media set."
-  ],
+  "operations": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia", "productReorderMedia"],
   "seedProductMedia": [
     {
-      "productId": "gid://shopify/Product/10170577518898",
-      "id": "gid://shopify/MediaImage/43607852122418",
-      "position": 2,
-      "alt": "Seed media",
+      "productId": "gid://shopify/Product/10220355289394",
+      "id": "gid://shopify/MediaImage/43929165365554",
+      "position": 1,
+      "alt": "Front view",
       "mediaContentType": "IMAGE",
       "status": "READY",
-      "productImageId": "gid://shopify/ProductImage/43607852122418"
+      "productImageId": "gid://shopify/MediaImage/43929165365554"
     }
   ],
   "scenarios": [
     {
       "name": "create-missing-product-id-empty-string",
-      "operationName": "productCreateMedia",
       "variables": {
         "productId": "",
         "media": [
@@ -40,6 +33,12 @@
           "errors": [
             {
               "message": "Variable $productId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 49
+                }
+              ],
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": "",
@@ -58,7 +57,6 @@
     },
     {
       "name": "create-unknown-product-id",
-      "operationName": "productCreateMedia",
       "variables": {
         "productId": "gid://shopify/Product/999999999999",
         "media": [
@@ -75,13 +73,31 @@
           "data": {
             "productCreateMedia": {
               "media": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["productId"],
                   "message": "Product does not exist"
                 }
               ],
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ],
               "product": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -89,9 +105,8 @@
     },
     {
       "name": "create-empty-media",
-      "operationName": "productCreateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": []
       },
       "response": {
@@ -100,12 +115,31 @@
           "data": {
             "productCreateMedia": {
               "media": [],
+              "userErrors": [],
               "mediaUserErrors": [],
               "product": {
-                "id": "gid://shopify/Product/10170577518898",
+                "id": "gid://shopify/Product/10220355289394",
                 "media": {
-                  "nodes": []
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/43929165365554",
+                      "alt": "Front view",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  ]
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 23,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
               }
             }
           }
@@ -114,9 +148,8 @@
     },
     {
       "name": "create-invalid-original-source",
-      "operationName": "productCreateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": [
           {
             "mediaContentType": "IMAGE",
@@ -131,17 +164,42 @@
           "data": {
             "productCreateMedia": {
               "media": [],
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["media", "0", "originalSource"],
                   "message": "Image URL is invalid"
                 }
               ],
-              "product": {
-                "id": "gid://shopify/Product/10170577518898",
-                "media": {
-                  "nodes": []
+              "mediaUserErrors": [
+                {
+                  "field": ["media", "0", "originalSource"],
+                  "message": "Image URL is invalid",
+                  "code": "INVALID"
                 }
+              ],
+              "product": {
+                "id": "gid://shopify/Product/10220355289394",
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/43929165365554",
+                      "alt": "Front view",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 23,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1960,
+                "restoreRate": 100
               }
             }
           }
@@ -150,9 +208,8 @@
     },
     {
       "name": "create-invalid-media-content-type",
-      "operationName": "productCreateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": [
           {
             "mediaContentType": "FILE",
@@ -167,6 +224,12 @@
           "errors": [
             {
               "message": "Variable $media of type [CreateMediaInput!]! was provided invalid value for 0.mediaContentType (Expected \"FILE\" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 66
+                }
+              ],
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": [
@@ -190,9 +253,8 @@
     },
     {
       "name": "create-mixed-valid-invalid",
-      "operationName": "productCreateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": [
           {
             "mediaContentType": "IMAGE",
@@ -213,24 +275,37 @@
             "productCreateMedia": {
               "media": [
                 {
-                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "id": "gid://shopify/MediaImage/43929165791538",
                   "alt": "Valid in mixed create",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED"
                 }
               ],
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["media", "1", "originalSource"],
                   "message": "Image URL is invalid"
                 }
               ],
+              "mediaUserErrors": [
+                {
+                  "field": ["media", "1", "originalSource"],
+                  "message": "Image URL is invalid",
+                  "code": "INVALID"
+                }
+              ],
               "product": {
-                "id": "gid://shopify/Product/10170577518898",
+                "id": "gid://shopify/Product/10220355289394",
                 "media": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MediaImage/43607852089650",
+                      "id": "gid://shopify/MediaImage/43929165365554",
+                      "alt": "Front view",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    },
+                    {
+                      "id": "gid://shopify/MediaImage/43929165791538",
                       "alt": "Valid in mixed create",
                       "mediaContentType": "IMAGE",
                       "status": "UPLOADED"
@@ -239,17 +314,34 @@
                 }
               }
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 23,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
           }
         }
       },
       "downstreamReadAfterScenario": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10170577518898",
+            "id": "gid://shopify/Product/10220355289394",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "id": "gid://shopify/MediaImage/43929165365554",
+                  "alt": "Front view",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43929165791538",
                   "alt": "Valid in mixed create",
                   "mediaContentType": "IMAGE",
                   "status": "PROCESSING"
@@ -257,17 +349,27 @@
               ]
             }
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "update-unknown-product-id",
-      "operationName": "productUpdateMedia",
       "variables": {
         "productId": "gid://shopify/Product/999999999999",
         "media": [
           {
-            "id": "gid://shopify/MediaImage/43607852122418",
+            "id": "gid://shopify/MediaImage/43929165365554",
             "alt": "Should not update"
           }
         ]
@@ -278,12 +380,30 @@
           "data": {
             "productUpdateMedia": {
               "media": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["productId"],
                   "message": "Product does not exist"
                 }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -291,9 +411,8 @@
     },
     {
       "name": "update-empty-media",
-      "operationName": "productUpdateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": []
       },
       "response": {
@@ -302,7 +421,19 @@
           "data": {
             "productUpdateMedia": {
               "media": [],
+              "userErrors": [],
               "mediaUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -310,9 +441,8 @@
     },
     {
       "name": "update-unknown-media-id",
-      "operationName": "productUpdateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": [
           {
             "id": "gid://shopify/MediaImage/999999999999",
@@ -326,12 +456,30 @@
           "data": {
             "productUpdateMedia": {
               "media": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["media"],
                   "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
                 }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -339,12 +487,11 @@
     },
     {
       "name": "update-mixed-valid-invalid",
-      "operationName": "productUpdateMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "media": [
           {
-            "id": "gid://shopify/MediaImage/43607852122418",
+            "id": "gid://shopify/MediaImage/43929165365554",
             "alt": "Rejected update"
           },
           {
@@ -359,12 +506,30 @@
           "data": {
             "productUpdateMedia": {
               "media": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["media"],
                   "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
                 }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -372,22 +537,33 @@
       "downstreamReadAfterScenario": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10170577518898",
+            "id": "gid://shopify/Product/10220355289394",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43607852089650",
-                  "alt": "Valid in mixed create",
+                  "id": "gid://shopify/MediaImage/43929165365554",
+                  "alt": "Front view",
                   "mediaContentType": "IMAGE",
                   "status": "READY"
                 },
                 {
-                  "id": "gid://shopify/MediaImage/43607852122418",
-                  "alt": "Seed media",
+                  "id": "gid://shopify/MediaImage/43929165791538",
+                  "alt": "Valid in mixed create",
                   "mediaContentType": "IMAGE",
                   "status": "READY"
                 }
               ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
             }
           }
         }
@@ -395,10 +571,9 @@
     },
     {
       "name": "delete-unknown-product-id",
-      "operationName": "productDeleteMedia",
       "variables": {
         "productId": "gid://shopify/Product/999999999999",
-        "mediaIds": ["gid://shopify/MediaImage/43607852122418"]
+        "mediaIds": ["gid://shopify/MediaImage/43929165365554"]
       },
       "response": {
         "status": 200,
@@ -407,13 +582,30 @@
             "productDeleteMedia": {
               "deletedMediaIds": null,
               "deletedProductImageIds": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["productId"],
                   "message": "Product does not exist"
                 }
               ],
-              "product": null
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -421,9 +613,8 @@
     },
     {
       "name": "delete-empty-media-ids",
-      "operationName": "productDeleteMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "mediaIds": []
       },
       "response": {
@@ -433,7 +624,19 @@
             "productDeleteMedia": {
               "deletedMediaIds": [],
               "deletedProductImageIds": [],
+              "userErrors": [],
               "mediaUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -441,9 +644,8 @@
     },
     {
       "name": "delete-unknown-media-id",
-      "operationName": "productDeleteMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
+        "productId": "gid://shopify/Product/10220355289394",
         "mediaIds": ["gid://shopify/MediaImage/999999999999"]
       },
       "response": {
@@ -453,12 +655,30 @@
             "productDeleteMedia": {
               "deletedMediaIds": null,
               "deletedProductImageIds": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["mediaIds"],
                   "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
                 }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -466,10 +686,9 @@
     },
     {
       "name": "delete-mixed-valid-invalid",
-      "operationName": "productDeleteMedia",
       "variables": {
-        "productId": "gid://shopify/Product/10170577518898",
-        "mediaIds": ["gid://shopify/MediaImage/43607852122418", "gid://shopify/MediaImage/999999999999"]
+        "productId": "gid://shopify/Product/10220355289394",
+        "mediaIds": ["gid://shopify/MediaImage/43929165365554", "gid://shopify/MediaImage/999999999999"]
       },
       "response": {
         "status": 200,
@@ -478,12 +697,30 @@
             "productDeleteMedia": {
               "deletedMediaIds": null,
               "deletedProductImageIds": null,
-              "mediaUserErrors": [
+              "userErrors": [
                 {
                   "field": ["mediaIds"],
                   "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
                 }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -491,22 +728,117 @@
       "downstreamReadAfterScenario": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10170577518898",
+            "id": "gid://shopify/Product/10220355289394",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43607852089650",
-                  "alt": "Valid in mixed create",
+                  "id": "gid://shopify/MediaImage/43929165365554",
+                  "alt": "Front view",
                   "mediaContentType": "IMAGE",
                   "status": "READY"
                 },
                 {
-                  "id": "gid://shopify/MediaImage/43607852122418",
-                  "alt": "Seed media",
+                  "id": "gid://shopify/MediaImage/43929165791538",
+                  "alt": "Valid in mixed create",
                   "mediaContentType": "IMAGE",
                   "status": "READY"
                 }
               ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reorder-unknown-product-id",
+      "variables": {
+        "id": "gid://shopify/Product/999999999999",
+        "moves": [
+          {
+            "id": "gid://shopify/MediaImage/43929165365554",
+            "newPosition": "0"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productReorderMedia": {
+              "job": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Product does not exist"
+                }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reorder-unknown-media-id",
+      "variables": {
+        "id": "gid://shopify/Product/10220355289394",
+        "moves": [
+          {
+            "id": "gid://shopify/MediaImage/999999999999",
+            "newPosition": "0"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productReorderMedia": {
+              "job": {
+                "id": "gid://shopify/Job/a9b9017d-654d-4ade-8629-d75c2718904c",
+                "done": false
+              },
+              "userErrors": [],
+              "mediaUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -517,32 +849,63 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10170577518898"]
+        "ids": ["gid://shopify/Product/10220355289394"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10170577518898",
-                "title": "HAR-289 media validation product",
-                "handle": "har-289-media-validation-product",
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10220355289394",
+                "title": "Hermes Product Media Conformance 1782276740598",
+                "handle": "hermes-product-media-conformance-1782276740598",
                 "status": "DRAFT",
                 "media": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MediaImage/43607852089650",
-                      "alt": "Valid in mixed create",
+                      "__typename": "MediaImage",
+                      "id": "gid://shopify/MediaImage/43929165365554",
+                      "alt": "Front view",
                       "mediaContentType": "IMAGE",
-                      "status": "READY"
+                      "status": "READY",
+                      "preview": {
+                        "image": {
+                          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743",
+                          "width": 600,
+                          "height": 400
+                        }
+                      },
+                      "image": {
+                        "id": "gid://shopify/ImageSource/43929165365554",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743",
+                        "altText": "Front view",
+                        "width": 600,
+                        "height": 400
+                      }
                     },
                     {
-                      "id": "gid://shopify/MediaImage/43607852122418",
-                      "alt": "Seed media",
+                      "__typename": "MediaImage",
+                      "id": "gid://shopify/MediaImage/43929165791538",
+                      "alt": "Valid in mixed create",
                       "mediaContentType": "IMAGE",
-                      "status": "READY"
+                      "status": "READY",
+                      "preview": {
+                        "image": {
+                          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749",
+                          "width": 600,
+                          "height": 400
+                        }
+                      },
+                      "image": {
+                        "id": "gid://shopify/ImageSource/43929165791538",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749",
+                        "altText": "Valid in mixed create",
+                        "width": 600,
+                        "height": 400
+                      }
                     }
                   ]
                 }
@@ -552,5 +915,6 @@
         }
       }
     }
-  ]
+  ],
+  "notes": "Creates a disposable product and seed media, records product media mutation validation branches including typed MediaUserError codes, then deletes the product during cleanup."
 }

@@ -33,13 +33,6 @@ pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
-    match value {
-        ResolvedValue::String(value) => Some(value.clone()),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match metafield_owner_gid_resource_type(id) {
         "ProductVariant" => "PRODUCTVARIANT",
@@ -1631,7 +1624,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
         .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
-        let variant_ids = list_string_arg(variables, "variantIds");
+        let variant_ids = list_string_field(variables, "variantIds");
         if price_list_id == "gid://shopify/PriceList/0" {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
         } else if variant_ids
@@ -1645,7 +1638,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
             json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
         }
     } else {
-        let quantity_rules = list_object_arg(variables, "quantityRules");
+        let quantity_rules = list_object_field(variables, "quantityRules");
         if price_list_id == "gid://shopify/PriceList/0"
             || price_list_id == "gid://shopify/PriceList/999"
         {
@@ -1795,12 +1788,7 @@ pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> 
                 &json!({
                     "nodes": [],
                     "edges": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }
+                    "pageInfo": empty_page_info()
                 }),
                 &field.selection,
             )),
@@ -2141,11 +2129,11 @@ pub(in crate::proxy) fn payment_terms_success_record(
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             (
-                json!(format!("cursor:{first}")),
-                json!(format!("cursor:{last}")),
+                Some(format!("cursor:{first}")),
+                Some(format!("cursor:{last}")),
             )
         })
-        .unwrap_or((Value::Null, Value::Null));
+        .unwrap_or((None, None));
     json!({
         "id": id,
         "due": false,
@@ -2156,12 +2144,7 @@ pub(in crate::proxy) fn payment_terms_success_record(
         "translatedName": name,
         "paymentSchedules": {
             "nodes": schedules,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": start_cursor,
-                "endCursor": end_cursor
-            }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         }
     })
 }
@@ -2358,13 +2341,6 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     unsuccessful_code: &str,
 ) -> Option<Value> {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId");
-    if template_id.is_none() {
-        return Some(payment_terms_user_error(
-            json!(["paymentTermsAttributes", "paymentTermsTemplateId"]),
-            "Payment terms template is required.",
-            "REQUIRED",
-        ));
-    }
 
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {

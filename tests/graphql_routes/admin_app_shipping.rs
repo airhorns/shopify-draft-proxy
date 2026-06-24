@@ -6014,6 +6014,100 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
 }
 
 #[test]
+fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
+    let default_profile_id = "gid://shopify/DeliveryProfile/125254992178";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let default_profile_id = default_profile_id.to_string();
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            assert_eq!(
+                body["query"],
+                json!(
+                    "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }"
+                )
+            );
+            assert_eq!(body["variables"]["id"], json!(default_profile_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryProfile": {
+                            "id": default_profile_id,
+                            "name": "General profile",
+                            "default": true,
+                            "version": 1
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileDefaultUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              id
+              name
+              default
+              version
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": default_profile_id,
+            "profile": { "name": "General profile updated locally" }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["deliveryProfileUpdate"],
+        json!({
+            "profile": {
+                "id": default_profile_id,
+                "name": "General profile",
+                "default": true,
+                "version": 2
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfileDefaultRead($id: ID!) {
+          deliveryProfile(id: $id) {
+            id
+            name
+            default
+            version
+          }
+        }
+        "#,
+        json!({ "id": default_profile_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryProfile"],
+        update.body["data"]["deliveryProfileUpdate"]["profile"]
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileUpdate")
+    );
+    assert_eq!(
+        log["entries"][0]["stagedResourceIds"],
+        json!([default_profile_id])
+    );
+}
+
+#[test]
 fn delivery_profile_validations_match_captured_write_subset() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

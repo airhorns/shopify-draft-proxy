@@ -1,0 +1,17 @@
+mutation ProductReorderMediaValidationBranches($id: ID!, $moves: [MoveInput!]!) {
+  productReorderMedia(id: $id, moves: $moves) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+    mediaUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

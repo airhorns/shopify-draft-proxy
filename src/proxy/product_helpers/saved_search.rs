@@ -145,11 +145,9 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
                 Some(record) => saved_search_json(record, saved_search_selections),
                 None => Value::Null,
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
