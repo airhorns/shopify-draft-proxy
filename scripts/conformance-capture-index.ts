@@ -277,6 +277,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-bulk-role-assign-duplicates',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-bulk-role-assign-duplicates-conformance.mts',
+    purpose:
+      'B2B bulk companyContactAssignRoles and companyLocationAssignRoles duplicate contact/location role-assignment LIMIT_REACHED behavior with valid sibling entries.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-bulk-role-assign-duplicates.json`,
+      'config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json',
+      'config/parity-requests/b2b/b2b-bulk-role-assign-duplicate-contact-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with two extra locations and one extra contact, records duplicate bulk role-assignment branches, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-revoke-role-scope-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-revoke-role-scope-conformance.mts',
