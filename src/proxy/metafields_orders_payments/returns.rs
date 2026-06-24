@@ -9,12 +9,7 @@ fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
+        "pageInfo": empty_page_info()
     })
 }
 

@@ -2407,22 +2407,17 @@ impl DraftProxy {
         let start_cursor = edges
             .first()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let end_cursor = edges
             .last()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         Some(json!({
             "edges": edges,
             "nodes": nodes,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": start_cursor,
-                "endCursor": end_cursor
-            }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         }))
     }
 
@@ -4658,12 +4653,7 @@ impl DraftProxy {
             })),
             "lineItems": {
                 "nodes": line_items,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }
@@ -5295,12 +5285,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }),
             selection,
         )
@@ -5334,12 +5319,7 @@ impl DraftProxy {
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
             "lineItems": {
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }
