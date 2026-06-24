@@ -3991,11 +3991,9 @@ impl DraftProxy {
             .unwrap_or(0.0);
 
         if amount <= 0.0 {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, amount_name, "amount"],
                     if is_credit {
                         "A positive amount must be used to credit a store credit account"
@@ -4003,20 +4001,18 @@ impl DraftProxy {
                         "A positive amount must be used to debit a store credit account"
                     },
                     "NEGATIVE_OR_ZERO_AMOUNT",
-                )],
-            ));
+                ),
+            );
         }
         if is_credit && !store_credit_supported_currency(&currency) {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, amount_name, "currencyCode"],
                     "Currency is not supported",
                     "UNSUPPORTED_CURRENCY",
-                )],
-            ));
+                ),
+            );
         }
         if is_credit
             && resolved_string_field(&input, "expiresAt")
@@ -4024,28 +4020,24 @@ impl DraftProxy {
                 .map(store_credit_expires_at_in_past)
                 .unwrap_or(false)
         {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, "expiresAt"],
                     "The expiry date must be in the future",
                     "EXPIRES_AT_IN_PAST",
-                )],
-            ));
+                ),
+            );
         }
 
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let Some(account_id) =
             self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
         else {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_missing_id_user_error(&id, is_credit)],
-            ));
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_missing_id_user_error(&id, is_credit),
+            );
         };
 
         let Some(existing) = self
@@ -4055,32 +4047,28 @@ impl DraftProxy {
             .get(&account_id)
             .cloned()
         else {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &["id"],
                     "Store credit account does not exist",
                     "ACCOUNT_NOT_FOUND",
-                )],
-            ));
+                ),
+            );
         };
         let account_currency = existing["balance"]["currencyCode"]
             .as_str()
             .unwrap_or_default()
             .to_string();
         if currency != account_currency {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, amount_name, "currencyCode"],
                     "The currency provided does not match the currency of the store credit account",
                     "MISMATCHING_CURRENCY",
-                )],
-            ));
+                ),
+            );
         }
 
         let current_balance = existing["balance"]["amount"]
@@ -4088,28 +4076,24 @@ impl DraftProxy {
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
         if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, amount_name, "amount"],
                     "The operation would cause the account's credit limit to be exceeded",
                     "CREDIT_LIMIT_EXCEEDED",
-                )],
-            ));
+                ),
+            );
         }
         if !is_credit && amount > current_balance {
-            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-                &field.selection,
-                &field.name,
-                None,
-                vec![store_credit_user_error(
+            return self.store_credit_error_outcome(
+                field,
+                store_credit_user_error(
                     &[input_name, amount_name, "amount"],
                     "The store credit account does not have sufficient funds to satisfy the request",
                     "INSUFFICIENT_FUNDS",
-                )],
-            ));
+                ),
+            );
         }
 
         let delta = if is_credit { amount } else { -amount };
@@ -4162,6 +4146,19 @@ impl DraftProxy {
             payload,
             LogDraft::staged(&field.name, "customers", vec![account_id]),
         )
+    }
+
+    fn store_credit_error_outcome(
+        &self,
+        field: &RootFieldSelection,
+        error: Value,
+    ) -> MutationFieldOutcome {
+        MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+            &field.selection,
+            &field.name,
+            None,
+            vec![error],
+        ))
     }
 
     fn resolve_store_credit_account_id_for_mutation(

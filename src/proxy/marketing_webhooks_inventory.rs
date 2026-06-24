@@ -6337,19 +6337,16 @@ fn inventory_invalid_reason_payload(
     if INVENTORY_VALID_REASONS.iter().any(|valid| *valid == reason) {
         return None;
     }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": ["input", "reason"],
-                "message": format!(
-                    "The specified reason is invalid. Valid values are: {}.",
-                    INVENTORY_VALID_REASONS.join(", ")
-                ),
-                "code": "INVALID_REASON"
-            }]
-        }),
-        &field.selection,
+    Some(inventory_invalid_adjustment_payload(
+        field,
+        vec![json!({
+            "field": ["input", "reason"],
+            "message": format!(
+                "The specified reason is invalid. Valid values are: {}.",
+                INVENTORY_VALID_REASONS.join(", ")
+            ),
+            "code": "INVALID_REASON"
+        })],
     ))
 }
 
@@ -6361,16 +6358,13 @@ fn inventory_invalid_public_quantity_name_payload(
     if INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES.contains(&name) {
         return None;
     }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": path,
-                "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
-                "code": "INVALID_QUANTITY_NAME"
-            }]
-        }),
-        &field.selection,
+    Some(inventory_invalid_adjustment_payload(
+        field,
+        vec![json!({
+            "field": path,
+            "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
+            "code": "INVALID_QUANTITY_NAME"
+        })],
     ))
 }
 
@@ -6381,16 +6375,13 @@ fn inventory_invalid_set_quantity_name_payload(
     if INVENTORY_SET_QUANTITY_NAMES.contains(&name) {
         return None;
     }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": ["input", "name"],
-                "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
-                "code": "INVALID_NAME"
-            }]
-        }),
-        &field.selection,
+    Some(inventory_invalid_adjustment_payload(
+        field,
+        vec![json!({
+            "field": ["input", "name"],
+            "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
+            "code": "INVALID_NAME"
+        })],
     ))
 }
 
@@ -6436,13 +6427,20 @@ fn inventory_invalid_set_quantities_payload(
     if errors.is_empty() {
         return None;
     }
-    Some(selected_json(
+    Some(inventory_invalid_adjustment_payload(field, errors))
+}
+
+fn inventory_invalid_adjustment_payload(
+    field: &RootFieldSelection,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
         &json!({
             "inventoryAdjustmentGroup": null,
-            "userErrors": errors
+            "userErrors": user_errors
         }),
         &field.selection,
-    ))
+    )
 }
 
 #[cfg(test)]

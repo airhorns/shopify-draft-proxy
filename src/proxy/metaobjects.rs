@@ -577,29 +577,11 @@ fn metaobject_definition_create_validation_errors(
             continue;
         }
         if key.trim().is_empty() {
-            // Shopify runs presence, length, and format validators independently,
-            // so a blank key surfaces all three errors in that order.
-            errors.push(metaobject_user_error(
+            push_metaobject_blank_key_errors(
+                &mut errors,
                 vec!["definition", "fieldDefinitions", &index_string],
-                "Key can't be blank",
-                "BLANK",
-                json!(key),
-                Value::Null,
-            ));
-            errors.push(metaobject_user_error(
-                vec!["definition", "fieldDefinitions", &index_string],
-                "Key is too short (minimum is 2 characters)",
-                "TOO_SHORT",
-                json!(key),
-                Value::Null,
-            ));
-            errors.push(metaobject_user_error(
-                vec!["definition", "fieldDefinitions", &index_string],
-                "Key contains one or more invalid characters.",
-                "INVALID",
-                json!(key),
-                Value::Null,
-            ));
+                &key,
+            );
             continue;
         }
         if key.chars().count() < 2 {
@@ -672,6 +654,32 @@ fn metaobject_definition_create_validation_errors(
     }
 
     errors
+}
+
+fn push_metaobject_blank_key_errors(errors: &mut Vec<Value>, path: Vec<&str>, key: &str) {
+    // Shopify runs presence, length, and format validators independently, so a
+    // blank key surfaces all three errors in that order.
+    errors.push(metaobject_user_error(
+        path.clone(),
+        "Key can't be blank",
+        "BLANK",
+        json!(key),
+        Value::Null,
+    ));
+    errors.push(metaobject_user_error(
+        path.clone(),
+        "Key is too short (minimum is 2 characters)",
+        "TOO_SHORT",
+        json!(key),
+        Value::Null,
+    ));
+    errors.push(metaobject_user_error(
+        path,
+        "Key contains one or more invalid characters.",
+        "INVALID",
+        json!(key),
+        Value::Null,
+    ));
 }
 
 fn metaobject_renderable_capability_errors(
@@ -847,29 +855,11 @@ fn metaobject_field_operation_validation(
                 continue;
             }
             if key.trim().is_empty() {
-                // Shopify runs presence, length, and format validators independently,
-                // so a blank create key surfaces all three errors in that order.
-                errors.push(metaobject_user_error(
+                push_metaobject_blank_key_errors(
+                    &mut errors,
                     vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    "Key can't be blank",
-                    "BLANK",
-                    json!(key),
-                    Value::Null,
-                ));
-                errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    "Key is too short (minimum is 2 characters)",
-                    "TOO_SHORT",
-                    json!(key),
-                    Value::Null,
-                ));
-                errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    "Key contains one or more invalid characters.",
-                    "INVALID",
-                    json!(key),
-                    Value::Null,
-                ));
+                    &key,
+                );
                 continue;
             }
             if key.chars().count() < 2 {
