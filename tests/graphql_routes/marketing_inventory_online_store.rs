@@ -1153,7 +1153,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         r#"
         mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) {
           inventoryMoveQuantities(input: $input) {
-            inventoryAdjustmentGroup { reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
+            inventoryAdjustmentGroup { id createdAt reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
             userErrors { field message }
           }
         }
@@ -1168,6 +1168,17 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
             ["changes"][0]["delta"],
         json!(-3)
+    );
+    assert!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/InventoryAdjustmentGroup/"))
+    );
+    assert!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["createdAt"]
+            .as_str()
+            .is_some_and(|created_at| created_at.ends_with('Z'))
     );
     // Real Shopify reports quantityAfterChange as null for move adjustment-group
     // changes (confirmed in inventory-quantity-roots-parity cassette).
