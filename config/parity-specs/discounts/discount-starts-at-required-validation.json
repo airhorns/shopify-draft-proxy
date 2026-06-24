@@ -1,0 +1,44 @@
+{
+  "scenarioId": "discount-starts-at-required-validation",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBxgyCreate",
+    "discountCodeFreeShippingCreate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBxgyCreate",
+    "discountAutomaticFreeShippingCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "input-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-starts-at-required-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-starts-at-required-validation.graphql",
+    "variablesCapturePath": "$.cases.omitted.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-starts-at-omitted-data",
+        "capturePath": "$.cases.omitted.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "discount-starts-at-null-data",
+        "capturePath": "$.cases.explicitNull.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-starts-at-required-validation.graphql",
+          "variablesCapturePath": "$.cases.explicitNull.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for create-only startsAt presence validation across native code basic, code BXGY, code free shipping, automatic basic, automatic BXGY, and automatic free shipping discount roots. The capture sends otherwise-valid omitted and explicit-null startsAt inputs and asserts each root returns a null discount node plus a startsAt userError before staging."
+}
