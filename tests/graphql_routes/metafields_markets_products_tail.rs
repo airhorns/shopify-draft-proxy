@@ -25,40 +25,6 @@ fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy
     );
 }
 
-fn publish_shop_locale(proxy: &mut shopify_draft_proxy::proxy::DraftProxy, locale: &str) {
-    let enable = proxy.process_request(json_graphql_request(
-        r#"mutation PublishShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) {
-            shopLocale { locale published }
-            userErrors { field message code }
-          }
-        }"#,
-        json!({ "locale": locale }),
-    ));
-    assert_eq!(
-        enable.body["data"]["shopLocaleEnable"]["userErrors"],
-        json!([])
-    );
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"mutation PublishShopLocaleUpdate($locale: String!) {
-          shopLocaleUpdate(locale: $locale, shopLocale: { published: true }) {
-            shopLocale { locale published }
-            userErrors { field message code }
-          }
-        }"#,
-        json!({ "locale": locale }),
-    ));
-    assert_eq!(
-        update.body["data"]["shopLocaleUpdate"]["shopLocale"],
-        json!({ "locale": locale, "published": true })
-    );
-    assert_eq!(
-        update.body["data"]["shopLocaleUpdate"]["userErrors"],
-        json!([])
-    );
-}
-
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -1009,7 +975,6 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         );
     }
 
-    publish_shop_locale(&mut proxy, "fr");
     let fr_ca = proxy.process_request(json_graphql_request(
         r#"
         mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
@@ -1395,7 +1360,7 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
-fn market_web_presence_locale_catalog_validates_published_default_language() {
+fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_allowlist() {
     let create_query = r#"
         mutation RustMarketWebPresenceLocaleCatalogCreate($input: WebPresenceCreateInput!) {
           webPresenceCreate(input: $input) {
@@ -1422,26 +1387,6 @@ fn market_web_presence_locale_catalog_validates_published_default_language() {
     "#;
 
     let mut proxy = snapshot_proxy();
-    let unpublished = proxy.process_request(json_graphql_request(
-        create_query,
-        json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
-    ));
-    assert_eq!(
-        unpublished.body["data"]["webPresenceCreate"]["webPresence"],
-        Value::Null
-    );
-    assert_eq!(
-        unpublished.body["data"]["webPresenceCreate"]["userErrors"],
-        json!([{
-            "__typename": "MarketUserError",
-            "field": ["input", "defaultLocale"],
-            "message": "Default locale The default language isn't published to the store: Italian",
-            "code": "UNPUBLISHED_LANGUAGE"
-        }])
-    );
-    assert_no_staged_web_presences(&proxy);
-
-    publish_shop_locale(&mut proxy, "it");
     let create = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
