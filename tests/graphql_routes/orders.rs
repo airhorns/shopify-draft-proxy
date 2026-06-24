@@ -9,6 +9,43 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
+fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
+    assert_eq!(line["title"], json!("Catalog product title"));
+    assert_eq!(line["name"], json!("Catalog product title"));
+    assert_eq!(line["sku"], json!("CATALOG-SKU"));
+    assert_eq!(line["quantity"], json!(quantity));
+    assert_eq!(line["custom"], json!(false));
+    assert_eq!(line["requiresShipping"], json!(true));
+    assert_eq!(line["taxable"], json!(true));
+    assert_eq!(
+        line["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "19.95", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        line["variant"],
+        json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "title": "Catalog option title",
+            "sku": "CATALOG-SKU"
+        })
+    );
+}
+
+fn assert_draft_order_custom_line(line: &Value) {
+    assert_eq!(line["title"], json!("Custom-only item"));
+    assert_eq!(line["name"], json!("Custom-only item"));
+    assert_eq!(line["sku"], json!("CUSTOM-SKU"));
+    assert_eq!(line["quantity"], json!(1));
+    assert_eq!(line["custom"], json!(true));
+    assert_eq!(line["requiresShipping"], json!(false));
+    assert_eq!(line["taxable"], json!(false));
+    assert_eq!(
+        line["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(line["variant"], Value::Null);
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
@@ -1994,6 +2031,176 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
         after_bulk_delete.body["data"]["draftOrdersCount"],
         json!({ "count": 0, "precision": "EXACT" })
     );
+}
+
+#[test]
+fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let variant_response = json!({
+        "data": {
+            "productVariant": {
+                "id": "gid://shopify/ProductVariant/424242",
+                "title": "Catalog option title",
+                "sku": "CATALOG-SKU",
+                "taxable": true,
+                "price": "19.95",
+                "inventoryItem": { "requiresShipping": true },
+                "product": { "title": "Catalog product title" }
+            }
+        }
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("variant hydrate request body parses");
+        assert_eq!(
+            body["operationName"],
+            json!("OrdersDraftOrderVariantHydrate")
+        );
+        assert_eq!(
+            body["variables"]["id"],
+            json!("gid://shopify/ProductVariant/424242")
+        );
+        captured_calls.lock().unwrap().push(body);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: variant_response.clone(),
+        }
+    });
+    let variant_line = json!({
+        "variantId": "gid://shopify/ProductVariant/424242",
+        "title": "FAKE TITLE",
+        "sku": "FAKE-SKU",
+        "quantity": 2,
+        "originalUnitPrice": "0.01",
+        "taxable": false,
+        "requiresShipping": false
+    });
+    let custom_line = json!({
+        "title": "Custom-only item",
+        "sku": "CUSTOM-SKU",
+        "quantity": 1,
+        "originalUnitPrice": "7.50",
+        "taxable": false,
+        "requiresShipping": false
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderCreateVariantCustomOnlyFields($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  name
+                  sku
+                  quantity
+                  custom
+                  requiresShipping
+                  taxable
+                  variant { id title sku }
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "variant-backed-draft@example.test",
+                "lineItems": [variant_line.clone(), custom_line.clone()]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let created_draft = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    assert_draft_order_variant_catalog_line(&created_draft["lineItems"]["nodes"][0], 2);
+    assert_draft_order_custom_line(&created_draft["lineItems"]["nodes"][1]);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderUpdateVariantCustomOnlyFields($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder {
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  name
+                  sku
+                  quantity
+                  custom
+                  requiresShipping
+                  taxable
+                  variant { id title sku }
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": created_draft["id"].clone(),
+            "input": {
+                "lineItems": [variant_line.clone()]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_draft_order_variant_catalog_line(
+        &update.body["data"]["draftOrderUpdate"]["draftOrder"]["lineItems"]["nodes"][0],
+        2,
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderCalculateVariantCustomOnlyFields($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              lineItems {
+                title
+                name
+                sku
+                quantity
+                custom
+                requiresShipping
+                taxable
+                variant { id title sku }
+                originalUnitPriceSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "lineItems": [variant_line] } }),
+    ));
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    assert_draft_order_variant_catalog_line(
+        &calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]["lineItems"][0],
+        2,
+    );
+
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
 }
 
 #[test]

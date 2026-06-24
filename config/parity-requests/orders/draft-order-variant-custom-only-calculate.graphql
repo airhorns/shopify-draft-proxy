@@ -1,0 +1,21 @@
+mutation DraftOrderVariantCustomOnlyFieldsCalculate($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder {
+      lineItems {
+        title
+        quantity
+        custom
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
