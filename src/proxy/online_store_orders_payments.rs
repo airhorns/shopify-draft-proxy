@@ -2309,22 +2309,17 @@ fn order_connection(nodes: Vec<Value>) -> Value {
         .first()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     let end_cursor = nodes
         .last()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if start_cursor.is_empty() { Value::Null } else { json!(start_cursor) },
-            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 

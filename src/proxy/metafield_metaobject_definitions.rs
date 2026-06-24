@@ -1195,7 +1195,12 @@ impl DraftProxy {
                         .collect::<Vec<_>>();
                     let connection = json!({
                         "nodes": nodes,
-                        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:metafield-definition:start", "endCursor": "cursor:metafield-definition:end"}
+                        "pageInfo": connection_page_info(
+                            false,
+                            false,
+                            Some("cursor:metafield-definition:start".to_string()),
+                            Some("cursor:metafield-definition:end".to_string())
+                        )
                     });
                     data.insert(
                         field.response_key,

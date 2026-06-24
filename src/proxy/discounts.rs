@@ -2957,12 +2957,7 @@ fn discount_body_for_record(record: &Value) -> Value {
         "minimumRequirement": record["minimumRequirement"],
         "codes": {
             "nodes": record["codes"],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": Value::Null,
-                "endCursor": Value::Null
-            }
+            "pageInfo": empty_page_info()
         },
         "codesCount": record["codesCount"],
         "destinationSelection": record["destinationSelection"],
@@ -2974,12 +2969,7 @@ fn discount_body_for_record(record: &Value) -> Value {
         "appDiscountType": record.get("appDiscountType").cloned().unwrap_or(Value::Null),
         "metafields": {
             "nodes": metafields,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": Value::Null,
-                "endCursor": Value::Null
-            }
+            "pageInfo": empty_page_info()
         }
     })
 }
@@ -3654,12 +3644,7 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
         "transactions": {
             "nodes": [],
             "edges": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }
     })
 }
@@ -3676,12 +3661,7 @@ pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction
         card["transactions"] = json!({
             "nodes": [],
             "edges": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         });
     }
     if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
@@ -4600,12 +4580,7 @@ pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) 
         .map(|id| format!("cursor:{id}"));
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": start_cursor.map(Value::from).unwrap_or(Value::Null),
-            "endCursor": end_cursor.map(Value::from).unwrap_or(Value::Null)
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 
@@ -5602,7 +5577,7 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
         "codes": {
             "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)).collect::<Vec<_>>(),
             "edges": [],
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null }
+            "pageInfo": empty_page_info()
         }
     })
 }

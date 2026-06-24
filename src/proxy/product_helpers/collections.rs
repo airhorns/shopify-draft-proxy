@@ -500,12 +500,12 @@ impl DraftProxy {
             .collect();
         let connection = json!({
             "nodes": channels,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": cursors.first().cloned(),
-                "endCursor": cursors.last().cloned(),
-            }
+            "pageInfo": connection_page_info(
+                false,
+                false,
+                cursors.first().cloned(),
+                cursors.last().cloned()
+            )
         });
         selected_json(&connection, &field.selection)
     }

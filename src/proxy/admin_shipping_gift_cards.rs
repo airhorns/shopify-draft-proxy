@@ -2086,12 +2086,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3460,12 +3455,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -7677,12 +7667,7 @@ fn location_metafields_connection_json(location: &Value, selection: &SelectedFie
     selected_json(
         &json!({
             "nodes": metafields,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         &selection.selection,
     )
