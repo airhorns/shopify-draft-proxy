@@ -1,24 +1,5 @@
 use super::*;
 
-const PRODUCT_OVERLAY_ROOTS: &[&str] = &[
-    "product",
-    "products",
-    "productsCount",
-    "productByIdentifier",
-    "productOperation",
-    "productVariant",
-];
-
-const INVENTORY_OVERLAY_ROOTS: &[&str] = &[
-    "inventoryItem",
-    "inventoryItems",
-    "inventoryLevel",
-    "inventoryProperties",
-    "inventoryTransfer",
-    "inventoryTransfers",
-    "inventoryShipment",
-];
-
 macro_rules! try_root_fields {
     ($query:expr, $variables:expr) => {
         match Self::root_fields_or_error($query, $variables) {
@@ -123,6 +104,94 @@ impl DraftProxy {
                     })
                 })
                 .unwrap_or(false)
+    }
+
+    fn products_query_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Response {
+        if self.should_route_owner_metafields_read(query, variables) {
+            return self.owner_metafields_read(request, query, variables);
+        }
+        match root_field {
+            "product"
+            | "products"
+            | "productsCount"
+            | "productByIdentifier"
+            | "productOperation"
+            | "productVariant" => {
+                if Self::product_query_needs_upstream_catalog_search(query, variables) {
+                    (self.upstream_transport)(request.clone())
+                } else if self.has_product_overlay_state()
+                    || self.config.read_mode == ReadMode::Snapshot
+                {
+                    // An overlay read reproduces staged inventory levels but not the
+                    // opaque pagination cursors Shopify assigns each level edge: the
+                    // node-hydrate warm path selects `inventoryLevels { nodes }`, never
+                    // `edges { cursor }`, so cursors are never observed. When the client
+                    // selects level edge/pageInfo cursors and none have been observed,
+                    // forward this exact read upstream once and observe the real cursors
+                    // before serving, so the overlay read can fill them in for real
+                    // instead of relying on seeded cursor state.
+                    self.hydrate_inventory_level_cursors_for_read(request, query);
+                    let fields = root_fields(query, variables).unwrap_or_default();
+                    ok_json(json!({
+                        "data": self.product_overlay_read_data(&fields)
+                    }))
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            "inventoryItem"
+            | "inventoryItems"
+            | "inventoryLevel"
+            | "inventoryProperties"
+            | "inventoryTransfer"
+            | "inventoryTransfers"
+            | "inventoryShipment" => {
+                let fields = try_root_fields!(query, variables);
+                ok_json(json!({ "data": self.inventory_query_data(&fields, variables) }))
+            }
+            "sellingPlanGroup" | "sellingPlanGroups" => {
+                let fields = try_root_fields!(query, variables);
+                ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
+            }
+            "collections" => {
+                // The catalog's opaque cursors and server-side query filtering
+                // cannot be reconstructed from local state, so a de-seeded
+                // scenario forwards the top-level `collections` list read upstream
+                // (the proxy reads it from real Shopify rather than replaying a
+                // `/__meta/seed` snapshot). A scenario that still seeds the
+                // recorded connections is served locally.
+                if self.store.staged.collection_catalog.is_empty() {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    let fields = try_root_fields!(query, variables);
+                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                }
+            }
+            "publication"
+            | "channel"
+            | "channels"
+            | "publicationsCount"
+            | "publishedProductsCount" => {
+                // Only a scenario that seeded publications is served locally; the
+                // whole multi-root publication read (publication/channel/channels/
+                // counts plus any product/collection publication fields) is
+                // rendered from local state. Otherwise these roots forward upstream
+                // as before.
+                if !self.publication_engine_active() {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    let fields = try_root_fields!(query, variables);
+                    ok_json(json!({ "data": self.publication_roots_read_data(&fields) }))
+                }
+            }
+            _ => no_dispatcher("overlay-read", root_field),
+        }
     }
 
     fn admin_platform_query_response(
@@ -615,103 +684,9 @@ impl DraftProxy {
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if PRODUCT_OVERLAY_ROOTS.contains(&root_field) =>
+                if operation.operation_type == OperationType::Query =>
             {
-                if self.should_route_owner_metafields_read(&query, &variables) {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
-                let has_inventory_fields = operation
-                    .root_fields
-                    .iter()
-                    .any(|field| INVENTORY_OVERLAY_ROOTS.contains(&field.as_str()));
-                let has_product_overlay_fields = operation
-                    .root_fields
-                    .iter()
-                    .any(|field| PRODUCT_OVERLAY_ROOTS.contains(&field.as_str()));
-                if has_inventory_fields && !has_product_overlay_fields {
-                    let fields = try_root_fields!(&query, &variables);
-                    ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
-                } else if Self::product_query_needs_upstream_catalog_search(&query, &variables) {
-                    (self.upstream_transport)(request.clone())
-                } else if self.has_product_overlay_state()
-                    || self.config.read_mode == ReadMode::Snapshot
-                {
-                    // An overlay read reproduces staged inventory levels but not the
-                    // opaque pagination cursors Shopify assigns each level edge: the
-                    // node-hydrate warm path selects `inventoryLevels { nodes }`, never
-                    // `edges { cursor }`, so cursors are never observed. When the client
-                    // selects level edge/pageInfo cursors and none have been observed,
-                    // forward this exact read upstream once and observe the real cursors
-                    // before serving, so the overlay read can fill them in for real
-                    // instead of relying on seeded cursor state.
-                    self.hydrate_inventory_level_cursors_for_read(request, &query);
-                    ok_json(json!({
-                        "data": self.product_overlay_read_fields(&query, &variables)
-                    }))
-                } else {
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && root_field == "productOperation" =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.product_operation_query_data(&fields) }))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && INVENTORY_OVERLAY_ROOTS.contains(&root_field) =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && matches!(root_field, "sellingPlanGroup" | "sellingPlanGroups") =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && root_field == "collections" =>
-            {
-                // The catalog's opaque cursors and server-side query filtering
-                // cannot be reconstructed from local state, so a de-seeded
-                // scenario forwards the top-level `collections` list read upstream
-                // (the proxy reads it from real Shopify rather than replaying a
-                // `/__meta/seed` snapshot). A scenario that still seeds the
-                // recorded connections is served locally.
-                if self.store.staged.collection_catalog.is_empty() {
-                    (self.upstream_transport)(request.clone())
-                } else {
-                    let fields = try_root_fields!(&query, &variables);
-                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
-                }
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && matches!(
-                        root_field,
-                        "publication"
-                            | "channel"
-                            | "channels"
-                            | "publicationsCount"
-                            | "publishedProductsCount"
-                    ) =>
-            {
-                // Only a scenario that seeded publications is served locally; the
-                // whole multi-root publication read (publication/channel/channels/
-                // counts plus any product/collection publication fields) is
-                // rendered from local state. Otherwise these roots forward upstream
-                // as before.
-                if !self.publication_engine_active() {
-                    (self.upstream_transport)(request.clone())
-                } else {
-                    let fields = try_root_fields!(&query, &variables);
-                    ok_json(json!({ "data": self.publication_roots_read_data(&fields) }))
-                }
+                self.products_query_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
