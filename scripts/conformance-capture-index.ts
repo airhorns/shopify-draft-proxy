@@ -2592,6 +2592,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'selling-plans',
+    captureId: 'selling-plan-group-app-id-readback',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-app-id-readback-conformance.ts',
+    purpose:
+      'Selling-plan group create and update appId persistence, including read-after-write and explicit null clearing.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-app-id-readback.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroup-app-id-readback.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql',
+      'config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql',
+      'config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable selling-plan group, reads appId after create, updates and clears appId, then deletes the group.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',

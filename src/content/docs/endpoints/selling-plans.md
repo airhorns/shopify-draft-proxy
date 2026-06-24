@@ -37,6 +37,11 @@ created inside the current proxy session. Successful `sellingPlanGroupCreate`,
 records and nested `SellingPlan` records without runtime Shopify writes, while
 retaining the original raw mutations for commit replay.
 
+`sellingPlanGroupCreate` persists nullable `input.appId` on the staged group,
+and `sellingPlanGroupUpdate` changes or clears `appId` when the input includes
+the field. Subsequent `sellingPlanGroup(id:)` reads return the staged `appId`
+value from local state.
+
 `sellingPlanGroupCreate` validates the captured model-backed create guardrails
 after the shared input validator passes. Blank or absent group `name`, zero or
 absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
@@ -79,10 +84,16 @@ parity evidence.
 
 - `tests/graphql_routes/selling_plans.rs`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-app-id-readback.json`
 - `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
+- `config/parity-specs/selling-plans/sellingPlanGroup-app-id-readback.json`
 - `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
 - `config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql`
 - `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
+- `scripts/capture-selling-plan-group-app-id-readback-conformance.ts`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
@@ -93,5 +104,6 @@ parity evidence.
 ### Validation
 
 - `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
+- `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
 - `corepack pnpm conformance:check`
 - `corepack pnpm rust:test`

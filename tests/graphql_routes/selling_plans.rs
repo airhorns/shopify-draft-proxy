@@ -520,6 +520,132 @@ fn selling_plan_group_recurring_policy_ranges_validate_locally() {
 }
 
 #[test]
+fn selling_plan_group_app_id_is_staged_and_read_after_write() {
+    let mut proxy = snapshot_proxy();
+    let mut create_input = valid_selling_plan_group_input("App ID group");
+    create_input["appId"] = json!("app-id-create");
+
+    let create_with_app_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id appId name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": create_input }),
+    ));
+
+    assert_eq!(create_with_app_id.status, 200);
+    assert_eq!(
+        create_with_app_id.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_with_app_id.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["appId"],
+        json!("app-id-create")
+    );
+    let group_id = create_with_app_id.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
+        ["id"]
+        .as_str()
+        .expect("group id should be staged")
+        .to_string();
+
+    let read_created = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSellingPlanGroup($id: ID!) {
+          sellingPlanGroup(id: $id) { id appId name }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(
+        read_created.body["data"]["sellingPlanGroup"]["appId"],
+        json!("app-id-create")
+    );
+
+    let create_without_app_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id appId name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": valid_selling_plan_group_input("No app ID group") }),
+    ));
+    assert_eq!(
+        create_without_app_id.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["appId"],
+        Value::Null
+    );
+
+    let update_app_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id appId name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": group_id, "input": { "appId": "app-id-update" } }),
+    ));
+    assert_eq!(
+        update_app_id.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_app_id.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["appId"],
+        json!("app-id-update")
+    );
+
+    let read_updated = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSellingPlanGroup($id: ID!) {
+          sellingPlanGroup(id: $id) { id appId name }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(
+        read_updated.body["data"]["sellingPlanGroup"]["appId"],
+        json!("app-id-update")
+    );
+
+    let clear_app_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ClearSellingPlanGroupAppId($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id appId name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": group_id, "input": { "appId": null } }),
+    ));
+    assert_eq!(
+        clear_app_id.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["appId"],
+        Value::Null
+    );
+
+    let read_cleared = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSellingPlanGroup($id: ID!) {
+          sellingPlanGroup(id: $id) { id appId name }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(
+        read_cleared.body["data"]["sellingPlanGroup"]["appId"],
+        Value::Null
+    );
+}
+
+#[test]
 fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
     let product_id = "gid://shopify/Product/1";
     let mut proxy =
