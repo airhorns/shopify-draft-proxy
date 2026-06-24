@@ -7784,7 +7784,7 @@ fn collection_update_missing_id_returns_top_level_bad_request_without_user_error
         json!({
             "collection": Value::Null,
             "userErrors": [{
-                "field": ["id"],
+                "field": Value::Null,
                 "message": "Collection does not exist"
             }]
         })
