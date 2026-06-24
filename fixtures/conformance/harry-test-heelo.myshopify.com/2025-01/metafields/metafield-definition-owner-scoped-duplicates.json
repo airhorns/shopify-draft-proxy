@@ -1,0 +1,278 @@
+{
+  "capturedAt": "2026-06-24T09:39:06.875Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespace": "custom",
+  "key": "spec_mqrvsq6n",
+  "captures": [
+    {
+      "label": "metafieldDefinitionCreate PRODUCT success",
+      "request": {
+        "query": "#graphql\n  mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type { name category }\n        pinnedPosition\n      }\n      userErrors { __typename field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "namespace": "custom",
+            "key": "spec_mqrvsq6n",
+            "ownerType": "PRODUCT",
+            "name": "Owner scoped product spec",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220177203506",
+              "namespace": "custom",
+              "key": "spec_mqrvsq6n",
+              "ownerType": "PRODUCT",
+              "name": "Owner scoped product spec",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "pinnedPosition": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate PRODUCT duplicate TAKEN",
+      "request": {
+        "query": "#graphql\n  mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type { name category }\n        pinnedPosition\n      }\n      userErrors { __typename field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "namespace": "custom",
+            "key": "spec_mqrvsq6n",
+            "ownerType": "PRODUCT",
+            "name": "Owner scoped product duplicate",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "__typename": "MetafieldDefinitionCreateUserError",
+                "field": ["definition", "key"],
+                "message": "Key is in use for Product metafields on the 'custom' namespace.",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate CUSTOMER same key success",
+      "request": {
+        "query": "#graphql\n  mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type { name category }\n        pinnedPosition\n      }\n      userErrors { __typename field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "namespace": "custom",
+            "key": "spec_mqrvsq6n",
+            "ownerType": "CUSTOMER",
+            "name": "Owner scoped customer spec",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220177236274",
+              "namespace": "custom",
+              "key": "spec_mqrvsq6n",
+              "ownerType": "CUSTOMER",
+              "name": "Owner scoped customer spec",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "pinnedPosition": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "owner-type scoped definition readback",
+      "request": {
+        "query": "#graphql\n  query OwnerScopedDefinitionRead($namespace: String!, $key: String!) {\n    productByIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      ownerType\n      namespace\n      key\n      name\n    }\n    customerByIdentifier: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: $namespace, key: $key }) {\n      id\n      ownerType\n      namespace\n      key\n      name\n    }\n    productCatalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, key: $key, first: 10) {\n      nodes { id ownerType namespace key name }\n    }\n    customerCatalog: metafieldDefinitions(ownerType: CUSTOMER, namespace: $namespace, key: $key, first: 10) {\n      nodes { id ownerType namespace key name }\n    }\n  }\n",
+        "variables": {
+          "namespace": "custom",
+          "key": "spec_mqrvsq6n"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productByIdentifier": {
+            "id": "gid://shopify/MetafieldDefinition/220177203506",
+            "ownerType": "PRODUCT",
+            "namespace": "custom",
+            "key": "spec_mqrvsq6n",
+            "name": "Owner scoped product spec"
+          },
+          "customerByIdentifier": {
+            "id": "gid://shopify/MetafieldDefinition/220177236274",
+            "ownerType": "CUSTOMER",
+            "namespace": "custom",
+            "key": "spec_mqrvsq6n",
+            "name": "Owner scoped customer spec"
+          },
+          "productCatalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MetafieldDefinition/220177203506",
+                "ownerType": "PRODUCT",
+                "namespace": "custom",
+                "key": "spec_mqrvsq6n",
+                "name": "Owner scoped product spec"
+              }
+            ]
+          },
+          "customerCatalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MetafieldDefinition/220177236274",
+                "ownerType": "CUSTOMER",
+                "namespace": "custom",
+                "key": "spec_mqrvsq6n",
+                "name": "Owner scoped customer spec"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "label": "cleanup CUSTOMER metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteDefinition($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220177236274",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220177236274",
+            "deletedDefinition": {
+              "ownerType": "CUSTOMER",
+              "namespace": "custom",
+              "key": "spec_mqrvsq6n"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup PRODUCT metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteDefinition($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220177203506",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220177203506",
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "custom",
+              "key": "spec_mqrvsq6n"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

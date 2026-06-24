@@ -2773,6 +2773,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-owner-scoped-duplicates',
+    scriptPath: 'scripts/capture-metafield-definition-owner-scoped-duplicates.mts',
+    purpose:
+      'metafieldDefinitionCreate duplicate TAKEN behavior and owner-type scoped namespace/key coexistence for PRODUCT and CUSTOMER definitions.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-owner-scoped-duplicates.json`,
+      'config/parity-specs/metafields/metafield-definition-owner-scoped-duplicates.json',
+      'config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-owner-scoped-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT and CUSTOMER metafield definitions sharing a namespace/key, captures duplicate PRODUCT TAKEN and owner-type readback, then deletes both definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-metafields',
     scriptPath: 'scripts/capture-metafield-definition-non-product-metafields-conformance.mts',
     purpose: 'Definition-backed metafieldsSet and owner-scoped reads for CUSTOMER, ORDER, and COMPANY owner types.',

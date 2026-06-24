@@ -927,7 +927,7 @@ fn metafield_json_object_message(metafield_type: &str) -> &'static str {
 
 pub(in crate::proxy) fn metafields_set_definition_user_errors(
     inputs: &[BTreeMap<String, ResolvedValue>],
-    definitions: &BTreeMap<(String, String), Value>,
+    definitions: &BTreeMap<MetafieldDefinitionKey, Value>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
@@ -937,10 +937,9 @@ pub(in crate::proxy) fn metafields_set_definition_user_errors(
         let key = resolved_string_field(input, "key").unwrap_or_default();
         let value = resolved_string_field(input, "value").unwrap_or_default();
         let owner_type = owner_type_from_gid(&owner_id);
-        let Some(definition) = definitions
-            .get(&(namespace.clone(), key.clone()))
-            .filter(|definition| definition["ownerType"].as_str() == Some(owner_type))
-        else {
+        let Some(definition) = definitions.get(&metafield_definition_store_key(
+            owner_type, &namespace, &key,
+        )) else {
             continue;
         };
         errors.extend(metafields_set_definition_validation_errors(

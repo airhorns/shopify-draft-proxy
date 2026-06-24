@@ -1548,6 +1548,19 @@ Useful behavior:
 
 The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
 
+## 19d. Metafield definition uniqueness is owner-type scoped, and duplicate create prefixes the key label
+
+The 2025-01 owner-scoped duplicate capture in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-owner-scoped-duplicates.json` created a disposable PRODUCT definition in the `custom` namespace, retried the same owner/namespace/key, then created a CUSTOMER definition with the same namespace/key.
+
+Useful behavior:
+
+- duplicate create is scoped to `(ownerType, namespace, key)`: a second PRODUCT create returned `createdDefinition: null` and a single `MetafieldDefinitionCreateUserError`
+- the public GraphQL error message included the field label and a humanized owner type: `Key is in use for Product metafields on the 'custom' namespace.`
+- creating a CUSTOMER definition with the same namespace/key succeeded
+- `metafieldDefinition(identifier:)` and `metafieldDefinitions(ownerType:, namespace:, key:)` read back separate PRODUCT and CUSTOMER definitions
+
+Keep local storage keyed by owner type as well as namespace/key; filtering by owner type after a namespace/key lookup is not enough.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
