@@ -20,6 +20,36 @@ fn seed_product(id: &str) -> ProductRecord {
     }
 }
 
+fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code: &str) {
+    let errors = user_errors
+        .as_array()
+        .expect("userErrors should serialize as an array");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.get("field") == Some(&field)
+                && error.get("code") == Some(&json!(code))),
+        "expected userErrors to contain field {field:?} and code {code}, got {errors:?}"
+    );
+}
+
+fn read_variant_sku_positions(proxy: &mut DraftProxy, product_id: &str) -> Value {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantPositions($productId: ID!) {
+          product(id: $productId) {
+            variants(first: 10) {
+              nodes { sku position }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    read.body["data"]["product"]["variants"]["nodes"].clone()
+}
+
 fn create_product_media_for_test(
     proxy: &mut DraftProxy,
     product_id: &str,
@@ -816,6 +846,218 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
             "operationName": "productVariantsBulkCreate",
             "domain": "products",
             "execution": "stage-locally"
+        })
+    );
+}
+
+#[test]
+fn product_variants_bulk_reorder_rejects_invalid_inputs_atomically() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(|_| panic!("bulk variant mutation should not call upstream"));
+    let red = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "BLUE", "11.00");
+    let green = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "GREEN", "12.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+    let green_id = green["id"].as_str().unwrap().to_string();
+    let original_order = json!([
+        { "sku": "RED" },
+        { "sku": "BLUE" },
+        { "sku": "GREEN" }
+    ]);
+
+    let invalid_position = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidVariantPosition($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { variants(first: 10) { nodes { sku position } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "id": green_id, "position": 0 },
+                { "id": red_id, "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(invalid_position.status, 200);
+    assert_eq!(
+        invalid_position.body["data"]["productVariantsBulkReorder"]["product"],
+        Value::Null
+    );
+    assert_user_error_with_field_and_code(
+        &invalid_position.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!(["positions", "0", "position"]),
+        "INVALID_POSITION",
+    );
+    assert_eq!(
+        read_variant_sku_positions(&mut proxy, "gid://shopify/Product/1"),
+        original_order
+    );
+
+    let duplicate_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicatedVariantPosition($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "id": blue_id, "position": 1 },
+                { "id": blue_id, "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(duplicate_id.status, 200);
+    assert_eq!(
+        duplicate_id.body["data"]["productVariantsBulkReorder"]["product"],
+        Value::Null
+    );
+    assert_user_error_with_field_and_code(
+        &duplicate_id.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!(["positions"]),
+        "DUPLICATED_VARIANT_ID",
+    );
+    assert_eq!(
+        read_variant_sku_positions(&mut proxy, "gid://shopify/Product/1"),
+        original_order
+    );
+
+    let missing_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingVariantPosition($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "position": 1 },
+                { "id": "gid://shopify/ProductVariant/missing", "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(missing_variant.status, 200);
+    assert_eq!(
+        missing_variant.body["data"]["productVariantsBulkReorder"]["product"],
+        Value::Null
+    );
+    assert_user_error_with_field_and_code(
+        &missing_variant.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!(["positions", "0", "id"]),
+        "MISSING_VARIANT",
+    );
+    assert_user_error_with_field_and_code(
+        &missing_variant.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!(["positions", "1", "id"]),
+        "MISSING_VARIANT",
+    );
+    assert_eq!(
+        read_variant_sku_positions(&mut proxy, "gid://shopify/Product/1"),
+        original_order
+    );
+}
+
+#[test]
+fn product_variants_bulk_reorder_and_update_resequence_positions() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(|_| panic!("bulk variant mutation should not call upstream"));
+    let red = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "BLUE", "11.00");
+    let green = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "GREEN", "12.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+    let green_id = green["id"].as_str().unwrap().to_string();
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReorderVariants($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product {
+              variants(first: 10) {
+                nodes { id sku position }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "id": green_id, "position": 1 },
+                { "id": red_id, "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        reorder.body["data"]["productVariantsBulkReorder"]["product"]["variants"]["nodes"],
+        json!([
+            { "id": green_id, "sku": "GREEN", "position": 1 },
+            { "id": red_id, "sku": "RED", "position": 2 },
+            { "id": blue_id, "sku": "BLUE", "position": 3 }
+        ])
+    );
+    assert_eq!(
+        read_variant_sku_positions(&mut proxy, "gid://shopify/Product/1"),
+        json!([
+            { "sku": "GREEN", "position": 1 },
+            { "sku": "RED", "position": 2 },
+            { "sku": "BLUE", "position": 3 }
+        ])
+    );
+
+    let public_position_input = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublicBulkUpdatePosition($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": [
+                { "id": blue_id, "position": 1 }
+            ]
+        }),
+    ));
+    assert_eq!(public_position_input.status, 200);
+    assert_eq!(
+        public_position_input.body,
+        json!({
+            "errors": [{
+                "message": "Variable $variants of type [ProductVariantsBulkInput!]! was provided invalid value for 0.position (Field is not defined on ProductVariantsBulkInput)",
+                "locations": [{ "line": 2, "column": 60 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": [{
+                        "id": blue_id,
+                        "position": 1
+                    }],
+                    "problems": [{
+                        "path": [0, "position"],
+                        "explanation": "Field is not defined on ProductVariantsBulkInput"
+                    }]
+                }
+            }]
         })
     );
 }
