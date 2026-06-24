@@ -2,6 +2,7 @@ query WebhookSubscriptionDedicatedCloudDetailRead($id: ID!) {
   webhookSubscription(id: $id) {
     id
     topic
+    callbackUrl
     uri
     format
     includeFields
