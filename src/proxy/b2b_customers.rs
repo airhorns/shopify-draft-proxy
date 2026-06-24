@@ -3885,6 +3885,9 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
+        if let Some(response) = store_credit_result_only_currency_response(&fields) {
+            return MutationOutcome::response(response);
+        }
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         for field in fields {
@@ -3950,16 +3953,6 @@ impl DraftProxy {
                         "A positive amount must be used to debit a store credit account"
                     },
                     "NEGATIVE_OR_ZERO_AMOUNT",
-                ),
-            );
-        }
-        if is_credit && !store_credit_supported_currency(&currency) {
-            return self.store_credit_error_outcome(
-                field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "currencyCode"],
-                    "Currency is not supported",
-                    "UNSUPPORTED_CURRENCY",
                 ),
             );
         }
@@ -9594,15 +9587,43 @@ fn shopify_decimal_text(value: f64) -> String {
     }
 }
 
-fn store_credit_supported_currency(currency: &str) -> bool {
-    matches!(
-        currency,
-        "USD" | "CAD" | "AUD" | "EUR" | "GBP" | "JPY" | "NZD"
-    )
-}
-
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
     !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+}
+
+fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    let field = fields.iter().find(|field| {
+        matches!(
+            field.name.as_str(),
+            "storeCreditAccountCredit" | "storeCreditAccountDebit"
+        )
+    })?;
+    let (input_name, amount_name) = if field.name == "storeCreditAccountCredit" {
+        ("creditInput", "creditAmount")
+    } else {
+        ("debitInput", "debitAmount")
+    };
+    let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+    let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
+    let currency = resolved_string_field(&amount_input, "currencyCode")?;
+    if !matches!(currency.as_str(), "USDC" | "XXX") {
+        return None;
+    }
+
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "errors": [{
+            "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "CURRENCY_CODE_INVALID" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": Value::Object(data)
+    })))
 }
 
 fn normalize_merged_customer_defaults(customer: &mut Value) {
