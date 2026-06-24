@@ -2,12 +2,16 @@ use super::*;
 
 use base64::Engine as _;
 
-pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
-    record.get("__typename").and_then(Value::as_str) == Some("OnlineStoreTheme")
+fn record_matches_type(record: &Value, typename: &str) -> bool {
+    record.get("__typename").and_then(Value::as_str) == Some(typename)
         || record
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/OnlineStoreTheme/"))
+            .is_some_and(|id| id.starts_with(&format!("gid://shopify/{typename}/")))
+}
+
+pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
+    record_matches_type(record, "OnlineStoreTheme")
 }
 
 pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> bool {
@@ -18,27 +22,15 @@ pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> boo
 }
 
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {
-    record.get("__typename").and_then(Value::as_str) == Some("WebPixel")
-        || record
-            .get("id")
-            .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/WebPixel/"))
+    record_matches_type(record, "WebPixel")
 }
 
 pub(in crate::proxy) fn is_server_pixel_record(record: &Value) -> bool {
-    record.get("__typename").and_then(Value::as_str) == Some("ServerPixel")
-        || record
-            .get("id")
-            .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/ServerPixel/"))
+    record_matches_type(record, "ServerPixel")
 }
 
 pub(in crate::proxy) fn is_storefront_access_token_record(record: &Value) -> bool {
-    record.get("__typename").and_then(Value::as_str) == Some("StorefrontAccessToken")
-        || record
-            .get("id")
-            .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/StorefrontAccessToken/"))
+    record_matches_type(record, "StorefrontAccessToken")
 }
 
 pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) -> Option<Value> {
