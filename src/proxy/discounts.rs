@@ -5538,16 +5538,6 @@ fn is_cart_transform_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
-pub(in crate::proxy) fn resolved_enum_arg(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<String> {
-    match field.arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn functions_owner_validation_function() -> Value {
     json!({
         "id": "gid://shopify/ShopifyFunction/validation-owned",

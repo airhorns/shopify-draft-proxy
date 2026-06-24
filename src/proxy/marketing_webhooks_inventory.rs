@@ -239,7 +239,7 @@ impl DraftProxy {
                 "webhookSubscription" => field
                     .arguments
                     .get("id")
-                    .and_then(resolved_as_string)
+                    .and_then(resolved_value_string)
                     .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),

@@ -33,13 +33,6 @@ pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
-    match value {
-        ResolvedValue::String(value) => Some(value.clone()),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match metafield_owner_gid_resource_type(id) {
         "ProductVariant" => "PRODUCTVARIANT",
@@ -1631,7 +1624,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
         .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
-        let variant_ids = list_string_arg(variables, "variantIds");
+        let variant_ids = list_string_field(variables, "variantIds");
         if price_list_id == "gid://shopify/PriceList/0" {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
         } else if variant_ids
@@ -1645,7 +1638,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
             json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
         }
     } else {
-        let quantity_rules = list_object_arg(variables, "quantityRules");
+        let quantity_rules = list_object_field(variables, "quantityRules");
         if price_list_id == "gid://shopify/PriceList/0"
             || price_list_id == "gid://shopify/PriceList/999"
         {

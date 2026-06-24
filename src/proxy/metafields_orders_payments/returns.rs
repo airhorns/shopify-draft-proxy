@@ -773,7 +773,7 @@ impl DraftProxy {
     /// error the return is left null with the error payload.
     fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
-        let removals = list_object_arg(&field.arguments, "returnLineItems");
+        let removals = list_object_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
             return selected_json(
                 &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
@@ -1076,7 +1076,7 @@ impl DraftProxy {
     }
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
-        let inputs = list_object_arg(&field.arguments, "dispositionInputs");
+        let inputs = list_object_field(&field.arguments, "dispositionInputs");
         if inputs.is_empty() {
             return selected_json(
                 &json!({
