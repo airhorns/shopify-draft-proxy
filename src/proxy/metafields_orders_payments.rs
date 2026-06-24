@@ -1105,18 +1105,7 @@ fn is_shopify_date(value: &str) -> bool {
     if !(1..=12).contains(&month) {
         return false;
     }
-    let max_day = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => return false,
-    };
-    (1..=max_day).contains(&day)
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    (1..=days_in_month(year, month)).contains(&day)
 }
 
 fn is_shopify_metafield_url(value: &str) -> bool {
