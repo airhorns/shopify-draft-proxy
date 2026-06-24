@@ -36,6 +36,18 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
     Value::Object(fields)
 }
 
+pub(in crate::proxy) fn selected_user_errors(
+    errors: &[Value],
+    selections: &[SelectedField],
+) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| selected_json(error, selections))
+            .collect(),
+    )
+}
+
 /// Honor the `quantities(names: [...])` argument on an `InventoryLevel` selection when
 /// projecting a materialized quantity array. Shopify returns exactly one entry per
 /// requested name, in request order, synthesizing a zero/`null` row for any name with
@@ -183,6 +195,7 @@ mod tests {
         SelectedField {
             name: name.to_string(),
             response_key: response_key.to_string(),
+            location: SourceLocation { line: 1, column: 1 },
             arguments: Default::default(),
             selection,
             type_condition: None,

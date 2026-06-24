@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::graphql::ParsedDocument;
+use graphql_parser::query::parse_query;
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone)]
@@ -24,6 +25,17 @@ struct SchemaInputField {
 struct AdminInputSchema {
     mutation_fields: BTreeMap<String, BTreeMap<String, SchemaArgument>>,
     input_objects: BTreeMap<String, BTreeMap<String, SchemaInputField>>,
+}
+
+#[derive(Debug, Clone)]
+struct OutputFieldType {
+    named_type: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct AdminOutputSchema {
+    query_root_fields: BTreeMap<String, OutputFieldType>,
+    fields_by_parent: BTreeMap<String, BTreeMap<String, OutputFieldType>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -323,7 +335,434 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
+    errors.extend(inventory_activation_user_error_code_selection_errors(
+        query, &document,
+    ));
     errors
+}
+
+pub(in crate::proxy) fn public_admin_graphql_validation_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    api_version: Option<&str>,
+) -> Option<Response> {
+    if api_version != Some("2025-01") {
+        return None;
+    }
+
+    if parse_query::<&str>(query).is_err() {
+        return Some(ok_json(json!({
+            "errors": [parse_error(query)]
+        })));
+    }
+
+    let document = parsed_document(query, variables)?;
+    let mut errors = missing_required_variable_errors(&document, variables);
+    errors.extend(undefined_root_field_errors(&document));
+    errors.extend(selection_mismatch_errors(&document));
+    errors.extend(undefined_product_selection_field_errors(&document));
+    if !errors.is_empty() {
+        return Some(ok_json(json!({ "errors": errors })));
+    }
+
+    product_create_argument_arity_response(&document)
+}
+
+fn parse_error(query: &str) -> Value {
+    let location = unexpected_end_of_file_location(query);
+    json!({
+        "message": format!(
+            "syntax error, unexpected end of file at [{}, {}]",
+            location.line, location.column
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": { "code": "PARSE_ERROR" }
+    })
+}
+
+fn unexpected_end_of_file_location(query: &str) -> SourceLocation {
+    let lines = query.lines().collect::<Vec<_>>();
+    for (line_index, line) in lines.iter().enumerate().rev() {
+        if let Some(column_index) = line.find(|character: char| !character.is_whitespace()) {
+            return SourceLocation {
+                line: line_index + 1,
+                column: column_index + 1,
+            };
+        }
+    }
+    SourceLocation { line: 1, column: 1 }
+}
+
+fn missing_required_variable_errors(
+    document: &ParsedDocument,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    document
+        .variable_definitions
+        .values()
+        .filter(|definition| definition.type_display.ends_with('!'))
+        .filter(|definition| {
+            !variables.contains_key(&definition.name)
+                || matches!(variables.get(&definition.name), Some(ResolvedValue::Null))
+        })
+        .map(|definition| {
+            non_null_variable_null_error(
+                &definition.name,
+                &definition.type_display,
+                definition.location,
+            )
+        })
+        .collect()
+}
+
+fn undefined_root_field_errors(document: &ParsedDocument) -> Vec<Value> {
+    document
+        .root_fields
+        .iter()
+        .filter_map(|field| {
+            let parent_type = match document.operation_type {
+                OperationType::Query => {
+                    (!public_admin_output_schema()
+                        .query_root_fields
+                        .contains_key(&field.name))
+                        && !local_implemented_query_root_names().contains(&field.name)
+                }
+                .then_some("QueryRoot"),
+                OperationType::Mutation => {
+                    (!public_admin_mutation_root_names().contains(&field.name))
+                        && !local_implemented_mutation_root_names().contains(&field.name)
+                }
+                .then_some("Mutation"),
+                OperationType::Subscription => None,
+            }?;
+            Some(undefined_field_error(
+                document,
+                field.location,
+                parent_type,
+                &field.name,
+                vec![json!(document.operation_path), json!(field.response_key)],
+            ))
+        })
+        .collect()
+}
+
+fn local_implemented_query_root_names() -> &'static BTreeSet<String> {
+    static QUERY_ROOT_NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
+    QUERY_ROOT_NAMES.get_or_init(|| local_implemented_root_names(OperationType::Query))
+}
+
+fn local_implemented_mutation_root_names() -> &'static BTreeSet<String> {
+    static MUTATION_ROOT_NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
+    MUTATION_ROOT_NAMES.get_or_init(|| local_implemented_root_names(OperationType::Mutation))
+}
+
+fn local_implemented_root_names(operation_type: OperationType) -> BTreeSet<String> {
+    let mut roots = BTreeSet::new();
+    for entry in default_registry()
+        .into_iter()
+        .filter(|entry| entry.implemented && entry.operation_type == operation_type)
+    {
+        roots.insert(entry.name);
+        roots.extend(entry.match_names);
+    }
+    roots
+}
+
+fn selection_mismatch_errors(document: &ParsedDocument) -> Vec<Value> {
+    if document.operation_type != OperationType::Query {
+        return Vec::new();
+    }
+    document
+        .root_fields
+        .iter()
+        .filter(|field| field.selection.is_empty())
+        .filter_map(|field| {
+            let output_type = public_admin_output_schema()
+                .query_root_fields
+                .get(&field.name)?;
+            Some(json!({
+                "message": format!(
+                    "Field must have selections (field '{}' returns {} but has no selections. Did you mean '{} {{ ... }}'?)",
+                    field.name, output_type.named_type, field.name
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [document.operation_path.clone(), field.response_key.clone()],
+                "extensions": {
+                    "code": "selectionMismatch",
+                    "nodeName": format!("field '{}'", field.name),
+                    "typeName": output_type.named_type
+                }
+            }))
+        })
+        .collect()
+}
+
+fn undefined_product_selection_field_errors(document: &ParsedDocument) -> Vec<Value> {
+    if document.operation_type != OperationType::Query {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if field.name != "products" {
+            continue;
+        }
+        collect_undefined_selection_field_errors(
+            document,
+            "ProductConnection",
+            &field.selection,
+            vec![json!(document.operation_path), json!(field.response_key)],
+            &mut errors,
+        );
+    }
+    errors
+}
+
+fn collect_undefined_selection_field_errors(
+    document: &ParsedDocument,
+    parent_type: &str,
+    selections: &[SelectedField],
+    path: Vec<Value>,
+    errors: &mut Vec<Value>,
+) {
+    let schema_fields = public_admin_output_schema()
+        .fields_by_parent
+        .get(parent_type);
+    for selection in selections {
+        let mut child_path = path.clone();
+        child_path.push(json!(selection.response_key));
+        if let Some(output_type) = schema_fields.and_then(|fields| fields.get(&selection.name)) {
+            collect_undefined_selection_field_errors(
+                document,
+                &output_type.named_type,
+                &selection.selection,
+                child_path,
+                errors,
+            );
+        } else if !common_scalar_field_name(&selection.name) {
+            errors.push(undefined_field_error(
+                document,
+                selection.location,
+                parent_type,
+                &selection.name,
+                child_path,
+            ));
+        }
+    }
+}
+
+fn common_scalar_field_name(field_name: &str) -> bool {
+    matches!(
+        field_name,
+        "__typename"
+            | "id"
+            | "legacyResourceId"
+            | "title"
+            | "handle"
+            | "status"
+            | "createdAt"
+            | "updatedAt"
+            | "description"
+            | "descriptionHtml"
+            | "vendor"
+            | "productType"
+            | "tags"
+            | "totalInventory"
+            | "tracksInventory"
+            | "inventoryQuantity"
+    )
+}
+
+fn undefined_field_error(
+    _document: &ParsedDocument,
+    location: SourceLocation,
+    parent_type: &str,
+    field_name: &str,
+    path: Vec<Value>,
+) -> Value {
+    json!({
+        "message": format!("Field '{field_name}' doesn't exist on type '{parent_type}'"),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": path,
+        "extensions": {
+            "code": "undefinedField",
+            "typeName": parent_type,
+            "fieldName": field_name
+        }
+    })
+}
+
+fn product_create_argument_arity_response(document: &ParsedDocument) -> Option<Response> {
+    if document.operation_type != OperationType::Mutation {
+        return None;
+    }
+    let field = document
+        .root_fields
+        .iter()
+        .find(|candidate| candidate.name == "productCreate")?;
+    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
+        + usize::from(field.raw_arguments.contains_key("product"));
+    if accepted_argument_count == 1 {
+        return None;
+    }
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "productCreate must include exactly one of the following arguments: input, product.",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+            "path": [field.response_key.clone()]
+        }],
+        "extensions": {
+            "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                }
+            }
+        }
+    })))
+}
+
+fn public_admin_mutation_root_names() -> &'static BTreeSet<String> {
+    static MUTATION_ROOT_NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
+    MUTATION_ROOT_NAMES.get_or_init(|| {
+        let parsed: Value = serde_json::from_str(include_str!(
+            "../../config/admin-graphql-mutation-schema.json"
+        ))
+        .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+        parsed
+            .get("mutations")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|mutation| mutation.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+fn public_admin_output_schema() -> &'static AdminOutputSchema {
+    static OUTPUT_SCHEMA: OnceLock<AdminOutputSchema> = OnceLock::new();
+    OUTPUT_SCHEMA.get_or_init(|| {
+        let parsed: Value = serde_json::from_str(include_str!(
+            "../../config/admin-graphql-bulk-query-schema.json"
+        ))
+        .expect("checked-in Admin GraphQL output schema should be valid JSON");
+        let mut schema = AdminOutputSchema::default();
+        for field in parsed
+            .get("fields")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(parent_type) = field.get("parentType").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(name) = field.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(output_type) = output_field_type(field) else {
+                continue;
+            };
+            if parent_type == "QueryRoot" {
+                schema
+                    .query_root_fields
+                    .insert(name.to_string(), output_type.clone());
+            }
+            schema
+                .fields_by_parent
+                .entry(parent_type.to_string())
+                .or_default()
+                .insert(name.to_string(), output_type);
+        }
+        schema
+    })
+}
+
+fn output_field_type(field: &Value) -> Option<OutputFieldType> {
+    let kind = field.get("kind")?;
+    let named_type = match kind.get("type").and_then(Value::as_str)? {
+        "object" => kind.get("typeName").and_then(Value::as_str)?.to_string(),
+        "connection" => {
+            let node_type = kind.get("nodeType").and_then(Value::as_str)?;
+            format!("{node_type}Connection")
+        }
+        "list" => kind.get("elementType").and_then(Value::as_str)?.to_string(),
+        _ => return None,
+    };
+    Some(OutputFieldType { named_type })
+}
+
+fn inventory_activation_user_error_code_selection_errors(
+    query: &str,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if !matches!(
+            field.name.as_str(),
+            "inventoryActivate" | "inventoryDeactivate"
+        ) {
+            continue;
+        }
+        let Some(user_errors_selection) = field
+            .selection
+            .iter()
+            .find(|selection| selection.name == "userErrors")
+        else {
+            continue;
+        };
+        for selection in &user_errors_selection.selection {
+            if selection.name != "code" {
+                continue;
+            }
+            let location = inventory_user_error_code_selection_location(
+                query,
+                field,
+                user_errors_selection,
+                selection,
+            )
+            .unwrap_or(SourceLocation { line: 1, column: 1 });
+            errors.push(json!({
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": location.line, "column": location.column }],
+                "path": [
+                    document.operation_path,
+                    field.response_key,
+                    user_errors_selection.response_key,
+                    selection.response_key
+                ],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }));
+        }
+    }
+    errors
+}
+
+fn inventory_user_error_code_selection_location(
+    query: &str,
+    field: &RootFieldSelection,
+    user_errors_selection: &SelectedField,
+    code_selection: &SelectedField,
+) -> Option<SourceLocation> {
+    let root_offset = byte_offset_for_location(query, field.location)?;
+    let user_errors_offset =
+        find_graphql_name_after(query, root_offset, &user_errors_selection.name)?;
+    let code_offset = find_graphql_name_after(
+        query,
+        user_errors_offset + user_errors_selection.name.len(),
+        &code_selection.name,
+    )?;
+    source_location_for_byte_offset(query, code_offset)
 }
 
 fn admin_platform_node_global_id_errors(
@@ -1656,6 +2095,25 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
     None
 }
 
+fn find_graphql_name_after(query: &str, start: usize, name: &str) -> Option<usize> {
+    let bytes = query.as_bytes();
+    let mut search_start = start.min(query.len());
+    while search_start < query.len() {
+        let relative = query[search_start..].find(name)?;
+        let candidate = search_start + relative;
+        let before_ok = candidate == 0 || !is_graphql_name_byte(bytes[candidate - 1]);
+        let after = candidate + name.len();
+        let after_ok = bytes
+            .get(after)
+            .is_none_or(|next| !is_graphql_name_byte(*next));
+        if before_ok && after_ok {
+            return Some(candidate);
+        }
+        search_start = after;
+    }
+    None
+}
+
 pub(in crate::proxy) fn byte_offset_for_location(
     query: &str,
     location: SourceLocation,
@@ -1827,6 +2285,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
         let mut schema = AdminInputSchema::default();
+        extend_graphql_base_validation_input_schema(&mut schema);
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_customer_merge_input_schema(&mut schema);
@@ -1844,6 +2303,104 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema) {
+    let parsed: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+    if let Some((name, arguments)) =
+        captured_mutation_arguments(&parsed, "pubSubWebhookSubscriptionCreate")
+    {
+        schema.mutation_fields.insert(name, arguments);
+    }
+    if let Some((name, fields)) =
+        captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
+    {
+        schema.input_objects.insert(name, fields);
+    }
+}
+
+fn captured_mutation_arguments(
+    parsed: &Value,
+    mutation_name: &str,
+) -> Option<(String, BTreeMap<String, SchemaArgument>)> {
+    let mutation = parsed
+        .get("mutations")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|mutation| mutation.get("name").and_then(Value::as_str) == Some(mutation_name))?;
+    let arguments = mutation
+        .get("args")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(schema_argument)
+        .collect::<BTreeMap<_, _>>();
+    Some((mutation_name.to_string(), arguments))
+}
+
+fn captured_input_object_fields(
+    parsed: &Value,
+    input_object_name: &str,
+) -> Option<(String, BTreeMap<String, SchemaInputField>)> {
+    let input_object = parsed
+        .get("inputObjects")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|input_object| {
+            input_object.get("name").and_then(Value::as_str) == Some(input_object_name)
+        })?;
+    let fields = input_object
+        .get("inputFields")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(schema_input_field)
+        .collect::<BTreeMap<_, _>>();
+    Some((input_object_name.to_string(), fields))
+}
+
+fn schema_argument(argument: &Value) -> Option<(String, SchemaArgument)> {
+    let name = argument.get("name").and_then(Value::as_str)?;
+    let type_ref = schema_type_ref(argument.get("type")?)?;
+    Some((name.to_string(), mutation_arg(type_ref)))
+}
+
+fn schema_input_field(field: &Value) -> Option<(String, SchemaInputField)> {
+    let name = field.get("name").and_then(Value::as_str)?;
+    let type_ref = schema_type_ref(field.get("type")?)?;
+    Some((name.to_string(), input_field(type_ref)))
+}
+
+fn schema_type_ref(value: &Value) -> Option<SchemaTypeRef> {
+    let (display, named_type, non_null) = schema_type_ref_parts(value)?;
+    Some(SchemaTypeRef {
+        display,
+        named_type,
+        non_null,
+    })
+}
+
+fn schema_type_ref_parts(value: &Value) -> Option<(String, String, bool)> {
+    let kind = value.get("kind").and_then(Value::as_str)?;
+    match kind {
+        "NON_NULL" => {
+            let (display, named_type, _) = schema_type_ref_parts(value.get("ofType")?)?;
+            Some((format!("{display}!"), named_type, true))
+        }
+        "LIST" => {
+            let (display, named_type, _) = schema_type_ref_parts(value.get("ofType")?)?;
+            Some((format!("[{display}]"), named_type, false))
+        }
+        _ => {
+            let name = value.get("name").and_then(Value::as_str)?;
+            Some((name.to_string(), name.to_string(), false))
+        }
+    }
 }
 
 fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
@@ -2095,6 +2652,60 @@ fn extend_shipping_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_payments_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "PaymentTermsCreateInput".to_string(),
+        BTreeMap::from([
+            (
+                "paymentTermsTemplateId".to_string(),
+                input_field(non_null("ID")),
+            ),
+            (
+                "paymentSchedules".to_string(),
+                input_field(list_of_non_null("PaymentScheduleInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "PaymentTermsInput".to_string(),
+        BTreeMap::from([
+            (
+                "paymentTermsTemplateId".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "paymentSchedules".to_string(),
+                input_field(list_of_non_null("PaymentScheduleInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "PaymentTermsUpdateInput".to_string(),
+        BTreeMap::from([
+            ("paymentTermsId".to_string(), input_field(non_null("ID"))),
+            (
+                "paymentTermsAttributes".to_string(),
+                input_field(non_null("PaymentTermsInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "paymentTermsCreate".to_string(),
+        BTreeMap::from([
+            ("referenceId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "paymentTermsAttributes".to_string(),
+                mutation_arg(non_null("PaymentTermsCreateInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "paymentTermsUpdate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("PaymentTermsUpdateInput")),
+        )]),
+    );
+
     // customerPaymentMethodCreditCardCreate on Admin API 2026-04 takes three
     // required (non-null) field arguments: `customerId`, `billingAddress`, and
     // `sessionId`. Omitting any of them must surface a top-level
@@ -2563,7 +3174,7 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("phone".to_string(), input_field(named("String"))),
             (
                 "paymentTerms".to_string(),
-                input_field(named("PaymentTermsInput")),
+                input_field(named("DraftOrderPaymentTermsInput")),
             ),
             (
                 "purchasingEntity".to_string(),

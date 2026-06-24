@@ -72,10 +72,11 @@ impl DraftProxy {
                     self.store
                         .staged
                         .metafield_definitions
-                        .get(&(namespace.clone(), key.clone()))
-                        .filter(|definition| {
-                            definition["ownerType"].as_str() == Some(owner_type_from_gid(&owner_id))
-                        })
+                        .get(&metafield_definition_store_key(
+                            owner_type_from_gid(&owner_id),
+                            &namespace,
+                            &key,
+                        ))
                         .and_then(|definition| definition["type"]["name"].as_str())
                         .map(str::to_string)
                 })
@@ -1156,11 +1157,11 @@ impl DraftProxy {
         let connection = json!({
             "nodes": nodes,
             "edges": edges,
-            "pageInfo": metafield_connection_page_info(
-                start_cursor,
-                end_cursor,
+            "pageInfo": connection_page_info(
                 has_next_page,
-                has_previous_page
+                has_previous_page,
+                start_cursor,
+                end_cursor
             )
         });
         selected_json(&connection, &selection.selection)
@@ -1573,20 +1574,6 @@ fn metafield_cursor(metafield: &Value) -> Option<String> {
     } else {
         Some(id.to_string())
     }
-}
-
-fn metafield_connection_page_info(
-    start_cursor: Option<String>,
-    end_cursor: Option<String>,
-    has_next_page: bool,
-    has_previous_page: bool,
-) -> Value {
-    json!({
-        "hasNextPage": has_next_page,
-        "hasPreviousPage": has_previous_page,
-        "startCursor": start_cursor,
-        "endCursor": end_cursor
-    })
 }
 
 fn owner_typename_from_root(root_field: &str) -> &'static str {

@@ -500,12 +500,12 @@ impl DraftProxy {
             .collect();
         let connection = json!({
             "nodes": channels,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": cursors.first().cloned(),
-                "endCursor": cursors.last().cloned(),
-            }
+            "pageInfo": connection_page_info(
+                false,
+                false,
+                cursors.first().cloned(),
+                cursors.last().cloned()
+            )
         });
         selected_json(&connection, &field.selection)
     }
@@ -666,11 +666,9 @@ impl DraftProxy {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &selection.selection))
-                            .collect(),
+                    "userErrors" => Some(selected_user_errors(
+                        user_errors.as_slice(),
+                        &selection.selection,
                     )),
                     _ => None,
                 }
@@ -1136,24 +1134,16 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let mut products = self.collection_products(&collection_id);
-        if requested_product_ids
+        let mut product_ids = products
             .iter()
-            .any(|product_id| products.iter().any(|product| product.id == *product_id))
-        {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                root_field,
-                None,
-                None,
-                vec![collection_user_error(
-                    ["productIds"],
-                    "Product is already included in this collection",
-                )],
-            ));
-        }
+            .map(|product| product.id.clone())
+            .collect::<BTreeSet<_>>();
         for product_id in requested_product_ids {
+            if product_ids.contains(&product_id) {
+                continue;
+            }
             if let Some(product) = self.store.product_by_id(&product_id).cloned() {
+                product_ids.insert(product_id);
                 products.push(product);
             }
         }
@@ -1435,9 +1425,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -1463,9 +1451,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }

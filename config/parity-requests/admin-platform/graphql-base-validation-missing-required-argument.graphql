@@ -1,0 +1,11 @@
+mutation GraphqlBaseValidationMissingRequiredArgument {
+  productCreate {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

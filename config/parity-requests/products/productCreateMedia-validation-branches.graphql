@@ -6,9 +6,14 @@ mutation ProductCreateMediaValidationBranches($productId: ID!, $media: [CreateMe
       mediaContentType
       status
     }
+    userErrors {
+      field
+      message
+    }
     mediaUserErrors {
       field
       message
+      code
     }
     product {
       id

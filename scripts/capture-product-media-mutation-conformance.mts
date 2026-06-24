@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -16,11 +16,19 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-media-mutation-conformance-scope-blocker.md');
-const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const productsHydrateNodesObservationQuery = await readFile(
+  'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+  'utf8',
+);
+const productMediaValidationDownstreamReadQuery = await readFile(
+  'config/parity-requests/products/product-media-validation-downstream-read.graphql',
+  'utf8',
+);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -83,6 +91,7 @@ const createMediaMutation = `#graphql
       mediaUserErrors {
         field
         message
+        code
       }
       product {
         id
@@ -125,6 +134,7 @@ const createMediaDualUserErrorsMutation = `#graphql
       mediaUserErrors {
         field
         message
+        code
       }
     }
   }
@@ -152,6 +162,7 @@ const updateMediaMutation = `#graphql
       mediaUserErrors {
         field
         message
+        code
       }
     }
   }
@@ -165,6 +176,7 @@ const deleteMediaMutation = `#graphql
       mediaUserErrors {
         field
         message
+        code
       }
       product {
         id
@@ -186,6 +198,99 @@ const deleteMediaMutation = `#graphql
             }
           }
         }
+      }
+    }
+  }
+`;
+
+const createMediaValidationMutation = `#graphql
+  mutation ProductCreateMediaValidationBranches($productId: ID!, $media: [CreateMediaInput!]!) {
+    productCreateMedia(productId: $productId, media: $media) {
+      media {
+        id
+        alt
+        mediaContentType
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+      mediaUserErrors {
+        field
+        message
+        code
+      }
+      product {
+        id
+        media(first: 10) {
+          nodes {
+            id
+            alt
+            mediaContentType
+            status
+          }
+        }
+      }
+    }
+  }
+`;
+
+const updateMediaValidationMutation = `#graphql
+  mutation ProductUpdateMediaValidationBranches($productId: ID!, $media: [UpdateMediaInput!]!) {
+    productUpdateMedia(productId: $productId, media: $media) {
+      media {
+        id
+        alt
+        mediaContentType
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+      mediaUserErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const deleteMediaValidationMutation = `#graphql
+  mutation ProductDeleteMediaValidationBranches($productId: ID!, $mediaIds: [ID!]!) {
+    productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+      deletedMediaIds
+      deletedProductImageIds
+      userErrors {
+        field
+        message
+      }
+      mediaUserErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const reorderMediaValidationMutation = `#graphql
+  mutation ProductReorderMediaValidationBranches($id: ID!, $moves: [MoveInput!]!) {
+    productReorderMedia(id: $id, moves: $moves) {
+      job {
+        id
+        done
+      }
+      userErrors {
+        field
+        message
+      }
+      mediaUserErrors {
+        field
+        message
+        code
       }
     }
   }
@@ -291,6 +396,21 @@ function buildCreateMediaVariables(productId) {
   };
 }
 
+async function recordValidationScenario(name, query, variables, downstreamProductId = null) {
+  const response = await runGraphqlRaw(query, variables);
+  const scenario = {
+    name,
+    variables,
+    response,
+  };
+  if (downstreamProductId) {
+    scenario.downstreamReadAfterScenario = await runGraphql(productMediaValidationDownstreamReadQuery, {
+      productId: downstreamProductId,
+    });
+  }
+  return scenario;
+}
+
 async function waitForReadyMedia(productId, mediaId) {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     await sleep(5000);
@@ -305,10 +425,17 @@ async function waitForReadyMedia(productId, mediaId) {
 }
 
 function expectSameUserErrors(pathLabel, userErrors, mediaUserErrors) {
+  const stripCode = (errors) =>
+    Array.isArray(errors)
+      ? errors.map((error) => ({
+          field: error?.field ?? null,
+          message: error?.message ?? null,
+        }))
+      : errors;
   if (
     Array.isArray(userErrors) &&
     Array.isArray(mediaUserErrors) &&
-    JSON.stringify(userErrors) === JSON.stringify(mediaUserErrors)
+    JSON.stringify(stripCode(userErrors)) === JSON.stringify(stripCode(mediaUserErrors))
   ) {
     return;
   }
@@ -382,6 +509,170 @@ try {
 
   const postCreateRead = await runGraphql(mediaReadQuery, { id: productId });
   const readyRead = await waitForReadyMedia(productId, mediaId);
+  const readyMediaNode =
+    readyRead.data?.product?.media?.nodes?.find((candidate) => candidate?.id === mediaId) ??
+    postCreateRead.data?.product?.media?.nodes?.find((candidate) => candidate?.id === mediaId) ??
+    null;
+
+  const missingProductId = 'gid://shopify/Product/999999999999';
+  const missingMediaId = 'gid://shopify/MediaImage/999999999999';
+  const scenarios = [];
+  scenarios.push(
+    await recordValidationScenario('create-missing-product-id-empty-string', createMediaValidationMutation, {
+      productId: '',
+      media: [
+        {
+          mediaContentType: 'IMAGE',
+          originalSource: 'https://placehold.co/600x400/png',
+          alt: 'Valid',
+        },
+      ],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('create-unknown-product-id', createMediaValidationMutation, {
+      productId: missingProductId,
+      media: [
+        {
+          mediaContentType: 'IMAGE',
+          originalSource: 'https://placehold.co/600x400/png',
+          alt: 'Valid',
+        },
+      ],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('create-empty-media', createMediaValidationMutation, {
+      productId,
+      media: [],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('create-invalid-original-source', createMediaValidationMutation, {
+      productId,
+      media: [
+        {
+          mediaContentType: 'IMAGE',
+          originalSource: 'not-a-url',
+          alt: 'Invalid source',
+        },
+      ],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('create-invalid-media-content-type', createMediaValidationMutation, {
+      productId,
+      media: [
+        {
+          mediaContentType: 'FILE',
+          originalSource: 'https://placehold.co/600x400/png',
+          alt: 'Invalid type',
+        },
+      ],
+    }),
+  );
+  const createMixedScenario = await recordValidationScenario(
+    'create-mixed-valid-invalid',
+    createMediaValidationMutation,
+    {
+      productId,
+      media: [
+        {
+          mediaContentType: 'IMAGE',
+          originalSource: 'https://placehold.co/600x400/png',
+          alt: 'Valid in mixed create',
+        },
+        {
+          mediaContentType: 'IMAGE',
+          originalSource: 'not-a-url',
+          alt: 'Invalid in mixed create',
+        },
+      ],
+    },
+    productId,
+  );
+  scenarios.push(createMixedScenario);
+  const mixedMediaId = createMixedScenario.response.payload?.data?.productCreateMedia?.media?.[0]?.id ?? null;
+  if (mixedMediaId) {
+    await waitForReadyMedia(productId, mixedMediaId);
+  }
+  scenarios.push(
+    await recordValidationScenario('update-unknown-product-id', updateMediaValidationMutation, {
+      productId: missingProductId,
+      media: [{ id: mediaId, alt: 'Should not update' }],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('update-empty-media', updateMediaValidationMutation, {
+      productId,
+      media: [],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('update-unknown-media-id', updateMediaValidationMutation, {
+      productId,
+      media: [{ id: missingMediaId, alt: 'Unknown media' }],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario(
+      'update-mixed-valid-invalid',
+      updateMediaValidationMutation,
+      {
+        productId,
+        media: [
+          { id: mediaId, alt: 'Rejected update' },
+          { id: missingMediaId, alt: 'Unknown media' },
+        ],
+      },
+      productId,
+    ),
+  );
+  scenarios.push(
+    await recordValidationScenario('delete-unknown-product-id', deleteMediaValidationMutation, {
+      productId: missingProductId,
+      mediaIds: [mediaId],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('delete-empty-media-ids', deleteMediaValidationMutation, {
+      productId,
+      mediaIds: [],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('delete-unknown-media-id', deleteMediaValidationMutation, {
+      productId,
+      mediaIds: [missingMediaId],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario(
+      'delete-mixed-valid-invalid',
+      deleteMediaValidationMutation,
+      {
+        productId,
+        mediaIds: [mediaId, missingMediaId],
+      },
+      productId,
+    ),
+  );
+  scenarios.push(
+    await recordValidationScenario('reorder-unknown-product-id', reorderMediaValidationMutation, {
+      id: missingProductId,
+      moves: [{ id: mediaId, newPosition: '0' }],
+    }),
+  );
+  scenarios.push(
+    await recordValidationScenario('reorder-unknown-media-id', reorderMediaValidationMutation, {
+      id: productId,
+      moves: [{ id: missingMediaId, newPosition: '0' }],
+    }),
+  );
+  const validationHydrateResponse = await runGraphqlRequest(productHydrateNodesQuery, {
+    ids: [productId],
+  });
+  const hydratedProduct = validationHydrateResponse.payload?.data?.nodes?.[0] ?? null;
 
   const updateMediaVariables = {
     productId,
@@ -400,6 +691,43 @@ try {
   const postDeleteRead = await runGraphql(mediaReadQuery, { id: productId });
 
   const captures = {
+    'product-media-validation-branches.json': {
+      capturedAt: new Date().toISOString(),
+      storeDomain,
+      apiVersion,
+      operations: ['productCreateMedia', 'productUpdateMedia', 'productDeleteMedia', 'productReorderMedia'],
+      seedProductMedia: [
+        {
+          productId,
+          id: mediaId,
+          position: 1,
+          alt: readyMediaNode?.alt ?? 'Front view',
+          mediaContentType: readyMediaNode?.mediaContentType ?? 'IMAGE',
+          status: readyMediaNode?.status ?? 'READY',
+          productImageId: readyMediaNode?.image?.id ?? mediaId,
+        },
+      ],
+      scenarios,
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: {
+            ids: [productId],
+          },
+          query: productsHydrateNodesObservationQuery,
+          response: {
+            status: validationHydrateResponse.status,
+            body: {
+              data: {
+                nodes: [hydratedProduct],
+              },
+            },
+          },
+        },
+      ],
+      notes:
+        'Creates a disposable product and seed media, records product media mutation validation branches including typed MediaUserError codes, then deletes the product during cleanup.',
+    },
     'productCreateMedia-dual-userErrors.json': {
       capturedAt: new Date().toISOString(),
       storeDomain,

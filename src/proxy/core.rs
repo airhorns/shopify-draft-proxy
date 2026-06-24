@@ -520,8 +520,11 @@ impl DraftProxy {
                     .staged
                     .metafield_definitions
                     .iter()
-                    .map(|((namespace, key), definition)| {
-                        (format!("{namespace}\u{1f}{key}"), definition.clone())
+                    .map(|((owner_type, namespace, key), definition)| {
+                        (
+                            format!("{owner_type}\u{1f}{namespace}\u{1f}{key}"),
+                            definition.clone(),
+                        )
                     })
                     .collect::<serde_json::Map<_, _>>(),
             );
@@ -1533,9 +1536,24 @@ impl DraftProxy {
                 definitions
                     .iter()
                     .filter_map(|(encoded_key, definition)| {
-                        encoded_key.split_once('\u{1f}').map(|(namespace, key)| {
-                            ((namespace.to_string(), key.to_string()), definition.clone())
-                        })
+                        let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                        match parts.as_slice() {
+                            [owner_type, namespace, key] => Some((
+                                metafield_definition_store_key(owner_type, namespace, key),
+                                definition.clone(),
+                            )),
+                            [namespace, key] => {
+                                let owner_type = definition
+                                    .get("ownerType")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("PRODUCT");
+                                Some((
+                                    metafield_definition_store_key(owner_type, namespace, key),
+                                    definition.clone(),
+                                ))
+                            }
+                            _ => None,
+                        }
                     })
                     .collect()
             })
