@@ -513,10 +513,28 @@ impl DraftProxy {
                 }));
                 continue;
             }
-            let id = self.next_proxy_synthetic_gid("MediaImage");
+            let media_content_type = resolved_string_field(item, "mediaContentType")
+                .unwrap_or_else(|| "IMAGE".to_string());
+            let id = self.next_proxy_synthetic_gid(product_media_gid_type(&media_content_type));
             let alt = resolved_string_field(item, "alt").unwrap_or_default();
-            created.push(product_media_node(&id, &alt, "UPLOADED", None));
-            staged.push(product_media_node(&id, &alt, "PROCESSING", None));
+            created.push(product_media_node_with_type(
+                &id,
+                &alt,
+                &media_content_type,
+                "UPLOADED",
+                None,
+            ));
+            staged.push(product_media_node_with_type(
+                &id,
+                &alt,
+                &media_content_type,
+                if media_content_type == "IMAGE" {
+                    "PROCESSING"
+                } else {
+                    "UPLOADED"
+                },
+                None,
+            ));
         }
 
         if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
@@ -797,20 +815,38 @@ impl DraftProxy {
     }
 }
 
-fn product_media_node(id: &str, alt: &str, status: &str, image_url: Option<&str>) -> Value {
+fn product_media_node_with_type(
+    id: &str,
+    alt: &str,
+    media_content_type: &str,
+    status: &str,
+    image_url: Option<&str>,
+) -> Value {
     let image = image_url
         .map(|url| json!({ "url": url }))
         .unwrap_or(Value::Null);
-    json!({
+    let mut node = json!({
         "id": id,
         "alt": alt,
-        "mediaContentType": "IMAGE",
+        "mediaContentType": media_content_type,
         "status": status,
         "preview": {
             "image": image.clone()
-        },
-        "image": image
-    })
+        }
+    });
+    if media_content_type == "IMAGE" {
+        node["image"] = image;
+    }
+    node
+}
+
+fn product_media_gid_type(media_content_type: &str) -> &'static str {
+    match media_content_type {
+        "EXTERNAL_VIDEO" => "ExternalVideo",
+        "MODEL_3D" => "Model3d",
+        "VIDEO" => "Video",
+        _ => "MediaImage",
+    }
 }
 
 fn product_media_ready_url() -> &'static str {

@@ -2509,7 +2509,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
     purpose:
-      'productVariantAppendMedia and productVariantDetachMedia validation for cross-product variants, cross-product media, non-ready media, and unattached detach targets.',
+      'productVariantAppendMedia and productVariantDetachMedia validation for pair-count, media-count, duplicate-variant, invalid-media-type, cross-product, non-ready, already-attached, and unattached detach targets.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variant-media-validation.json`,
