@@ -185,43 +185,8 @@ const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
     "weight",
 ];
 
-const MEASUREMENT_METAFIELD_TYPES: &[&str] = &[
-    "antenna_gain",
-    "area",
-    "battery_charge_capacity",
-    "battery_energy_capacity",
-    "capacitance",
-    "concentration",
-    "data_storage_capacity",
-    "data_transfer_rate",
-    "dimension",
-    "display_density",
-    "distance",
-    "duration",
-    "electric_current",
-    "electrical_resistance",
-    "energy",
-    "frequency",
-    "illuminance",
-    "inductance",
-    "luminous_flux",
-    "mass_flow_rate",
-    "power",
-    "pressure",
-    "resolution",
-    "rotational_speed",
-    "sound_level",
-    "speed",
-    "temperature",
-    "thermal_power",
-    "voltage",
-    "volume",
-    "volumetric_flow_rate",
-    "weight",
-];
-
 fn is_measurement_metafield_type_name(type_name: &str) -> bool {
-    MEASUREMENT_METAFIELD_TYPES.contains(&type_name)
+    !measurement_units_for_type(type_name).is_empty()
 }
 
 fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
@@ -2158,21 +2123,13 @@ pub(in crate::proxy) fn payment_terms_success_record(
 pub(in crate::proxy) fn payment_terms_template_projection(
     template_id: &str,
 ) -> (&'static str, &'static str, Option<i64>) {
-    let tail = template_id
-        .strip_prefix("gid://shopify/PaymentTermsTemplate/")
-        .unwrap_or(template_id);
-    match tail {
-        "1" => ("Due on receipt", "RECEIPT", None),
-        "2" => ("Net 7", "NET", Some(7)),
-        "3" => ("Net 15", "NET", Some(15)),
-        "5" => ("Net 60", "NET", Some(60)),
-        "6" => ("Net 90", "NET", Some(90)),
-        "7" => ("Fixed", "FIXED", None),
-        "8" => ("Net 45", "NET", Some(45)),
-        "9" => ("Due on fulfillment", "FULFILLMENT", None),
+    let tail = resource_id_tail(template_id);
+    PAYMENT_TERMS_TEMPLATE_CATALOG
+        .iter()
+        .find(|(catalog_tail, ..)| *catalog_tail == tail)
+        .map(|(_, name, _, due_in_days, terms_type)| (*name, *terms_type, *due_in_days))
         // Template/4 is Net 30; unknown/blank ids fall back to the same default term.
-        _ => ("Net 30", "NET", Some(30)),
-    }
+        .unwrap_or(("Net 30", "NET", Some(30)))
 }
 
 /// Shopify's payment-terms template catalog is a fixed, store-independent global
