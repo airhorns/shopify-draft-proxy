@@ -421,6 +421,352 @@ fn live_return_reason_validation_proxy(upstream_calls: Arc<AtomicUsize>) -> Draf
     })
 }
 
+fn stage_two_line_reverse_fulfillment_order(proxy: &mut DraftProxy) -> (Value, Vec<Value>) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReturnableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes {
+                      id
+                      totalQuantity
+                      remainingQuantity
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "reverse-delivery-lines@example.test",
+                "lineItems": [
+                    {
+                        "title": "First returnable line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    },
+                    {
+                        "title": "Second returnable line",
+                        "quantity": 3,
+                        "priceSet": { "shopMoney": { "amount": "18.00", "currencyCode": "USD" } }
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order = &order["fulfillmentOrders"]["nodes"][0];
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_lines = fulfillment_order["lineItems"]["nodes"]
+        .as_array()
+        .unwrap()
+        .clone();
+
+    let fulfill = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillReturnableOrder($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              fulfillmentLineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  lineItem {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id,
+                    "fulfillmentOrderLineItems": [
+                        {
+                            "id": fulfillment_order_lines[0]["id"],
+                            "quantity": 2
+                        },
+                        {
+                            "id": fulfillment_order_lines[1]["id"],
+                            "quantity": 3
+                        }
+                    ]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(fulfill.status, 200);
+    assert_eq!(
+        fulfill.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    let fulfillment_lines = fulfill.body["data"]["fulfillmentCreate"]["fulfillment"]
+        ["fulfillmentLineItems"]["nodes"]
+        .as_array()
+        .unwrap()
+        .clone();
+
+    let create_return = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOpenReturn($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes {
+                      id
+                      totalQuantity
+                      remainingQuantity
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id,
+                "returnLineItems": [
+                    {
+                        "fulfillmentLineItemId": fulfillment_lines[0]["id"],
+                        "quantity": 2,
+                        "returnReason": "OTHER",
+                        "returnReasonNote": "First line return"
+                    },
+                    {
+                        "fulfillmentLineItemId": fulfillment_lines[1]["id"],
+                        "quantity": 3,
+                        "returnReason": "OTHER",
+                        "returnReasonNote": "Second line return"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create_return.status, 200);
+    assert_eq!(
+        create_return.body["data"]["returnCreate"]["userErrors"],
+        json!([])
+    );
+    let rfo = &create_return.body["data"]["returnCreate"]["return"]["reverseFulfillmentOrders"]
+        ["nodes"][0];
+    (
+        rfo["id"].clone(),
+        rfo["lineItems"]["nodes"].as_array().unwrap().clone(),
+    )
+}
+
+#[test]
+fn reverse_delivery_create_uses_explicit_line_items_from_input() {
+    let mut proxy = snapshot_proxy();
+    let (reverse_fulfillment_order_id, rfo_lines) =
+        stage_two_line_reverse_fulfillment_order(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExplicitReverseDelivery(
+          $reverseFulfillmentOrderId: ID!
+          $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+        ) {
+          reverseDeliveryCreateWithShipping(
+            reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+            reverseDeliveryLineItems: $reverseDeliveryLineItems
+          ) {
+            reverseDelivery {
+              id
+              reverseDeliveryLineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  reverseFulfillmentOrderLineItem {
+                    id
+                    totalQuantity
+                    remainingQuantity
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "reverseFulfillmentOrderId": reverse_fulfillment_order_id,
+            "reverseDeliveryLineItems": [
+                {
+                    "reverseFulfillmentOrderLineItemId": rfo_lines[1]["id"],
+                    "quantity": 3
+                },
+                {
+                    "reverseFulfillmentOrderLineItemId": rfo_lines[0]["id"],
+                    "quantity": 2
+                }
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        json!([])
+    );
+    let delivery = &response.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"];
+    let delivery_id = delivery["id"].clone();
+    let nodes = delivery["reverseDeliveryLineItems"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(nodes.len(), 2);
+    assert_eq!(nodes[0]["quantity"], json!(3));
+    assert_eq!(
+        nodes[0]["reverseFulfillmentOrderLineItem"]["id"],
+        rfo_lines[1]["id"]
+    );
+    assert_eq!(
+        nodes[0]["reverseFulfillmentOrderLineItem"]["totalQuantity"],
+        rfo_lines[1]["totalQuantity"]
+    );
+    assert_eq!(nodes[1]["quantity"], json!(2));
+    assert_eq!(
+        nodes[1]["reverseFulfillmentOrderLineItem"]["id"],
+        rfo_lines[0]["id"]
+    );
+    assert_eq!(
+        nodes[1]["reverseFulfillmentOrderLineItem"]["totalQuantity"],
+        rfo_lines[0]["totalQuantity"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReverseDelivery($reverseDeliveryId: ID!, $reverseFulfillmentOrderId: ID!) {
+          reverseDelivery(id: $reverseDeliveryId) {
+            id
+            reverseDeliveryLineItems(first: 5) {
+              nodes {
+                quantity
+                reverseFulfillmentOrderLineItem { id }
+              }
+            }
+          }
+          reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {
+            id
+            reverseDeliveries(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({
+            "reverseDeliveryId": delivery_id,
+            "reverseFulfillmentOrderId": reverse_fulfillment_order_id
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["reverseDelivery"]["reverseDeliveryLineItems"]["nodes"],
+        json!([
+            {
+                "quantity": 3,
+                "reverseFulfillmentOrderLineItem": { "id": rfo_lines[1]["id"] }
+            },
+            {
+                "quantity": 2,
+                "reverseFulfillmentOrderLineItem": { "id": rfo_lines[0]["id"] }
+            }
+        ])
+    );
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
+        delivery_id
+    );
+}
+
+#[test]
+fn reverse_delivery_create_empty_line_items_expand_to_all_rfo_lines() {
+    let mut proxy = snapshot_proxy();
+    let (reverse_fulfillment_order_id, rfo_lines) =
+        stage_two_line_reverse_fulfillment_order(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExpandedReverseDelivery(
+          $reverseFulfillmentOrderId: ID!
+          $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+        ) {
+          reverseDeliveryCreateWithShipping(
+            reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+            reverseDeliveryLineItems: $reverseDeliveryLineItems
+          ) {
+            reverseDelivery {
+              id
+              reverseDeliveryLineItems(first: 5) {
+                nodes {
+                  quantity
+                  reverseFulfillmentOrderLineItem {
+                    id
+                    totalQuantity
+                    remainingQuantity
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "reverseFulfillmentOrderId": reverse_fulfillment_order_id,
+            "reverseDeliveryLineItems": []
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        json!([])
+    );
+    let nodes = response.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]
+        ["reverseDeliveryLineItems"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(nodes.len(), rfo_lines.len());
+    for (node, rfo_line) in nodes.iter().zip(rfo_lines.iter()) {
+        assert_eq!(node["quantity"], rfo_line["totalQuantity"]);
+        assert_eq!(
+            node["reverseFulfillmentOrderLineItem"]["id"],
+            rfo_line["id"]
+        );
+        assert_eq!(
+            node["reverseFulfillmentOrderLineItem"]["remainingQuantity"],
+            rfo_line["remainingQuantity"]
+        );
+    }
+}
+
 #[test]
 fn return_create_and_request_reject_missing_reason_without_staging() {
     let fixture = return_reason_validation_fixture();

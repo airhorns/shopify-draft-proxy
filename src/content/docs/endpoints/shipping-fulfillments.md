@@ -111,6 +111,14 @@ The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `argumentNotAccepted` GraphQL errors before resolver execution and do not stage
 or log a service mutation.
 
+Reverse-logistics shipping slices stage `reverseDeliveryCreateWithShipping`
+from the return domain's reverse fulfillment order state. Explicit
+`reverseDeliveryLineItems` inputs preserve one staged delivery line per input
+with the requested quantity and line item; empty inputs expand to all reverse
+fulfillment order lines at their total quantities. The recorded order/return
+parity fixture uses one two-line return for empty expansion and a second
+two-line return for explicit multi-line delivery creation.
+
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
 validation, blank create and update names, duplicate active app carriers,

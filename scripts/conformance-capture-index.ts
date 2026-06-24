@@ -8498,6 +8498,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}return-reverse-logistics-recorded.json`,
       'config/parity-specs/orders/return-reverse-logistics-recorded.json',
+      'config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql',
     ],
     cleanupBehavior:
       'Creates and fulfills a disposable order, records return/reverse-logistics lifecycle evidence, then cancels the order.',
