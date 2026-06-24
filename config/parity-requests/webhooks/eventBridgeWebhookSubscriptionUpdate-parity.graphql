@@ -6,6 +6,7 @@ mutation EventBridgeWebhookSubscriptionUpdateParity(
     webhookSubscription {
       id
       topic
+      callbackUrl
       uri
       format
       includeFields

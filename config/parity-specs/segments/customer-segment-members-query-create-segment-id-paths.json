@@ -2,17 +2,17 @@
   "scenarioId": "customer-segment-members-query-create-segment-id-paths",
   "operationNames": ["segmentCreate", "customerSegmentMembersQueryCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "query-grammar", "user-errors-parity"],
+  "assertionKinds": ["payload-shape", "query-grammar", "top-level-errors-parity", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-segment-id-paths.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-create-for-member-query-segment-id-paths.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) does not revalidate the stored segment query. Strict parity stages broad segment query grammar through segmentCreate first, then creates member-query jobs from the local segment ID and checks Shopify's unknown Segment ID CDP error shape. The current live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead of fabricating the stale alias example.",
+  "notes": "Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) does not revalidate the stored segment query. Strict parity stages broad segment query grammar through segmentCreate first, then creates member-query jobs from the local segment ID and checks Shopify's unknown Segment ID CDP error shape. It also records malformed, empty, and wrong-resource segmentId coercion before resolver execution. The current live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead of fabricating the stale alias example.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -97,6 +97,36 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
           "variablesCapturePath": "$.cases[4].request.variables"
+        }
+      },
+      {
+        "name": "member-query-create-malformed-segment-id-top-level-errors",
+        "capturePath": "$.cases[5].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        }
+      },
+      {
+        "name": "member-query-create-empty-segment-id-top-level-errors",
+        "capturePath": "$.cases[6].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        }
+      },
+      {
+        "name": "member-query-create-wrong-type-segment-id-top-level-envelope",
+        "capturePath": "$.cases[7].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors", "$.data"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variablesCapturePath": "$.cases[7].request.variables"
         }
       }
     ]

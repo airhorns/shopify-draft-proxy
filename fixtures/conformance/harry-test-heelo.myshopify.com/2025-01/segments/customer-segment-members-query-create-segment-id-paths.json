@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-07T11:34:39.092Z",
+  "capturedAt": "2026-06-24T15:37:35.867Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "cases": [
@@ -8,7 +8,7 @@
       "request": {
         "query": "#graphql\n  mutation SegmentCreateForMemberQuerySegmentIdPaths($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "name": "Member query companies member-query-segment-id-paths-1778153677912",
+          "name": "Member query companies member-query-segment-id-paths-1782315454595",
           "query": "companies IS NULL"
         }
       },
@@ -18,8 +18,8 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/648593080626",
-                "name": "Member query companies member-query-segment-id-paths-1778153677912",
+                "id": "gid://shopify/Segment/652159549746",
+                "name": "Member query companies member-query-segment-id-paths-1782315454595",
                 "query": "companies IS NULL"
               },
               "userErrors": []
@@ -45,7 +45,7 @@
         "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "segmentId": "gid://shopify/Segment/648593080626"
+            "segmentId": "gid://shopify/Segment/652159549746"
           }
         }
       },
@@ -55,7 +55,7 @@
           "data": {
             "customerSegmentMembersQueryCreate": {
               "customerSegmentMembersQuery": {
-                "id": "gid://shopify/CustomerSegmentMembersQuery/baee3120-4a08-11f1-8876-1698b3034858",
+                "id": "gid://shopify/CustomerSegmentMembersQuery/9f29b876-6fe2-11f1-96f2-566af91f1100",
                 "currentCount": 0,
                 "done": false
               },
@@ -64,11 +64,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -81,7 +81,7 @@
       "request": {
         "query": "#graphql\n  mutation SegmentCreateForMemberQuerySegmentIdPaths($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "name": "Member query customer country member-query-segment-id-paths-1778153677912",
+          "name": "Member query customer country member-query-segment-id-paths-1782315454595",
           "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'"
         }
       },
@@ -91,8 +91,8 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/648593113394",
-                "name": "Member query customer country member-query-segment-id-paths-1778153677912",
+                "id": "gid://shopify/Segment/652159582514",
+                "name": "Member query customer country member-query-segment-id-paths-1782315454595",
                 "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'"
               },
               "userErrors": []
@@ -118,7 +118,7 @@
         "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "segmentId": "gid://shopify/Segment/648593113394"
+            "segmentId": "gid://shopify/Segment/652159582514"
           }
         }
       },
@@ -128,7 +128,7 @@
           "data": {
             "customerSegmentMembersQueryCreate": {
               "customerSegmentMembersQuery": {
-                "id": "gid://shopify/CustomerSegmentMembersQuery/bb3f97c2-4a08-11f1-8f72-46660574aba9",
+                "id": "gid://shopify/CustomerSegmentMembersQuery/9f577545-6fe2-11f1-96f2-566af91f1100",
                 "currentCount": 0,
                 "done": false
               },
@@ -137,11 +137,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -176,6 +176,158 @@
           },
           "extensions": {
             "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "malformedSegmentIdRejectedBeforeResolver",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "not-a-gid"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type CustomerSegmentMembersQueryInput! was provided invalid value for segmentId (Invalid global id 'not-a-gid')",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 60
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "segmentId": "not-a-gid"
+                },
+                "problems": [
+                  {
+                    "path": ["segmentId"],
+                    "explanation": "Invalid global id 'not-a-gid'",
+                    "message": "Invalid global id 'not-a-gid'"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "emptySegmentIdRejectedBeforeResolver",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": ""
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type CustomerSegmentMembersQueryInput! was provided invalid value for segmentId (Invalid global id '')",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 60
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "segmentId": ""
+                },
+                "problems": [
+                  {
+                    "path": ["segmentId"],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "wrongTypeSegmentIdRejectedBeforeResolver",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Customer/1"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["customerSegmentMembersQueryCreate"]
+            }
+          ],
+          "data": {
+            "customerSegmentMembersQueryCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "segmentId": "gid://shopify/Segment/652159582514",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/652159582514",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
               "requestedQueryCost": 10,
               "actualQueryCost": 10,
               "throttleStatus": {
@@ -187,42 +339,15 @@
           }
         }
       }
-    }
-  ],
-  "cleanup": [
-    {
-      "segmentId": "gid://shopify/Segment/648593113394",
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "segmentDelete": {
-              "deletedSegmentId": "gid://shopify/Segment/648593113394",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
     },
     {
-      "segmentId": "gid://shopify/Segment/648593080626",
+      "segmentId": "gid://shopify/Segment/652159549746",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "segmentDelete": {
-              "deletedSegmentId": "gid://shopify/Segment/648593080626",
+              "deletedSegmentId": "gid://shopify/Segment/652159549746",
               "userErrors": []
             }
           },
@@ -245,6 +370,8 @@
     "Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) accepts stored segment queries using broad segment grammar without revalidating the resolved query on this mutation surface.",
     "The configured live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead.",
     "Live evidence that an unknown valid Segment GID returns CustomerSegmentMembersQueryUserError field:null code:INVALID message:\"Invalid segment ID.\"",
+    "Live evidence that malformed, empty, and wrong-resource segmentId inputs fail before the resolver with top-level GraphQL errors.",
+    "No store state is required for the malformed, empty, or wrong-resource GID cases and no cleanup is needed for those branches.",
     "Disposable segments are created to capture segmentId-backed branches, then deleted during cleanup.",
     "CustomerSegmentMembersQuery jobs are Shopify async query state and do not have a cleanup mutation."
   ],

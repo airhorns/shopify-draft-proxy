@@ -509,7 +509,10 @@ impl DraftProxy {
         request: &Request,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
-        let uri = record["callbackUrl"].as_str().unwrap_or_default();
+        let uri = record["uri"]
+            .as_str()
+            .or_else(|| record["callbackUrl"].as_str())
+            .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
         if uri.trim().is_empty() {
             errors.push(json!({
@@ -644,7 +647,10 @@ impl DraftProxy {
             .any(|(existing_id, existing)| {
                 existing_id != id
                     && existing["topic"].as_str() == Some(topic)
-                    && existing["callbackUrl"].as_str() == Some(uri)
+                    && existing["uri"]
+                        .as_str()
+                        .or_else(|| existing["callbackUrl"].as_str())
+                        == Some(uri)
                     && existing["format"].as_str() == Some(format)
                     && webhook_subscription_optional_string_key(existing, "filter")
                         == webhook_subscription_optional_string_key(record, "filter")
@@ -734,13 +740,17 @@ impl DraftProxy {
             .or(dedicated_pubsub_uri)
             .or_else(|| resolved_string_field(&webhook_input, "arn"))
             .or_else(|| {
-                existing
-                    .as_ref()
-                    .and_then(|record| record["callbackUrl"].as_str().map(ToString::to_string))
+                existing.as_ref().and_then(|record| {
+                    record["uri"]
+                        .as_str()
+                        .or_else(|| record["callbackUrl"].as_str())
+                        .map(ToString::to_string)
+                })
             })
             .unwrap_or_default()
             .trim()
             .to_string();
+        let callback_url = webhook_subscription_callback_url(&uri);
         let format = resolved_string_field(&webhook_input, "format")
             .or_else(|| {
                 existing
@@ -854,7 +864,7 @@ impl DraftProxy {
             "topic": topic,
             "format": format,
             "uri": uri,
-            "callbackUrl": uri,
+            "callbackUrl": callback_url,
             "name": name,
             "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
@@ -1230,9 +1240,8 @@ impl DraftProxy {
                 );
             }
         }
-        let id = existing_id.unwrap_or_else(|| {
-            format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
-        });
+        let id =
+            existing_id.unwrap_or_else(|| shopify_gid("MarketingActivity", self.next_synthetic_id));
         if !self.store.staged.marketing_activities.contains_key(&id) {
             self.next_synthetic_id += 2;
         }
@@ -3258,7 +3267,9 @@ impl DraftProxy {
                 index.to_string(),
                 "locationId".to_string(),
             ];
-            if !self.inventory_location_exists(&location_id) {
+            if !self.inventory_location_exists(&location_id)
+                || !self.inventory_location_is_active(&location_id)
+            {
                 user_errors.push(inventory_bulk_toggle_user_error(
                     location_path.clone(),
                     "The quantity couldn't be updated because the location was not found.",
@@ -3271,41 +3282,6 @@ impl DraftProxy {
                     user_errors,
                 ));
             }
-            if !self.inventory_location_is_active(&location_id) {
-                user_errors.push(inventory_bulk_toggle_user_error(
-                    location_path.clone(),
-                    "The quantity couldn't be updated because the location is not active.",
-                    Some("LOCATION_NOT_ACTIVE"),
-                ));
-                return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                    None,
-                    None,
-                    &field.selection,
-                    user_errors,
-                ));
-            }
-            if let Some(quantity) = resolved_int_field(update, "available")
-                .or_else(|| resolved_int_field(update, "quantity"))
-            {
-                if quantity < 0 {
-                    user_errors.push(inventory_bulk_toggle_user_error(
-                        vec![
-                            "inventoryItemUpdates".to_string(),
-                            index.to_string(),
-                            "available".to_string(),
-                        ],
-                        "Available must be greater than or equal to 0",
-                        Some("NEGATIVE"),
-                    ));
-                    return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                        None,
-                        None,
-                        &field.selection,
-                        user_errors,
-                    ));
-                }
-            }
-
             let key = (inventory_item_id.clone(), location_id.clone());
             let is_active = self.store.staged.inventory_levels.contains_key(&key)
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
@@ -3320,24 +3296,6 @@ impl DraftProxy {
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
             if activate {
                 if !is_active {
-                    if !self.store.staged.inactive_inventory_levels.contains(&key)
-                        && self
-                            .active_inventory_levels_for_item(&inventory_item_id)
-                            .len()
-                            >= INVENTORY_MAX_ACTIVE_LEVELS
-                    {
-                        user_errors.push(inventory_bulk_toggle_user_error(
-                            location_path.clone(),
-                            "The quantity couldn't be updated because the product has reached the maximum number of inventory locations.",
-                            Some("TOO_MANY_INVENTORY_LEVELS"),
-                        ));
-                        return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                            None,
-                            None,
-                            &field.selection,
-                            user_errors,
-                        ));
-                    }
                     self.activate_inventory_level(&inventory_item_id, &location_id);
                 }
                 if let Some(level) = self.inventory_level_for_payload(
@@ -3545,7 +3503,7 @@ impl DraftProxy {
         let inventory_item_id = if query.starts_with("gid://shopify/InventoryItem/") {
             query.to_string()
         } else {
-            format!("gid://shopify/InventoryItem/{query}")
+            shopify_gid("InventoryItem", query)
         };
         if let Some(((item_id, location_id), _)) = self
             .store
@@ -5530,7 +5488,7 @@ impl DraftProxy {
         };
         let product = variant.get("product").cloned().unwrap_or_else(|| {
             json!({
-                "id": format!("gid://shopify/Product/{}", resource_id_tail(&item_id)),
+                "id": shopify_gid("Product", resource_id_tail(&item_id)),
                 "title": "",
                 "handle": "",
                 "status": "ACTIVE",
@@ -5556,7 +5514,7 @@ impl DraftProxy {
             .and_then(|product| product.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| format!("gid://shopify/Product/{}", resource_id_tail(&item_id)));
+            .unwrap_or_else(|| shopify_gid("Product", resource_id_tail(&item_id)));
         let mut variant_value = variant.clone();
         if let Some(fields) = variant_value.as_object_mut() {
             fields.insert("id".to_string(), json!(variant_id));

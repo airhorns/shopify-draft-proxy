@@ -119,7 +119,7 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
             } else {
                 selected_json(&token, token_selection)
             }),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -138,7 +138,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -154,14 +154,6 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     code: &str,
 ) -> Value {
     user_error(Value::Null, message, Some(code))
-}
-
-pub(in crate::proxy) fn synthetic_shop_json() -> Value {
-    default_shop_json()
-}
-
-pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
-    store.effective_shop()
 }
 
 pub(in crate::proxy) fn local_app_json() -> Value {
@@ -627,6 +619,10 @@ pub(in crate::proxy) fn delivery_profile_update_user_errors(
     delivery_profile_common_shape_user_errors(profile)
 }
 
+const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
+const DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE: &str =
+    "Profile name must be less than 128 characters long";
+
 fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let name = resolved_string_arg(profile, "name")?;
     if name.is_empty() {
@@ -636,10 +632,10 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
             None,
         ));
     }
-    if name.chars().count() >= 128 {
+    if name.chars().count() > DELIVERY_PROFILE_MAX_NAME_LENGTH {
         return Some(user_error_omit_code(
             json!(["profile", "name"]),
-            "Profile name must be less than 128 characters long",
+            DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE,
             None,
         ));
     }
@@ -1077,7 +1073,7 @@ fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
     let tail = Some(resource_id_path_tail(variant_id))
         .filter(|tail| !tail.is_empty())
         .unwrap_or("local");
-    format!("gid://shopify/Product/delivery-profile-{tail}")
+    shopify_gid("Product", format_args!("delivery-profile-{tail}"))
 }
 
 pub(in crate::proxy) fn delivery_profile_countries_from_input(
@@ -1116,7 +1112,7 @@ fn delivery_profile_zone_countries_from_input(
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
     json!({
-        "id": format!("gid://shopify/DeliveryCountry/{code}"),
+        "id": shopify_gid("DeliveryCountry", code),
         "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "code": {
@@ -1911,10 +1907,6 @@ pub(in crate::proxy) fn normalize_taggable_tags(tags: Vec<String>) -> Vec<String
     }
     normalized.sort_by_key(|tag| tag.to_lowercase());
     normalized
-}
-
-pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
-    normalize_taggable_tags(tags)
 }
 
 pub(in crate::proxy) fn normalized_taggable_tags_argument(
@@ -2722,20 +2714,6 @@ fn valid_utc_date_time(
         && hour <= 23
         && minute <= 59
         && second <= 60
-}
-
-fn days_in_month(year: i32, month: u32) -> u32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => 0,
-    }
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {

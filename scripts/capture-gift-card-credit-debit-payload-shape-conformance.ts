@@ -120,6 +120,7 @@ const creditMutation = `#graphql
       giftCardCreditTransaction {
         id
         __typename
+        note
         amount {
           amount
           currencyCode
@@ -140,6 +141,7 @@ const debitMutation = `#graphql
       giftCardDebitTransaction {
         id
         __typename
+        note
         amount {
           amount
           currencyCode
@@ -264,6 +266,7 @@ try {
         apiVersion,
         notes: [
           'Captures live giftCardCredit and giftCardDebit payload shapes for schema-valid typed transaction selections.',
+          'The valid credit and debit inputs intentionally omit note so the captured transaction note proves Shopify returns null for the optional field.',
           'Captures Shopify top-level undefinedField validation errors when giftCard is selected on GiftCardCreditPayload or GiftCardDebitPayload.',
           'Setup creates one disposable gift card; cleanup deactivates the setup gift card.',
         ],

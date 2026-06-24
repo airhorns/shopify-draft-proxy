@@ -1,15 +1,16 @@
 {
-  "capturedAt": "2026-05-08T11:58:18.323Z",
+  "capturedAt": "2026-06-24T15:43:01.580Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "metaobjectCreate auto-handle generation with no displayNameKey, second same-type generated create, explicit mixed-case handle lowercasing with titleized display-name fallback, and case-insensitive explicit handle conflict suffixing.",
+  "summary": "metaobjectCreate auto-handle generation with no displayNameKey, second same-type generated create, explicit mixed-case handle lowercasing with titleized display-name fallback, case-insensitive explicit handle conflict suffixing, and metaobjectUpsert create/update fallback displayName derivation from the explicit handle.",
   "captureContext": {
-    "runId": "1778241496658",
-    "type": "auto_handle_1778241496658",
-    "randomHandleBase": "auto-handle-1778241496658",
+    "runId": "1782315778999",
+    "type": "auto_handle_1782315778999",
+    "randomHandleBase": "auto-handle-1782315778999",
     "explicitHandle": "MyHandle",
     "explicitConflictHandle": "myhandle",
-    "definitionId": "gid://shopify/MetaobjectDefinition/17962107186"
+    "upsertHandle": "UpsertHandle",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19309494578"
   },
   "definitionCreate": {
     "name": "definition-create",
@@ -17,8 +18,8 @@
       "query": "mutation MetaobjectAutoHandleDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "auto_handle_1778241496658",
-          "name": "Auto Handle 1778241496658",
+          "type": "auto_handle_1782315778999",
+          "name": "Auto Handle 1782315778999",
           "fieldDefinitions": [
             {
               "key": "body",
@@ -35,8 +36,8 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17962107186",
-            "type": "auto_handle_1778241496658",
+            "id": "gid://shopify/MetaobjectDefinition/19309494578",
+            "type": "auto_handle_1782315778999",
             "displayNameKey": null,
             "fieldDefinitions": [
               {
@@ -72,7 +73,7 @@
       "query": "mutation MetaobjectAutoHandleCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "metaobject": {
-          "type": "auto_handle_1778241496658",
+          "type": "auto_handle_1782315778999",
           "fields": [
             {
               "key": "body",
@@ -87,10 +88,10 @@
       "data": {
         "metaobjectCreate": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/188535505202",
-            "handle": "auto-handle-1778241496658-0qynigdw",
-            "type": "auto_handle_1778241496658",
-            "displayName": "Auto Handle 1778241496658 #0QYNIGDW"
+            "id": "gid://shopify/Metaobject/202050732338",
+            "handle": "auto-handle-1782315778999-mv5ncdzl",
+            "type": "auto_handle_1782315778999",
+            "displayName": "Auto Handle 1782315778999 #MV5NCDZL"
           },
           "userErrors": []
         }
@@ -114,7 +115,7 @@
       "query": "mutation MetaobjectAutoHandleCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "metaobject": {
-          "type": "auto_handle_1778241496658",
+          "type": "auto_handle_1782315778999",
           "fields": [
             {
               "key": "body",
@@ -129,10 +130,10 @@
       "data": {
         "metaobjectCreate": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/188535537970",
-            "handle": "auto-handle-1778241496658-vnvdalia",
-            "type": "auto_handle_1778241496658",
-            "displayName": "Auto Handle 1778241496658 #VNVDALIA"
+            "id": "gid://shopify/Metaobject/202050765106",
+            "handle": "auto-handle-1782315778999-dvcc9nx2",
+            "type": "auto_handle_1782315778999",
+            "displayName": "Auto Handle 1782315778999 #DVCC9NX2"
           },
           "userErrors": []
         }
@@ -156,7 +157,7 @@
       "query": "mutation MetaobjectAutoHandleCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "metaobject": {
-          "type": "auto_handle_1778241496658",
+          "type": "auto_handle_1782315778999",
           "handle": "MyHandle",
           "fields": [
             {
@@ -172,9 +173,9 @@
       "data": {
         "metaobjectCreate": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/188535570738",
+            "id": "gid://shopify/Metaobject/202050797874",
             "handle": "myhandle",
-            "type": "auto_handle_1778241496658",
+            "type": "auto_handle_1782315778999",
             "displayName": "My Handle"
           },
           "userErrors": []
@@ -199,7 +200,7 @@
       "query": "mutation MetaobjectAutoHandleCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "metaobject": {
-          "type": "auto_handle_1778241496658",
+          "type": "auto_handle_1782315778999",
           "handle": "myhandle",
           "fields": [
             {
@@ -215,10 +216,100 @@
       "data": {
         "metaobjectCreate": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/188535603506",
+            "id": "gid://shopify/Metaobject/202050830642",
             "handle": "myhandle-1",
-            "type": "auto_handle_1778241496658",
+            "type": "auto_handle_1782315778999",
             "displayName": "Myhandle 1"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertCreate": {
+    "name": "upsert-create-explicit-handle-fallback-display-name",
+    "request": {
+      "query": "mutation MetaobjectAutoHandleUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "auto_handle_1782315778999",
+          "handle": "UpsertHandle"
+        },
+        "metaobject": {
+          "fields": [
+            {
+              "key": "body",
+              "value": "Upsert display name fallback"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202050863410",
+            "handle": "upserthandle",
+            "type": "auto_handle_1782315778999",
+            "displayName": "Upsert Handle"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertUpdate": {
+    "name": "upsert-update-explicit-handle-fallback-display-name",
+    "request": {
+      "query": "mutation MetaobjectAutoHandleUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "auto_handle_1782315778999",
+          "handle": "UpsertHandle"
+        },
+        "metaobject": {
+          "fields": [
+            {
+              "key": "body",
+              "value": "Updated upsert display name fallback"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202050863410",
+            "handle": "upserthandle",
+            "type": "auto_handle_1782315778999",
+            "displayName": "Upsert Handle"
           },
           "userErrors": []
         }
@@ -242,14 +333,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectAutoHandleDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188535505202"
+          "id": "gid://shopify/Metaobject/202050732338"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188535505202",
+            "deletedId": "gid://shopify/Metaobject/202050732338",
             "userErrors": []
           }
         },
@@ -271,14 +362,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectAutoHandleDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188535537970"
+          "id": "gid://shopify/Metaobject/202050765106"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188535537970",
+            "deletedId": "gid://shopify/Metaobject/202050765106",
             "userErrors": []
           }
         },
@@ -300,14 +391,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectAutoHandleDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188535570738"
+          "id": "gid://shopify/Metaobject/202050797874"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188535570738",
+            "deletedId": "gid://shopify/Metaobject/202050797874",
             "userErrors": []
           }
         },
@@ -329,14 +420,43 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectAutoHandleDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188535603506"
+          "id": "gid://shopify/Metaobject/202050830642"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188535603506",
+            "deletedId": "gid://shopify/Metaobject/202050830642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectAutoHandleDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202050863410"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/202050863410",
             "userErrors": []
           }
         },
@@ -358,14 +478,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectAutoHandleDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17962107186"
+          "id": "gid://shopify/MetaobjectDefinition/19309494578"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17962107186",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19309494578",
             "userErrors": []
           }
         },

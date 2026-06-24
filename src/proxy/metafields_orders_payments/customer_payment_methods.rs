@@ -404,7 +404,6 @@ impl DraftProxy {
         if session_id.is_empty() {
             return (
                 self.customer_payment_method_payload(
-                    "customerPaymentMethodCreditCardCreate",
                     &field.selection,
                     Value::Null,
                     Some(false),
@@ -416,7 +415,6 @@ impl DraftProxy {
         if session_id == "shopify-draft-proxy:processing" {
             return (
                 self.customer_payment_method_payload(
-                    "customerPaymentMethodCreditCardCreate",
                     &field.selection,
                     Value::Null,
                     Some(true),
@@ -429,7 +427,6 @@ impl DraftProxy {
         if !blank_errors.is_empty() {
             return (
                 self.customer_payment_method_payload(
-                    "customerPaymentMethodCreditCardCreate",
                     &field.selection,
                     Value::Null,
                     Some(false),
@@ -450,13 +447,7 @@ impl DraftProxy {
         );
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(
-                "customerPaymentMethodCreditCardCreate",
-                &field.selection,
-                record,
-                Some(false),
-                Vec::new(),
-            ),
+            self.customer_payment_method_payload(&field.selection, record, Some(false), Vec::new()),
             Some(id),
         )
     }
@@ -468,7 +459,6 @@ impl DraftProxy {
         let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
         if !blank_errors.is_empty() {
             return self.customer_payment_method_payload(
-                "customerPaymentMethodCreditCardUpdate",
                 &field.selection,
                 Value::Null,
                 Some(false),
@@ -485,7 +475,6 @@ impl DraftProxy {
         };
         if let Some(record) = updated {
             return self.customer_payment_method_payload(
-                "customerPaymentMethodCreditCardUpdate",
                 &field.selection,
                 record,
                 Some(false),
@@ -493,7 +482,6 @@ impl DraftProxy {
             );
         }
         self.customer_payment_method_payload(
-            "customerPaymentMethodCreditCardUpdate",
             &field.selection,
             Value::Null,
             Some(false),
@@ -517,7 +505,6 @@ impl DraftProxy {
         if has_paypal && has_stripe {
             return (
                 self.customer_payment_method_payload(
-                    "customerPaymentMethodRemoteCreate",
                     &field.selection,
                     Value::Null,
                     None,
@@ -540,7 +527,6 @@ impl DraftProxy {
             {
                 return (
                     self.customer_payment_method_payload(
-                        "customerPaymentMethodRemoteCreate",
                         &field.selection,
                         Value::Null,
                         None,
@@ -568,7 +554,6 @@ impl DraftProxy {
             {
                 return (
                     self.customer_payment_method_payload(
-                        "customerPaymentMethodRemoteCreate",
                         &field.selection,
                         Value::Null,
                         None,
@@ -586,13 +571,7 @@ impl DraftProxy {
         let record = customer_payment_method_seed_record(&id, &customer_id, Value::Null);
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(
-                "customerPaymentMethodRemoteCreate",
-                &field.selection,
-                record,
-                None,
-                Vec::new(),
-            ),
+            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
             Some(id),
         )
     }
@@ -614,13 +593,7 @@ impl DraftProxy {
         );
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(
-                "customerPaymentMethodPaypalBillingAgreementCreate",
-                &field.selection,
-                record,
-                None,
-                Vec::new(),
-            ),
+            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
             Some(id),
         )
     }
@@ -634,13 +607,7 @@ impl DraftProxy {
             .get(&id)
             .cloned()
             .unwrap_or(Value::Null);
-        self.customer_payment_method_payload(
-            "customerPaymentMethodPaypalBillingAgreementUpdate",
-            &field.selection,
-            record,
-            None,
-            Vec::new(),
-        )
+        self.customer_payment_method_payload(&field.selection, record, None, Vec::new())
     }
 
     fn customer_payment_method_duplication_data(&self, field: &RootFieldSelection) -> Value {
@@ -695,13 +662,7 @@ impl DraftProxy {
         let errors = customer_payment_method_billing_address_blank_errors(&billing_address);
         if !errors.is_empty() {
             return (
-                self.customer_payment_method_payload(
-                    "customerPaymentMethodCreateFromDuplicationData",
-                    &field.selection,
-                    Value::Null,
-                    None,
-                    errors,
-                ),
+                self.customer_payment_method_payload(&field.selection, Value::Null, None, errors),
                 None,
             );
         }
@@ -715,13 +676,7 @@ impl DraftProxy {
         let record = customer_payment_method_seed_record(&id, &customer_id, instrument);
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(
-                "customerPaymentMethodCreateFromDuplicationData",
-                &field.selection,
-                record,
-                None,
-                Vec::new(),
-            ),
+            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
             Some(id),
         )
     }
@@ -850,7 +805,6 @@ impl DraftProxy {
 
     fn customer_payment_method_payload(
         &self,
-        key: &str,
         selection: &[SelectedField],
         method: Value,
         processing: Option<bool>,
@@ -862,6 +816,6 @@ impl DraftProxy {
             payload.insert("processing".to_string(), json!(processing));
         }
         payload.insert("userErrors".to_string(), json!(user_errors));
-        json!({ key: selected_json(&Value::Object(payload), selection) })[key].clone()
+        selected_json(&Value::Object(payload), selection)
     }
 }

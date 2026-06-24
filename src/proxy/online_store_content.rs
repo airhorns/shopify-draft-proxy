@@ -1,5 +1,10 @@
 use super::*;
 
+mod online_store_helpers;
+mod sales_channel;
+
+pub(in crate::proxy) use self::online_store_helpers::*;
+
 const ONLINE_STORE_CONTENT_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
@@ -1851,12 +1856,12 @@ fn online_store_count_with_baseline(
     let baseline = baseline?;
     let synthetic_staged = order
         .iter()
-        .filter(|id| id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| is_synthetic_gid(id))
         .filter(|id| !deleted_ids.contains(*id))
         .count();
     let deleted_baseline = deleted_ids
         .iter()
-        .filter(|id| !id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| !is_synthetic_gid(id))
         .count();
     Some(baseline.saturating_sub(deleted_baseline) + synthetic_staged)
 }

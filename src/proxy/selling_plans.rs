@@ -98,18 +98,25 @@ impl DraftProxy {
     fn selling_plan_group_create(&mut self, field: &RootFieldSelection) -> MutationOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let payload_selection = &field.selection;
-        let user_errors =
-            selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Create);
-        if !user_errors.is_empty() {
-            return self.selling_plan_failed_outcome(
+        let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
+            proxy.selling_plan_failed_outcome(
                 &field.name,
-                selling_plan_group_create_payload(
+                selling_plan_group_payload(
                     None,
                     user_errors,
                     payload_selection,
                     &field.response_key,
-                    self,
+                    proxy,
                 ),
+                notes,
+            )
+        };
+        let user_errors =
+            selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Create);
+        if !user_errors.is_empty() {
+            return fail(
+                self,
+                user_errors,
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
         }
@@ -119,30 +126,18 @@ impl DraftProxy {
         let product_variant_ids =
             resolved_string_list_field_unsorted(&resources, "productVariantIds");
         if let Some(error) = self.resource_existence_error(&product_ids, ResourceKind::Product) {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_create_payload(
-                    None,
-                    vec![error],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return fail(
+                self,
+                vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
             );
         }
         if let Some(error) =
             self.resource_existence_error(&product_variant_ids, ResourceKind::ProductVariant)
         {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_create_payload(
-                    None,
-                    vec![error],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return fail(
+                self,
+                vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
             );
         }
@@ -158,6 +153,11 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
+        let mut unique_product_ids = Vec::new();
+        extend_unique_strings(&mut unique_product_ids, product_ids);
+        let mut unique_product_variant_ids = Vec::new();
+        extend_unique_strings(&mut unique_product_variant_ids, product_variant_ids);
+
         let group = SellingPlanGroupRecord {
             id: id.clone(),
             app_id: resolved_string_field(&input, "appId"),
@@ -169,13 +169,13 @@ impl DraftProxy {
             created_at,
             name,
             selling_plans,
-            product_ids: unique_preserve_order(product_ids),
-            product_variant_ids: unique_preserve_order(product_variant_ids),
+            product_ids: unique_product_ids,
+            product_variant_ids: unique_product_variant_ids,
         };
         self.store.stage_selling_plan_group(group.clone());
 
         MutationOutcome::staged(
-            selling_plan_group_create_payload(
+            selling_plan_group_payload(
                 Some(&group),
                 Vec::new(),
                 payload_selection,
@@ -325,62 +325,51 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let ids = resolved_string_list_field_unsorted(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
-        let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
-            return self.selling_plan_failed_outcome(
+        let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
+            proxy.selling_plan_failed_outcome(
                 &field.name,
-                group_add_payload(
+                selling_plan_group_payload(
                     None,
-                    vec![group_does_not_exist_error()],
+                    user_errors,
                     payload_selection,
                     &field.response_key,
-                    self,
+                    proxy,
                 ),
+                notes,
+            )
+        };
+        let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
+            return fail(
+                self,
+                vec![group_does_not_exist_error()],
                 "Selling plan group add targeted an unknown group; original raw mutation retained for observability.",
             );
         };
         if let Some(error) = self.resource_existence_error(&ids, resource_kind) {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                group_add_payload(
-                    None,
-                    vec![error],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return fail(
+                self,
+                vec![error],
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
         let members = resource_members_mut(&mut group, resource_kind);
         if ids.iter().any(|resource_id| members.contains(resource_id)) {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                group_add_payload(
-                    None,
-                    vec![user_error(
-                        [resource_kind.ids_arg()],
-                        "Resource has already been taken",
-                        Some("TAKEN"),
-                    )],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return fail(
+                self,
+                vec![user_error(
+                    [resource_kind.ids_arg()],
+                    "Resource has already been taken",
+                    Some("TAKEN"),
+                )],
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
         if self.resource_membership_count_after_add(resource_kind, &ids)
             > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE
         {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                group_add_payload(
-                    None,
-                    vec![too_many_groups_error(resource_kind.ids_arg())],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return fail(
+                self,
+                vec![too_many_groups_error(resource_kind.ids_arg())],
                 "Selling plan group membership cap validation failed; original raw mutation retained for observability.",
             );
         }
@@ -390,7 +379,7 @@ impl DraftProxy {
         let mut staged_ids = vec![group.id.clone()];
         staged_ids.extend(ids);
         MutationOutcome::staged(
-            group_add_payload(
+            selling_plan_group_payload(
                 Some(&group),
                 Vec::new(),
                 payload_selection,
@@ -692,43 +681,14 @@ impl DraftProxy {
             .collect()
     }
 
-    fn selling_plan_groups_for_product_nodes(
+    fn selling_plan_groups_for_nodes_matching(
         &self,
-        product_id: &str,
-    ) -> Vec<SellingPlanGroupRecord> {
-        let variant_ids = self
-            .store
-            .product_variants_for_product(product_id)
-            .into_iter()
-            .map(|variant| variant.id)
-            .collect::<BTreeSet<_>>();
-        let mut groups = Vec::new();
-        let mut seen = BTreeSet::new();
-        for group in self.store.selling_plan_groups() {
-            if (group.product_ids.iter().any(|id| id == product_id)
-                || group
-                    .product_variant_ids
-                    .iter()
-                    .any(|id| variant_ids.contains(id)))
-                && seen.insert(group.id.clone())
-            {
-                groups.push(group);
-            }
-        }
-        groups
-    }
-
-    fn selling_plan_groups_for_variant_nodes(
-        &self,
-        variant: &ProductVariantRecord,
+        predicate: impl Fn(&SellingPlanGroupRecord) -> bool,
     ) -> Vec<SellingPlanGroupRecord> {
         let mut groups = Vec::new();
         let mut seen = BTreeSet::new();
         for group in self.store.selling_plan_groups() {
-            if (group.product_ids.iter().any(|id| id == &variant.product_id)
-                || group.product_variant_ids.iter().any(|id| id == &variant.id))
-                && seen.insert(group.id.clone())
-            {
+            if predicate(&group) && seen.insert(group.id.clone()) {
                 groups.push(group);
             }
         }
@@ -842,7 +802,21 @@ impl DraftProxy {
             selections,
             &self.store.shop_currency_code(),
         );
-        self.apply_product_selling_plan_overlay(product, selections, base)
+        let variant_ids = self
+            .store
+            .product_variants_for_product(&product.id)
+            .into_iter()
+            .map(|variant| variant.id)
+            .collect::<BTreeSet<_>>();
+        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
+            group.product_ids.iter().any(|id| id == &product.id)
+                || group
+                    .product_variant_ids
+                    .iter()
+                    .any(|id| variant_ids.contains(id))
+        });
+        let count = self.selling_plan_groups_for_product(&product.id).len();
+        self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
     pub(in crate::proxy) fn product_variant_json_with_selling_plan_overlay(
@@ -852,66 +826,34 @@ impl DraftProxy {
         selections: &[SelectedField],
     ) -> Value {
         let base = product_variant_json(variant, product, selections);
-        self.apply_product_variant_selling_plan_overlay(variant, selections, base)
+        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
+            group.product_ids.iter().any(|id| id == &variant.product_id)
+                || group.product_variant_ids.iter().any(|id| id == &variant.id)
+        });
+        let count = self
+            .direct_group_ids_for_resource(ResourceKind::ProductVariant, &variant.id)
+            .len();
+        self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
-    fn apply_product_selling_plan_overlay(
+    fn apply_selling_plan_overlay(
         &self,
-        product: &ProductRecord,
         selections: &[SelectedField],
         base: Value,
+        groups: Vec<SellingPlanGroupRecord>,
+        count: usize,
     ) -> Value {
         let mut object = base.as_object().cloned().unwrap_or_default();
         for selection in selections {
             let value = match selection.name.as_str() {
-                "sellingPlanGroups" => {
-                    let groups = self.selling_plan_groups_for_product_nodes(&product.id);
-                    Some(selected_typed_connection_with_args(
-                        &groups,
-                        &selection.arguments,
-                        &selection.selection,
-                        selling_plan_group_summary_json,
-                        |group| group.id.clone(),
-                    ))
-                }
-                "sellingPlanGroupsCount" => {
-                    let count = self.selling_plan_groups_for_product(&product.id).len();
-                    Some(product_count_json(count, &selection.selection))
-                }
-                _ => None,
-            };
-            if let Some(value) = value {
-                object.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(object)
-    }
-
-    fn apply_product_variant_selling_plan_overlay(
-        &self,
-        variant: &ProductVariantRecord,
-        selections: &[SelectedField],
-        base: Value,
-    ) -> Value {
-        let mut object = base.as_object().cloned().unwrap_or_default();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "sellingPlanGroups" => {
-                    let groups = self.selling_plan_groups_for_variant_nodes(variant);
-                    Some(selected_typed_connection_with_args(
-                        &groups,
-                        &selection.arguments,
-                        &selection.selection,
-                        selling_plan_group_summary_json,
-                        |group| group.id.clone(),
-                    ))
-                }
-                "sellingPlanGroupsCount" => {
-                    let count = self
-                        .direct_group_ids_for_resource(ResourceKind::ProductVariant, &variant.id)
-                        .len();
-                    Some(product_count_json(count, &selection.selection))
-                }
+                "sellingPlanGroups" => Some(selected_typed_connection_with_args(
+                    &groups,
+                    &selection.arguments,
+                    &selection.selection,
+                    selling_plan_group_summary_json,
+                    |group| group.id.clone(),
+                )),
+                "sellingPlanGroupsCount" => Some(product_count_json(count, &selection.selection)),
                 _ => None,
             };
             if let Some(value) = value {
@@ -1569,7 +1511,13 @@ fn selling_plan_group_summary_json(
     })
 }
 
-fn selling_plan_group_create_payload(
+fn user_errors_value(payload_selection: &[SelectedField], user_errors: &[Value]) -> Value {
+    let error_selection =
+        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
+    selected_user_errors(user_errors, &error_selection)
+}
+
+fn selling_plan_group_payload(
     group: Option<&SellingPlanGroupRecord>,
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
@@ -1578,13 +1526,11 @@ fn selling_plan_group_create_payload(
 ) -> Response {
     let group_selection =
         selected_child_selection(payload_selection, "sellingPlanGroup").unwrap_or_default();
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 _ => None,
             })
         }
@@ -1601,14 +1547,12 @@ fn selling_plan_group_update_payload(
 ) -> Response {
     let group_selection =
         selected_child_selection(payload_selection, "sellingPlanGroup").unwrap_or_default();
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 "deletedSellingPlanIds" => Some(deleted_plan_ids.clone().map_or(Value::Null, |ids| json!(ids))),
                 "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 _ => None,
             })
         }
@@ -1621,35 +1565,11 @@ fn selling_plan_group_delete_payload(
     payload_selection: &[SelectedField],
     response_key: &str,
 ) -> Response {
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 "deletedSellingPlanGroupId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
-                _ => None,
-            })
-        }
-    }))
-}
-
-fn group_add_payload(
-    group: Option<&SellingPlanGroupRecord>,
-    user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-    response_key: &str,
-    proxy: &DraftProxy,
-) -> Response {
-    let group_selection =
-        selected_child_selection(payload_selection, "sellingPlanGroup").unwrap_or_default();
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 _ => None,
             })
         }
@@ -1667,13 +1587,11 @@ fn group_remove_payload(
         ResourceKind::Product => "removedProductIds",
         ResourceKind::ProductVariant => "removedProductVariantIds",
     };
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 name if name == removed_field => Some(removed_ids.clone().map_or(Value::Null, |ids| json!(ids))),
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 _ => None,
             })
         }
@@ -1688,15 +1606,13 @@ fn resource_join_leave_payload(
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Response {
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
     let resource_selection =
         selected_child_selection(payload_selection, resource_kind.payload_resource_field())
             .unwrap_or_default();
     ok_json(json!({
         "data": {
             field.response_key.as_str(): selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 "product" if resource_kind == ResourceKind::Product => proxy
                     .store
                     .product_by_id(resource_id)
@@ -1753,10 +1669,4 @@ fn resource_members_mut(
         ResourceKind::Product => &mut group.product_ids,
         ResourceKind::ProductVariant => &mut group.product_variant_ids,
     }
-}
-
-fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
-    let mut unique = Vec::new();
-    extend_unique_strings(&mut unique, values);
-    unique
 }

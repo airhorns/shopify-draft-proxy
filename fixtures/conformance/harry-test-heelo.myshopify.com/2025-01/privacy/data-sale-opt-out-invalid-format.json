@@ -1,0 +1,374 @@
+{
+  "setup": {
+    "seededCustomers": false,
+    "note": "Format-validation-only capture; Core rejects before creating or updating a customer."
+  },
+  "mutation": {
+    "variables": {
+      "email": ".me@example.com"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Data sale opt out failed.",
+              "code": "FAILED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "invalidFormats": {
+      "leadingDotLocal": {
+        "variables": {
+          "email": ".me@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "trailingDotLocal": {
+        "variables": {
+          "email": "me.@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "consecutiveDotLocal": {
+        "variables": {
+          "email": "me..example@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "consecutiveDotDomain": {
+        "variables": {
+          "email": "me@example..com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "leadingDashDomainLabel": {
+        "variables": {
+          "email": "me@-example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "trailingDashDomainLabel": {
+        "variables": {
+          "email": "me@example-.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "ipv4LiteralDomain": {
+        "variables": {
+          "email": "me@8.8.8.8"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "emojiLocal": {
+        "variables": {
+          "email": "💩💩💩@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "invalidDomainChars": {
+        "variables": {
+          "email": "#@%^%#.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "displayNameComment": {
+        "variables": {
+          "email": "me@example.com (First Name)"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "over255Length": {
+        "variables": {
+          "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "accidentalCustomerIds": []
+  },
+  "upstreamCalls": []
+}
