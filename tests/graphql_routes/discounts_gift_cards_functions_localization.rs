@@ -2386,7 +2386,14 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
             fulfillmentConstraintRule { id }
             userErrors { code field message }
           }
-          unknownFunction: fulfillmentConstraintRuleCreate(
+          unknownId: fulfillmentConstraintRuleCreate(
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleCreate(
             functionHandle: "definitely-missing-fulfillment-constraint"
             deliveryMethodTypes: [SHIPPING]
           ) {
@@ -2438,12 +2445,20 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
                     "message": "Delivery method types cannot be empty."
                 }]
             },
-            "unknownFunction": {
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
                 "fulfillmentConstraintRule": null,
                 "userErrors": [{
                     "code": "FUNCTION_NOT_FOUND",
                     "field": ["functionHandle"],
-                    "message": "Could not find function with handle: definitely-missing-fulfillment-constraint."
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
                 }]
             },
             "wrongApi": {
@@ -2470,6 +2485,94 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identifiers() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageFulfillmentConstraintRuleForUpdateErrors {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let rule_id = create.body["data"]["fulfillmentConstraintRuleCreate"]
+        ["fulfillmentConstraintRule"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintRuleUpdateUnknownFunction($id: ID!) {
+          unknownId: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionHandle: "definitely-missing-fulfillment-constraint"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+
+    assert_eq!(
+        update.body["data"],
+        json!({
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionHandle"],
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleAfterUnknownFunctionUpdate { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": rule_id,
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": { "handle": "fulfillment-constraint-local" }
+        }])
+    );
 }
 
 #[test]
@@ -4960,6 +5063,91 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
                 "userErrors": []
             }
         })
+    );
+}
+
+#[test]
+fn gift_card_credit_debit_preserve_optional_transaction_notes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation IssueLocalGiftCard {
+          giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let gift_card_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"].clone();
+
+    let transactions = proxy.process_request(json_graphql_request(
+        r#"mutation AdjustGiftCardNotes($id: ID!) {
+          creditWithoutNote: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "2.00", currencyCode: CAD } }) {
+            giftCardCreditTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitWithoutNote: giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardDebitTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          creditWithNote: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "3.00", currencyCode: CAD }, note: "manual credit" }) {
+            giftCardCreditTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitWithNote: giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "4.00", currencyCode: CAD }, note: "manual debit" }) {
+            giftCardDebitTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(transactions.status, 200);
+    assert_eq!(
+        transactions.body["data"],
+        json!({
+            "creditWithoutNote": {
+                "giftCardCreditTransaction": { "note": null, "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "debitWithoutNote": {
+                "giftCardDebitTransaction": { "note": null, "amount": { "amount": "-1.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "creditWithNote": {
+                "giftCardCreditTransaction": { "note": "manual credit", "amount": { "amount": "3.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "debitWithNote": {
+                "giftCardDebitTransaction": { "note": "manual debit", "amount": { "amount": "-4.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            }
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionNoteReadback($id: ID!) {
+          giftCard(id: $id) {
+            transactions(first: 5) {
+              nodes {
+                note
+                amount { amount currencyCode }
+              }
+            }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(
+        readback.body["data"]["giftCard"]["transactions"]["nodes"],
+        json!([
+            { "note": null, "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+            { "note": null, "amount": { "amount": "-1.0", "currencyCode": "CAD" } },
+            { "note": "manual credit", "amount": { "amount": "3.0", "currencyCode": "CAD" } },
+            { "note": "manual debit", "amount": { "amount": "-4.0", "currencyCode": "CAD" } }
+        ])
     );
 }
 

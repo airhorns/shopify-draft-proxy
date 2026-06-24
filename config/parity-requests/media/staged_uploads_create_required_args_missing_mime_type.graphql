@@ -1,0 +1,13 @@
+#graphql
+  mutation StagedUploadRequiredArgsMissingMimeType {
+    stagedUploadsCreate(input: [{ resource: FILE, filename: "required-args.txt" }]) {
+      stagedTargets {
+        url
+        resourceUrl
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

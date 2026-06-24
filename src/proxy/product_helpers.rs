@@ -325,29 +325,14 @@ fn product_publication_connection_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
     let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| product_publication_connection_node_json(product, entry, &node_selection))
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": product_publication_connection_node_json(product, entry, &edge_node_selection)
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &entries,
+        selections,
+        |entry, selections| product_publication_connection_node_json(product, entry, selections),
+        |entry| entry.publication_id.clone(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 fn resource_publication_connection_json(
@@ -355,36 +340,16 @@ fn resource_publication_connection_json(
     typename: &str,
     selections: &[SelectedField],
 ) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
     let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| {
-            resource_publication_connection_node_json(product, entry, typename, &node_selection)
-        })
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": resource_publication_connection_node_json(
-                    product,
-                    entry,
-                    typename,
-                    &edge_node_selection
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
+    selected_typed_connection(
+        &entries,
+        selections,
+        |entry, selections| {
+            resource_publication_connection_node_json(product, entry, typename, selections)
+        },
+        |entry| entry.publication_id.clone(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
 }
 
 pub(in crate::proxy) fn product_publication_field_json(
@@ -445,7 +410,7 @@ pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
 /// id suffix and name, so both are derived rather than recorded per scenario.
 pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
     let suffix = resource_id_path_tail(id);
-    let channel_id = format!("gid://shopify/Channel/{suffix}");
+    let channel_id = shopify_gid("Channel", suffix);
     json!({
         "id": id,
         "name": name,
@@ -523,7 +488,7 @@ impl DraftProxy {
                 continue;
             }
             let media_content_type = resolved_string_field(item, "mediaContentType")
-                .unwrap_or_else(|| "IMAGE".to_string());
+                .unwrap_or_else(|| infer_product_media_content_type(&original_source).to_string());
             let id = self.next_proxy_synthetic_gid(product_media_gid_type(&media_content_type));
             let alt = resolved_string_field(item, "alt").unwrap_or_default();
             created.push(product_media_node_with_type(
@@ -532,6 +497,7 @@ impl DraftProxy {
                 &media_content_type,
                 "UPLOADED",
                 None,
+                Some(&original_source),
             ));
             staged.push(product_media_node_with_type(
                 &id,
@@ -543,6 +509,7 @@ impl DraftProxy {
                     "UPLOADED"
                 },
                 None,
+                Some(&original_source),
             ));
         }
 
@@ -558,6 +525,7 @@ impl DraftProxy {
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
         }
+        let product_media_nodes = self.product_known_media(&product_id);
 
         Some(json!({
             "media": created.clone(),
@@ -565,7 +533,7 @@ impl DraftProxy {
             "mediaUserErrors": source_errors,
             "product": {
                 "id": product_id,
-                "media": { "nodes": created }
+                "media": { "nodes": product_media_nodes }
             }
         }))
     }
@@ -618,11 +586,15 @@ impl DraftProxy {
                 }
                 node["status"] = json!("READY");
                 node["preview"] = json!({ "image": { "url": ready_url } });
-                // Preserve an observed ProductImage id so downstream deletes can
-                // still derive `deletedProductImageIds` from the asset.
-                match node.get("image").and_then(|image| image.get("id")) {
-                    Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
-                    None => node["image"] = json!({ "url": ready_url }),
+                if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
+                    // Preserve an observed ProductImage id so downstream deletes can
+                    // still derive `deletedProductImageIds` from the asset.
+                    match node.get("image").and_then(|image| image.get("id")) {
+                        Some(image_id) => {
+                            node["image"] = json!({ "id": image_id, "url": ready_url })
+                        }
+                        None => node["image"] = json!({ "url": ready_url }),
+                    }
                 }
                 updated.push(node.clone());
             }
@@ -793,25 +765,33 @@ impl DraftProxy {
     /// already staged/observed for this product so the proxy honours real
     /// asset metadata instead of hardcoding GID-specific captions.
     fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let alt = self
+        let known = self
             .store
             .product_staged_or_base(product_id)
             .and_then(|product| {
-                product.media.iter().find_map(|node| {
-                    if node.get("id").and_then(Value::as_str) == Some(id) {
-                        node.get("alt").and_then(Value::as_str).map(str::to_string)
-                    } else {
-                        None
-                    }
+                product
+                    .media
+                    .into_iter()
+                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+            });
+        let mut node = known.unwrap_or_else(|| {
+            let alt = self
+                .store
+                .product_staged_or_base(product_id)
+                .and_then(|product| {
+                    product.media.iter().find_map(|node| {
+                        if node.get("id").and_then(Value::as_str) == Some(id) {
+                            node.get("alt").and_then(Value::as_str).map(str::to_string)
+                        } else {
+                            None
+                        }
+                    })
                 })
-            })
-            .unwrap_or_default();
-        json!({
-            "id": id,
-            "alt": alt,
-            "mediaContentType": "IMAGE",
-            "status": "PROCESSING"
-        })
+                .unwrap_or_default();
+            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
+        });
+        node["status"] = json!("PROCESSING");
+        node
     }
 }
 
@@ -821,11 +801,14 @@ fn product_media_node_with_type(
     media_content_type: &str,
     status: &str,
     image_url: Option<&str>,
+    original_source: Option<&str>,
 ) -> Value {
     let image = image_url
         .map(|url| json!({ "url": url }))
         .unwrap_or(Value::Null);
+    let typename = product_media_typename(media_content_type);
     let mut node = json!({
+        "__typename": typename,
         "id": id,
         "alt": alt,
         "mediaContentType": media_content_type,
@@ -836,8 +819,22 @@ fn product_media_node_with_type(
     });
     if media_content_type == "IMAGE" {
         node["image"] = image;
+    } else if matches!(media_content_type, "VIDEO" | "MODEL_3D") {
+        if let Some(source) = original_source {
+            node["originalSource"] = json!({ "url": source });
+            node["sources"] = json!([{ "url": source }]);
+        }
     }
     node
+}
+
+fn product_media_typename(media_content_type: &str) -> &'static str {
+    match media_content_type {
+        "EXTERNAL_VIDEO" => "ExternalVideo",
+        "MODEL_3D" => "Model3d",
+        "VIDEO" => "Video",
+        _ => "MediaImage",
+    }
 }
 
 fn product_media_gid_type(media_content_type: &str) -> &'static str {
@@ -851,6 +848,38 @@ fn product_media_gid_type(media_content_type: &str) -> &'static str {
 
 fn product_media_ready_url() -> &'static str {
     "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+}
+
+fn infer_product_media_content_type(original_source: &str) -> &'static str {
+    if product_media_source_is_external_video(original_source) {
+        return "EXTERNAL_VIDEO";
+    }
+    match product_media_source_extension(original_source).as_str() {
+        "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
+        "glb" | "gltf" | "usdz" => "MODEL_3D",
+        _ => "IMAGE",
+    }
+}
+
+fn product_media_source_is_external_video(original_source: &str) -> bool {
+    let source = original_source.to_ascii_lowercase();
+    source.contains("youtube.com/") || source.contains("youtu.be/") || source.contains("vimeo.com/")
+}
+
+fn product_media_source_extension(original_source: &str) -> String {
+    let path = original_source
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(original_source);
+    let filename = path
+        .rsplit('/')
+        .find(|segment| !segment.is_empty())
+        .unwrap_or("");
+    filename
+        .rsplit_once('.')
+        .map(|(_, extension)| extension)
+        .unwrap_or("")
+        .to_ascii_lowercase()
 }
 
 fn product_media_user_errors_payload(
@@ -1091,131 +1120,7 @@ pub(in crate::proxy) fn product_json_with_currency(
     selections: &[SelectedField],
     currency_code: &str,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Product")),
-        "id" => Some(json!(product.id)),
-        "title" => Some(json!(product.title)),
-        "handle" => Some(json!(product.handle)),
-        "status" => Some(json!(product.status)),
-        "createdAt" => Some(json!(product.created_at)),
-        "updatedAt" => Some(json!(product.updated_at)),
-        "descriptionHtml" => Some(json!(product.description_html)),
-        "vendor" => Some(json!(product.vendor)),
-        "productType" => Some(json!(product.product_type)),
-        "tags" => Some(json!(product.tags)),
-        "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
-        "totalInventory" => Some(json!(product.total_inventory)),
-        "tracksInventory" => Some(json!(product.tracks_inventory)),
-        "priceRangeV2" => Some(product_price_range_json(
-            product,
-            &[],
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Current,
-        )),
-        "priceRange" => Some(product_price_range_json(
-            product,
-            &[],
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Legacy,
-        )),
-        "templateSuffix" => Some(
-            product
-                .extra_fields
-                .get("templateSuffix")
-                .cloned()
-                .unwrap_or_else(|| json!(product.template_suffix)),
-        ),
-        "seo" => Some(
-            product
-                .extra_fields
-                .get("seo")
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| product_seo_json(product, &selection.selection)),
-        ),
-        "onlineStorePreviewUrl" => Some(
-            product
-                .extra_fields
-                .get("onlineStorePreviewUrl")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "category" => Some(
-            product
-                .extra_fields
-                .get("category")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "requiresSellingPlan" => Some(
-            product
-                .extra_fields
-                .get("requiresSellingPlan")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "isGiftCard" => Some(
-            product
-                .extra_fields
-                .get("isGiftCard")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "giftCardTemplateSuffix" => Some(
-            product
-                .extra_fields
-                .get("giftCardTemplateSuffix")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "options" => Some(Value::Array(
-            product
-                .extra_fields
-                .get("options")
-                .and_then(Value::as_array)
-                .map(|options| {
-                    options
-                        .iter()
-                        .map(|option| nullable_selected_json(option, &selection.selection))
-                        .collect()
-                })
-                .unwrap_or_default(),
-        )),
-        "variants" => Some(selected_connection_json(
-            product.variants.clone(),
-            &selection.selection,
-        )),
-        "collections" => Some(product_collections_connection_json(product, selection)),
-        "media" => Some(selected_connection_json(
-            product.media.clone(),
-            &selection.selection,
-        )),
-        "images" => Some(selected_empty_connection_json(&selection.selection)),
-        "metafield" => Some(
-            product
-                .extra_fields
-                .get("metafield")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "metafields" => Some(
-            product
-                .extra_fields
-                .get("metafields")
-                .cloned()
-                .map(|value| selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
-        ),
-        _ => product_publication_field_json(product, selection).or_else(|| {
-            product
-                .extra_fields
-                .get(&selection.name)
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-        }),
-    })
+    product_json_with_variants_and_currency(product, &[], selections, currency_code)
 }
 
 #[derive(Clone, Copy)]
@@ -1841,10 +1746,54 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 .and_then(Value::as_str)
         })?
         .to_string();
+    product_variant_state_from_json_parts(
+        value,
+        product_id,
+        ProductVariantInventoryItemMode::Optional,
+        &[
+            "id",
+            "productId",
+            "product",
+            "title",
+            "sku",
+            "barcode",
+            "price",
+            "compareAtPrice",
+            "taxable",
+            "inventoryPolicy",
+            "inventoryQuantity",
+            "selectedOptions",
+            "inventoryItem",
+        ],
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ProductVariantInventoryItemMode {
+    Optional,
+    Required,
+}
+
+fn product_variant_state_from_json_parts(
+    value: &Value,
+    product_id: String,
+    inventory_item_mode: ProductVariantInventoryItemMode,
+    extra_field_exclusions: &[&str],
+) -> Option<ProductVariantRecord> {
     let id = value.get("id")?.as_str()?.to_string();
     let inventory_item = value.get("inventoryItem");
+    let inventory_item_id = match inventory_item_mode {
+        ProductVariantInventoryItemMode::Optional => inventory_item
+            .and_then(|item| item.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+        ProductVariantInventoryItemMode::Required => {
+            inventory_item?.get("id")?.as_str()?.to_string()
+        }
+    };
     Some(ProductVariantRecord {
-        id: id.clone(),
+        id,
         product_id,
         title: value
             .get("title")
@@ -1895,13 +1844,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
             })
             .collect(),
         inventory_item: ProductVariantInventoryItem {
-            id: inventory_item
-                .and_then(|item| item.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or_else(|| {
-                    format!("gid://shopify/InventoryItem/{}", resource_id_tail(&id))
-                }),
+            id: inventory_item_id,
             tracked: inventory_item
                 .and_then(|item| item.get("tracked"))
                 .and_then(Value::as_bool)
@@ -1920,24 +1863,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 .unwrap_or_default(),
         },
         media_ids: variant_media_ids_from_json(value),
-        extra_fields: product_variant_state_extra_fields(
-            value,
-            &[
-                "id",
-                "productId",
-                "product",
-                "title",
-                "sku",
-                "barcode",
-                "price",
-                "compareAtPrice",
-                "taxable",
-                "inventoryPolicy",
-                "inventoryQuantity",
-                "selectedOptions",
-                "inventoryItem",
-            ],
-        ),
+        extra_fields: product_variant_state_extra_fields(value, extra_field_exclusions),
     })
 }
 
@@ -2160,94 +2086,28 @@ pub(in crate::proxy) fn product_variant_state_map_from_json(
 pub(in crate::proxy) fn product_variant_state_from_json(
     value: &Value,
 ) -> Option<ProductVariantRecord> {
-    let inventory_item = value.get("inventoryItem")?;
-    Some(ProductVariantRecord {
-        id: value.get("id")?.as_str()?.to_string(),
-        product_id: value.get("productId")?.as_str()?.to_string(),
-        title: value
-            .get("title")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        sku: value
-            .get("sku")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        barcode: value
-            .get("barcode")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        price: value
-            .get("price")
-            .and_then(Value::as_str)
-            .unwrap_or("0.00")
-            .to_string(),
-        compare_at_price: value
-            .get("compareAtPrice")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        taxable: value
-            .get("taxable")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
-        inventory_policy: value
-            .get("inventoryPolicy")
-            .and_then(Value::as_str)
-            .unwrap_or("DENY")
-            .to_string(),
-        inventory_quantity: value
-            .get("inventoryQuantity")
-            .and_then(Value::as_i64)
-            .unwrap_or_default(),
-        selected_options: value
-            .get("selectedOptions")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|option| {
-                Some(ProductVariantSelectedOption {
-                    name: option.get("name")?.as_str()?.to_string(),
-                    value: option.get("value")?.as_str()?.to_string(),
-                })
-            })
-            .collect(),
-        inventory_item: ProductVariantInventoryItem {
-            id: inventory_item.get("id")?.as_str()?.to_string(),
-            tracked: inventory_item
-                .get("tracked")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            requires_shipping: inventory_item
-                .get("requiresShipping")
-                .and_then(Value::as_bool)
-                .unwrap_or(true),
-            extra_fields: product_variant_state_extra_fields(
-                inventory_item,
-                &["id", "tracked", "requiresShipping"],
-            ),
-        },
-        extra_fields: product_variant_state_extra_fields(
-            value,
-            &[
-                "id",
-                "productId",
-                "title",
-                "sku",
-                "barcode",
-                "price",
-                "compareAtPrice",
-                "taxable",
-                "inventoryPolicy",
-                "inventoryQuantity",
-                "selectedOptions",
-                "inventoryItem",
-                "mediaIds",
-                "media",
-            ],
-        ),
-        media_ids: variant_media_ids_from_json(value),
-    })
+    let product_id = value.get("productId")?.as_str()?.to_string();
+    product_variant_state_from_json_parts(
+        value,
+        product_id,
+        ProductVariantInventoryItemMode::Required,
+        &[
+            "id",
+            "productId",
+            "title",
+            "sku",
+            "barcode",
+            "price",
+            "compareAtPrice",
+            "taxable",
+            "inventoryPolicy",
+            "inventoryQuantity",
+            "selectedOptions",
+            "inventoryItem",
+            "mediaIds",
+            "media",
+        ],
+    )
 }
 
 pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecord) -> Value {
@@ -2355,27 +2215,8 @@ pub(in crate::proxy) fn product_variant_record_from_create_input(
     product_id: String,
     inventory_item_id: String,
 ) -> ProductVariantRecord {
-    let mut variant = ProductVariantRecord {
-        id,
-        product_id,
-        title: "Default Title".to_string(),
-        sku: String::new(),
-        barcode: None,
-        price: "0.00".to_string(),
-        compare_at_price: None,
-        taxable: true,
-        inventory_policy: "DENY".to_string(),
-        inventory_quantity: 0,
-        selected_options: Vec::new(),
-        inventory_item: ProductVariantInventoryItem {
-            id: inventory_item_id,
-            tracked: true,
-            requires_shipping: true,
-            extra_fields: BTreeMap::new(),
-        },
-        media_ids: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    };
+    let mut variant = empty_product_variant_record(product_id, id, inventory_item_id);
+    variant.inventory_item.tracked = true;
     apply_product_variant_input(&mut variant, input);
     variant
 }

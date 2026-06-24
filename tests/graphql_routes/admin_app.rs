@@ -339,7 +339,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         missing_source_app.body["data"]["appRevokeAccessScopes"],
         json!({
             "revoked": [],
-            "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+            "userErrors": [{ "field": ["id"], "message": "No app found on the access token.", "code": "MISSING_SOURCE_APP" }]
         })
     );
 
@@ -371,7 +371,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
             response.body["data"]["appRevokeAccessScopes"],
             json!({
                 "revoked": [],
-                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+                "userErrors": [{ "field": ["id"], "message": "No app found on the access token.", "code": "MISSING_SOURCE_APP" }]
             })
         );
     }
@@ -1248,7 +1248,7 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
         json!({
             "recurring": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "Only usage-pricing line items support cappedAmount updates" }]
+                "userErrors": [{ "field": null, "message": "Only variable subscriptions can be updated." }]
             },
             "currencyMismatch": {
                 "appSubscription": null,

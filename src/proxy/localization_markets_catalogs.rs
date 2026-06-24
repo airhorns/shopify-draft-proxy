@@ -6,6 +6,18 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
+fn market_relation_connection<'a>(
+    records: impl Iterator<Item = &'a Value>,
+    market_id: &str,
+    market_ids: impl Fn(&Value) -> Vec<String>,
+) -> Value {
+    let nodes = records
+        .filter(|record| market_ids(record).iter().any(|id| id == market_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    json!({"nodes": nodes})
+}
+
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
 /// hydrate their baseline price-list/product/variant records from a recorded
 /// preflight keyed on this sentinel query plus the mutation's own variables. The
@@ -75,201 +87,6 @@ fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn functions_metadata_mutation_data(
-        &mut self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        // Any function mutation marks the session as having local function
-        // state, so later reads serve locally (read-after-write / -delete)
-        // instead of forwarding the cold read to the upstream.
-        self.store.staged.functions_dirty = true;
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "validationCreate" => self.function_validation_create_payload(field),
-                "validationUpdate" => self.function_validation_update_payload(field),
-                "validationDelete" => self.function_validation_delete_payload(field),
-                "cartTransformCreate" => self.function_cart_transform_create_payload(field),
-                "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
-                "fulfillmentConstraintRuleCreate" => {
-                    self.function_fulfillment_constraint_rule_create_payload(field)
-                }
-                "fulfillmentConstraintRuleUpdate" => {
-                    self.function_fulfillment_constraint_rule_update_payload(field)
-                }
-                "fulfillmentConstraintRuleDelete" => {
-                    self.function_fulfillment_constraint_rule_delete_payload(field)
-                }
-                "taxAppConfigure" => self.function_tax_app_configure_payload(field),
-                _ => Value::Null,
-            };
-            if !value.is_null() {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn functions_metadata_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "validation" => resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.store.staged.function_validations.get(&id).cloned())
-                    .or_else(|| self.store.staged.function_validation.clone())
-                    .unwrap_or(Value::Null),
-                "validations" => local_function_connection_from_nodes(
-                    self.store
-                        .staged
-                        .function_validation_order
-                        .iter()
-                        .filter_map(|id| self.store.staged.function_validations.get(id).cloned())
-                        .collect(),
-                ),
-                "cartTransforms" => local_function_connection_from_nodes(
-                    self.store
-                        .staged
-                        .function_cart_transform_order
-                        .iter()
-                        .filter_map(|id| {
-                            self.store
-                                .staged
-                                .function_cart_transforms
-                                .get(id)
-                                .map(|record| {
-                                    cart_transform_record_for_selection(record, &field.selection)
-                                })
-                        })
-                        .collect(),
-                ),
-                "fulfillmentConstraintRules" => Value::Array(
-                    self.store
-                        .staged
-                        .function_fulfillment_constraint_rule_order
-                        .iter()
-                        .filter_map(|id| {
-                            self.store
-                                .staged
-                                .function_fulfillment_constraint_rules
-                                .get(id)
-                                .map(|record| {
-                                    fulfillment_constraint_rule_record_for_selection(
-                                        record,
-                                        &field.selection,
-                                    )
-                                })
-                        })
-                        .map(|record| selected_json(&record, &field.selection))
-                        .collect(),
-                ),
-                "shopifyFunctions" => {
-                    let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
-                    let api_type = match api_type.as_str() {
-                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
-                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-                            "FULFILLMENT_CONSTRAINT_RULE"
-                        }
-                        _ => "VALIDATION",
-                    };
-                    json!({ "nodes": self.function_catalog_read_nodes(api_type) })
-                }
-                "shopifyFunction" => match resolved_field_string_arg(field, "id") {
-                    Some(id) => {
-                        function_by_id_or_handle(Some(id.as_str()), None).unwrap_or(Value::Null)
-                    }
-                    None => local_cart_transform_function(),
-                },
-                _ => Value::Null,
-            };
-            if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
-            } else if field.name == "fulfillmentConstraintRules" {
-                data.insert(field.response_key.clone(), value);
-            } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
-    }
-
-    fn function_catalog_read_nodes(&self, api_type: &str) -> Vec<Value> {
-        let mut seen = BTreeSet::new();
-        let mut nodes = Vec::new();
-        for function in self
-            .store
-            .staged
-            .function_validation_order
-            .iter()
-            .filter_map(|id| self.store.staged.function_validations.get(id))
-            .chain(
-                self.store
-                    .staged
-                    .function_cart_transform_order
-                    .iter()
-                    .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
-            )
-            .chain(
-                self.store
-                    .staged
-                    .function_fulfillment_constraint_rule_order
-                    .iter()
-                    .filter_map(|id| {
-                        self.store
-                            .staged
-                            .function_fulfillment_constraint_rules
-                            .get(id)
-                    }),
-            )
-            .filter_map(|record| record.get("shopifyFunction"))
-        {
-            if function["apiType"].as_str() == Some(api_type) {
-                if let Some(id) = function["id"].as_str() {
-                    if seen.insert(id.to_string()) {
-                        nodes.push(function.clone());
-                    }
-                }
-            }
-        }
-        if nodes.is_empty() {
-            function_catalog_by_api_type(api_type)
-        } else {
-            nodes
-        }
-    }
-
-    /// True when any function lifecycle has been staged locally (a validation or
-    /// cart-transform created/updated this session). Cold function reads with no
-    /// staged state forward to the upstream so `shopifyFunctions` /
-    /// `shopifyFunction` reflect the shop's real installed functions (with app
-    /// ownership metadata) rather than the synthetic staging catalog.
-    pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
-        self.store.staged.functions_dirty
-            || self.store.staged.function_validation.is_some()
-            || !self.store.staged.function_validations.is_empty()
-            || !self.store.staged.function_validation_order.is_empty()
-            || !self.store.staged.function_cart_transforms.is_empty()
-            || !self.store.staged.function_cart_transform_order.is_empty()
-            || !self
-                .store
-                .staged
-                .function_fulfillment_constraint_rules
-                .is_empty()
-            || !self
-                .store
-                .staged
-                .function_fulfillment_constraint_rule_order
-                .is_empty()
-    }
-
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -1056,31 +873,19 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_catalogs_connection(&self, market_id: &str) -> Value {
-        let nodes = self
-            .store
-            .staged
-            .catalogs
-            .values()
-            .filter(|catalog| catalog_market_ids(catalog).iter().any(|id| id == market_id))
-            .cloned()
-            .collect::<Vec<_>>();
-        json!({"nodes": nodes})
+        market_relation_connection(
+            self.store.staged.catalogs.values(),
+            market_id,
+            catalog_market_ids,
+        )
     }
 
     pub(in crate::proxy) fn market_web_presences_connection(&self, market_id: &str) -> Value {
-        let nodes = self
-            .store
-            .staged
-            .web_presences
-            .values()
-            .filter(|web_presence| {
-                web_presence_market_ids(web_presence)
-                    .iter()
-                    .any(|id| id == market_id)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        json!({"nodes": nodes})
+        market_relation_connection(
+            self.store.staged.web_presences.values(),
+            market_id,
+            web_presence_market_ids,
+        )
     }
 
     pub(in crate::proxy) fn add_market_to_catalog(&mut self, catalog_id: &str, market_id: &str) {
@@ -1174,7 +979,7 @@ impl DraftProxy {
     ) -> bool {
         let normalized = country_code.to_ascii_uppercase();
         if self.store.staged.markets.is_empty() {
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             let domain = shop
                 .get("myshopifyDomain")
                 .and_then(Value::as_str)
@@ -1555,7 +1360,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
-        format!("gid://shopify/MarketCatalog/{numeric_id}")
+        shopify_gid("MarketCatalog", numeric_id)
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
@@ -2530,7 +2335,7 @@ impl DraftProxy {
             + (self.store.staged.catalogs.len() * 2)
             + self.store.staged.price_lists.len()
             + 1;
-        format!("gid://shopify/PriceList/{numeric_id}")
+        shopify_gid("PriceList", numeric_id)
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(
@@ -3859,8 +3664,8 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
 /// root URLs. Falls back to the conformance default when the shop record has no
 /// `myshopifyDomain` (mirrors the fallback used by region-coverage lookups).
 fn web_presence_shop_domain(store: &Store) -> String {
-    effective_shop_json(store)
-        .get("myshopifyDomain")
+    let shop = store.effective_shop();
+    shop.get("myshopifyDomain")
         .and_then(Value::as_str)
         .unwrap_or("harry-test-heelo.myshopify.com")
         .to_string()
@@ -4141,5 +3946,5 @@ pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) ->
         "ONLINE_STORE_THEME" => "OnlineStoreTheme",
         _ => "Product",
     };
-    format!("gid://shopify/{gid_type}/9801098789170")
+    shopify_gid(gid_type, "9801098789170")
 }

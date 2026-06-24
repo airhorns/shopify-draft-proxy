@@ -1,0 +1,35 @@
+{
+  "scenarioId": "staged_uploads_create_required_args",
+  "operationNames": ["stagedUploadsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-coercion-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/staged_uploads_create_required_args.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 top-level schema coercion for stagedUploadsCreate inputs that omit required StagedUploadInput.filename or StagedUploadInput.mimeType. Strict targets compare the full error envelope so the resolver does not fabricate staged target defaults.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-filename-top-level-error",
+        "capturePath": "$.cases[0].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/staged_uploads_create_required_args_missing_filename.graphql"
+        }
+      },
+      {
+        "name": "missing-mime-type-top-level-error",
+        "capturePath": "$.cases[1].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/staged_uploads_create_required_args_missing_mime_type.graphql"
+        }
+      }
+    ]
+  }
+}

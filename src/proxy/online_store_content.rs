@@ -1,5 +1,10 @@
 use super::*;
 
+mod online_store_helpers;
+mod sales_channel;
+
+pub(in crate::proxy) use self::online_store_helpers::*;
+
 const ONLINE_STORE_CONTENT_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
@@ -35,7 +40,7 @@ impl DraftProxy {
                 value_id_cursor,
             )),
             "blogsCount" => Some(selected_json(
-                &count_precision(self.online_store_blog_count()),
+                &publication_count_json(self.online_store_blog_count()),
                 &field.selection,
             )),
             "page" => {
@@ -52,7 +57,7 @@ impl DraftProxy {
                 value_id_cursor,
             )),
             "pagesCount" => Some(selected_json(
-                &count_precision(self.online_store_page_count()),
+                &publication_count_json(self.online_store_page_count()),
                 &field.selection,
             )),
             "article" => {
@@ -293,62 +298,19 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_online_store_comment_from_upstream(&mut self, request: &Request, id: &str) {
+    fn hydrate_online_store_content_from_upstream(
+        &mut self,
+        request: &Request,
+        id: &str,
+        query: &str,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
             return;
         }
         let response = self.upstream_post(
             request,
             json!({
-                "query": ONLINE_STORE_COMMENT_HYDRATE_QUERY,
-                "variables": { "id": id }
-            }),
-        );
-        if response.status < 400 {
-            self.observe_online_store_content_response(&response.body);
-        }
-    }
-
-    fn hydrate_online_store_page_from_upstream(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
-            return;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": ONLINE_STORE_PAGE_HYDRATE_QUERY,
-                "variables": { "id": id }
-            }),
-        );
-        if response.status < 400 {
-            self.observe_online_store_content_response(&response.body);
-        }
-    }
-
-    fn hydrate_online_store_article_from_upstream(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
-            return;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
-                "variables": { "id": id }
-            }),
-        );
-        if response.status < 400 {
-            self.observe_online_store_content_response(&response.body);
-        }
-    }
-
-    fn hydrate_online_store_blog_from_upstream(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
-            return;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY,
+                "query": query,
                 "variables": { "id": id }
             }),
         );
@@ -429,7 +391,7 @@ impl DraftProxy {
                 &field.selection,
                 "blog",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["blog", "title"],
                     "Title can't be blank",
                     None,
@@ -467,7 +429,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_blogs.contains_key(&id) {
-            self.hydrate_online_store_blog_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY,
+            );
         }
         let Some(mut record) = self
             .store
@@ -487,7 +453,7 @@ impl DraftProxy {
                 &field.selection,
                 "blog",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Blog does not exist",
                     Some("NOT_FOUND"),
@@ -525,7 +491,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_blogs.contains_key(&id) {
-            self.hydrate_online_store_blog_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY,
+            );
         }
         if !self.store.staged.online_store_blogs.contains_key(&id)
             || self
@@ -538,7 +508,7 @@ impl DraftProxy {
                 &field.selection,
                 "deletedBlogId",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Blog does not exist",
                     Some("NOT_FOUND"),
@@ -591,7 +561,7 @@ impl DraftProxy {
                     &field.selection,
                     "page",
                     Value::Null,
-                    vec![content_user_error(
+                    vec![user_error(
                         vec!["page", "handle"],
                         "Handle has already been taken",
                         Some("TAKEN"),
@@ -624,7 +594,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_pages.contains_key(&id) {
-            self.hydrate_online_store_page_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_PAGE_HYDRATE_QUERY,
+            );
         }
         let Some(mut record) = self
             .store
@@ -644,7 +618,7 @@ impl DraftProxy {
                 &field.selection,
                 "page",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Page does not exist",
                     Some("NOT_FOUND"),
@@ -673,7 +647,7 @@ impl DraftProxy {
                     &field.selection,
                     "page",
                     Value::Null,
-                    vec![content_user_error(
+                    vec![user_error(
                         vec!["page", "handle"],
                         "Handle has already been taken",
                         Some("TAKEN"),
@@ -707,7 +681,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_pages.contains_key(&id) {
-            self.hydrate_online_store_page_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_PAGE_HYDRATE_QUERY,
+            );
         }
         if !self.store.staged.online_store_pages.contains_key(&id)
             || self
@@ -720,7 +698,7 @@ impl DraftProxy {
                 &field.selection,
                 "deletedPageId",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Page does not exist",
                     Some("NOT_FOUND"),
@@ -769,7 +747,7 @@ impl DraftProxy {
                 &field.selection,
                 "article",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["article"],
                     "Can't create a blog from input if a blog ID is supplied.",
                     Some("AMBIGUOUS_BLOG"),
@@ -795,7 +773,7 @@ impl DraftProxy {
                 &field.selection,
                 "article",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["article"],
                     "Must reference or create a blog when creating an article.",
                     Some("BLOG_REFERENCE_REQUIRED"),
@@ -825,7 +803,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_articles.contains_key(&id) {
-            self.hydrate_online_store_article_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
+            );
         }
         let Some(mut record) = self
             .store
@@ -845,7 +827,7 @@ impl DraftProxy {
                 &field.selection,
                 "article",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Article does not exist",
                     Some("NOT_FOUND"),
@@ -906,7 +888,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_articles.contains_key(&id) {
-            self.hydrate_online_store_article_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
+            );
         }
         if !self.store.staged.online_store_articles.contains_key(&id)
             || self
@@ -919,7 +905,7 @@ impl DraftProxy {
                 &field.selection,
                 "deletedArticleId",
                 Value::Null,
-                vec![content_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Article does not exist",
                     Some("NOT_FOUND"),
@@ -940,7 +926,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_comments.contains_key(&id) {
-            self.hydrate_online_store_comment_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_COMMENT_HYDRATE_QUERY,
+            );
         }
         let Some(mut comment) = self
             .store
@@ -994,7 +984,7 @@ impl DraftProxy {
                     &field.selection,
                     "comment",
                     Value::Null,
-                    vec![content_user_error(vec!["id"], message, None)],
+                    vec![user_error(vec!["id"], message, None)],
                 )
             }
         };
@@ -1027,7 +1017,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_comments.contains_key(&id) {
-            self.hydrate_online_store_comment_from_upstream(request, &id);
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &id,
+                ONLINE_STORE_COMMENT_HYDRATE_QUERY,
+            );
         }
         if self
             .store
@@ -1062,7 +1056,11 @@ impl DraftProxy {
                     .deleted_online_store_article_ids
                     .contains(&article_id)
             {
-                self.hydrate_online_store_article_from_upstream(request, &article_id);
+                self.hydrate_online_store_content_from_upstream(
+                    request,
+                    &article_id,
+                    ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
+                );
             }
         }
         self.store.staged.online_store_comments.remove(&id);
@@ -1195,7 +1193,7 @@ impl DraftProxy {
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
-        record["articlesCount"] = count_precision(articles.len());
+        record["articlesCount"] = publication_count_json(articles.len());
         record["articles"] = connection_json(articles);
         record
     }
@@ -1220,7 +1218,7 @@ impl DraftProxy {
             .into_iter()
             .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
             .collect::<Vec<_>>();
-        record["commentsCount"] = count_precision(comments.len());
+        record["commentsCount"] = publication_count_json(comments.len());
         record["comments"] = connection_json(comments);
         record
     }
@@ -1363,7 +1361,7 @@ fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
         "templateSuffix": optional_string_value(input, "templateSuffix"),
         "createdAt": ONLINE_STORE_CONTENT_TIMESTAMP,
         "updatedAt": ONLINE_STORE_CONTENT_TIMESTAMP,
-        "articlesCount": count_precision(0),
+        "articlesCount": publication_count_json(0),
         "articles": connection_json(Vec::new())
     })
 }
@@ -1478,7 +1476,7 @@ fn article_record(
         "author": article_author_json(input),
         "image": article_image_json(input),
         "metafields": connection_json(Vec::new()),
-        "commentsCount": count_precision(0),
+        "commentsCount": publication_count_json(0),
         "comments": connection_json(Vec::new())
     })
 }
@@ -1568,7 +1566,7 @@ fn invalid_publish_date_error(
     let publish_date = resolved_string_field(input, "publishDate")
         .or_else(|| resolved_string_field(input, "visibilityDate"));
     if effective_is_published && publish_date.as_deref().is_some_and(is_future_date) {
-        Some(content_user_error(
+        Some(user_error(
             vec![root],
             "Can\u{2019}t set isPublished to true and also set a future publish date.",
             Some("INVALID_PUBLISH_DATE"),
@@ -1595,12 +1593,12 @@ fn title_blank_error(
     required: bool,
 ) -> Option<Value> {
     match input.get("title") {
-        Some(ResolvedValue::String(title)) if title.trim().is_empty() => Some(content_user_error(
+        Some(ResolvedValue::String(title)) if title.trim().is_empty() => Some(user_error(
             vec![root, "title"],
             "Title can't be blank",
             code,
         )),
-        None if required => Some(content_user_error(
+        None if required => Some(user_error(
             vec![root, "title"],
             "Title can't be blank",
             code,
@@ -1619,20 +1617,24 @@ fn content_length_error(
         .as_deref()
         .is_some_and(|title| title.chars().count() > ONLINE_STORE_TITLE_MAX_CHARS)
     {
-        return Some(content_user_error(
+        return Some(length_user_error(
             vec![root, "title"],
-            "Title is too long (maximum is 255 characters)",
-            Some("TOO_LONG"),
+            "Title",
+            LengthUserErrorBound::TooLong {
+                maximum: ONLINE_STORE_TITLE_MAX_CHARS,
+            },
         ));
     }
     if resolved_string_field(input, "handle")
         .as_deref()
         .is_some_and(|handle| handle.chars().count() > handle_limit)
     {
-        return Some(content_user_error(
+        return Some(length_user_error(
             vec![root, "handle"],
-            &format!("Handle is too long (maximum is {handle_limit} characters)"),
-            Some("TOO_LONG"),
+            "Handle",
+            LengthUserErrorBound::TooLong {
+                maximum: handle_limit,
+            },
         ));
     }
     if let Some((limit, message, code)) = body_limit {
@@ -1640,7 +1642,7 @@ fn content_length_error(
             .as_deref()
             .is_some_and(|body| body.len() > limit)
         {
-            return Some(content_user_error(vec![root, "body"], message, code));
+            return Some(user_error(vec![root, "body"], message, code));
         }
     }
     None
@@ -1654,7 +1656,7 @@ fn commentable_inclusion_error(input: &BTreeMap<String, ResolvedValue>) -> Optio
     ) {
         None
     } else {
-        Some(content_user_error(
+        Some(user_error(
             vec!["blog", "commentable"],
             "Commentable is not included in the list",
             Some("INCLUSION"),
@@ -1693,7 +1695,7 @@ fn article_author_error(
         .as_deref()
         .is_some_and(|user_id| !user_id.trim().is_empty());
     if has_name && has_user_id {
-        return Some(content_user_error(
+        return Some(user_error(
             vec!["article"],
             if create {
                 "Can't create an article author if both author name and user ID are supplied."
@@ -1704,14 +1706,14 @@ fn article_author_error(
         ));
     }
     if has_user_id {
-        return Some(content_user_error(
+        return Some(user_error(
             vec!["article"],
             "User must exist if a user ID is supplied.",
             Some("AUTHOR_MUST_EXIST"),
         ));
     }
     if (required || author.is_some() || author_v2.is_some()) && !has_name {
-        return Some(content_user_error(
+        return Some(user_error(
             vec!["article"],
             if create {
                 "Can't create an article if both author name and user ID are blank."
@@ -1739,7 +1741,7 @@ fn article_image_update_error(
         .as_str()
         .is_some_and(|url| !url.trim().is_empty());
     if has_alt_text && !has_new_url && !has_existing_url {
-        Some(content_user_error(
+        Some(user_error(
             vec!["article", "image"],
             "Cannot update image alt text without an existing image or providing a new image URL",
             Some("INVALID"),
@@ -1838,7 +1840,7 @@ fn article_blog_not_found_payload(selection: &[SelectedField], key: &str) -> Val
         selection,
         key,
         Value::Null,
-        vec![content_user_error(
+        vec![user_error(
             vec!["article"],
             "Must reference an existing blog.",
             Some("NOT_FOUND"),
@@ -1846,23 +1848,8 @@ fn article_blog_not_found_payload(selection: &[SelectedField], key: &str) -> Val
     )
 }
 
-fn content_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code.map(Value::from).unwrap_or(Value::Null)
-    })
-}
-
 fn comment_not_found_error() -> Value {
-    content_user_error(vec!["id"], "Comment does not exist", Some("NOT_FOUND"))
-}
-
-fn count_precision(count: usize) -> Value {
-    json!({
-        "count": count,
-        "precision": "EXACT"
-    })
+    user_error(vec!["id"], "Comment does not exist", Some("NOT_FOUND"))
 }
 
 fn online_store_count_with_baseline(
@@ -1873,12 +1860,12 @@ fn online_store_count_with_baseline(
     let baseline = baseline?;
     let synthetic_staged = order
         .iter()
-        .filter(|id| id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| is_synthetic_gid(id))
         .filter(|id| !deleted_ids.contains(*id))
         .count();
     let deleted_baseline = deleted_ids
         .iter()
-        .filter(|id| !id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| !is_synthetic_gid(id))
         .count();
     Some(baseline.saturating_sub(deleted_baseline) + synthetic_staged)
 }
@@ -1947,15 +1934,6 @@ fn should_stage_observed_comment(record: &Value) -> bool {
         || record.get("article").is_some()
 }
 
-fn connection_nodes(record: &Value, key: &str) -> Vec<Value> {
-    record
-        .get(key)
-        .and_then(|connection| connection.get("nodes"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-}
-
 fn string_value(record: &Value, key: &str) -> Option<String> {
     record.get(key).and_then(Value::as_str).map(str::to_string)
 }
@@ -1968,7 +1946,7 @@ fn normalize_observed_blog(record: &Value) -> Value {
     let mut record = record.clone();
     let title = string_value(&record, "title").unwrap_or_default();
     let handle = string_value(&record, "handle").unwrap_or_else(|| slugify_handle(&title));
-    let articles = connection_nodes(&record, "articles");
+    let articles = connection_nodes(&record["articles"]);
     record["__typename"] = json!("Blog");
     record["title"] = json!(title);
     record["handle"] = json!(handle);
@@ -1988,7 +1966,7 @@ fn normalize_observed_blog(record: &Value) -> Value {
         record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
     }
     if record.get("articlesCount").is_none() {
-        record["articlesCount"] = count_precision(articles.len());
+        record["articlesCount"] = publication_count_json(articles.len());
     }
     if record.get("articles").is_none() {
         record["articles"] = connection_json(Vec::new());
@@ -2041,7 +2019,7 @@ fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> V
         })
         .or_else(|| parent_blog_id.map(str::to_string))
         .unwrap_or_default();
-    let comments = connection_nodes(&record, "comments");
+    let comments = connection_nodes(&record["comments"]);
     record["__typename"] = json!("Article");
     record["blogId"] = json!(blog_id);
     record["title"] = json!(title);
@@ -2078,7 +2056,7 @@ fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> V
         record["metafields"] = connection_json(Vec::new());
     }
     if record.get("commentsCount").is_none() {
-        record["commentsCount"] = count_precision(comments.len());
+        record["commentsCount"] = publication_count_json(comments.len());
     }
     if record.get("comments").is_none() {
         record["comments"] = connection_json(Vec::new());

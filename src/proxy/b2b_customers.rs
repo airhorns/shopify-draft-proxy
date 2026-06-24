@@ -3885,6 +3885,9 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
+        if let Some(response) = store_credit_result_only_currency_response(&fields) {
+            return MutationOutcome::response(response);
+        }
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         for field in fields {
@@ -3950,16 +3953,6 @@ impl DraftProxy {
                         "A positive amount must be used to debit a store credit account"
                     },
                     "NEGATIVE_OR_ZERO_AMOUNT",
-                ),
-            );
-        }
-        if is_credit && !store_credit_supported_currency(&currency) {
-            return self.store_credit_error_outcome(
-                field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "currencyCode"],
-                    "Currency is not supported",
-                    "UNSUPPORTED_CURRENCY",
                 ),
             );
         }
@@ -4453,7 +4446,7 @@ impl DraftProxy {
         let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
         let id = if order_email.ends_with("example.test") {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
-            format!("gid://shopify/Order/{}", ordinal.max(1))
+            shopify_gid("Order", ordinal.max(1))
         } else {
             synthetic_shopify_gid("Order", self.next_synthetic_id)
         };
@@ -8005,7 +7998,7 @@ fn b2b_address_input_errors(
         if let Some(value) = resolved_string_field(address, field_name) {
             let invalid = b2b_contains_html_tags(&value)
                 || b2b_contains_emoji(&value)
-                || (reject_url && b2b_contains_url_substring(&value));
+                || (reject_url && customer_address_contains_url(&value));
             if invalid {
                 let mut field = prefix.to_vec();
                 field.push(field_name);
@@ -8154,11 +8147,6 @@ fn b2b_contains_emoji(value: &str) -> bool {
             || (0xfe00..=0xfe0f).contains(&code)
             || code == 0x200d
     })
-}
-
-fn b2b_contains_url_substring(value: &str) -> bool {
-    let lowered = value.to_ascii_lowercase();
-    lowered.contains("http://") || lowered.contains("https://") || lowered.contains("www.")
 }
 
 /// Canada subdivision (province/territory) catalog.
@@ -9599,15 +9587,43 @@ fn shopify_decimal_text(value: f64) -> String {
     }
 }
 
-fn store_credit_supported_currency(currency: &str) -> bool {
-    matches!(
-        currency,
-        "USD" | "CAD" | "AUD" | "EUR" | "GBP" | "JPY" | "NZD"
-    )
-}
-
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
     !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+}
+
+fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    let field = fields.iter().find(|field| {
+        matches!(
+            field.name.as_str(),
+            "storeCreditAccountCredit" | "storeCreditAccountDebit"
+        )
+    })?;
+    let (input_name, amount_name) = if field.name == "storeCreditAccountCredit" {
+        ("creditInput", "creditAmount")
+    } else {
+        ("debitInput", "debitAmount")
+    };
+    let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+    let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
+    let currency = resolved_string_field(&amount_input, "currencyCode")?;
+    if !matches!(currency.as_str(), "USDC" | "XXX") {
+        return None;
+    }
+
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "errors": [{
+            "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "CURRENCY_CODE_INVALID" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": Value::Object(data)
+    })))
 }
 
 fn normalize_merged_customer_defaults(customer: &mut Value) {

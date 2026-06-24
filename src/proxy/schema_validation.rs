@@ -128,22 +128,12 @@ pub(in crate::proxy) fn user_error(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    json!({
-        "field": user_error_field(field),
-        "message": message,
-        "code": user_error_code(code),
-    })
+    user_error_with_code_value(field, message, user_error_code(code))
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(in crate::proxy) enum LengthUserErrorBound {
-    TooLong {
-        maximum: usize,
-    },
-    #[allow(dead_code, reason = "TOO_SHORT supports follow-up migrations.")]
-    TooShort {
-        minimum: usize,
-    },
+    TooLong { maximum: usize },
 }
 
 pub(in crate::proxy) fn presence_user_error(
@@ -166,10 +156,6 @@ pub(in crate::proxy) fn length_user_error(
         LengthUserErrorBound::TooLong { maximum } => (
             format!("{field_name} is too long (maximum is {maximum} characters)"),
             "TOO_LONG",
-        ),
-        LengthUserErrorBound::TooShort { minimum } => (
-            format!("{field_name} is too short (minimum is {minimum} characters)"),
-            "TOO_SHORT",
         ),
     };
     user_error(field, &message, Some(code))
@@ -208,12 +194,9 @@ pub(in crate::proxy) fn user_error_typed(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    json!({
-        "__typename": typename,
-        "field": user_error_field(field),
-        "message": message,
-        "code": user_error_code(code),
-    })
+    let mut error = user_error(field, message, code);
+    error["__typename"] = json!(typename);
+    error
 }
 
 pub(in crate::proxy) fn user_error_typed_with_code_value(
@@ -222,12 +205,9 @@ pub(in crate::proxy) fn user_error_typed_with_code_value(
     message: &str,
     code: Value,
 ) -> Value {
-    json!({
-        "__typename": typename,
-        "field": user_error_field(field),
-        "message": message,
-        "code": code,
-    })
+    let mut error = user_error_with_code_value(field, message, code);
+    error["__typename"] = json!(typename);
+    error
 }
 
 pub(in crate::proxy) fn user_error_typed_omit_code(
@@ -247,12 +227,9 @@ pub(in crate::proxy) fn user_error_with_extra_info(
     code: Option<&str>,
     extra_info: Value,
 ) -> Value {
-    json!({
-        "field": user_error_field(field),
-        "message": message,
-        "code": user_error_code(code),
-        "extraInfo": extra_info,
-    })
+    let mut error = user_error(field, message, code);
+    error["extraInfo"] = extra_info;
+    error
 }
 
 pub(in crate::proxy) fn user_error_with_element_index(
@@ -261,12 +238,9 @@ pub(in crate::proxy) fn user_error_with_element_index(
     code: Option<&str>,
     element_index: Value,
 ) -> Value {
-    json!({
-        "field": user_error_field(field),
-        "message": message,
-        "code": user_error_code(code),
-        "elementIndex": element_index,
-    })
+    let mut error = user_error(field, message, code);
+    error["elementIndex"] = element_index;
+    error
 }
 
 pub(in crate::proxy) fn metaobject_indexed_user_error(
@@ -276,13 +250,10 @@ pub(in crate::proxy) fn metaobject_indexed_user_error(
     element_key: Value,
     element_index: Value,
 ) -> Value {
-    json!({
-        "field": user_error_field(field),
-        "message": message,
-        "code": user_error_code(code),
-        "elementKey": element_key,
-        "elementIndex": element_index,
-    })
+    let mut error = user_error(field, message, code);
+    error["elementKey"] = element_key;
+    error["elementIndex"] = element_index;
+    error
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -883,6 +854,26 @@ fn invalid_global_id_literal_error(
     })
 }
 
+fn invalid_variable_error_envelope(
+    message: String,
+    location: SourceLocation,
+    value: Value,
+    problems: Value,
+) -> Value {
+    json!({
+        "message": message,
+        "locations": [{
+            "line": location.line,
+            "column": location.column,
+        }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": value,
+            "problems": problems,
+        },
+    })
+}
+
 fn invalid_global_id_variable_error(
     document: &ParsedDocument,
     variable_name: &str,
@@ -911,18 +902,12 @@ fn invalid_global_id_variable_error(
             )
         },
     );
-    Some(json!({
-        "message": message,
-        "locations": [{
-            "line": variable_definition.location.line,
-            "column": variable_definition.location.column,
-        }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(variable_value),
-            "problems": [problem],
-        },
-    }))
+    Some(invalid_variable_error_envelope(
+        message,
+        variable_definition.location,
+        resolved_value_json(variable_value),
+        json!([problem]),
+    ))
 }
 
 fn variable_problem_path_display(path: &[Value]) -> Option<String> {
@@ -1105,24 +1090,18 @@ fn return_reason_invalid_enum_errors(document: &ParsedDocument) -> Vec<Value> {
                 continue;
             }
             let explanation = format!("Expected \"{reason}\" to be one of: {RETURN_REASON_VALUES}");
-            errors.push(json!({
-                "message": format!(
+            errors.push(invalid_variable_error_envelope(
+                format!(
                     "Variable ${name} of type {} was provided invalid value for returnLineItems.{index}.returnReason ({explanation})",
                     variable_definition.type_display
                 ),
-                "locations": [{
-                    "line": variable_definition.location.line,
-                    "column": variable_definition.location.column,
-                }],
-                "extensions": {
-                    "code": "INVALID_VARIABLE",
-                    "value": resolved_value_json(variable_value),
-                    "problems": [{
+                variable_definition.location,
+                resolved_value_json(variable_value),
+                json!([{
                         "path": ["returnLineItems", index, "returnReason"],
                         "explanation": explanation,
-                    }],
-                },
-            }));
+                }]),
+            ));
             break;
         }
     }
@@ -1224,14 +1203,11 @@ fn validate_argument_value(
         }
         RawArgumentValue::Variable { name, value } if type_ref.non_null => {
             if matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
-                let variable_type = document
-                    .variable_definitions
-                    .get(name)
+                let variable_definition = document.variable_definitions.get(name);
+                let variable_type = variable_definition
                     .map(|definition| definition.type_display.as_str())
                     .unwrap_or(type_ref.display.as_str());
-                let location = document
-                    .variable_definitions
-                    .get(name)
+                let location = variable_definition
                     .map(|definition| definition.location)
                     .unwrap_or(field.location);
                 return vec![non_null_variable_null_error(name, variable_type, location)];
@@ -1258,6 +1234,15 @@ fn validate_argument_value(
                 let path = vec![argument_name.to_string(), index.to_string()];
                 match item {
                     RawArgumentValue::Object(fields) => {
+                        let item_location = inline_argument_list_item_object_location(
+                            context.query,
+                            field,
+                            argument_name,
+                            index,
+                        )
+                        .or_else(|| {
+                            inline_argument_value_location(context.query, field, argument_name)
+                        });
                         errors.extend(validate_raw_input_object(
                             &type_ref.named_type,
                             input_object,
@@ -1265,7 +1250,7 @@ fn validate_argument_value(
                             &path,
                             schema,
                             context,
-                            inline_argument_value_location(context.query, field, argument_name),
+                            item_location,
                         ));
                     }
                     RawArgumentValue::Null if type_ref_has_non_null_list_items(type_ref) => errors
@@ -1281,14 +1266,11 @@ fn validate_argument_value(
             errors
         }
         RawArgumentValue::Variable { name, value } => {
-            let variable_type = document
-                .variable_definitions
-                .get(name)
+            let variable_definition = document.variable_definitions.get(name);
+            let variable_type = variable_definition
                 .map(|definition| definition.type_display.as_str())
                 .unwrap_or(type_ref.display.as_str());
-            let location = document
-                .variable_definitions
-                .get(name)
+            let location = variable_definition
                 .map(|definition| definition.location)
                 .unwrap_or(field.location);
             // A required (non-null) argument supplied a null or absent variable
@@ -1381,6 +1363,15 @@ fn validate_argument_value(
     }
 }
 
+fn is_unknown_input_field(
+    input_object: &BTreeMap<String, SchemaInputField>,
+    input_type_name: &str,
+    field_name: &str,
+) -> bool {
+    !input_object.contains_key(field_name)
+        && !local_extension_input_field(input_type_name, field_name)
+}
+
 fn validate_raw_input_object(
     input_type_name: &str,
     input_object: &BTreeMap<String, SchemaInputField>,
@@ -1397,10 +1388,7 @@ fn validate_raw_input_object(
     let target_depth = 1 + path.len() as i32;
     let mut unknown_fields: Vec<&String> = fields
         .keys()
-        .filter(|field_name| {
-            !input_object.contains_key(*field_name)
-                && !local_extension_input_field(input_type_name, field_name)
-        })
+        .filter(|field_name| is_unknown_input_field(input_object, input_type_name, field_name))
         .collect();
     unknown_fields.sort_by_key(|field_name| {
         inline_input_field_name_location(
@@ -1533,10 +1521,7 @@ fn validate_resolved_input_object(
     // the request body, not the sorted map order serde/BTreeMap leaves us with.
     let mut unknown_fields: Vec<&String> = fields
         .keys()
-        .filter(|field_name| {
-            !input_object.contains_key(*field_name)
-                && !local_extension_input_field(input_type_name, field_name)
-        })
+        .filter(|field_name| is_unknown_input_field(input_object, input_type_name, field_name))
         .collect();
     unknown_fields.sort_by_key(|field_name| key_order_index(order_source, field_name));
     for field_name in unknown_fields {
@@ -1669,10 +1654,7 @@ fn validate_resolved_scalar(
                 return None;
             };
             Some(ScalarValidationProblem {
-                explanation: format!(
-                    "Could not coerce value {} to Int",
-                    format_float_literal(*raw)
-                ),
+                explanation: format!("Could not coerce value {raw} to Int"),
                 include_message: false,
             })
         }
@@ -1844,20 +1826,15 @@ fn non_null_variable_null_error(
     variable_type: &str,
     location: SourceLocation,
 ) -> Value {
-    json!({
-        "message": format!(
-            "Variable ${variable_name} of type {variable_type} was provided invalid value"
-        ),
-        "locations": [{ "line": location.line, "column": location.column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": Value::Null,
-            "problems": [{
+    invalid_variable_error_envelope(
+        format!("Variable ${variable_name} of type {variable_type} was provided invalid value"),
+        location,
+        Value::Null,
+        json!([{
                 "path": [],
                 "explanation": "Expected value to not be null"
-            }]
-        }
-    })
+        }]),
+    )
 }
 
 fn argument_literal_incompatible_error(
@@ -1894,7 +1871,7 @@ fn int_literal_coercion_value(
         return None;
     }
     match value {
-        RawArgumentValue::Float(raw) => Some(format_float_literal(*raw)),
+        RawArgumentValue::Float(raw) => Some(format!("{raw}")),
         _ => None,
     }
 }
@@ -1915,10 +1892,6 @@ fn enum_literal_coercion_value(
         }
         _ => None,
     }
-}
-
-fn format_float_literal(value: f64) -> String {
-    format!("{value}")
 }
 
 pub(in crate::proxy) fn input_object_argument_not_accepted_error(
@@ -2067,11 +2040,70 @@ fn inline_argument_value_location(
     let haystack = &query[start..];
     let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
     let after_name = start + argument_start + argument_name.len();
+    source_location_for_byte_offset(query, value_offset_after(query, after_name)?)
+}
+
+fn inline_argument_list_item_object_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+    target_index: usize,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
     let after_colon = query[after_name..].find(':')? + after_name + 1;
     let value_offset = query[after_colon..]
         .char_indices()
         .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-    source_location_for_byte_offset(query, value_offset)
+    if query.as_bytes().get(value_offset) != Some(&b'[') {
+        return None;
+    }
+
+    let bytes = query.as_bytes();
+    let mut index = value_offset;
+    let mut list_depth = 0i32;
+    let mut object_depth = 0i32;
+    let mut item_index = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'[' => list_depth += 1,
+            b']' => {
+                list_depth -= 1;
+                if list_depth == 0 {
+                    return None;
+                }
+            }
+            b'{' if list_depth == 1 && object_depth == 0 => {
+                if item_index == target_index {
+                    return source_location_for_byte_offset(query, index);
+                }
+                item_index += 1;
+                object_depth += 1;
+            }
+            b'{' => object_depth += 1,
+            b'}' if object_depth > 0 => object_depth -= 1,
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 /// Locates the *value* of an input-object field nested at `target_depth` (the column of the
@@ -2089,11 +2121,14 @@ fn inline_input_field_value_location(
         inline_input_field_name_location(query, field_location, target_depth, name)?;
     let start = byte_offset_for_location(query, name_location)?;
     let after_name = start + name.len();
+    source_location_for_byte_offset(query, value_offset_after(query, after_name)?)
+}
+
+fn value_offset_after(query: &str, after_name: usize) -> Option<usize> {
     let after_colon = query[after_name..].find(':')? + after_name + 1;
-    let value_offset = query[after_colon..]
+    query[after_colon..]
         .char_indices()
-        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-    source_location_for_byte_offset(query, value_offset)
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))
 }
 
 fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
@@ -2258,20 +2293,15 @@ pub(in crate::proxy) fn invalid_variable_error(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    json!({
-        "message": format!(
+    invalid_variable_error_envelope(
+        format!(
             "Variable ${} of type {} was provided invalid value for {}",
-            context.variable_name,
-            context.variable_type,
-            problem_display
+            context.variable_name, context.variable_type, problem_display
         ),
-        "locations": [{ "line": context.location.line, "column": context.location.column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(value),
-            "problems": problems
-        }
-    })
+        context.location,
+        resolved_value_json(value),
+        Value::Array(problems),
+    )
 }
 
 pub(in crate::proxy) fn variable_problem_value_path(path: &[Value], explanation: &str) -> Value {
@@ -2297,7 +2327,12 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
         Value::String(context.operation_path.to_string()),
         Value::String(context.response_key.to_string()),
     ];
-    segments.extend(path.iter().cloned().map(Value::String));
+    segments.extend(path.iter().map(|segment| {
+        segment
+            .parse::<u64>()
+            .map(Value::from)
+            .unwrap_or_else(|_| Value::String(segment.clone()))
+    }));
     segments.push(Value::String(argument_name.to_string()));
     Value::Array(segments)
 }
@@ -2343,9 +2378,15 @@ fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema) {
     {
         schema.mutation_fields.insert(name, arguments);
     }
+    if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "stagedUploadsCreate") {
+        schema.mutation_fields.insert(name, arguments);
+    }
     if let Some((name, fields)) =
         captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
     {
+        schema.input_objects.insert(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "StagedUploadInput") {
         schema.input_objects.insert(name, fields);
     }
 }

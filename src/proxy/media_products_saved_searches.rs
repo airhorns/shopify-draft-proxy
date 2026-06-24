@@ -3,7 +3,6 @@ use super::*;
 mod bulk_operations;
 mod media;
 mod owner_metafields;
-mod saved_search;
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
@@ -46,14 +45,6 @@ impl DraftProxy {
             },
             "notes": "Mutation passthrough placeholder until supported local staging is implemented."
         }));
-    }
-
-    pub(in crate::proxy) fn product_overlay_read_fields(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        self.product_overlay_read_data(&root_fields(query, variables).unwrap_or_default())
     }
 
     pub(in crate::proxy) fn product_overlay_read_data(
@@ -347,8 +338,8 @@ impl DraftProxy {
                 return product_count_json(0, &field.selection);
             }
             if let Some(tag) = product_tag_query_value(query) {
-                let count = self
-                    .effective_products()
+                let products = self.store.products();
+                let count = products
                     .into_iter()
                     .filter(|product| {
                         self.store
@@ -362,8 +353,8 @@ impl DraftProxy {
                 return product_count_json(count, &field.selection);
             }
             if query.trim_start().starts_with("sku:") {
-                let count = self
-                    .effective_products()
+                let products = self.store.products();
+                let count = products
                     .into_iter()
                     .filter(|product| {
                         let variants = self.store.product_variants_for_product(&product.id);
@@ -373,15 +364,7 @@ impl DraftProxy {
                 return product_count_json(count, &field.selection);
             }
         }
-        product_count_json(self.effective_product_count(), &field.selection)
-    }
-
-    pub(in crate::proxy) fn effective_products(&self) -> Vec<ProductRecord> {
-        self.store.products()
-    }
-
-    pub(in crate::proxy) fn effective_product_count(&self) -> usize {
-        self.store.product_count()
+        product_count_json(self.store.product_count(), &field.selection)
     }
 
     pub(in crate::proxy) fn product_create(
@@ -873,7 +856,7 @@ impl DraftProxy {
             product_type: resolved_string_field(&input, "productType")
                 .unwrap_or(existing.product_type),
             tags: if input.contains_key("tags") {
-                normalize_product_tags(incoming_tags.unwrap_or_default())
+                normalize_taggable_tags(incoming_tags.unwrap_or_default())
             } else {
                 existing.tags
             },
@@ -2852,7 +2835,7 @@ impl DraftProxy {
         id: &str,
         request: &Request,
     ) -> Option<ProductRecord> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
         let response = self.upstream_post(
@@ -3061,7 +3044,7 @@ impl DraftProxy {
             .as_ref()
             .is_some_and(product_publication_state_known);
         let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
+            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
             .unwrap_or_else(|| {
                 let timestamp = default_product_timestamp(&product_id);
                 ProductRecord {
@@ -3142,35 +3125,6 @@ impl DraftProxy {
         } else {
             MutationOutcome::response(response)
         }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
     }
 
     fn product_publication_user_errors(

@@ -2448,7 +2448,7 @@ Live evidence refreshed on this host:
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
-- Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; it is not the payload-level `Collection does not exist` userError branch used for supplied ids that fail lookup.
+- Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; a supplied but unknown collection id instead returns payload `userErrors[{ field: null, message: "Collection does not exist" }]`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
@@ -2563,7 +2563,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API. Liquid syntax parsing is a privacy-policy-only Core validation: `PRIVACY_POLICY` body `{% unknownTag %}` returns `shopPolicy: null`, `field: ["shopPolicy", "body"]`, message `Body Liquid syntax error: Unknown tag 'unknownTag'`, and `code: null`; other policy types do not run this Liquid parse branch.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -2593,6 +2593,7 @@ Live evidence refreshed on this host:
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
 - activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
+- activating an inactive location whose name exactly matches another active location returns `HAS_NON_UNIQUE_NAME` at `["locationId"]` with message `This location currently cannot be activated because there exists an active location with the same name.`; the reproducible setup deactivates a disposable target location, creates a second active disposable location with the same name, then attempts to reactivate the target
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:
@@ -3775,3 +3776,22 @@ Practical rule:
 - a real live success-path fixture needs a disposable billing-capable app/store
   credential that can use Shopify's Billing API and safely approve test charges;
   do not hand-author a live billing success fixture from local proxy output
+
+## 87. Mobile platform applications are not unique per shop/platform
+
+Shopify Core does not enforce a one-Android and one-Apple mobile platform
+application limit per shop. The model validates platform-specific identifiers,
+Android certificate fingerprints, and app-clip fields, but does not validate
+platform uniqueness; the GraphQL create mutation unconditionally creates a
+record; and the table has no unique index on `(shop_id, platform)`.
+
+Practical rule:
+
+- do not fabricate `TAKEN` userErrors for repeated
+  `mobilePlatformApplicationCreate` calls with the same platform
+- stage every valid create as a distinct record and make
+  `mobilePlatformApplications` reads expose all staged records
+- the current conformance credential still lacks
+  `read_mobile_platform_applications` and `write_mobile_platform_applications`,
+  so repeated-create parity must wait for a scope-capable dev-store credential
+  rather than being replaced with local-runtime evidence

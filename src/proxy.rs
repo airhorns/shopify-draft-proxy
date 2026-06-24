@@ -1037,7 +1037,7 @@ impl Store {
         self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
     }
 
-    fn effective_shop(&self) -> Value {
+    pub(in crate::proxy) fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
         shop["shopPolicies"] = Value::Array(
@@ -1802,11 +1802,13 @@ pub struct DraftProxy {
 mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
+mod civil_date;
 mod commit;
 mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod functions;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -1838,6 +1840,8 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::b2b_customers::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::civil_date::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::commit::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::connection::*;
@@ -1847,6 +1851,8 @@ pub(in crate::proxy) use self::core::*;
 pub(in crate::proxy) use self::discounts::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::dispatch::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::functions::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::json_helpers::*;
 #[allow(unused_imports)]
