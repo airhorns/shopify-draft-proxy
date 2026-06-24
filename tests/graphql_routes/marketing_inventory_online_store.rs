@@ -2057,6 +2057,70 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         json!("CANNOT_DEACTIVATE_FROM_ONLY_LOCATION")
     );
 
+    let extra_quantity_field_bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtraQuantityFieldBulk($inventoryItemId: ID!, $updates: [InventoryBulkToggleActivationInput!]!) {
+          inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $updates) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "updates": [
+            {"locationId": location_id, "activate": true, "available": -1}
+        ]}),
+    ));
+    assert_eq!(
+        extra_quantity_field_bulk.body["data"]["inventoryBulkToggleActivation"]["userErrors"],
+        json!([])
+    );
+
+    let inactive_location_id = add_active_transfer_location(&mut proxy, "Inactive bulk location");
+    let make_inactive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MakeBulkLocationInactive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": inactive_location_id, "input": {"isActive": false}}),
+    ));
+    assert_eq!(
+        make_inactive.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        make_inactive.body["data"]["locationEdit"]["location"]["isActive"],
+        json!(false)
+    );
+    let inactive_bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InactiveLocationBulk($inventoryItemId: ID!, $updates: [InventoryBulkToggleActivationInput!]!) {
+          inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $updates) {
+            inventoryItem { id }
+            inventoryLevels { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "updates": [
+            {"locationId": inactive_location_id, "activate": true}
+        ]}),
+    ));
+    assert_eq!(
+        inactive_bulk.body["data"]["inventoryBulkToggleActivation"],
+        json!({
+            "inventoryItem": null,
+            "inventoryLevels": null,
+            "userErrors": [{
+                "field": ["inventoryItemUpdates", "0", "locationId"],
+                "message": "The quantity couldn't be updated because the location was not found.",
+                "code": "LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+
     let invalid_item_update = proxy.process_request(json_graphql_request(
         r#"
         mutation InvalidInventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {

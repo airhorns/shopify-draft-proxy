@@ -1360,7 +1360,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
-        format!("gid://shopify/MarketCatalog/{numeric_id}")
+        shopify_gid("MarketCatalog", numeric_id)
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
@@ -2335,7 +2335,7 @@ impl DraftProxy {
             + (self.store.staged.catalogs.len() * 2)
             + self.store.staged.price_lists.len()
             + 1;
-        format!("gid://shopify/PriceList/{numeric_id}")
+        shopify_gid("PriceList", numeric_id)
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(
@@ -3946,5 +3946,5 @@ pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) ->
         "ONLINE_STORE_THEME" => "OnlineStoreTheme",
         _ => "Product",
     };
-    format!("gid://shopify/{gid_type}/9801098789170")
+    shopify_gid(gid_type, "9801098789170")
 }
