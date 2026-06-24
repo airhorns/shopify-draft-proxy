@@ -1,5 +1,6 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn without_extensions(value: &Value) -> Value {
     let mut value = value.clone();
@@ -117,6 +118,211 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
         order_id,
         create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["id"].clone(),
     )
+}
+
+fn return_reason_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json"
+    ))
+    .unwrap()
+}
+
+fn return_reason_hydrated_proxy(fixture: &Value) -> DraftProxy {
+    let hydrate_body = fixture["upstreamCalls"][0]["response"]["body"].clone();
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| Response {
+        status: 200,
+        headers: Default::default(),
+        body: hydrate_body.clone(),
+    })
+}
+
+fn assert_no_return_validation_side_effects(proxy: &DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    assert_eq!(state["stagedState"]["orders"], json!({}));
+    assert_eq!(state["stagedState"]["returns"], json!({}));
+    assert_eq!(state["stagedState"]["returnsByOrder"], json!({}));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+fn live_return_reason_validation_proxy(upstream_calls: Arc<AtomicUsize>) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+        upstream_calls.fetch_add(1, Ordering::SeqCst);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "order": Value::Null } }),
+        }
+    })
+}
+
+#[test]
+fn return_create_and_request_reject_missing_reason_without_staging() {
+    let fixture = return_reason_validation_fixture();
+
+    let mut create_proxy = snapshot_proxy();
+    let create = create_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-reason-validation.graphql"),
+        fixture["missingReasonCreate"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["returnCreate"],
+        fixture["missingReasonCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+    assert_no_return_validation_side_effects(&create_proxy);
+
+    let mut request_proxy = snapshot_proxy();
+    let request = request_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reason-validation.graphql"
+        ),
+        fixture["missingReasonRequest"]["variables"].clone(),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"],
+        fixture["missingReasonRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    assert_no_return_validation_side_effects(&request_proxy);
+}
+
+#[test]
+fn return_reason_validation_failures_do_not_hydrate_live_orders() {
+    let fixture = return_reason_validation_fixture();
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = live_return_reason_validation_proxy(Arc::clone(&upstream_calls));
+
+    let create_missing = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-reason-validation.graphql"),
+        fixture["missingReasonCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create_missing.body["data"]["returnCreate"],
+        fixture["missingReasonCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+
+    let request_missing = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reason-validation.graphql"
+        ),
+        fixture["missingReasonRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        request_missing.body["data"]["returnRequest"],
+        fixture["missingReasonRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+
+    let create_other_without_note = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-reason-validation.graphql"),
+        fixture["otherBlankNoteCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create_other_without_note.body["data"]["returnCreate"],
+        fixture["otherBlankNoteCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+    assert_no_return_validation_side_effects(&proxy);
+}
+
+#[test]
+fn return_create_rejects_other_without_note_before_staging() {
+    let fixture = return_reason_validation_fixture();
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-reason-validation.graphql"),
+        fixture["otherBlankNoteCreate"]["variables"].clone(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["returnCreate"],
+        fixture["otherBlankNoteCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+    assert_no_return_validation_side_effects(&proxy);
+}
+
+#[test]
+fn return_roots_reject_invalid_reason_enum_variables_before_staging() {
+    let fixture = return_reason_validation_fixture();
+
+    let mut create_proxy = snapshot_proxy();
+    let create = create_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-reason-validation.graphql"),
+        fixture["invalidReasonCreate"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        fixture["invalidReasonCreate"]["response"]["payload"]
+    );
+    assert_no_return_validation_side_effects(&create_proxy);
+
+    let mut request_proxy = snapshot_proxy();
+    let request = request_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reason-validation.graphql"
+        ),
+        fixture["invalidReasonRequest"]["variables"].clone(),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body,
+        fixture["invalidReasonRequest"]["response"]["payload"]
+    );
+    assert_no_return_validation_side_effects(&request_proxy);
+}
+
+#[test]
+fn return_request_accepts_public_other_reason_inputs_without_note() {
+    let fixture = return_reason_validation_fixture();
+
+    let mut explicit_other_proxy = return_reason_hydrated_proxy(&fixture);
+    let explicit_other = explicit_other_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reason-validation.graphql"
+        ),
+        fixture["otherBlankNoteRequest"]["variables"].clone(),
+    ));
+    assert_eq!(explicit_other.status, 200);
+    assert_eq!(
+        explicit_other.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    assert!(explicit_other.body["data"]["returnRequest"]["return"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Return/")));
+    assert_eq!(
+        explicit_other_proxy.get_state_snapshot()["stagedState"]["returns"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let mut definition_proxy = return_reason_hydrated_proxy(&fixture);
+    let definition = definition_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reason-validation.graphql"
+        ),
+        fixture["otherDefinitionNoNoteRequest"]["variables"].clone(),
+    ));
+    assert_eq!(definition.status, 200);
+    assert_eq!(
+        definition.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    assert!(definition.body["data"]["returnRequest"]["return"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Return/")));
+    assert_eq!(
+        definition_proxy.get_state_snapshot()["stagedState"]["returns"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]

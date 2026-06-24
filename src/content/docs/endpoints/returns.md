@@ -42,6 +42,13 @@ Local staged mutations:
   cap as `returnCreate`. When `notifyCustomer: true` is supplied, the proxy validates the hidden
   `tmp_notify_customer.email_address` input with the shared basic email guard but does not send notification side
   effects.
+- `returnCreate` / `returnRequest` validate return-line reasons before order hydration, return staging, or mutation-log
+  append. Public 2026-04 capture shows root-specific missing-reason shapes: `returnCreate` returns `NOT_FOUND` on
+  `["returnInput", "returnLineItems", "0"]`, while `returnRequest` returns `BLANK` on
+  `["input", "returnLineItems", "0", "returnReason"]`. `returnCreate` rejects legacy `returnReason: OTHER` without a
+  note on `["returnInput", "returnLineItems", "0", "returnReasonNote"]`; captured public `returnRequest` accepts legacy
+  `OTHER` and the public `other-reason` `returnReasonDefinitionId` without a note on this shop/API version. Invalid
+  legacy `returnReason` variable values are rejected at the GraphQL variable-coercion layer with `INVALID_VARIABLE`.
 - `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
   reverse fulfillment order with line work for the approved return line quantities. Approving a return whose status is no
   longer `REQUESTED` returns `INVALID` on `["id"]` with `return_request_status_invalid`, does not change the return, and
@@ -158,6 +165,9 @@ Local staged mutations:
 - Return shipping fee parity:
   `config/parity-specs/orders/return-shipping-fee-recorded.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json`.
+- Return reason validation parity:
+  `config/parity-specs/orders/return-reason-validation.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json`.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.
