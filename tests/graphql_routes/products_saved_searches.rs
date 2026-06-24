@@ -6662,6 +6662,73 @@ fn collection_create_rejects_client_supplied_id_without_staging() {
 }
 
 #[test]
+fn collection_update_missing_id_returns_top_level_bad_request_without_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionUpdateMissingId($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Missing Id" } }),
+    ));
+
+    assert_eq!(missing_id.status, 200);
+    assert_eq!(
+        missing_id.body["errors"][0]["message"],
+        json!("id must be specified on collectionUpdate")
+    );
+    assert_eq!(
+        missing_id.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        missing_id.body["errors"][0]["path"],
+        json!(["collectionUpdate"])
+    );
+    assert_eq!(missing_id.body["data"]["collectionUpdate"], Value::Null);
+    assert!(missing_id
+        .body
+        .pointer("/data/collectionUpdate/userErrors")
+        .is_none());
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionUpdateUnknownId($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Collection/999999999999999",
+                "title": "Unknown Id"
+            }
+        }),
+    ));
+
+    assert_eq!(unknown_id.status, 200);
+    assert_eq!(
+        unknown_id.body["data"]["collectionUpdate"],
+        json!({
+            "collection": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Collection does not exist"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
 fn collection_validations_and_reorder_are_store_backed() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
