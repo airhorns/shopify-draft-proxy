@@ -454,6 +454,21 @@ function buildStaleDigestVariables(productId, compareDigest) {
   };
 }
 
+function buildInvalidCompareDigestVariables(productId) {
+  return {
+    metafields: [
+      {
+        ownerId: productId,
+        namespace: 'custom',
+        key: 'invalid_compare_digest',
+        type: 'single_line_text_field',
+        value: 'Missing row should reject',
+        compareDigest: '0000000000000000000000000000000000000000000000000000000000000000',
+      },
+    ],
+  };
+}
+
 function buildNullCreateVariables(productId) {
   return {
     metafields: [
@@ -736,6 +751,11 @@ try {
   const staleDigestResponse = await runGraphql(metafieldsSetMutation, staleDigestVariables);
   const postStaleDigestRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
 
+  const invalidCompareDigestPreconditionRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const invalidCompareDigestVariables = buildInvalidCompareDigestVariables(createdProductId);
+  const invalidCompareDigestResponse = await runGraphql(metafieldsSetMutation, invalidCompareDigestVariables);
+  const postInvalidCompareDigestRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+
   const nullCreatePreconditionRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
   const nullCreateVariables = buildNullCreateVariables(createdProductId);
   const nullCreateResponse = await runGraphql(metafieldsSetMutation, nullCreateVariables);
@@ -805,6 +825,16 @@ try {
     staleDigestResponse,
     postStaleDigestRead,
     postCasSuccessRead,
+  );
+
+  const invalidCompareDigestCaptureFile = 'metafields-set-invalid-compare-digest-parity.json';
+  await writeMetafieldsSetScenario(
+    outputDir,
+    invalidCompareDigestCaptureFile,
+    invalidCompareDigestVariables,
+    invalidCompareDigestResponse,
+    postInvalidCompareDigestRead,
+    invalidCompareDigestPreconditionRead,
   );
 
   const nullCreateCaptureFile = 'metafields-set-null-create-parity.json';
@@ -942,6 +972,7 @@ try {
           setCaptureFile,
           casSuccessCaptureFile,
           staleDigestCaptureFile,
+          invalidCompareDigestCaptureFile,
           nullCreateCaptureFile,
           duplicateCaptureFile,
           missingNamespaceCaptureFile,

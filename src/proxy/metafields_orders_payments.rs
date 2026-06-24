@@ -1,4 +1,5 @@
 use super::*;
+use sha2::{Digest, Sha256};
 
 mod customer_payment_methods;
 mod returns;
@@ -22,8 +23,14 @@ pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
         "key": key,
         "type": metafield_type,
         "value": "",
-        "compareDigest": format!("local-{namespace}-{key}-digest")
+        "compareDigest": metafield_compare_digest("")
     }))
+}
+
+pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
@@ -713,14 +720,6 @@ fn metafields_set_input_shape_error(
             "BLANK",
             "Type can't be blank",
         ))
-    } else if resolved_string_field(input, "value").as_deref() == Some("Linen")
-        && resolved_string_field(input, "compareDigest").is_some()
-    {
-        Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string()],
-            "STALE_OBJECT",
-            "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
-        ))
     } else {
         None
     }
@@ -1031,6 +1030,14 @@ fn metafields_set_path_user_error(field: Vec<&str>, code: &str, message: &str) -
         (!code.is_empty()).then_some(code),
         Value::Null,
     )
+}
+
+pub(in crate::proxy) fn metafields_set_row_user_error(
+    index: usize,
+    code: &str,
+    message: &str,
+) -> Value {
+    metafields_set_path_user_error(vec!["metafields", &index.to_string()], code, message)
 }
 
 fn is_shopify_hex_color(value: &str) -> bool {

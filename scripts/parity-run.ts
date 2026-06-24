@@ -279,6 +279,10 @@ function capturedSetupProductDomainNodes(capture: Record<string, unknown>): Map<
     const payload = normalizedCapturePayload((entry as Record<string, unknown>)['response'] ?? entry);
     collectProductDomainSetupNodes(payload, nodes);
   }
+  const preconditionRead = capture['preconditionRead'];
+  if (preconditionRead !== undefined) {
+    collectProductDomainSetupNodes(normalizedCapturePayload(preconditionRead), nodes);
+  }
   return nodes;
 }
 
@@ -288,6 +292,7 @@ function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest)
   if (!Array.isArray(metafields)) return false;
   return metafields.some((metafield) => {
     if (typeof metafield !== 'object' || metafield === null) return false;
+    if (Object.hasOwn(metafield, 'compareDigest')) return true;
     const type = (metafield as Record<string, unknown>)['type'];
     return typeof type === 'string' && type.includes('reference') && collectProductDomainGids(metafield).size > 0;
   });
