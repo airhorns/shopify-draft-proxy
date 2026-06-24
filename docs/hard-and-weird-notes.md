@@ -2587,6 +2587,7 @@ Live evidence refreshed on this host:
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
 - activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
+- activating an inactive location whose name exactly matches another active location returns `HAS_NON_UNIQUE_NAME` at `["locationId"]` with message `This location currently cannot be activated because there exists an active location with the same name.`; the reproducible setup deactivates a disposable target location, creates a second active disposable location with the same name, then attempts to reactivate the target
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:

@@ -71,8 +71,9 @@ entries.
 documents. Successful activations flip the local Location `isActive` state,
 stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
-ongoing relocation, and fulfillment-service managed scope return the captured
-field paths, codes, and messages without staging activation.
+ongoing relocation, fulfillment-service managed scope, and duplicate active
+location names return the captured field paths, codes, and messages without
+staging activation.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,
@@ -133,6 +134,7 @@ where captured.
   `config/parity-specs/store-properties/location-add-edit-uniqueness-and-required-fields.json`,
   `config/parity-specs/store-properties/location-edit-fields-and-state-machine.json`,
   `config/parity-specs/store-properties/location-edit-unknown-id-validation.json`,
+  `config/parity-specs/store-properties/location-activate-non-unique-name.json`,
   `config/parity-specs/store-properties/location-delete-active-location-validation.json`,
   `config/parity-specs/store-properties/location-delete-inventory-level-cascade.json`,
   `config/parity-specs/store-properties/location-delete-primary-location.json`,
