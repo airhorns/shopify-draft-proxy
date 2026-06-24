@@ -174,9 +174,9 @@ pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(Strin
     let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
         query.to_string()
     } else {
-        format!("gid://shopify/InventoryItem/{item_tail}")
+        shopify_gid("InventoryItem", item_tail)
     };
-    Some((item_id, format!("gid://shopify/Location/{location_tail}")))
+    Some((item_id, shopify_gid("Location", location_tail)))
 }
 
 pub(in crate::proxy) fn inventory_properties_json() -> Value {

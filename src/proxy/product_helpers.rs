@@ -445,7 +445,7 @@ pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
 /// id suffix and name, so both are derived rather than recorded per scenario.
 pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
     let suffix = resource_id_path_tail(id);
-    let channel_id = format!("gid://shopify/Channel/{suffix}");
+    let channel_id = shopify_gid("Channel", suffix);
     json!({
         "id": id,
         "name": name,
@@ -1895,9 +1895,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 .and_then(|item| item.get("id"))
                 .and_then(Value::as_str)
                 .map(str::to_string)
-                .unwrap_or_else(|| {
-                    format!("gid://shopify/InventoryItem/{}", resource_id_tail(&id))
-                }),
+                .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
             tracked: inventory_item
                 .and_then(|item| item.get("tracked"))
                 .and_then(Value::as_bool)

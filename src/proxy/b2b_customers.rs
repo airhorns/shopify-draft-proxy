@@ -4453,7 +4453,7 @@ impl DraftProxy {
         let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
         let id = if order_email.ends_with("example.test") {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
-            format!("gid://shopify/Order/{}", ordinal.max(1))
+            shopify_gid("Order", ordinal.max(1))
         } else {
             synthetic_shopify_gid("Order", self.next_synthetic_id)
         };

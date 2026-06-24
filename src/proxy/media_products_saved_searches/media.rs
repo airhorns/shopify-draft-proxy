@@ -600,7 +600,7 @@ impl DraftProxy {
             return id.to_string();
         }
         let numeric_id = id.trim_start_matches("gid://shopify/Video/");
-        let media_image_id = format!("gid://shopify/MediaImage/{}", numeric_id);
+        let media_image_id = shopify_gid("MediaImage", numeric_id);
         if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
         } else {

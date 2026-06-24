@@ -1158,7 +1158,7 @@ fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
     let tail = Some(resource_id_path_tail(variant_id))
         .filter(|tail| !tail.is_empty())
         .unwrap_or("local");
-    format!("gid://shopify/Product/delivery-profile-{tail}")
+    shopify_gid("Product", format_args!("delivery-profile-{tail}"))
 }
 
 pub(in crate::proxy) fn delivery_profile_countries_from_input(
@@ -1197,7 +1197,7 @@ fn delivery_profile_zone_countries_from_input(
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
     json!({
-        "id": format!("gid://shopify/DeliveryCountry/{code}"),
+        "id": shopify_gid("DeliveryCountry", code),
         "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "code": {

@@ -1230,9 +1230,8 @@ impl DraftProxy {
                 );
             }
         }
-        let id = existing_id.unwrap_or_else(|| {
-            format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
-        });
+        let id =
+            existing_id.unwrap_or_else(|| shopify_gid("MarketingActivity", self.next_synthetic_id));
         if !self.store.staged.marketing_activities.contains_key(&id) {
             self.next_synthetic_id += 2;
         }
@@ -3453,7 +3452,7 @@ impl DraftProxy {
         let inventory_item_id = if query.starts_with("gid://shopify/InventoryItem/") {
             query.to_string()
         } else {
-            format!("gid://shopify/InventoryItem/{query}")
+            shopify_gid("InventoryItem", query)
         };
         if let Some(((item_id, location_id), _)) = self
             .store
@@ -5463,7 +5462,7 @@ impl DraftProxy {
         };
         let product = variant.get("product").cloned().unwrap_or_else(|| {
             json!({
-                "id": format!("gid://shopify/Product/{}", resource_id_tail(&item_id)),
+                "id": shopify_gid("Product", resource_id_tail(&item_id)),
                 "title": "",
                 "handle": "",
                 "status": "ACTIVE",
@@ -5489,7 +5488,7 @@ impl DraftProxy {
             .and_then(|product| product.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| format!("gid://shopify/Product/{}", resource_id_tail(&item_id)));
+            .unwrap_or_else(|| shopify_gid("Product", resource_id_tail(&item_id)));
         let mut variant_value = variant.clone();
         if let Some(fields) = variant_value.as_object_mut() {
             fields.insert("id".to_string(), json!(variant_id));

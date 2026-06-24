@@ -1873,12 +1873,12 @@ fn online_store_count_with_baseline(
     let baseline = baseline?;
     let synthetic_staged = order
         .iter()
-        .filter(|id| id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| is_synthetic_gid(id))
         .filter(|id| !deleted_ids.contains(*id))
         .count();
     let deleted_baseline = deleted_ids
         .iter()
-        .filter(|id| !id.contains("?shopify-draft-proxy=synthetic"))
+        .filter(|id| !is_synthetic_gid(id))
         .count();
     Some(baseline.saturating_sub(deleted_baseline) + synthetic_staged)
 }

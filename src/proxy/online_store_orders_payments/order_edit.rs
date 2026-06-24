@@ -239,7 +239,7 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
             let historical = node["quantity"].as_i64().unwrap_or(0);
             let current = node["currentQuantity"].as_i64().unwrap_or(historical);
             lines.push(json!({
-                "calcId": format!("gid://shopify/CalculatedLineItem/{tail}"),
+                "calcId": shopify_gid("CalculatedLineItem", tail),
                 "orderLineId": node["id"].clone(),
                 "kind": "existing",
                 "title": node["title"].clone(),
@@ -344,7 +344,7 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
         quantity += current;
         let line_id = match line.get("orderLineId").and_then(Value::as_str) {
             Some(id) => id.to_string(),
-            None => format!("gid://shopify/LineItem/oe-{index}"),
+            None => shopify_gid("LineItem", format_args!("oe-{index}")),
         };
         line_nodes.push(json!({
             "id": line_id,
@@ -357,11 +357,14 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
         }));
         if current > 0 {
             fulfillment_orders.push(json!({
-                "id": format!("gid://shopify/FulfillmentOrder/oe-{index}"),
+                "id": shopify_gid("FulfillmentOrder", format_args!("oe-{index}")),
                 "status": "OPEN",
                 "lineItems": {
                     "nodes": [{
-                        "id": format!("gid://shopify/FulfillmentOrderLineItem/oe-{index}"),
+                        "id": shopify_gid(
+                            "FulfillmentOrderLineItem",
+                            format_args!("oe-{index}"),
+                        ),
                         "totalQuantity": current,
                         "remainingQuantity": current,
                         "lineItem": {
