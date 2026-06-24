@@ -733,8 +733,8 @@ impl DraftProxy {
                         (
                             Value::Null,
                             vec![json!({
-                                "field": ["cappedAmount"],
-                                "message": "Only usage-pricing line items support cappedAmount updates"
+                                "field": null,
+                                "message": "Only variable subscriptions can be updated."
                             })],
                         )
                     } else {
