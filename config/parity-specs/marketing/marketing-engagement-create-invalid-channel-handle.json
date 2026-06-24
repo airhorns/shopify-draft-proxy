@@ -1,0 +1,28 @@
+{
+  "scenarioId": "marketing-engagement-create-invalid-channel-handle",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "operationNames": ["marketingEngagementCreate"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-validation-order.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-engagement-create-invalid-channel-handle.graphql",
+    "variablesCapturePath": "$.operations.invalidChannelHandle.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-channel-handle-user-error",
+        "capturePath": "$.operations.invalidChannelHandle.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Captures Shopify's current marketingEngagementCreate INVALID_CHANNEL_HANDLE message for a non-email channelHandle with otherwise valid engagement input. The live Admin GraphQL 2026-04 capture returned the not-recognized message for this engagement path."
+}

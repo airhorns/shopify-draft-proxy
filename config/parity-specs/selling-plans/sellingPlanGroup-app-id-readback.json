@@ -1,0 +1,145 @@
+{
+  "scenarioId": "sellingPlanGroup-app-id-readback",
+  "operationNames": ["sellingPlanGroup", "sellingPlanGroupCreate", "sellingPlanGroupUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-app-id-readback.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql",
+    "variablesCapturePath": "$.scenarios.createAppId.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-app-id-payload",
+        "capturePath": "$.scenarios.createAppId.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.sellingPlanGroup.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy creates a synthetic local selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-app-id",
+        "capturePath": "$.scenarios.readAfterCreate.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-app-id-payload",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy reads back its synthetic staged selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      },
+      {
+        "name": "update-app-id-payload",
+        "capturePath": "$.scenarios.updateAppId.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-app-id-payload",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "fromCapturePath": "$.scenarios.updateAppId.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.sellingPlanGroup.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy updates its synthetic staged selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-update-app-id",
+        "capturePath": "$.scenarios.readAfterUpdate.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-app-id-payload",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy reads back its synthetic staged selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      },
+      {
+        "name": "clear-app-id-payload",
+        "capturePath": "$.scenarios.clearAppId.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-app-id-payload",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "fromCapturePath": "$.scenarios.clearAppId.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.sellingPlanGroup.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy updates its synthetic staged selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-clear-app-id",
+        "capturePath": "$.scenarios.readAfterClear.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-app-id-payload",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy reads back its synthetic staged selling-plan group ID while Shopify captured a real disposable group ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Admin 2026-04 capture for sellingPlanGroupCreate and sellingPlanGroupUpdate appId persistence. The parity runner replays create, read-after-create, update, read-after-update, explicit-null clear, and read-after-clear through public GraphQL requests with only generated group IDs treated as volatile."
+}

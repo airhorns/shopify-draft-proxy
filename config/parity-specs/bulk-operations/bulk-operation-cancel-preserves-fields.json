@@ -1,0 +1,35 @@
+{
+  "scenarioId": "bulk-operation-cancel-preserves-fields",
+  "operationNames": ["bulkOperation", "bulkOperationCancel", "bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["lifecycle-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-cancel-preserves-fields.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures a RUNNING query BulkOperation after Shopify has populated non-zero counters, then cancels it. Replay hydrates the captured pre-cancel record through the public LiveHybrid BulkOperation read used by bulkOperationCancel and asserts the returned and subsequent read records preserve every selected field except the status transition to CANCELING.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "progress-cancel-preserves-returned-fields",
+        "capturePath": "$.lifecycle.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.cancelAttempt.variables"
+        }
+      },
+      {
+        "name": "read-after-progress-cancel-preserves-fields",
+        "capturePath": "$.lifecycle.readAfterCancel.response.data.bulkOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.cancelAttempt.variables"
+        }
+      }
+    ]
+  }
+}

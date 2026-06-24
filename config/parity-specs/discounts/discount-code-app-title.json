@@ -1,0 +1,107 @@
+{
+  "scenarioId": "discount-code-app-title",
+  "operationNames": [
+    "discountCodeAppCreate",
+    "discountCodeAppUpdate",
+    "discountAutomaticAppCreate",
+    "discountAutomaticAppUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "title-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-code-app-title.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-code-app-title-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-userErrors",
+        "capturePath": "$.setup.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.codeSetup.userErrors", "$.automaticSetup.userErrors"]
+      },
+      {
+        "name": "create-code-app-title-data",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-app-title-create.graphql",
+          "variablesCapturePath": "$.create.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blankTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify allocates real discount IDs while the proxy uses stable synthetic IDs."
+          },
+          {
+            "path": "$.missingTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify allocates real discount IDs while the proxy uses stable synthetic IDs."
+          },
+          {
+            "path": "$.tooLongTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify allocates real discount IDs while the proxy uses stable synthetic IDs."
+          }
+        ]
+      },
+      {
+        "name": "update-code-app-title-data",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-app-title-update.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.codeSetup.codeAppDiscount.discountId"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticAppDiscount.discountId"
+            },
+            "blank": {
+              "fromCapturePath": "$.update.request.variables.blank"
+            },
+            "missing": {
+              "fromCapturePath": "$.update.request.variables.missing"
+            },
+            "tooLong": {
+              "fromCapturePath": "$.update.request.variables.tooLong"
+            },
+            "automaticBlank": {
+              "fromCapturePath": "$.update.request.variables.automaticBlank"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blankTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify returns the real updated discount ID while the proxy returns the corresponding synthetic ID."
+          },
+          {
+            "path": "$.missingTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify returns the real updated discount ID while the proxy returns the corresponding synthetic ID."
+          },
+          {
+            "path": "$.tooLongTitle.codeAppDiscount.discountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify returns the real updated discount ID while the proxy returns the corresponding synthetic ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for app-managed code discount title validation. Code-app create rejects blank titles, omitted titles, and 256-character titles with title userErrors; code-app update accepts an omitted title while preserving the existing title, but still rejects blank and 256-character titles. Automatic-app blank title remains the control INVALID title userError."
+}

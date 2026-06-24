@@ -153,6 +153,68 @@ fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) ->
 }
 
 #[test]
+fn admin_platform_job_unknown_job_gid_returns_completed_job_shape() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminPlatformUnknownJob($id: ID!) {
+          job(id: $id) {
+            __typename
+            id
+            done
+            query { __typename }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Job/0" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "job": {
+                    "__typename": "Job",
+                    "id": "gid://shopify/Job/0",
+                    "done": true,
+                    "query": { "__typename": "QueryRoot" }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn admin_platform_job_non_job_gid_returns_resource_not_found_error() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminPlatformNonJobGid($id: ID!) {
+          poll: job(id: $id) {
+            id
+            done
+            query { __typename }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/0" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["poll"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Product/0")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(response.body["errors"][0]["path"], json!(["poll"]));
+}
+
+#[test]
 fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() {
     let mut proxy = snapshot_proxy();
     let (order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);

@@ -143,6 +143,275 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
 }
 
 #[test]
+fn discount_code_app_title_validation_matches_shopify() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("upstream function lookup request should parse");
+            assert!(
+                body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("ShopifyFunctionByHandle")),
+                "expected app discount Function lookup, got {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopifyFunctions": {
+                            "nodes": [{
+                                "id": "gid://shopify/ShopifyFunction/discount-function",
+                                "title": "Discount Function",
+                                "handle": "discount-function",
+                                "apiType": "DISCOUNT",
+                                "description": "Local discount function",
+                                "appKey": "discount-app-key",
+                                "app": {
+                                    "id": "gid://shopify/App/discount-app",
+                                    "title": "Discount App",
+                                    "handle": "discount-app",
+                                    "apiKey": "discount-app-key"
+                                }
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let long_title = "x".repeat(256);
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CodeAppTitleCreate(
+          $blank: DiscountCodeAppInput!
+          $omitted: DiscountCodeAppInput!
+          $long: DiscountCodeAppInput!
+          $automatic: DiscountAutomaticAppInput!
+        ) {
+          blank: discountCodeAppCreate(codeAppDiscount: $blank) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          omitted: discountCodeAppCreate(codeAppDiscount: $omitted) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          long: discountCodeAppCreate(codeAppDiscount: $long) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          automatic: discountAutomaticAppCreate(automaticAppDiscount: $automatic) {
+            automaticAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "blank": {
+                "title": " ",
+                "code": "APP-BLANK-TITLE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "omitted": {
+                "code": "APP-OMITTED-TITLE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "long": {
+                "title": long_title,
+                "code": "APP-LONG-TITLE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "automatic": {
+                "title": "Automatic setup",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["blank"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "title"],
+                "message": "can't be blank",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+    assert_eq!(
+        create.body["data"]["omitted"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "title"],
+                "message": "Required argument not found.",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+    assert_eq!(
+        create.body["data"]["long"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "title"],
+                "message": "is too long (maximum is 255 characters)",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+    assert_eq!(create.body["data"]["automatic"]["userErrors"], json!([]));
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CodeAppTitleUpdateSetup($input: DiscountCodeAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $input) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Code app setup",
+                "code": "APP-TITLE-SETUP",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(
+        setup.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    let code_id = json_string(
+        &setup.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+        "code app discount id",
+    );
+    let automatic_id = json_string(
+        &create.body["data"]["automatic"]["automaticAppDiscount"]["discountId"],
+        "automatic app discount id",
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CodeAppTitleUpdate(
+          $codeId: ID!
+          $automaticId: ID!
+          $blank: DiscountCodeAppInput!
+          $omitted: DiscountCodeAppInput!
+          $long: DiscountCodeAppInput!
+          $automaticBlank: DiscountAutomaticAppInput!
+        ) {
+          blank: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $blank) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          omitted: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $omitted) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          long: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $long) {
+            codeAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+          automaticBlank: discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticBlank) {
+            automaticAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeId": code_id,
+            "automaticId": automatic_id,
+            "blank": {
+                "title": "",
+                "code": "APP-TITLE-UP-BLANK",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "omitted": {
+                "code": "APP-TITLE-UP-OMITTED",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "long": {
+                "title": "y".repeat(256),
+                "code": "APP-TITLE-UP-LONG",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "automaticBlank": {
+                "title": "",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["blank"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "title"],
+                "message": "can't be blank",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+    assert_eq!(update.body["data"]["omitted"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["omitted"]["codeAppDiscount"]["title"],
+        json!("Code app setup")
+    );
+    assert_eq!(
+        update.body["data"]["long"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "title"],
+                "message": "is too long (maximum is 255 characters)",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+    assert_eq!(
+        update.body["data"]["automaticBlank"],
+        json!({
+            "automaticAppDiscount": null,
+            "userErrors": [{
+                "field": ["automaticAppDiscount", "title"],
+                "message": "Title can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments() {
     let mut proxy = snapshot_proxy();
 

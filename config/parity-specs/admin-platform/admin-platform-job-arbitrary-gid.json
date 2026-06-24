@@ -1,0 +1,26 @@
+{
+  "scenarioId": "admin-platform-job-arbitrary-gid",
+  "operationNames": ["job"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-job-arbitrary-gid.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Single-root Admin platform parity for arbitrary, never-enqueued Job GIDs. The request intentionally avoids non-dispatched roots so the proxy's local job dispatcher must produce the captured completed Job shape from the requested ID.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "arbitrary-job-completed-shape",
+        "capturePath": "$.captures.jobDomainNoData.result.payload.data.job",
+        "proxyPath": "$.data.job",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
