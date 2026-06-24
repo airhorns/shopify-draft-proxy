@@ -1442,6 +1442,113 @@ impl DraftProxy {
         // Shopify's behavior of mapping the legacy flags onto the structured
         // inputs (useAsAdminFilter -> capabilities.adminFilterable, etc.).
         let args = translate_standard_enable_deprecated_args(arguments);
+        let namespace = template.namespace.to_string();
+        let key = template.key.to_string();
+        let map_key = metafield_definition_store_key(owner_type, &namespace, &key);
+        if let Some(mut existing_definition) = self
+            .store
+            .staged
+            .metafield_definitions
+            .get(&map_key)
+            .cloned()
+        {
+            let metafield_type = existing_definition["type"]["name"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            // The deprecated useAsCollectionCondition flag on an ineligible type
+            // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
+            // INVALID_CAPABILITY surfaced for explicit capability inputs.
+            if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
+                && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
+                && !metafield_definition_capability_eligible(
+                    "smartCollectionCondition",
+                    owner_type,
+                    &metafield_type,
+                )
+            {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                        "Definition type is not allowed for smart collection conditions.",
+                        "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
+                    )]
+                });
+            }
+            if let Some(error) = metafield_definition_capability_input_error(
+                &args,
+                "StandardMetafieldDefinitionEnableUserError",
+                Value::Null,
+                owner_type,
+                &metafield_type,
+            ) {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [error]
+                });
+            }
+            if metafield_definition_capabilities_will_enable_admin_filterable(
+                &args,
+                Some(&existing_definition),
+            ) && self.metafield_definition_admin_filterable_count_excluding(owner_type, &map_key)
+                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+            {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                        &admin_filterable_definition_limit_message(owner_type),
+                        "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+                    )]
+                });
+            }
+            if let Some(access) = resolved_object_field(&args, "access") {
+                existing_definition["access"] = metafield_definition_access(&access);
+            }
+            if let Some(capabilities) = resolved_object_field(&args, "capabilities") {
+                apply_metafield_definition_capability_input(
+                    &mut existing_definition,
+                    &capabilities,
+                );
+                apply_metafield_definition_capability_derived_fields(&mut existing_definition);
+            }
+            if resolved_bool_field(&args, "pin") == Some(true)
+                && existing_definition
+                    .get("pinnedPosition")
+                    .is_none_or(Value::is_null)
+            {
+                if metafield_definition_has_constraints(&existing_definition) {
+                    return json!({
+                        "createdDefinition": Value::Null,
+                        "userErrors": [metafield_definition_user_error(
+                            "StandardMetafieldDefinitionEnableUserError",
+                            Value::Null,
+                            "Constrained metafield definitions do not support pinning.",
+                            "UNSUPPORTED_PINNING"
+                        )]
+                    });
+                }
+                existing_definition["pinnedPosition"] = json!(
+                    self.next_metafield_definition_pin_position(owner_type, &namespace, &key)
+                );
+            } else if resolved_bool_field(&args, "pin") == Some(false) {
+                existing_definition["pinnedPosition"] = Value::Null;
+            }
+            if let Some(id) = existing_definition["id"].as_str() {
+                staged_ids.push(id.to_string());
+            }
+            self.store
+                .staged
+                .metafield_definitions
+                .insert(map_key, existing_definition.clone());
+            return json!({
+                "createdDefinition": public_metafield_definition_value(existing_definition),
+                "userErrors": []
+            });
+        }
         let mut definition = self.metafield_definition_from_input(request, &args, Some(&template));
         definition["ownerType"] = json!(owner_type);
         if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
@@ -1463,15 +1570,7 @@ impl DraftProxy {
             .unwrap_or_default()
             .to_string();
         let key = definition["key"].as_str().unwrap_or_default().to_string();
-        let has_existing_definition =
-            self.store
-                .staged
-                .metafield_definitions
-                .contains_key(&metafield_definition_store_key(
-                    owner_type, &namespace, &key,
-                ));
         if resolved_bool_field(&args, "forceEnable") != Some(true)
-            && !has_existing_definition
             && self.metafield_definition_has_unstructured_metafields(owner_type, &namespace, &key)
         {
             return json!({
