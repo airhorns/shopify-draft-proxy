@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 mod customer_payment_methods;
@@ -31,13 +32,6 @@ pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
     format!("{:x}", hasher.finalize())
-}
-
-pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
-    match value {
-        ResolvedValue::String(value) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
@@ -927,7 +921,7 @@ fn metafield_json_object_message(metafield_type: &str) -> &'static str {
 
 pub(in crate::proxy) fn metafields_set_definition_user_errors(
     inputs: &[BTreeMap<String, ResolvedValue>],
-    definitions: &BTreeMap<(String, String), Value>,
+    definitions: &BTreeMap<MetafieldDefinitionKey, Value>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
@@ -937,10 +931,9 @@ pub(in crate::proxy) fn metafields_set_definition_user_errors(
         let key = resolved_string_field(input, "key").unwrap_or_default();
         let value = resolved_string_field(input, "value").unwrap_or_default();
         let owner_type = owner_type_from_gid(&owner_id);
-        let Some(definition) = definitions
-            .get(&(namespace.clone(), key.clone()))
-            .filter(|definition| definition["ownerType"].as_str() == Some(owner_type))
-        else {
+        let Some(definition) = definitions.get(&metafield_definition_store_key(
+            owner_type, &namespace, &key,
+        )) else {
             continue;
         };
         errors.extend(metafields_set_definition_validation_errors(
@@ -1632,7 +1625,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
         .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
     let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
-        let variant_ids = list_string_arg(variables, "variantIds");
+        let variant_ids = list_string_field(variables, "variantIds");
         if price_list_id == "gid://shopify/PriceList/0" {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
         } else if variant_ids
@@ -1646,7 +1639,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
             json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
         }
     } else {
-        let quantity_rules = list_object_arg(variables, "quantityRules");
+        let quantity_rules = list_object_field(variables, "quantityRules");
         if price_list_id == "gid://shopify/PriceList/0"
             || price_list_id == "gid://shopify/PriceList/999"
         {
@@ -1796,12 +1789,7 @@ pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> 
                 &json!({
                     "nodes": [],
                     "edges": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }
+                    "pageInfo": empty_page_info()
                 }),
                 &field.selection,
             )),
@@ -2142,11 +2130,11 @@ pub(in crate::proxy) fn payment_terms_success_record(
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             (
-                json!(format!("cursor:{first}")),
-                json!(format!("cursor:{last}")),
+                Some(format!("cursor:{first}")),
+                Some(format!("cursor:{last}")),
             )
         })
-        .unwrap_or((Value::Null, Value::Null));
+        .unwrap_or((None, None));
     json!({
         "id": id,
         "due": false,
@@ -2157,12 +2145,7 @@ pub(in crate::proxy) fn payment_terms_success_record(
         "translatedName": name,
         "paymentSchedules": {
             "nodes": schedules,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": start_cursor,
-                "endCursor": end_cursor
-            }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         }
     })
 }
@@ -2359,13 +2342,6 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     unsuccessful_code: &str,
 ) -> Option<Value> {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId");
-    if template_id.is_none() {
-        return Some(payment_terms_user_error(
-            json!(["paymentTermsAttributes", "paymentTermsTemplateId"]),
-            "Payment terms template is required.",
-            "REQUIRED",
-        ));
-    }
 
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {
@@ -2794,46 +2770,13 @@ fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let bytes = input.as_bytes();
-    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0];
-        let b1 = *chunk.get(1).unwrap_or(&0);
-        let b2 = *chunk.get(2).unwrap_or(&0);
-        encoded.push(TABLE[(b0 >> 2) as usize] as char);
-        encoded.push(TABLE[(((b0 & 0b0000_0011) << 4) | (b1 >> 4)) as usize] as char);
-        if chunk.len() > 1 {
-            encoded.push(TABLE[(((b1 & 0b0000_1111) << 2) | (b2 >> 6)) as usize] as char);
-        }
-        if chunk.len() > 2 {
-            encoded.push(TABLE[(b2 & 0b0011_1111) as usize] as char);
-        }
-    }
-    encoded
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(input)
 }
 
 fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let lookup = |c: u8| -> Option<u8> { TABLE.iter().position(|&t| t == c).map(|i| i as u8) };
-    let mut output = Vec::with_capacity(input.len() / 4 * 3);
-    for chunk in input.as_bytes().chunks(4) {
-        if chunk.len() < 2 {
-            return None;
-        }
-        let s0 = lookup(chunk[0])?;
-        let s1 = lookup(chunk[1])?;
-        output.push((s0 << 2) | (s1 >> 4));
-        if chunk.len() > 2 {
-            let s2 = lookup(chunk[2])?;
-            output.push(((s1 & 0b0000_1111) << 4) | (s2 >> 2));
-            if chunk.len() > 3 {
-                let s3 = lookup(chunk[3])?;
-                output.push(((s2 & 0b0000_0011) << 6) | s3);
-            }
-        }
-    }
-    Some(output)
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(input)
+        .ok()
 }
 
 /// Recover the source `customerPaymentMethodId` encoded inside an

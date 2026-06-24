@@ -123,8 +123,9 @@ impl DraftProxy {
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
-                // When contentType is omitted, Shopify infers it from the
-                // source/filename extension (image/video/model vs generic file).
+                // When contentType is omitted, Shopify infers only image/video
+                // media from the source/filename extension. 3D models require
+                // an explicit MODEL_3D contentType; otherwise they are files.
                 let content_type = resolved_string_field(&input, "contentType")
                     .unwrap_or_else(|| infer_content_type_from_source(&filename).to_string());
                 let resource_type = media_file_gid_type(&content_type);
@@ -956,16 +957,7 @@ fn media_object_list_arg(
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    match arguments.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::Object(object) => Some(object.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_object_field(&arguments, key)
 }
 
 fn media_string_list_arg(
@@ -974,16 +966,7 @@ fn media_string_list_arg(
     key: &str,
 ) -> Vec<String> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    match arguments.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_string_field(&arguments, key)
 }
 
 fn media_invalid_field_arguments_response(
@@ -1666,14 +1649,13 @@ fn file_extension(value: &str) -> String {
     }
 }
 
-// Shopify infers the FileContentType from the source/filename extension when
-// the caller omits `contentType`, picking the typed media subtype (MediaImage /
-// Video / Model3d) for recognized media extensions and GenericFile otherwise.
+// Shopify infers FileContentType from the source/filename extension when the
+// caller omits `contentType`, but the auto-detector maps only image/video
+// results to typed media. Model3d and ExternalVideo require explicit contentType.
 fn infer_content_type_from_source(filename: &str) -> &'static str {
     match file_extension(filename).as_str() {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "heif" => "IMAGE",
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
-        "glb" | "gltf" | "usdz" => "MODEL_3D",
         _ => "FILE",
     }
 }

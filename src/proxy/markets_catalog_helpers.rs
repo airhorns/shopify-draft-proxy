@@ -416,12 +416,12 @@ pub(in crate::proxy) fn price_connection_from_edges(edges: &[Value]) -> Value {
     json!({
         "edges": edges,
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": cursors.first().copied(),
-            "endCursor": cursors.last().copied()
-        }
+        "pageInfo": connection_page_info(
+            false,
+            false,
+            cursors.first().map(|cursor| (*cursor).to_string()),
+            cursors.last().map(|cursor| (*cursor).to_string())
+        )
     })
 }
 

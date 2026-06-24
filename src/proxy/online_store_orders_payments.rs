@@ -856,11 +856,9 @@ fn fulfillment_order_payload_json(
                 &fulfillment_order,
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -891,11 +889,9 @@ fn fulfillment_order_request_payload_json(
             "unsubmittedFulfillmentOrder" => {
                 Some(nullable_selected_json(&unsubmitted, &selection.selection))
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             name if root_field == "fulfillmentOrderSubmitFulfillmentRequest"
                 && name == "fulfillmentOrder" =>
@@ -928,11 +924,9 @@ fn fulfillment_order_split_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -960,11 +954,9 @@ fn fulfillment_order_merge_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -1059,14 +1051,6 @@ fn order_create_address(input: Option<BTreeMap<String, ResolvedValue>>) -> Value
 
 fn order_mutation_timestamp(ordinal: u64) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", ordinal % 60)
-}
-
-fn resolved_nullable_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Value {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        Some(ResolvedValue::Null) => Value::Null,
-        _ => Value::Null,
-    }
 }
 
 fn order_update_has_mutable_fields(input: &BTreeMap<String, ResolvedValue>) -> bool {
@@ -2306,26 +2290,21 @@ fn order_connection(nodes: Vec<Value>) -> Value {
         .first()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     let end_cursor = nodes
         .last()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if start_cursor.is_empty() { Value::Null } else { json!(start_cursor) },
-            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 
-fn data_response(response_key: &str, value: Value) -> Value {
+pub(in crate::proxy) fn data_response(response_key: &str, value: Value) -> Value {
     let mut data = serde_json::Map::new();
     data.insert(response_key.to_string(), value);
     json!({ "data": Value::Object(data) })
@@ -3745,14 +3724,6 @@ impl DraftProxy {
         self.next_proxy_synthetic_gid(typename)
     }
 
-    fn mobile_platform_application_exists(&self, typename: &str) -> bool {
-        self.store
-            .staged
-            .online_store_integrations
-            .values()
-            .any(|record| record.get("__typename").and_then(Value::as_str) == Some(typename))
-    }
-
     pub(in crate::proxy) fn mobile_platform_application_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3831,17 +3802,6 @@ impl DraftProxy {
                     )],
                 );
             }
-            if self.mobile_platform_application_exists("AndroidApplication") {
-                return mobile_app_payload(
-                    &field.selection,
-                    None,
-                    vec![mobile_app_error(
-                        "TAKEN",
-                        ["mobilePlatformApplication", "android"],
-                        "Android has already been taken",
-                    )],
-                );
-            }
             let id = self.next_online_store_id("MobilePlatformApplication");
             let record = json!({
                 "__typename": "AndroidApplication", "id": id, "applicationId": application_id,
@@ -3883,17 +3843,6 @@ impl DraftProxy {
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
             return mobile_app_payload(&field.selection, None, vec![error]);
-        }
-        if self.mobile_platform_application_exists("AppleApplication") {
-            return mobile_app_payload(
-                &field.selection,
-                None,
-                vec![mobile_app_error(
-                    "TAKEN",
-                    ["mobilePlatformApplication", "apple"],
-                    "Apple has already been taken",
-                )],
-            );
         }
         let id = self.next_online_store_id("MobilePlatformApplication");
         let record = json!({

@@ -1,0 +1,48 @@
+query OwnerScopedDefinitionRead($namespace: String!, $key: String!) {
+  productByIdentifier: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+  ) {
+    id
+    ownerType
+    namespace
+    key
+    name
+  }
+  customerByIdentifier: metafieldDefinition(
+    identifier: { ownerType: CUSTOMER, namespace: $namespace, key: $key }
+  ) {
+    id
+    ownerType
+    namespace
+    key
+    name
+  }
+  productCatalog: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    key: $key
+    first: 10
+  ) {
+    nodes {
+      id
+      ownerType
+      namespace
+      key
+      name
+    }
+  }
+  customerCatalog: metafieldDefinitions(
+    ownerType: CUSTOMER
+    namespace: $namespace
+    key: $key
+    first: 10
+  ) {
+    nodes {
+      id
+      ownerType
+      namespace
+      key
+      name
+    }
+  }
+}

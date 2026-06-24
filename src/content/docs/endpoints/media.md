@@ -94,8 +94,12 @@ Local staged mutations:
   Shopify's non-null contracts: `createdAt`, `updatedAt`, `fileStatus`, and
   `fileErrors`. `updatedAt` is the record's last local modification timestamp,
   and `fileErrors` defaults to `[]` until the model stores Shopify file-error
-  rows. Type-specific fields derive `mimeType` for `MediaImage`, `Video`, and
-  `GenericFile` from the filename/source extension with content-type fallback.
+  rows. When `fileCreate` omits `contentType`, image and video extensions infer
+  `MediaImage` / `Video`; 3D model extensions such as `.glb`, `.gltf`, and
+  `.usdz` stay on the generic `GenericFile` path unless the caller explicitly
+  passes `contentType: MODEL_3D`. Type-specific fields derive `mimeType` for
+  `MediaImage`, `Video`, and `GenericFile` from the filename/source extension
+  with content-type fallback.
   `MediaImage`, `Video`, `ExternalVideo`, and `Model3d` expose empty
   `mediaErrors` / `mediaWarnings` lists by default; `GenericFile` does not
   expose those Media-interface fields.
@@ -216,6 +220,10 @@ Local staged mutations:
   2026-04 media captures returned `UPLOADED`, and the immediate
   reverse-ordered `files` read observed Shopify advancing that new file to
   `PROCESSING`; failed source processing returned `FAILED`.
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-create-content-type-inference.json`
+  covers omitted `contentType` inference for image, video, document,
+  extensionless, and `.glb` sources. The `.glb` branch records Shopify's
+  GenericFile behavior; `MODEL_3D` remains an explicit-contentType path.
 - Local executable coverage covers `files`, `fileSavedSearches`,
   `stagedUploadsCreate`, and the former explicit
   `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
