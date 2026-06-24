@@ -1,0 +1,219 @@
+{
+  "capturedAt": "2026-06-24T10:53:20.009Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "createMissingTemplateId": {
+      "request": {
+        "query": "#graphql\nmutation PaymentTermsCreateMissingTemplateId($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n    paymentTerms {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "referenceId": "gid://shopify/Order/1",
+          "attrs": {
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-01-01T00:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $attrs of type PaymentTermsCreateInput! was provided invalid value for paymentTermsTemplateId (Expected value to not be null)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 65
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "paymentSchedules": [
+                  {
+                    "issuedAt": "2026-01-01T00:00:00Z"
+                  }
+                ]
+              },
+              "problems": [
+                {
+                  "path": ["paymentTermsTemplateId"],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "updateMissingTemplateId": {
+      "setup": {
+        "draftOrderCreate": {
+          "query": "#graphql\nmutation PaymentTermsMissingTemplateDraftCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+          "variables": {
+            "input": {
+              "email": "payment-terms-update-missing-template-1782298398822@example.com",
+              "lineItems": [
+                {
+                  "title": "Payment terms update missing template",
+                  "quantity": 1,
+                  "originalUnitPrice": "12.00"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1270255518002",
+                  "name": "#D255"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "paymentTermsCreate": {
+          "query": "#graphql\nmutation PaymentTermsUpdateMissingTemplateIdSetup($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n    paymentTerms {\n      id\n      paymentTermsName\n      paymentTermsType\n      dueInDays\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "referenceId": "gid://shopify/DraftOrder/1270255518002",
+            "attrs": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+              "paymentSchedules": [
+                {
+                  "issuedAt": "2026-01-01T00:00:00Z"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "paymentTermsCreate": {
+                "paymentTerms": {
+                  "id": "gid://shopify/PaymentTerms/158175232306",
+                  "paymentTermsName": "Net 30",
+                  "paymentTermsType": "NET",
+                  "dueInDays": 30
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "request": {
+        "query": "#graphql\nmutation PaymentTermsUpdateMissingTemplateId($input: PaymentTermsUpdateInput!) {\n  paymentTermsUpdate(input: $input) {\n    paymentTerms {\n      id\n      paymentTermsName\n      paymentTermsType\n      dueInDays\n      paymentSchedules(first: 1) {\n        nodes {\n          issuedAt\n          dueAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "paymentTermsId": "gid://shopify/PaymentTerms/158175232306",
+            "paymentTermsAttributes": {
+              "paymentSchedules": [
+                {
+                  "issuedAt": "2026-01-02T00:00:00Z"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/158175232306",
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "dueInDays": 30,
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "issuedAt": "2026-01-02T00:00:00Z",
+                    "dueAt": "2026-02-01T00:00:00Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "paymentTermsDelete": {
+          "data": {
+            "paymentTermsDelete": {
+              "deletedId": "gid://shopify/PaymentTerms/158175232306",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "draftOrderDelete": {
+          "data": {
+            "draftOrderDelete": {
+              "deletedId": "gid://shopify/DraftOrder/1270255518002",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Live 2026-04 capture. paymentTermsCreate without paymentTermsTemplateId fails during variable coercion. paymentTermsUpdate uses nullable PaymentTermsInput.paymentTermsTemplateId, so omitting it on an existing Net 30 payment term succeeds and recomputes the schedule from the supplied issuedAt."
+}

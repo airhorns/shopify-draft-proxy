@@ -4379,6 +4379,114 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
 }
 
 #[test]
+fn payment_terms_omitted_template_id_create_coerces_update_defaults() {
+    let create_query = r#"
+        mutation MissingPaymentTermsTemplateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation MissingPaymentTermsTemplateUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms {
+              id
+              dueInDays
+              paymentTermsName
+              paymentTermsType
+              paymentSchedules(first: 1) {
+                nodes { issuedAt dueAt }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": { "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }] }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert!(
+        create.body.get("data").is_none(),
+        "schema coercion should not execute paymentTermsCreate: {:?}",
+        create.body
+    );
+    assert_eq!(
+        create.body["errors"][0]["message"],
+        json!("Variable $attrs of type PaymentTermsCreateInput! was provided invalid value for paymentTermsTemplateId (Expected value to not be null)")
+    );
+    assert_eq!(
+        create.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        create.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!(["paymentTermsTemplateId"])
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let setup = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(
+        setup.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let payment_terms_id = setup.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+        .as_str()
+        .expect("setup payment terms id")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": payment_terms_id,
+                "paymentTermsAttributes": {
+                    "paymentSchedules": [{ "issuedAt": "2026-01-02T00:00:00Z" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["paymentTermsName"],
+        json!("Net 30")
+    );
+    assert_eq!(
+        update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["paymentTermsType"],
+        json!("NET")
+    );
+    assert_eq!(
+        update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["paymentSchedules"]["nodes"][0],
+        json!({
+            "issuedAt": "2026-01-02T00:00:00Z",
+            "dueAt": "2026-02-01T00:00:00Z"
+        })
+    );
+}
+
+#[test]
 fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
@@ -4519,28 +4627,16 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         }),
     ));
     assert_eq!(
-        unknown_template.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
-        json!("Could not find payment terms template.")
+        unknown_template.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Could not find payment terms template.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
     );
     assert_eq!(
         unknown_template.body["data"]["paymentTermsCreate"]["paymentTerms"],
         Value::Null
-    );
-
-    let missing_template = proxy.process_request(json_graphql_request(
-        create_query,
-        json!({
-            "referenceId": "gid://shopify/Order/637",
-            "attrs": { "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }] }
-        }),
-    ));
-    assert_eq!(
-        missing_template.body["data"]["paymentTermsCreate"]["userErrors"][0],
-        json!({
-            "field": ["paymentTermsAttributes", "paymentTermsTemplateId"],
-            "message": "Payment terms template is required.",
-            "code": "REQUIRED"
-        })
     );
 
     let fixed_without_due = proxy.process_request(json_graphql_request(
@@ -4647,6 +4743,31 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     assert_eq!(
         draft_update.body["data"]["paymentTermsUpdate"]["userErrors"],
         json!([])
+    );
+
+    let unknown_template_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsAttributes": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
+                    "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_template_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Could not find payment terms template.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+    assert_eq!(
+        unknown_template_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        Value::Null
     );
 
     let invalid_update_attrs = proxy.process_request(json_graphql_request(
