@@ -6499,6 +6499,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         mutation DeleteCollection($input: CollectionDeleteInput!) {
           collectionDelete(input: $input) {
             deletedCollectionId
+            shop { id }
             userErrors { field message }
           }
         }
@@ -6508,6 +6509,14 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     assert_eq!(
         delete.body["data"]["collectionDelete"]["deletedCollectionId"],
         json!(collection_id)
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["shop"],
+        json!({ "id": "gid://shopify/Shop/92891250994" })
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["userErrors"],
+        json!([])
     );
     let after_delete = proxy.process_request(json_graphql_request(
         r#"
@@ -6545,6 +6554,38 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
             "missing staged log entry for {root}: {log}"
         );
     }
+}
+
+#[test]
+fn collection_delete_payload_includes_shop_on_user_error() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingCollection($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) {
+            deletedCollectionId
+            shop { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Collection/missing" } }),
+    ));
+
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["collectionDelete"],
+        json!({
+            "deletedCollectionId": null,
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Collection does not exist"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
