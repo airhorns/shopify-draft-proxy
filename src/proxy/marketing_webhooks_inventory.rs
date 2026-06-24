@@ -1756,7 +1756,13 @@ impl DraftProxy {
                 }
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.inventory_item_selected_json(&id, variables, &field.selection)
+                    if self.inventory_item_id_is_missing(&id)
+                        && !self.inventory_item_has_local_state(&id)
+                    {
+                        Value::Null
+                    } else {
+                        self.inventory_item_selected_json(&id, variables, &field.selection)
+                    }
                 }
                 "inventoryLevel" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2627,6 +2633,11 @@ impl DraftProxy {
         if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
             return MutationFieldOutcome::unlogged(error_payload);
         }
+        if let Some(error_payload) =
+            self.inventory_set_quantities_existence_payload(field, &quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2723,6 +2734,11 @@ impl DraftProxy {
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
         if let Some(error_payload) =
             inventory_invalid_public_quantity_name_payload(field, &name, json!(["input", "name"]))
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            self.inventory_adjust_quantities_existence_payload(field, &changes_input)
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
@@ -2826,6 +2842,15 @@ impl DraftProxy {
             ) {
                 return MutationFieldOutcome::unlogged(error_payload);
             }
+        }
+        if let Some(error_payload) =
+            self.inventory_move_quantities_existence_payload(field, &changes_input)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        for (index, change) in changes_input.iter().enumerate() {
+            let from = resolved_object_field(change, "from").unwrap_or_default();
+            let to = resolved_object_field(change, "to").unwrap_or_default();
             if resolved_string_field(&from, "locationId")
                 != resolved_string_field(&to, "locationId")
             {
@@ -2920,6 +2945,118 @@ impl DraftProxy {
             ),
             LogDraft::staged("inventoryMoveQuantities", "products", Vec::new()),
         )
+    }
+
+    fn inventory_set_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        quantities: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, quantity) in quantities.iter().enumerate() {
+            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "quantities".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "quantities".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_adjust_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        changes: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, change) in changes.iter().enumerate() {
+            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(change, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_move_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        changes: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, change) in changes.iter().enumerate() {
+            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let from = resolved_object_field(change, "from").unwrap_or_default();
+            let from_location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&from_location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "from".to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+            let to = resolved_object_field(change, "to").unwrap_or_default();
+            let to_location_id = resolved_string_field(&to, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&to_location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "to".to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
     }
 
     pub(in crate::proxy) fn inventory_activate(
@@ -3358,6 +3495,18 @@ impl DraftProxy {
                 .keys()
                 .any(|(item_id, _)| item_id == inventory_item_id)
             || inventory_item_id.starts_with("gid://shopify/InventoryItem/")
+    }
+
+    fn inventory_item_has_local_state(&self, inventory_item_id: &str) -> bool {
+        self.store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .is_some()
+            || self
+                .store
+                .staged
+                .inventory_levels
+                .keys()
+                .any(|(item_id, _)| item_id == inventory_item_id)
     }
 
     fn inventory_location_exists(&self, location_id: &str) -> bool {
@@ -6438,6 +6587,22 @@ fn inventory_invalid_adjustment_payload(
         }),
         &field.selection,
     )
+}
+
+fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
+    json!({
+        "field": field,
+        "message": "The specified inventory item could not be found.",
+        "code": "INVALID_INVENTORY_ITEM"
+    })
+}
+
+fn inventory_unknown_location_error(field: Vec<String>) -> Value {
+    json!({
+        "field": field,
+        "message": "The specified location could not be found.",
+        "code": "INVALID_LOCATION"
+    })
 }
 
 #[cfg(test)]
