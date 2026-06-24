@@ -183,6 +183,7 @@ mod tests {
         SelectedField {
             name: name.to_string(),
             response_key: response_key.to_string(),
+            location: SourceLocation { line: 1, column: 1 },
             arguments: Default::default(),
             selection,
             type_condition: None,

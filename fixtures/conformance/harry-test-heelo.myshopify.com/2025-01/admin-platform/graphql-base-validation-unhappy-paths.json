@@ -1,0 +1,470 @@
+{
+  "capturedAt": "2026-06-24T01:56:13.365Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "liveGatewaySideEffects": false,
+  "notes": "Validation-only GraphQL requests. Each case fails before resolver execution and does not create or mutate Shopify resources.",
+  "cases": {
+    "invalidSyntax": {
+      "description": "Syntactically invalid GraphQL document.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-invalid-syntax.graphql",
+        "query": "query GraphqlBaseValidationInvalidSyntax {\n  shop {\n    id\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "syntax error, unexpected end of file at [3, 5]",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "PARSE_ERROR"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "syntax error, unexpected end of file at [3, 5]",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "PARSE_ERROR"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingSubselection": {
+      "description": "Object field selected without the required subselection.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql",
+        "query": "query GraphqlBaseValidationMissingSubselection {\n  shop\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field must have selections (field 'shop' returns Shop but has no selections. Did you mean 'shop { ... }'?)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["query GraphqlBaseValidationMissingSubselection", "shop"],
+              "extensions": {
+                "code": "selectionMismatch",
+                "nodeName": "field 'shop'",
+                "typeName": "Shop"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Field must have selections (field 'shop' returns Shop but has no selections. Did you mean 'shop { ... }'?)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["query GraphqlBaseValidationMissingSubselection", "shop"],
+              "extensions": {
+                "code": "selectionMismatch",
+                "nodeName": "field 'shop'",
+                "typeName": "Shop"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingRequiredVariable": {
+      "description": "Required variable declared by the operation but omitted from request variables.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql",
+        "query": "mutation GraphqlBaseValidationMissingRequiredVariable($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 55
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 55
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingRequiredArgument": {
+      "description": "Mutation root selected without its required argument.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-argument.graphql",
+        "query": "mutation GraphqlBaseValidationMissingRequiredArgument {\n  productCreate {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "productCreate must include exactly one of the following arguments: input, product.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["productCreate"]
+            }
+          ],
+          "data": {
+            "productCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "productCreate must include exactly one of the following arguments: input, product.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["productCreate"]
+            }
+          ],
+          "data": {
+            "productCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownQueryRoot": {
+      "description": "Query root that does not exist in the Admin GraphQL schema.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql",
+        "query": "query GraphqlBaseValidationUnknownQueryRoot {\n  definitelyNotAShopifyQueryRoot {\n    id\n  }\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAShopifyQueryRoot' doesn't exist on type 'QueryRoot'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["query GraphqlBaseValidationUnknownQueryRoot", "definitelyNotAShopifyQueryRoot"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "QueryRoot",
+                "fieldName": "definitelyNotAShopifyQueryRoot"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAShopifyQueryRoot' doesn't exist on type 'QueryRoot'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["query GraphqlBaseValidationUnknownQueryRoot", "definitelyNotAShopifyQueryRoot"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "QueryRoot",
+                "fieldName": "definitelyNotAShopifyQueryRoot"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "unknownMutationRoot": {
+      "description": "Mutation root that does not exist in the Admin GraphQL schema.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql",
+        "query": "mutation GraphqlBaseValidationUnknownMutationRoot {\n  definitelyNotAShopifyMutationRoot(input: {}) {\n    id\n  }\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAShopifyMutationRoot' doesn't exist on type 'Mutation'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation GraphqlBaseValidationUnknownMutationRoot", "definitelyNotAShopifyMutationRoot"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Mutation",
+                "fieldName": "definitelyNotAShopifyMutationRoot"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAShopifyMutationRoot' doesn't exist on type 'Mutation'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation GraphqlBaseValidationUnknownMutationRoot", "definitelyNotAShopifyMutationRoot"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Mutation",
+                "fieldName": "definitelyNotAShopifyMutationRoot"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "unknownProductField": {
+      "description": "Known query root selecting a field that does not exist on the backend type.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql",
+        "query": "query GraphqlBaseValidationUnknownProductField {\n  products(first: 1) {\n    nodes {\n      id\n      definitelyNotAProductField\n    }\n  }\n}\n\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAProductField' doesn't exist on type 'Product'",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 7
+                }
+              ],
+              "path": [
+                "query GraphqlBaseValidationUnknownProductField",
+                "products",
+                "nodes",
+                "definitelyNotAProductField"
+              ],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Product",
+                "fieldName": "definitelyNotAProductField"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAProductField' doesn't exist on type 'Product'",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 7
+                }
+              ],
+              "path": [
+                "query GraphqlBaseValidationUnknownProductField",
+                "products",
+                "nodes",
+                "definitelyNotAProductField"
+              ],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Product",
+                "fieldName": "definitelyNotAProductField"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingInputRequiredProperty": {
+      "description": "Mutation input object variable missing a required input property.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-input-required-property.graphql",
+        "query": "mutation GraphqlBaseValidationMissingInputRequiredProperty(\n  $webhookSubscription: PubSubWebhookSubscriptionInput!\n) {\n  pubSubWebhookSubscriptionCreate(\n    topic: ORDERS_CREATE\n    webhookSubscription: $webhookSubscription\n  ) {\n    webhookSubscription {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "variables": {
+          "webhookSubscription": {
+            "pubSubProject": "shopify-draft-proxy-validation"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubProject": "shopify-draft-proxy-validation"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubProject": "shopify-draft-proxy-validation"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

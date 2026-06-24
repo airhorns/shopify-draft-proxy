@@ -5898,6 +5898,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
   {
+    domain: 'admin-platform',
+    captureId: 'graphql-base-validation-unhappy-paths',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-graphql-base-validation-conformance.ts',
+    purpose:
+      'Base Admin GraphQL validation unhappy paths for parse errors, missing subselections, omitted variables, missing required root arguments, unknown schema fields, and required input-object properties.',
+    requiredAuthScopes: [
+      'active Admin API token with Admin GraphQL schema access',
+      'read_products',
+      'write_products',
+      'write_webhooks',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}graphql-base-validation-unhappy-paths.json`,
+      'config/parity-specs/admin-platform/graphql-base-validation-unhappy-paths.json',
+      'config/parity-requests/admin-platform/graphql-base-validation-invalid-syntax.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-missing-input-required-property.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-missing-required-argument.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; requests fail GraphQL parsing, validation, or variable coercion before resolver execution and do not mutate store data.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'orders',
     captureId: 'orders',
     scriptPath: 'scripts/capture-order-conformance.mts',
