@@ -1,0 +1,77 @@
+{
+  "scenarioId": "standard-metafield-definition-enable-reenable-idempotent",
+  "operationNames": ["metafieldDefinitionCreate", "standardMetafieldDefinitionEnable", "metafieldDefinition"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-reenable-idempotent.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-reenable-idempotent.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "standard-initial-enable-at-pin-cap",
+        "capturePath": "$.primary.response.data.standardInitial",
+        "proxyPath": "$.data.standardInitial",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "standard-reenable-preserves-payload-shape",
+        "capturePath": "$.primary.response.data.standardReenable",
+        "proxyPath": "$.data.standardReenable",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the locally staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "standard-reenable-pin-over-cap-uses-next-position",
+        "capturePath": "$.primary.response.data.standardReenablePin",
+        "proxyPath": "$.data.standardReenablePin",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the locally staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "standard-reenable-read-by-original-id",
+        "capturePath": "$.readAfter.response.data.definitionByOriginalId",
+        "proxyPath": "$.data.definitionByOriginalId",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-reenable-read.graphql",
+          "variables": {
+            "definitionId": {
+              "fromPrimaryProxyPath": "$.data.standardInitial.createdDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy reads back the locally staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captures Shopify's idempotent standardMetafieldDefinitionEnable behavior for the PRODUCT descriptors/subtitle template on the 2026-04 target whose product-owner create/pin cap is 20 for ordinary definition pinning. The live setup temporarily unpins existing product definitions, creates 20 disposable pinned definitions, enables template 1, re-enables it, and re-enables it again with `pin: true`. Shopify returns the existing definition id, suppresses the pin-cap user error, assigns `pinnedPosition: 21` on the standard re-enable path, and still resolves the original id on downstream `metafieldDefinition(id:)` readback. Disposable pinned definitions are deleted and baseline pins are restored during cleanup."
+}
