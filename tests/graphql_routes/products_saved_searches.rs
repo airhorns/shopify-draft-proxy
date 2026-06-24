@@ -4781,6 +4781,121 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
 }
 
 #[test]
+fn segment_update_literal_null_only_attributes_are_absent_changes() {
+    let mut proxy = snapshot_proxy();
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentUpdateNullSetup($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "name": "Literal null update setup",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    let original_segment = created.body["data"]["segmentCreate"]["segment"].clone();
+    let segment_id = original_segment["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    for update_query in [
+        r#"
+        mutation SegmentUpdateNameLiteralNull($id: ID!) {
+          segmentUpdate(id: $id, name: null) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        r#"
+        mutation SegmentUpdateQueryLiteralNull($id: ID!) {
+          segmentUpdate(id: $id, query: null) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+    ] {
+        let rejected = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({ "id": segment_id }),
+        ));
+        assert_eq!(
+            rejected.body["data"]["segmentUpdate"],
+            json!({
+                "segment": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "At least one attribute to change must be present"
+                }]
+            })
+        );
+
+        let read_back = proxy.process_request(json_graphql_request(
+            r#"
+            query SegmentAfterRejectedLiteralNullUpdate($id: ID!) {
+              segment(id: $id) { id name query creationDate lastEditDate }
+            }
+            "#,
+            json!({ "id": segment_id }),
+        ));
+        assert_eq!(
+            read_back.body["data"]["segment"], original_segment,
+            "null-only update must not mutate the staged segment"
+        );
+        assert_eq!(
+            proxy.get_log_snapshot()["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+            "null-only update must not append a staged mutation log entry"
+        );
+    }
+
+    let renamed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentUpdateNameWithQueryLiteralNull($id: ID!) {
+          segmentUpdate(id: $id, name: "Literal null renamed", query: null) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        renamed.body["data"]["segmentUpdate"],
+        json!({
+            "segment": {
+                "id": segment_id,
+                "name": "Literal null renamed",
+                "query": "number_of_orders >= 1",
+                "creationDate": original_segment["creationDate"],
+                "lastEditDate": original_segment["lastEditDate"]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
 fn segment_create_rejects_at_limit_with_shopify_message() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

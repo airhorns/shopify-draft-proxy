@@ -1,18 +1,18 @@
 {
   "scenarioId": "segments-user-errors-shape",
-  "operationNames": ["segmentCreate", "segmentUpdate", "segmentDelete", "customerSegmentMembersQueryCreate"],
+  "operationNames": ["segmentCreate", "segmentUpdate", "segmentDelete", "customerSegmentMembersQueryCreate", "node"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segments-user-errors-shape.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-712 live evidence for segmentCreate/segmentUpdate/segmentDelete UserError shape and customerSegmentMembersQueryCreate CustomerSegmentMembersQueryUserError shape. Shopify's default UserError type rejects selecting code, so strict parity selects __typename/field/message for default UserError payloads while runtime tests pin the proxy's local code:null projection.",
+  "notes": "Live evidence for segmentCreate/segmentUpdate/segmentDelete UserError shape, segmentUpdate literal-null mutable attributes, and customerSegmentMembersQueryCreate CustomerSegmentMembersQueryUserError shape. Shopify's default UserError type rejects selecting code, so strict parity selects __typename/field/message for default UserError payloads while runtime tests pin the proxy's local code:null projection.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -39,8 +39,98 @@
         }
       },
       {
-        "name": "segment-update-empty-input",
+        "name": "segment-update-name-literal-null-only",
         "capturePath": "$.cases[2].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-update-name-null.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-read-after-name-literal-null-only",
+        "capturePath": "$.cases[3].response.payload.data.node",
+        "proxyPath": "$.data.node",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-update-query-literal-null-only",
+        "capturePath": "$.cases[4].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-update-query-null.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-read-after-query-literal-null-only",
+        "capturePath": "$.cases[5].response.payload.data.node",
+        "proxyPath": "$.data.node",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-update-empty-input",
+        "capturePath": "$.cases[6].response.payload.data.segmentUpdate",
         "proxyPath": "$.data.segmentUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-update.graphql",
@@ -54,29 +144,29 @@
       },
       {
         "name": "segment-delete-bogus-id",
-        "capturePath": "$.cases[3].response.payload.data.segmentDelete",
+        "capturePath": "$.cases[7].response.payload.data.segmentDelete",
         "proxyPath": "$.data.segmentDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-delete.graphql",
-          "variablesCapturePath": "$.cases[3].request.variables"
+          "variablesCapturePath": "$.cases[7].request.variables"
         }
       },
       {
         "name": "member-query-both-selectors-rejected",
-        "capturePath": "$.cases[4].response.payload.data.customerSegmentMembersQueryCreate",
+        "capturePath": "$.cases[8].response.payload.data.customerSegmentMembersQueryCreate",
         "proxyPath": "$.data.customerSegmentMembersQueryCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segments-user-errors-shape-member-query-create.graphql",
-          "variablesCapturePath": "$.cases[4].request.variables"
+          "variablesCapturePath": "$.cases[8].request.variables"
         }
       },
       {
         "name": "member-query-neither-selector-rejected",
-        "capturePath": "$.cases[5].response.payload.data.customerSegmentMembersQueryCreate",
+        "capturePath": "$.cases[9].response.payload.data.customerSegmentMembersQueryCreate",
         "proxyPath": "$.data.customerSegmentMembersQueryCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segments-user-errors-shape-member-query-create.graphql",
-          "variablesCapturePath": "$.cases[5].request.variables"
+          "variablesCapturePath": "$.cases[9].request.variables"
         }
       }
     ]

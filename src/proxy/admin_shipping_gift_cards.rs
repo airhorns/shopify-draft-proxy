@@ -5690,7 +5690,9 @@ impl DraftProxy {
                             vec![segment_user_error(json!(["id"]), "Segment does not exist")],
                             Vec::new(),
                         )
-                    } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
+                    } else if !segment_update_attribute_present(&arguments, "name")
+                        && !segment_update_attribute_present(&arguments, "query")
+                    {
                         (
                             Value::Null,
                             Value::Null,
@@ -8660,6 +8662,15 @@ fn segment_name_suffix_base(name: &str) -> (&str, u32) {
         return (name, 2);
     };
     (base, number + 1)
+}
+
+fn segment_update_attribute_present(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    attribute: &str,
+) -> bool {
+    arguments
+        .get(attribute)
+        .is_some_and(|value| !matches!(value, ResolvedValue::Null))
 }
 
 fn segment_required_argument_error(

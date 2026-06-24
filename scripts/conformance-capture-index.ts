@@ -4704,7 +4704,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'segments-user-errors-shape',
     scriptPath: 'scripts/capture-segments-user-errors-shape-conformance.ts',
     purpose:
-      'segmentCreate/segmentUpdate/segmentDelete default UserError shape plus customerSegmentMembersQueryCreate typed userError code and field shape.',
+      'segmentCreate/segmentUpdate/segmentDelete default UserError shape, segmentUpdate literal-null mutable attributes, plus customerSegmentMembersQueryCreate typed userError code and field shape.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}segments-user-errors-shape.json`,
@@ -4713,9 +4713,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql',
       'config/parity-requests/segments/segments-user-errors-shape-segment-delete.graphql',
       'config/parity-requests/segments/segments-user-errors-shape-segment-update.graphql',
+      'config/parity-requests/segments/segments-user-errors-shape-segment-update-name-null.graphql',
+      'config/parity-requests/segments/segments-user-errors-shape-segment-update-query-null.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable segment for the segmentUpdate id-only validation branch and deletes it during cleanup; all other captured branches are validation-only.',
+      'Creates one disposable segment for segmentUpdate id-only and literal-null validation branches, reads it back after null-only updates, and deletes it during cleanup; all other captured branches are validation-only.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

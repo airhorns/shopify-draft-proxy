@@ -57,6 +57,58 @@ const segmentUpdateMutation = `#graphql
   }
 `;
 
+const segmentUpdateNameLiteralNullMutation = `#graphql
+  mutation SegmentUpdateNameLiteralNullOnly($id: ID!) {
+    segmentUpdate(id: $id, name: null) {
+      segment {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+      userErrors {
+        __typename
+        field
+        message
+      }
+    }
+  }
+`;
+
+const segmentUpdateQueryLiteralNullMutation = `#graphql
+  mutation SegmentUpdateQueryLiteralNullOnly($id: ID!) {
+    segmentUpdate(id: $id, query: null) {
+      segment {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+      userErrors {
+        __typename
+        field
+        message
+      }
+    }
+  }
+`;
+
+const segmentReadQuery = `#graphql
+  query SegmentReadAfterLiteralNullUpdate($id: ID!) {
+    node(id: $id) {
+      ... on Segment {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+  }
+`;
+
 const segmentDeleteMutation = `#graphql
   mutation SegmentDeleteUserErrorsShape($id: ID!) {
     segmentDelete(id: $id) {
@@ -119,7 +171,7 @@ async function captureCase(
   return response;
 }
 
-const marker = `har712-user-errors-${Date.now()}`;
+const marker = `segment-user-errors-${Date.now()}`;
 const cases: CapturedCase[] = [];
 let createdSegmentId: string | null = null;
 
@@ -130,10 +182,26 @@ try {
   });
 
   const setupCreate = await captureCase(cases, 'segmentUpdateSetup', segmentCreateMutation, {
-    name: `HAR-712 user errors ${marker}`,
+    name: `Segment user errors ${marker}`,
     query: 'number_of_orders >= 1',
   });
   createdSegmentId = readCreatedSegmentId(setupCreate);
+
+  await captureCase(cases, 'segmentUpdateNameLiteralNullOnly', segmentUpdateNameLiteralNullMutation, {
+    id: createdSegmentId,
+  });
+
+  await captureCase(cases, 'segmentReadAfterNameLiteralNullOnly', segmentReadQuery, {
+    id: createdSegmentId,
+  });
+
+  await captureCase(cases, 'segmentUpdateQueryLiteralNullOnly', segmentUpdateQueryLiteralNullMutation, {
+    id: createdSegmentId,
+  });
+
+  await captureCase(cases, 'segmentReadAfterQueryLiteralNullOnly', segmentReadQuery, {
+    id: createdSegmentId,
+  });
 
   await captureCase(cases, 'segmentUpdateEmptyInput', segmentUpdateMutation, {
     id: createdSegmentId,
@@ -170,9 +238,10 @@ await writeFile(
       apiVersion,
       cases,
       notes: [
-        'HAR-712 live evidence for segment and customerSegmentMembersQueryCreate userErrors shape.',
+        'Live evidence for segment and customerSegmentMembersQueryCreate userErrors shape.',
         'Shopify UserError for segmentCreate/segmentUpdate/segmentDelete exposes __typename, field, and message; selecting code on UserError is rejected by the live schema, so default code:null behavior is covered by runtime tests.',
         'segmentUpdateEmptyInput uses one disposable live segment for the id-only validation branch, then deletes it during cleanup.',
+        'segmentUpdateNameLiteralNullOnly and segmentUpdateQueryLiteralNullOnly use the same disposable segment to prove literal null mutable attributes are treated as absent changes.',
         'CustomerSegmentMembersQueryUserError exposes code and returns INVALID for selector validation branches.',
       ],
       upstreamCalls: [],
