@@ -1007,26 +1007,7 @@ impl DraftProxy {
                 }
             }
         }
-        let current_status = record["status"].as_str().unwrap_or_default();
-        // An idempotent transition — activating an already-active discount, or
-        // deactivating an already-expired one — is a no-op: Shopify leaves
-        // startsAt/endsAt/updatedAt exactly as they were. A SCHEDULED discount being
-        // deactivated is a real transition (it gets an endsAt and becomes EXPIRED).
-        let is_noop = if activating {
-            current_status == "ACTIVE"
-        } else {
-            current_status == "EXPIRED"
-        };
-        if !is_noop {
-            let new_status = if activating { "ACTIVE" } else { "EXPIRED" };
-            record["status"] = json!(new_status);
-            record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
-            if activating {
-                record["endsAt"] = Value::Null;
-            } else if record.get("endsAt").and_then(Value::as_str).is_none() {
-                record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
-            }
-        }
+        apply_discount_activate_deactivate(&mut record, activating);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
@@ -1290,21 +1271,7 @@ impl DraftProxy {
             DiscountBulkAction::Activate | DiscountBulkAction::Deactivate => {
                 let activating = matches!(action, DiscountBulkAction::Activate);
                 if let Some(record) = self.store.staged.discounts.get_mut(id) {
-                    let current_status = record["status"].as_str().unwrap_or_default();
-                    let is_noop = if activating {
-                        current_status == "ACTIVE"
-                    } else {
-                        current_status == "EXPIRED"
-                    };
-                    if !is_noop {
-                        record["status"] = json!(if activating { "ACTIVE" } else { "EXPIRED" });
-                        record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
-                        if activating {
-                            record["endsAt"] = Value::Null;
-                        } else if record.get("endsAt").and_then(Value::as_str).is_none() {
-                            record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
-                        }
-                    }
+                    apply_discount_activate_deactivate(record, activating);
                 }
             }
         }
@@ -2986,22 +2953,36 @@ fn discount_body_for_record(record: &Value) -> Value {
 }
 
 fn app_discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {
-    let node_key = if root.starts_with("discountAutomatic") {
-        "automaticAppDiscount"
-    } else {
-        "codeAppDiscount"
-    };
-    json!({
-        node_key: if node.is_null() { Value::Null } else { node },
-        "userErrors": user_errors
-    })
+    discount_payload_with_keys(
+        root,
+        node,
+        user_errors,
+        "automaticAppDiscount",
+        "codeAppDiscount",
+    )
 }
 
 fn discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {
+    discount_payload_with_keys(
+        root,
+        node,
+        user_errors,
+        "automaticDiscountNode",
+        "codeDiscountNode",
+    )
+}
+
+fn discount_payload_with_keys(
+    root: &str,
+    node: Value,
+    user_errors: Vec<Value>,
+    automatic_key: &'static str,
+    code_key: &'static str,
+) -> Value {
     let node_key = if root.starts_with("discountAutomatic") {
-        "automaticDiscountNode"
+        automatic_key
     } else {
-        "codeDiscountNode"
+        code_key
     };
     json!({
         node_key: if node.is_null() { Value::Null } else { node },
@@ -3054,6 +3035,30 @@ enum DiscountBulkAction {
     Activate,
     Deactivate,
     Delete,
+}
+
+fn apply_discount_activate_deactivate(record: &mut Value, activating: bool) {
+    let current_status = record["status"].as_str().unwrap_or_default();
+    // An idempotent transition -- activating an already-active discount, or
+    // deactivating an already-expired one -- is a no-op: Shopify leaves
+    // startsAt/endsAt/updatedAt exactly as they were. A SCHEDULED discount being
+    // deactivated is a real transition (it gets an endsAt and becomes EXPIRED).
+    let is_noop = if activating {
+        current_status == "ACTIVE"
+    } else {
+        current_status == "EXPIRED"
+    };
+    if is_noop {
+        return;
+    }
+
+    record["status"] = json!(if activating { "ACTIVE" } else { "EXPIRED" });
+    record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    if activating {
+        record["endsAt"] = Value::Null;
+    } else if record.get("endsAt").and_then(Value::as_str).is_none() {
+        record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    }
 }
 
 /// Classify a bulk mutation root field into its (discount kind, action). Returns
@@ -3537,17 +3542,10 @@ fn resolved_bool_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) ->
 /// or `None` for non-create fields. Used to walk a create's entitlement
 /// references before validation.
 fn discount_create_input_arg(field_name: &str) -> Option<&'static str> {
-    match field_name {
-        "discountCodeBasicCreate" => Some("basicCodeDiscount"),
-        "discountCodeBxgyCreate" => Some("bxgyCodeDiscount"),
-        "discountCodeFreeShippingCreate" => Some("freeShippingCodeDiscount"),
-        "discountCodeAppCreate" => Some("codeAppDiscount"),
-        "discountAutomaticBasicCreate" => Some("automaticBasicDiscount"),
-        "discountAutomaticBxgyCreate" => Some("automaticBxgyDiscount"),
-        "discountAutomaticFreeShippingCreate" => Some("freeShippingAutomaticDiscount"),
-        "discountAutomaticAppCreate" => Some("automaticAppDiscount"),
-        _ => None,
-    }
+    field_name
+        .ends_with("Create")
+        .then(|| discount_mutation_input_arg(field_name))
+        .flatten()
 }
 
 /// The input argument name carrying the discount payload for each create *or
@@ -4744,33 +4742,7 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
     else {
         return record;
     };
-    let namespace = metafield_selection
-        .arguments
-        .get("namespace")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    let key = metafield_selection
-        .arguments
-        .get("key")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    if let (Some(namespace), Some(key)) = (namespace, key) {
-        let metafield = record["metafields"]["nodes"]
-            .as_array()
-            .and_then(|nodes| {
-                nodes.iter().find(|node| {
-                    node["namespace"].as_str() == Some(namespace)
-                        && node["key"].as_str() == Some(key)
-                })
-            })
-            .cloned()
-            .unwrap_or(Value::Null);
-        record["metafield"] = metafield;
-    }
+    apply_metafield_for_selection(&mut record, metafield_selection);
     record
 }
 
@@ -4928,6 +4900,11 @@ pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
     let Some(metafield_selection) = selection.iter().find(|field| field.name == "metafield") else {
         return record;
     };
+    apply_metafield_for_selection(&mut record, metafield_selection);
+    record
+}
+
+fn apply_metafield_for_selection(record: &mut Value, metafield_selection: &SelectedField) {
     let namespace = metafield_selection
         .arguments
         .get("namespace")
@@ -4955,7 +4932,6 @@ pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
             .unwrap_or(Value::Null);
         record["metafield"] = metafield;
     }
-    record
 }
 
 impl DraftProxy {
