@@ -273,19 +273,7 @@ impl DraftProxy {
                     }
                 }
                 "nodes" => {
-                    let Some(ids) = field.arguments.get("ids") else {
-                        continue;
-                    };
-                    let ids = match ids {
-                        ResolvedValue::List(values) => values
-                            .iter()
-                            .filter_map(|value| match value {
-                                ResolvedValue::String(id) => Some(id.clone()),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>(),
-                        _ => Vec::new(),
-                    };
+                    let ids = resolved_string_list_arg(&field.arguments, "ids");
                     if ids
                         .iter()
                         .any(|id| shopify_gid_resource_type(id) == Some("ShopPolicy"))

@@ -2095,6 +2095,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'standard-metafield-definition-enable-reenable-idempotent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metafield-definition-enable-reenable-idempotent.mts',
+    purpose:
+      'standardMetafieldDefinitionEnable idempotent re-enable behavior, including id stability and over-cap pin re-enable suppression.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-reenable-idempotent.json`,
+      'config/parity-specs/metafields/standard-metafield-definition-enable-reenable-idempotent.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-reenable-idempotent.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-reenable-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions to reach the pin cap, deletes them, deletes the standard definition only when the capture created it, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-delete-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-delete-preconditions-conformance.mts',
@@ -5223,7 +5241,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
       'config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql',
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_duplicate_platform.json`,
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_requires_one_platform.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_duplicate_platform.json',
       `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_requires_one_platform.json',
       'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
       'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
     ],
@@ -5231,7 +5253,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
     notes:
-      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence. Stale local-runtime parity specs for duplicate-platform and exact-platform create behavior are intentionally retired instead of being treated as Shopify evidence.',
   },
   {
     domain: 'online-store',
@@ -7742,7 +7764,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-errors-conformance.ts',
     purpose:
-      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
+      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery/unknown-function userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
     requiredAuthScopes: [
       'read_fulfillment_constraint_rules for fulfillmentConstraintRules empty read',
       'write_fulfillment_constraint_rules for create/delete userError capture',
@@ -7752,6 +7774,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}functions-fulfillment-constraint-rule-errors.json`,
       'config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json',
       'config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rule-unknown-function.graphql',
       'config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql',
     ],
     cleanupBehavior:
@@ -8757,6 +8780,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Delegates to the parity cassette recorder for existing captured validation scenarios; the replayed validation branches do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-activate-non-unique-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-non-unique-name-conformance.mts',
+    purpose:
+      'locationActivate HAS_NON_UNIQUE_NAME validation when an inactive target name collides with another active shop location.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-non-unique-name.json',
+      'config/parity-specs/store-properties/location-activate-non-unique-name.json',
+      'config/parity-requests/store-properties/location-activate-non-unique-observed-active.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations with the same name by deactivating the target before creating the active duplicate, records the rejected activation, then deactivates/deletes both locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

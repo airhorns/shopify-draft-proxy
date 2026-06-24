@@ -80,7 +80,8 @@ The fixture documents excluded product-owned metafield types instead of adding p
 
 Successful local enablement:
 
-- creates or replaces a staged `MetafieldDefinition` record without sending the mutation to Shopify
+- creates a staged `MetafieldDefinition` record without sending the mutation to Shopify when no definition exists for the template's owner/namespace/key
+- re-enabling an already-present template returns the existing definition id and merges only supplied update params into that staged record
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
 - rejects ineligible capability inputs before staging, using the same captured `INVALID_CAPABILITY` branch as definition create/update but with standard-enable field paths
@@ -89,7 +90,8 @@ Successful local enablement:
 - returns `INVALID_CAPABILITY` for ineligible capability input, and returns `TYPE_NOT_ALLOWED_FOR_CONDITIONS` for the deprecated collection-condition argument on an ineligible type
 - returns `INVALID` with the captured public-read-write access message when merchant read-only admin access is supplied for non-app-owned standard templates
 - returns `INVALID` when any explicit access controls are supplied while enabling a reserved `shopify` standard template
-- when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
+- on first-time enable with `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
+- on re-enable with `pin: true`, suppresses the ordinary owner-type pin-cap error and updates the existing definition in place; the 2026-04 capture records `pinnedPosition: 21` after 20 disposable pinned definitions
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
 - makes downstream `metafieldDefinition(identifier:)` and `metafieldDefinitions(...)` reads observe the staged definition
@@ -105,6 +107,8 @@ That fixture scope is not a rule against live success captures. Normal supported
 
 The public Admin GraphQL 2026-04 schema on the current conformance shop exposes `capabilities` and `access`, but no longer exposes `forceEnable`, `useAsCollectionCondition`, `useAsAdminFilter`, or `visibleToStorefrontApi` on `standardMetafieldDefinitionEnable`. `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json` therefore combines live public captures for schema-exposed capability errors with local-runtime-backed contract targets for the deprecated/internal inputs required by this proxy fidelity slice.
 
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-reenable-idempotent.json` captures successful re-enable behavior for template `1` (`descriptors` / `subtitle`): enabling, re-enabling, and re-enabling with `pin: true` all return the same definition id. After the capture creates 20 disposable pinned definitions, `pin: true` re-enable still returns empty `userErrors` and assigns pinned position `21`; a downstream `metafieldDefinition(id:)` read by the original id resolves the same definition.
+
 ### Metafield definition pinning
 
 The product-owner pinning slice supports local staging for existing normalized definition records:
@@ -116,9 +120,9 @@ The product-owner pinning slice supports local staging for existing normalized d
 
 Captured live behavior shows pinning an unpinned product definition, or creating a product definition with `pin: true`, assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Pinning an already-pinned definition returns `pinnedDefinition: null`, `field: null`, message `Definition already pinned.`, and code `ALREADY_PINNED`. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change. Unpinning an unpinned definition returns `unpinnedDefinition: null`, `field: null`, a definition-id-specific message, and code `NOT_PINNED`.
 
-The current product-owner pin cap is 50 pinned definitions. The 51st pin returns `pinnedDefinition: null` with `field: null`, message `Limit of 50 pinned definitions.`, and code `PINNED_LIMIT_REACHED`. Constrained definitions, represented by populated `constraints.key` or `constraints.values`, cannot be pinned and return `pinnedDefinition: null` with code `UNSUPPORTED_PINNING`.
+The current product-owner pin cap for ordinary pinning is 20 pinned definitions. The 21st pin returns `pinnedDefinition: null` with `field: null`, message `Limit of 20 pinned definitions.`, and code `PINNED_LIMIT_REACHED`. Constrained definitions, represented by populated `constraints.key` or `constraints.values`, cannot be pinned and return `pinnedDefinition: null` with code `UNSUPPORTED_PINNING`.
 
-The 2026-04 create-with-pin guard capture records the corresponding create-time branches: after 50 product definitions have been created with `pin: true`, the next pinned create returns `createdDefinition: null`, `field: ["definition"]`, message `Limit of 50 pinned definitions.`, and code `PINNED_LIMIT_REACHED`; constrained create with `pin: true` returns `createdDefinition: null`, `field: ["definition"]`, and code `UNSUPPORTED_PINNING`. A constrained standard template enable with `pin: true` returns `createdDefinition: null`, `field: null`, and code `UNSUPPORTED_PINNING`.
+The 2026-04 create-with-pin guard capture records the corresponding create-time branches: after 20 product definitions have been created with `pin: true`, the next pinned create returns `createdDefinition: null`, `field: ["definition"]`, message `Limit of 20 pinned definitions.`, and code `PINNED_LIMIT_REACHED`; constrained create with `pin: true` returns `createdDefinition: null`, `field: ["definition"]`, and code `UNSUPPORTED_PINNING`. A constrained standard template enable with `pin: true` returns `createdDefinition: null`, `field: null`, and code `UNSUPPORTED_PINNING`.
 
 The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. In LiveHybrid, a cold pin/unpin first hydrates the product-owner definition catalog through `upstream_query.fetch_sync`, then stages only the pin or unpin effect locally; parity cassettes provide that read deterministically. It does not create missing definitions through pin/unpin when no upstream definition can be hydrated. Definitions marked `appConfigManaged` reject pin and unpin with `APP_CONFIG_MANAGED`; full app-config lifecycle discovery remains out of scope until public or fixture-backed metadata can populate that flag automatically.
 
