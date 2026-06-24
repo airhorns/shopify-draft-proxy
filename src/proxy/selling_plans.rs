@@ -585,10 +585,9 @@ impl DraftProxy {
         is_join: bool,
     ) -> Vec<Value> {
         if group_ids.is_empty() {
-            return vec![user_error(
+            return vec![presence_user_error(
                 ["sellingPlanGroupIds"],
-                "Selling plan group IDs can't be blank",
-                Some("BLANK"),
+                "Selling plan group IDs",
             )];
         }
         let mut seen = BTreeSet::new();
@@ -981,11 +980,7 @@ fn selling_plan_group_create_model_user_errors(
         .as_deref()
         .is_none_or(|name| name.trim().is_empty())
     {
-        errors.push(json!({
-            "field": ["input", "name"],
-            "message": "Name can't be blank",
-            "code": "BLANK"
-        }));
+        errors.push(presence_user_error(["input", "name"], "Name"));
     }
 
     let plans = resolved_object_list_field(input, "sellingPlansToCreate");

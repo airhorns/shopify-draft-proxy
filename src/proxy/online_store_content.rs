@@ -1592,17 +1592,13 @@ fn title_blank_error(
     code: Option<&'static str>,
     required: bool,
 ) -> Option<Value> {
+    let error = || match code {
+        Some("BLANK") => presence_user_error(vec![root, "title"], "Title"),
+        _ => user_error(vec![root, "title"], "Title can't be blank", code),
+    };
     match input.get("title") {
-        Some(ResolvedValue::String(title)) if title.trim().is_empty() => Some(user_error(
-            vec![root, "title"],
-            "Title can't be blank",
-            code,
-        )),
-        None if required => Some(user_error(
-            vec![root, "title"],
-            "Title can't be blank",
-            code,
-        )),
+        Some(ResolvedValue::String(title)) if title.trim().is_empty() => Some(error()),
+        None if required => Some(error()),
         _ => None,
     }
 }

@@ -246,13 +246,12 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["mobilePlatformApplication", "android", "applicationId"],
                         if application_id.is_empty() {
-                            "Application can't be blank"
+                            "Application"
                         } else {
-                            "Application ID can't be blank"
+                            "Application ID"
                         },
                     )],
                 );
@@ -261,21 +260,22 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_application_id_too_long_error([
-                        "input",
-                        "android",
-                        "applicationId",
-                    ])],
+                    vec![length_user_error(
+                        ["input", "android", "applicationId"],
+                        "Application ID",
+                        LengthUserErrorBound::TooLong {
+                            maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                        },
+                    )],
                 );
             }
             if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints can't be blank",
+                        "Sha256 cert fingerprints",
                     )],
                 );
             }
@@ -298,13 +298,12 @@ impl DraftProxy {
             return mobile_app_payload(
                 &field.selection,
                 None,
-                vec![mobile_app_error(
-                    "BLANK",
+                vec![presence_user_error(
                     ["mobilePlatformApplication", "apple", "appId"],
                     if app_id.trim().is_empty() && app_id.len() > 1 {
-                        "App can't be blank"
+                        "App"
                     } else {
-                        "App ID can't be blank"
+                        "App ID"
                     },
                 )],
             );
@@ -313,9 +312,13 @@ impl DraftProxy {
             return mobile_app_payload(
                 &field.selection,
                 None,
-                vec![mobile_application_id_too_long_error([
-                    "input", "apple", "appId",
-                ])],
+                vec![length_user_error(
+                    ["input", "apple", "appId"],
+                    "Application ID",
+                    LengthUserErrorBound::TooLong {
+                        maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                    },
+                )],
             );
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
@@ -396,10 +399,9 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_app_error(
-                            "BLANK",
+                        vec![presence_user_error(
                             ["mobilePlatformApplication", "android", "applicationId"],
-                            "Application ID can't be blank",
+                            "Application ID",
                         )],
                     );
                 }
@@ -407,11 +409,13 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_application_id_too_long_error([
-                            "input",
-                            "android",
-                            "applicationId",
-                        ])],
+                        vec![length_user_error(
+                            ["input", "android", "applicationId"],
+                            "Application ID",
+                            LengthUserErrorBound::TooLong {
+                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                            },
+                        )],
                     );
                 }
                 record["applicationId"] = json!(application_id);
@@ -424,10 +428,9 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![mobile_app_error(
-                        "BLANK",
+                    vec![presence_user_error(
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints can't be blank",
+                        "Sha256 cert fingerprints",
                     )],
                 );
             }
@@ -439,10 +442,9 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_app_error(
-                            "BLANK",
+                        vec![presence_user_error(
                             ["mobilePlatformApplication", "apple", "appId"],
-                            "App ID can't be blank",
+                            "App ID",
                         )],
                     );
                 }
@@ -450,9 +452,13 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![mobile_application_id_too_long_error([
-                            "input", "apple", "appId",
-                        ])],
+                        vec![length_user_error(
+                            ["input", "apple", "appId"],
+                            "Application ID",
+                            LengthUserErrorBound::TooLong {
+                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+                            },
+                        )],
                     );
                 }
                 record["appId"] = json!(app_id);
@@ -623,7 +629,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -674,13 +680,13 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
         if theme.get("role").and_then(Value::as_str) == Some("LOCKED") {
             return selected_json(
-                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
+                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
                 &field.selection,
             );
         }
@@ -693,7 +699,7 @@ impl DraftProxy {
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
                 return selected_json(
-                    &json!({"theme": null, "userErrors": [theme_user_error(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
+                    &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
                     &field.selection,
                 );
             }
@@ -721,7 +727,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -737,7 +743,7 @@ impl DraftProxy {
             .count();
         if theme.get("role").and_then(Value::as_str) == Some("MAIN") && main_count <= 1 {
             return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
+                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
                 &field.selection,
             );
         }
@@ -1213,7 +1219,7 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input", "title"], "Title can't be blank", Some("BLANK"))]}),
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [presence_user_error(["input", "title"], "Title")]}),
                 &field.selection,
             );
         }

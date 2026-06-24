@@ -80,14 +80,6 @@ pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) 
     scopes
 }
 
-pub(in crate::proxy) fn theme_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_omit_code(field, message, code)
-}
-
 pub(in crate::proxy) fn theme_file_nodes(theme: &Value) -> Vec<Value> {
     theme["files"]["nodes"]
         .as_array()
@@ -355,16 +347,6 @@ pub(in crate::proxy) fn theme_file_filename_error(index: usize, filename: &str) 
     }
     None
 }
-pub(in crate::proxy) fn mobile_application_id_too_long_error<const N: usize>(
-    field: [&str; N],
-) -> Value {
-    mobile_app_error(
-        "TOO_LONG",
-        field,
-        "Application ID is too long (maximum is 100 characters)",
-    )
-}
-
 pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
     apple: &BTreeMap<String, ResolvedValue>,
     update_input: bool,
@@ -376,10 +358,9 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_none_or(|value| value.trim().is_empty())
     {
-        return Some(mobile_app_error(
-            "BLANK",
+        return Some(presence_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application can't be blank",
+            "App clip application",
         ));
     }
     if app_clips_enabled
@@ -387,10 +368,12 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_some_and(|value| value.len() > MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH)
     {
-        return Some(mobile_app_error(
-            "TOO_LONG",
+        return Some(length_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application is too long (maximum is 255 characters)",
+            "App clip application",
+            LengthUserErrorBound::TooLong {
+                maximum: MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH,
+            },
         ));
     }
     if update_input
@@ -398,10 +381,9 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_some_and(|value| value.trim().is_empty())
     {
-        return Some(mobile_app_error(
-            "BLANK",
+        return Some(presence_user_error(
             ["input", "apple", "appClipApplicationId"],
-            "App clip application can't be blank",
+            "App clip application",
         ));
     }
     None

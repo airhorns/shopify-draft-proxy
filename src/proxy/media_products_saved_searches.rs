@@ -427,14 +427,8 @@ impl DraftProxy {
                 primary_root_response_selection(query, variables, || "productCreate".to_string());
             let error_selection =
                 selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-            let user_error = selected_json(
-                &json!({
-                    "field": ["title"],
-                    "message": "Title can't be blank",
-                    "code": "BLANK"
-                }),
-                &error_selection,
-            );
+            let user_error =
+                selected_json(&presence_user_error(["title"], "Title"), &error_selection);
             return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: {

@@ -407,11 +407,7 @@ impl DraftProxy {
                     &field.selection,
                     Value::Null,
                     Some(false),
-                    vec![json!({
-                        "field": ["sessionId"],
-                        "message": "Session id can't be blank",
-                        "code": "BLANK"
-                    })],
+                    vec![presence_user_error(["sessionId"], "Session id")],
                 ),
                 None,
             );
