@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 mod customer_payment_methods;
@@ -184,43 +185,8 @@ const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
     "weight",
 ];
 
-const MEASUREMENT_METAFIELD_TYPES: &[&str] = &[
-    "antenna_gain",
-    "area",
-    "battery_charge_capacity",
-    "battery_energy_capacity",
-    "capacitance",
-    "concentration",
-    "data_storage_capacity",
-    "data_transfer_rate",
-    "dimension",
-    "display_density",
-    "distance",
-    "duration",
-    "electric_current",
-    "electrical_resistance",
-    "energy",
-    "frequency",
-    "illuminance",
-    "inductance",
-    "luminous_flux",
-    "mass_flow_rate",
-    "power",
-    "pressure",
-    "resolution",
-    "rotational_speed",
-    "sound_level",
-    "speed",
-    "temperature",
-    "thermal_power",
-    "voltage",
-    "volume",
-    "volumetric_flow_rate",
-    "weight",
-];
-
 fn is_measurement_metafield_type_name(type_name: &str) -> bool {
-    MEASUREMENT_METAFIELD_TYPES.contains(&type_name)
+    !measurement_units_for_type(type_name).is_empty()
 }
 
 fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
@@ -1139,18 +1105,7 @@ fn is_shopify_date(value: &str) -> bool {
     if !(1..=12).contains(&month) {
         return false;
     }
-    let max_day = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => return false,
-    };
-    (1..=max_day).contains(&day)
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    (1..=days_in_month(year, month)).contains(&day)
 }
 
 fn is_shopify_metafield_url(value: &str) -> bool {
@@ -1882,7 +1837,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
                 .map(|namespace| payment_customization_namespace(&namespace))
                 .unwrap_or_default();
             json!({
-                "id": format!("gid://shopify/Metafield/payment-customization-{}", index + 1),
+                "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
                 "namespace": namespace,
                 "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
                 "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
@@ -2157,21 +2112,13 @@ pub(in crate::proxy) fn payment_terms_success_record(
 pub(in crate::proxy) fn payment_terms_template_projection(
     template_id: &str,
 ) -> (&'static str, &'static str, Option<i64>) {
-    let tail = template_id
-        .strip_prefix("gid://shopify/PaymentTermsTemplate/")
-        .unwrap_or(template_id);
-    match tail {
-        "1" => ("Due on receipt", "RECEIPT", None),
-        "2" => ("Net 7", "NET", Some(7)),
-        "3" => ("Net 15", "NET", Some(15)),
-        "5" => ("Net 60", "NET", Some(60)),
-        "6" => ("Net 90", "NET", Some(90)),
-        "7" => ("Fixed", "FIXED", None),
-        "8" => ("Net 45", "NET", Some(45)),
-        "9" => ("Due on fulfillment", "FULFILLMENT", None),
+    let tail = resource_id_tail(template_id);
+    PAYMENT_TERMS_TEMPLATE_CATALOG
+        .iter()
+        .find(|(catalog_tail, ..)| *catalog_tail == tail)
+        .map(|(_, name, _, due_in_days, terms_type)| (*name, *terms_type, *due_in_days))
         // Template/4 is Net 30; unknown/blank ids fall back to the same default term.
-        _ => ("Net 30", "NET", Some(30)),
-    }
+        .unwrap_or(("Net 30", "NET", Some(30)))
 }
 
 /// Shopify's payment-terms template catalog is a fixed, store-independent global
@@ -2231,7 +2178,7 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
             .map(|(tail, name, description, due_in_days, terms_type)| {
                 selected_json(
                     &json!({
-                        "id": format!("gid://shopify/PaymentTermsTemplate/{tail}"),
+                        "id": shopify_gid("PaymentTermsTemplate", tail),
                         "name": name,
                         "description": description,
                         "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
@@ -2431,7 +2378,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
         json!([])
     } else {
-        let schedule_id = format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id));
+        let schedule_id = shopify_gid("PaymentSchedule", resource_id_tail(id));
         let input_schedules = resolved_object_list_field(attrs, "paymentSchedules");
         let node = payment_schedule_node(
             &schedule_id,
@@ -2507,7 +2454,7 @@ pub(in crate::proxy) fn payment_terms_create_value(
     } else {
         reference_tail
     };
-    let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
+    let terms_id = shopify_gid("PaymentTerms", id_suffix);
     Ok((reference_id, terms_id, attrs))
 }
 
@@ -2769,46 +2716,13 @@ fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let bytes = input.as_bytes();
-    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0];
-        let b1 = *chunk.get(1).unwrap_or(&0);
-        let b2 = *chunk.get(2).unwrap_or(&0);
-        encoded.push(TABLE[(b0 >> 2) as usize] as char);
-        encoded.push(TABLE[(((b0 & 0b0000_0011) << 4) | (b1 >> 4)) as usize] as char);
-        if chunk.len() > 1 {
-            encoded.push(TABLE[(((b1 & 0b0000_1111) << 2) | (b2 >> 6)) as usize] as char);
-        }
-        if chunk.len() > 2 {
-            encoded.push(TABLE[(b2 & 0b0011_1111) as usize] as char);
-        }
-    }
-    encoded
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(input)
 }
 
 fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let lookup = |c: u8| -> Option<u8> { TABLE.iter().position(|&t| t == c).map(|i| i as u8) };
-    let mut output = Vec::with_capacity(input.len() / 4 * 3);
-    for chunk in input.as_bytes().chunks(4) {
-        if chunk.len() < 2 {
-            return None;
-        }
-        let s0 = lookup(chunk[0])?;
-        let s1 = lookup(chunk[1])?;
-        output.push((s0 << 2) | (s1 >> 4));
-        if chunk.len() > 2 {
-            let s2 = lookup(chunk[2])?;
-            output.push(((s1 & 0b0000_1111) << 4) | (s2 >> 2));
-            if chunk.len() > 3 {
-                let s3 = lookup(chunk[3])?;
-                output.push(((s2 & 0b0000_0011) << 6) | s3);
-            }
-        }
-    }
-    Some(output)
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(input)
+        .ok()
 }
 
 /// Recover the source `customerPaymentMethodId` encoded inside an
@@ -3295,7 +3209,7 @@ impl DraftProxy {
 
     fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let line_items = resolved_object_list_field(&order_input, "lineItems");
         let first_line = line_items.first().cloned().unwrap_or_default();
@@ -3790,7 +3704,7 @@ impl DraftProxy {
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let price_set = order_arg
             .get("lineItems")

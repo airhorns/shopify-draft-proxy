@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2026-04 evidence that collectionUpdate without input.id returns a top-level BadRequest error. The fixture also records the present-but-unknown Collection id branch for context; local regression coverage keeps that branch unchanged for this ticket.",
+  "notes": "Live 2026-04 evidence that collectionUpdate without input.id returns a top-level BadRequest error, while a supplied but unknown Collection id returns a payload userError with field null.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -22,6 +22,16 @@
         "capturePath": "$.missingId.response.payload",
         "proxyPath": "$",
         "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      },
+      {
+        "name": "unknown-id-user-error-field-null",
+        "capturePath": "$.unknownId.response.payload.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionUpdate-missing-id.graphql",
+          "variablesCapturePath": "$.unknownId.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.collectionUpdate"
       }
     ]
   }

@@ -5067,6 +5067,91 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
 }
 
 #[test]
+fn gift_card_credit_debit_preserve_optional_transaction_notes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation IssueLocalGiftCard {
+          giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let gift_card_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"].clone();
+
+    let transactions = proxy.process_request(json_graphql_request(
+        r#"mutation AdjustGiftCardNotes($id: ID!) {
+          creditWithoutNote: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "2.00", currencyCode: CAD } }) {
+            giftCardCreditTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitWithoutNote: giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardDebitTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          creditWithNote: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "3.00", currencyCode: CAD }, note: "manual credit" }) {
+            giftCardCreditTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitWithNote: giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "4.00", currencyCode: CAD }, note: "manual debit" }) {
+            giftCardDebitTransaction { note amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(transactions.status, 200);
+    assert_eq!(
+        transactions.body["data"],
+        json!({
+            "creditWithoutNote": {
+                "giftCardCreditTransaction": { "note": null, "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "debitWithoutNote": {
+                "giftCardDebitTransaction": { "note": null, "amount": { "amount": "-1.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "creditWithNote": {
+                "giftCardCreditTransaction": { "note": "manual credit", "amount": { "amount": "3.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "debitWithNote": {
+                "giftCardDebitTransaction": { "note": "manual debit", "amount": { "amount": "-4.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            }
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionNoteReadback($id: ID!) {
+          giftCard(id: $id) {
+            transactions(first: 5) {
+              nodes {
+                note
+                amount { amount currencyCode }
+              }
+            }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(
+        readback.body["data"]["giftCard"]["transactions"]["nodes"],
+        json!([
+            { "note": null, "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+            { "note": null, "amount": { "amount": "-1.0", "currencyCode": "CAD" } },
+            { "note": "manual credit", "amount": { "amount": "3.0", "currencyCode": "CAD" } },
+            { "note": "manual debit", "amount": { "amount": "-4.0", "currencyCode": "CAD" } }
+        ])
+    );
+}
+
+#[test]
 fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
 

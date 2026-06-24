@@ -336,7 +336,7 @@ try {
     creditInput: {
       creditAmount: {
         amount: '2.00',
-        currencyCode: 'CAD',
+        currencyCode: 'CHF',
       },
     },
   };
@@ -364,6 +364,52 @@ try {
       'balanceAfterTransaction',
       'amount',
     ]) ?? secondaryCleanupDebitAmount;
+
+  const resultOnlyUsdcCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'USDC',
+      },
+    },
+  };
+  const resultOnlyUsdcCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    resultOnlyUsdcCreditVariables,
+  );
+  if (!resultOnlyUsdcCredit.payload.errors) {
+    throw new Error(
+      `storeCreditAccountCredit USDC validation unexpectedly succeeded: ${JSON.stringify(
+        resultOnlyUsdcCredit.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
+
+  const resultOnlyXxxCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'XXX',
+      },
+    },
+  };
+  const resultOnlyXxxCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    resultOnlyXxxCreditVariables,
+  );
+  if (!resultOnlyXxxCredit.payload.errors) {
+    throw new Error(
+      `storeCreditAccountCredit XXX validation unexpectedly succeeded: ${JSON.stringify(
+        resultOnlyXxxCredit.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
 
   const overLimitDebitVariables = {
     id: customerId,
@@ -507,6 +553,16 @@ try {
         ownerSecondCurrencyCreditVariables,
         ownerSecondCurrencyCredit,
       ),
+      resultOnlyUsdcCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        resultOnlyUsdcCreditVariables,
+        resultOnlyUsdcCredit,
+      ),
+      resultOnlyXxxCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        resultOnlyXxxCreditVariables,
+        resultOnlyXxxCredit,
+      ),
       overLimitDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables, overLimitDebit),
       overLimitCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, overLimitCreditVariables, overLimitCredit),
       unsupportedAttributionCredit: record(
@@ -531,7 +587,7 @@ try {
       debitInput: {
         debitAmount: {
           amount: secondaryCleanupDebitAmount,
-          currencyCode: 'CAD',
+          currencyCode: 'CHF',
         },
       },
     };

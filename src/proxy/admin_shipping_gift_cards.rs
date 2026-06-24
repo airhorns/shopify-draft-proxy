@@ -1,6 +1,8 @@
 use super::resolved_values;
 use super::*;
 
+use crate::graphql::ParsedDocument;
+
 mod gift_cards;
 
 // Must byte-match the recorded upstream hydrate query in the store-properties
@@ -1090,8 +1092,7 @@ impl DraftProxy {
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let api_client_id = request_api_client_id(request);
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
@@ -1136,8 +1137,7 @@ impl DraftProxy {
             });
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
         let caller_token = request_access_token(request).unwrap_or_default();
-        let caller_api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let caller_api_client_id = request_api_client_id(request);
 
         let mut status = false;
         let mut user_errors = Vec::new();
@@ -1214,8 +1214,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(json!({
-                "field": ["base"],
-                "message": "Source app is missing.",
+                "field": ["id"],
+                "message": "No app found on the access token.",
                 "code": "MISSING_SOURCE_APP"
             }));
         } else {
@@ -2423,7 +2423,7 @@ impl DraftProxy {
             "field": ["localPickupSettings"],
             "message": format!(
                 "Unable to find an active location for location ID {}",
-                location_id_display_tail(location_id)
+                resource_id_path_tail(location_id)
             ),
             "code": if root_field == "locationLocalPickupEnable" {
                 "ACTIVE_LOCATION_NOT_FOUND"
@@ -2483,7 +2483,7 @@ impl DraftProxy {
             };
             data.insert(
                 field.response_key.clone(),
-                location_add_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -2794,7 +2794,7 @@ impl DraftProxy {
 
             data.insert(
                 field.response_key,
-                location_edit_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -5500,7 +5500,7 @@ impl DraftProxy {
             if user_errors.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             data.insert(
                 field.response_key,
                 publishable_payload_json(
@@ -5909,6 +5909,11 @@ impl DraftProxy {
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
         let segment_id_input = resolved_string_field(&input, "segmentId");
+        if let Some(response) =
+            member_query_segment_id_top_level_error(query, variables, segment_id_input.as_deref())
+        {
+            return response;
+        }
         let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
             (Some(_), Some(_)) => vec![member_query_user_error(
                 json!(["input"]),
@@ -7467,7 +7472,7 @@ fn location_edit_invalid_variable_error(
     })
 }
 
-fn location_edit_payload_selected_json(
+fn location_payload_selected_json(
     location: Value,
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -7506,12 +7511,10 @@ fn location_delete_payload_selected_json(
 }
 
 fn location_country_name(country_code: &str) -> Option<&'static str> {
-    match country_code {
-        "CA" => Some("Canada"),
-        "US" => Some("United States"),
-        "GB" => Some("United Kingdom"),
-        "AU" => Some("Australia"),
-        _ => None,
+    if matches!(country_code, "CA" | "US" | "GB" | "AU") {
+        country_name_for_code(country_code)
+    } else {
+        None
     }
 }
 
@@ -7563,27 +7566,6 @@ fn location_idempotency_required_error(
     })
 }
 
-fn location_add_payload_selected_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                location_selected_json(&location, &selection.selection)
-            }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
 fn location_local_pickup_enable_payload_selected_json(
     settings: Value,
     payload_selection: &[SelectedField],
@@ -7620,10 +7602,6 @@ fn location_local_pickup_disable_payload_selected_json(
             _ => None,
         }
     })
-}
-
-fn location_id_display_tail(location_id: &str) -> &str {
-    resource_id_path_tail(location_id)
 }
 
 fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
@@ -8510,6 +8488,72 @@ fn member_query_direct_query_error(query: &str) -> Option<Value> {
     let message = segment_query_unexpected_token_message(query)
         .unwrap_or_else(|| "Query is invalid.".to_string());
     Some(member_query_user_error(Value::Null, &message))
+}
+
+fn member_query_segment_id_top_level_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    segment_id: Option<&str>,
+) -> Option<Response> {
+    let segment_id = segment_id?;
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == "customerSegmentMembersQueryCreate")?;
+    match shopify_gid_resource_type(segment_id) {
+        Some("Segment") => None,
+        Some(_) => segment_id_top_level_error(segment_id, &field.response_key, field),
+        None => Some(ok_json(json!({
+            "errors": [member_query_segment_id_invalid_variable_error(&document, field, segment_id)
+                .unwrap_or_else(|| member_query_segment_id_invalid_literal_error(&document, field, segment_id))]
+        }))),
+    }
+}
+
+fn member_query_segment_id_invalid_variable_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Option<Value> {
+    let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("input")? else {
+        return None;
+    };
+    let value = value.as_ref()?;
+    let variable_definition = document.variable_definitions.get(name)?;
+    Some(invalid_variable_error(
+        VariableValidationContext {
+            variable_name: name,
+            variable_type: &variable_definition.type_display,
+            location: variable_definition.location,
+        },
+        value,
+        vec![variable_problem_with_message_value_path(
+            &[json!("segmentId")],
+            &format!("Invalid global id '{segment_id}'"),
+        )],
+    ))
+}
+
+fn member_query_segment_id_invalid_literal_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Value {
+    json!({
+        "message": format!("Invalid global id '{segment_id}'"),
+        "locations": [{"line": field.location.line, "column": field.location.column}],
+        "path": [
+            document.operation_path.as_str(),
+            field.response_key.as_str(),
+            "input",
+            "segmentId"
+        ],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
 }
 
 /// Locate the first token that cannot continue a `[NOT] <filter> <operator>`

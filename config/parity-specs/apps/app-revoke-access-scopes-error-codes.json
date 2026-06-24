@@ -5,12 +5,13 @@
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
+    "core-source-derived-user-errors",
     "runtime-staging",
     "mutation-log-replay",
     "no-upstream-passthrough"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json"],
-  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql",
@@ -54,5 +55,5 @@
       }
     ]
   },
-  "notes": "HAR-672 required scenarioId. The public Admin schema for the configured conformance credential exposes only scopes on appRevokeAccessScopes; source-app/id/not-installed branches are local-runtime backed. The missing source-app replay now uses explicit request context via x-shopify-draft-proxy-source-app-missing so validation is independent of GraphQL operation name."
+  "notes": "Executable local-runtime parity for appRevokeAccessScopes error-code branches. Public Admin requests with a valid access token provide source app context, while unauthenticated requests fail before the resolver, so the missing-source-app payload is Core-source-derived rather than real-Shopify-recorded. The source-derived targets are missing-source-app, ordinary-operation-name-missing-source-app, and anonymous-mutation-missing-source-app. Runtime replay uses explicit request context via x-shopify-draft-proxy-source-app-missing so validation is independent of GraphQL operation name."
 }

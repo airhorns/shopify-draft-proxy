@@ -656,18 +656,14 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
     if let Some(ResolvedValue::List(items)) = variables.get("pricesToAdd") {
         for item in items {
             if let Some(id) = resolved_object_string(item, "productId") {
-                if !product_ids.contains(&id) {
-                    product_ids.push(id);
-                }
+                push_unique_string(&mut product_ids, id);
             }
         }
     }
     if let Some(ResolvedValue::List(items)) = variables.get("pricesToDeleteByProductIds") {
         for item in items {
             if let ResolvedValue::String(id) = item {
-                if !product_ids.contains(id) {
-                    product_ids.push(id.clone());
-                }
+                push_unique_string(&mut product_ids, id);
             }
         }
     }
@@ -1411,7 +1407,7 @@ mod tests {
                 json!({
                     "node": {
                         "originType": "FIXED",
-                        "variant": { "id": format!("gid://shopify/ProductVariant/{index}") }
+                        "variant": { "id": shopify_gid("ProductVariant", index) }
                     }
                 })
             })

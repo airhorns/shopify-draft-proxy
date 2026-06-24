@@ -105,9 +105,14 @@ validation failures while leaving the staged price list unchanged.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
-primary-domain-delete, and relation scenarios. Market-localization slices stage
-and remove localized content for captured localizable resources, including
-unknown-resource, too-many-key, digest, market key, and no-op removal branches.
+primary-domain-delete, and relation scenarios. `webPresenceCreate` also checks
+the effective `shopLocales` model before accepting a supported `defaultLocale`:
+the default language must be published to the shop, or the payload returns
+`webPresence: null` with `UNPUBLISHED_LANGUAGE` at
+`["input", "defaultLocale"]` and stages no web presence. Market-localization
+slices stage and remove localized content for captured localizable resources,
+including unknown-resource, too-many-key, digest, market key, and no-op removal
+branches.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Unsupported
