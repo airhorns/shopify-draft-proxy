@@ -754,7 +754,7 @@ impl DraftProxy {
         let status = record["status"].as_str().unwrap_or_default();
         if !matches!(status, "OPEN" | "REQUESTED") {
             return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return status is invalid.", "INVALID_STATE")] }),
+                &json!({ "return": Value::Null, "userErrors": [user_error(["returnId"], "Return status is invalid.", Some("INVALID_STATE"))] }),
                 &field.selection,
             );
         }
@@ -932,7 +932,7 @@ impl DraftProxy {
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .cloned()
             .unwrap_or_default();
-        let input_lines = list_object_arg(&field.arguments, "reverseDeliveryLineItems");
+        let input_lines = list_object_field(&field.arguments, "reverseDeliveryLineItems");
         let delivery_line_sources = if input_lines.is_empty() {
             rfo_lines
                 .iter()
