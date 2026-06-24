@@ -956,16 +956,7 @@ fn media_object_list_arg(
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    match arguments.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::Object(object) => Some(object.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_object_field(&arguments, key)
 }
 
 fn media_string_list_arg(
@@ -974,16 +965,7 @@ fn media_string_list_arg(
     key: &str,
 ) -> Vec<String> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    match arguments.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_string_field(&arguments, key)
 }
 
 fn media_invalid_field_arguments_response(

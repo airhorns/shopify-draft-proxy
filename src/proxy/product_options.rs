@@ -335,7 +335,7 @@ impl DraftProxy {
         let option_input = resolved_object_field(variables, "option").unwrap_or_default();
         let Some(option_index) = option_input
             .get("id")
-            .and_then(resolved_string_value)
+            .and_then(resolved_value_string)
             .and_then(|id| graph.option_index_by_id(&id))
         else {
             return MutationOutcome::response(self.product_option_payload_response(
@@ -1625,13 +1625,6 @@ fn variant_sort_key(variant: &ProductVariantRecord, graph: &ProductOptionGraph) 
                 .unwrap_or(usize::MAX)
         })
         .collect()
-}
-
-fn resolved_string_value(value: &ResolvedValue) -> Option<String> {
-    match value {
-        ResolvedValue::String(value) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 fn resolved_variant_strategy(variables: &BTreeMap<String, ResolvedValue>) -> Option<String> {
