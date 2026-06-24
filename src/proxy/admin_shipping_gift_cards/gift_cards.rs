@@ -500,10 +500,13 @@ impl DraftProxy {
         } else {
             self.next_synthetic_gid("GiftCardDebitTransaction")
         };
+        let transaction_note = resolved_string_field(&input, "note")
+            .map(Value::String)
+            .unwrap_or(Value::Null);
         let transaction = json!({
             "id": transaction_id,
             "__typename": if is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
-            "note": resolved_string_field(&input, "note").unwrap_or_default(),
+            "note": transaction_note,
             "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| GIFT_CARD_SYNTHETIC_NOW.to_string()),
             "amount": { "amount": format_money_amount(signed_amount), "currencyCode": currency },
             "giftCard": card.clone()

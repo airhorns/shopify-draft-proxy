@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.proxyVariables.create"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures Shopify Admin GraphQL payload shape for giftCardCredit/giftCardDebit. Schema-valid credit/debit selections expose only their typed transaction payload and userErrors; selecting giftCard on either payload returns a top-level undefinedField validation error before resolver side effects.",
+  "notes": "Captures Shopify Admin GraphQL payload shape for giftCardCredit/giftCardDebit. Schema-valid credit/debit selections expose only their typed transaction payload and userErrors; the valid credit/debit inputs intentionally omit note, and strict transaction payload comparison proves Shopify returns note: null. Selecting giftCard on either payload returns a top-level undefinedField validation error before resolver side effects.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -23,15 +23,14 @@
         "proxyPath": "$.data.giftCardCreate.userErrors"
       },
       {
-        "name": "giftCardCredit exposes typed transaction without giftCard",
+        "name": "giftCardCredit without note returns transaction note null",
         "capturePath": "$.operations.validCredit.response.payload.data.giftCardCredit",
         "proxyPath": "$.data.giftCardCredit",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-credit-payload-shape.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "setup gift card creation succeeds",
-              "path": "$.data.giftCardCreate.giftCard.id"
+              "fromPrimaryProxyPath": "$.data.giftCardCreate.giftCard.id"
             },
             "input": { "fromCapturePath": "$.proxyVariables.credit.input" }
           }
@@ -45,15 +44,14 @@
         ]
       },
       {
-        "name": "giftCardDebit exposes typed transaction without giftCard",
+        "name": "giftCardDebit without note returns transaction note null",
         "capturePath": "$.operations.validDebit.response.payload.data.giftCardDebit",
         "proxyPath": "$.data.giftCardDebit",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-debit-payload-shape.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "setup gift card creation succeeds",
-              "path": "$.data.giftCardCreate.giftCard.id"
+              "fromPrimaryProxyPath": "$.data.giftCardCreate.giftCard.id"
             },
             "input": { "fromCapturePath": "$.proxyVariables.debit.input" }
           }
@@ -75,8 +73,7 @@
           "documentCapturePath": "$.operations.invalidCreditGiftCard.query",
           "variables": {
             "id": {
-              "fromProxyResponse": "setup gift card creation succeeds",
-              "path": "$.data.giftCardCreate.giftCard.id"
+              "fromPrimaryProxyPath": "$.data.giftCardCreate.giftCard.id"
             },
             "input": { "fromCapturePath": "$.proxyVariables.credit.input" }
           }
@@ -91,8 +88,7 @@
           "documentCapturePath": "$.operations.invalidDebitGiftCard.query",
           "variables": {
             "id": {
-              "fromProxyResponse": "setup gift card creation succeeds",
-              "path": "$.data.giftCardCreate.giftCard.id"
+              "fromPrimaryProxyPath": "$.data.giftCardCreate.giftCard.id"
             },
             "input": { "fromCapturePath": "$.proxyVariables.debit.input" }
           }
