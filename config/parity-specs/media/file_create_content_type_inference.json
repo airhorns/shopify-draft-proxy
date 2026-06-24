@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2026-04 fileCreate with omitted contentType for deterministic image (.png), video (.mp4), document (.pdf), and extensionless source URLs. Shopify attempts content detection when contentType is omitted: known image extensions create MediaImage records, known video extensions create Video records, and document or undetectable sources create GenericFile records. The extension-bearing cases avoid HEAD fallback dependence; the extensionless case records Shopify's GenericFile default.",
+  "notes": "Captured Admin GraphQL 2026-04 fileCreate with omitted contentType for deterministic image (.png), video (.mp4), document (.pdf), 3D model (.glb), and extensionless source URLs. Shopify attempts content detection when contentType is omitted: known image extensions create MediaImage records, known video extensions create Video records, and document, 3D model, or undetectable sources create GenericFile records. The extension-bearing cases avoid HEAD fallback dependence; the extensionless case records Shopify's GenericFile default.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -124,6 +124,31 @@
           {
             "path": "$[3].url",
             "matcher": "regex:^https://www\\.w3\\.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy",
+            "reason": "Shopify can return null or a CDN URL while processing; the proxy keeps the accepted external source."
+          },
+          {
+            "path": "$[4].id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy generates a local GenericFile GID for omitted .glb contentType; Shopify returns the dev-store GenericFile GID."
+          },
+          {
+            "path": "$[4].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns live creation timestamps."
+          },
+          {
+            "path": "$[4].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns live update timestamps."
+          },
+          {
+            "path": "$[4].mimeType",
+            "matcher": "exact-string:model/gltf-binary",
+            "reason": "Shopify can return null while processing; the proxy derives MIME from the .glb source/filename extension immediately."
+          },
+          {
+            "path": "$[4].url",
+            "matcher": "regex:^https://raw\\.githubusercontent\\.com/KhronosGroup/glTF-Sample-Models/main/2\\.0/Box/glTF-Binary/Box\\.glb",
             "reason": "Shopify can return null or a CDN URL while processing; the proxy keeps the accepted external source."
           }
         ]
@@ -263,10 +288,62 @@
         ]
       },
       {
-        "name": "files-query-read-after-create-first-four",
+        "name": "files-read-inferred-model-extension-generic",
+        "capturePath": "$.reads.modelNode.response.payload.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file-create-content-type-inference-generic-node.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.fileCreate.files[4].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy generates a local GenericFile GID for omitted .glb contentType; Shopify returns the dev-store GenericFile GID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns live creation timestamps."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns live update timestamps."
+          },
+          {
+            "path": "$.fileStatus",
+            "matcher": "exact-string:UPLOADED",
+            "reason": "Shopify advances file processing asynchronously; the proxy keeps the staged create status."
+          },
+          {
+            "path": "$.mimeType",
+            "matcher": "exact-string:model/gltf-binary",
+            "reason": "Shopify can return null while processing; the proxy derives MIME from the .glb source/filename extension immediately."
+          },
+          {
+            "path": "$.url",
+            "matcher": "regex:^https://raw\\.githubusercontent\\.com/KhronosGroup/glTF-Sample-Models/main/2\\.0/Box/glTF-Binary/Box\\.glb",
+            "reason": "Shopify can return a CDN file URL after processing; the proxy keeps the accepted external source."
+          }
+        ]
+      },
+      {
+        "name": "files-query-read-after-create-first-five",
         "capturePath": "$.reads.filesRead.response.payload.data.files.nodes",
         "proxyPath": "$.data.files.nodes",
-        "selectedPaths": ["$[0].__typename", "$[1].__typename", "$[2].__typename", "$[3].__typename"],
+        "selectedPaths": [
+          "$[0].__typename",
+          "$[1].__typename",
+          "$[2].__typename",
+          "$[3].__typename",
+          "$[4].__typename"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/media/file-create-content-type-inference-files-read.graphql",
           "apiVersion": "2026-04"

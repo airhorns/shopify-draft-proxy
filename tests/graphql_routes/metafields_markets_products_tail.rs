@@ -13,6 +13,18 @@ fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     );
 }
 
+fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    let staged_web_presences = &state["stagedState"]["webPresences"];
+    assert!(
+        staged_web_presences.is_null()
+            || staged_web_presences
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty),
+        "expected no staged web presences, got {staged_web_presences:?}"
+    );
+}
+
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -1345,6 +1357,103 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
         noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
         json!("fr")
     );
+}
+
+#[test]
+fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_allowlist() {
+    let create_query = r#"
+        mutation RustMarketWebPresenceLocaleCatalogCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary }
+              alternateLocales { locale name primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustMarketWebPresenceLocaleCatalogUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+          webPresenceUpdate(id: $id, input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary }
+              alternateLocales { locale name primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true})
+    );
+    assert_eq!(
+        create.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "ja", "name": "Japanese", "primary": false }])
+    );
+    let id = create.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"alternateLocales": ["nl"]}}),
+    ));
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true})
+    );
+    assert_eq!(
+        update.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "nl", "name": "Dutch", "primary": false }])
+    );
+
+    let mut invalid_default_proxy = snapshot_proxy();
+    let invalid_default = invalid_default_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "zz", "alternateLocales": [], "subfolderSuffix": "zz"}}),
+    ));
+    assert_eq!(
+        invalid_default.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_default.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "defaultLocale"], "message": "Invalid locale codes: zz", "code": "INVALID"}])
+    );
+    assert_no_staged_web_presences(&invalid_default_proxy);
+
+    let mut invalid_alternate_proxy = snapshot_proxy();
+    let invalid_alternate = invalid_alternate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "it", "alternateLocales": ["zz"], "subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        invalid_alternate.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_alternate.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "alternateLocales"], "message": "Invalid locale codes: zz", "code": "INVALID"}])
+    );
+    assert_no_staged_web_presences(&invalid_alternate_proxy);
 }
 
 #[test]

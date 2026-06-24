@@ -1,4 +1,4 @@
-query HAR594CollectionProductsCount($id: ID!) {
+query CollectionMembershipProductsCount($id: ID!) {
   collection(id: $id) {
     id
     productsCount {

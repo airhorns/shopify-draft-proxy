@@ -1,0 +1,54 @@
+{
+  "scenarioId": "gift-card-create-omitted-optional-fields",
+  "operationNames": ["giftCardCreate", "giftCard"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-create-omitted-optional-fields.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-create-omitted-optional-fields.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify giftCardCreate with only initialValue and immediate giftCard(id:) readback. The strict targets lock omitted note, expiresOn, customer, templateSuffix, and recipientAttributes as null in the create payload and downstream read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "giftCardCreate omitted optional fields are null",
+        "capturePath": "$.setup[0].response.payload.data.giftCardCreate",
+        "proxyPath": "$.data.giftCardCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardCreate locally and returns a synthetic GiftCard GID."
+          }
+        ]
+      },
+      {
+        "name": "downstream giftCard read preserves omitted optional nulls",
+        "capturePath": "$.operations.readAfterCreate.response.payload.data.giftCard",
+        "proxyPath": "$.data.giftCard",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-create-omitted-optional-fields-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy reads back the locally staged synthetic gift card."
+          }
+        ]
+      }
+    ]
+  }
+}

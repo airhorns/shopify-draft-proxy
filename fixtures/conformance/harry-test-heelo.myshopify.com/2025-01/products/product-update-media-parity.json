@@ -1,0 +1,97 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10220355289394",
+      "media": [
+        {
+          "id": "gid://shopify/MediaImage/43929165365554",
+          "alt": "Updated front view"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productUpdateMedia": {
+          "media": [
+            {
+              "id": "gid://shopify/MediaImage/43929165365554",
+              "alt": "Updated front view",
+              "mediaContentType": "IMAGE",
+              "status": "READY",
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+                }
+              },
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+              }
+            }
+          ],
+          "mediaUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10220355289394",
+        "media": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43929165365554",
+              "alt": "Updated front view",
+              "mediaContentType": "IMAGE",
+              "status": "READY",
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+                }
+              },
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+              }
+            },
+            {
+              "id": "gid://shopify/MediaImage/43929165791538",
+              "alt": "Valid in mixed create",
+              "mediaContentType": "IMAGE",
+              "status": "READY",
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+                }
+              },
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c1d775dd-845e-4059-9204-4d310f394da5.png?v=1782276749"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}
