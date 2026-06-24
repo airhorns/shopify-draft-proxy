@@ -1,0 +1,19 @@
+query GiftCardCreateOmittedOptionalFieldsRead($id: ID!) {
+  giftCard(id: $id) {
+    id
+    note
+    expiresOn
+    customer {
+      id
+    }
+    templateSuffix
+    recipientAttributes {
+      message
+      preferredName
+      sendNotificationAt
+      recipient {
+        id
+      }
+    }
+  }
+}

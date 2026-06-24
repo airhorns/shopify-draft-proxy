@@ -4485,6 +4485,160 @@ fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
 }
 
 #[test]
+fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_trip() {
+    let mut proxy = snapshot_proxy();
+
+    let plain_create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreatePlain {
+          plain: giftCardCreate(input: { initialValue: "25" }) {
+            giftCard {
+              id
+              note
+              expiresOn
+              customer { id }
+              templateSuffix
+              recipientAttributes {
+                message
+                preferredName
+                sendNotificationAt
+                recipient { id }
+              }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(plain_create.status, 200);
+    assert_eq!(
+        plain_create.body["data"]["plain"],
+        json!({
+            "giftCard": {
+                "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                "note": null,
+                "expiresOn": null,
+                "customer": null,
+                "templateSuffix": null,
+                "recipientAttributes": null
+            },
+            "giftCardCode": "giftcard00000001",
+            "userErrors": []
+        })
+    );
+
+    let plain_read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCreatePlainRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            expiresOn
+            customer { id }
+            templateSuffix
+            recipientAttributes {
+              message
+              preferredName
+              sendNotificationAt
+              recipient { id }
+            }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(plain_read.status, 200);
+    assert_eq!(
+        plain_read.body["data"]["giftCard"],
+        json!({
+            "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "note": null,
+            "expiresOn": null,
+            "customer": null,
+            "templateSuffix": null,
+            "recipientAttributes": null
+        })
+    );
+
+    let supplied_create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateSupplied($recipientId: ID!, $sendAt: DateTime!) {
+          supplied: giftCardCreate(input: {
+            initialValue: "30"
+            note: "Requested gift card note"
+            expiresOn: "2028-01-31"
+            recipientAttributes: {
+              id: $recipientId
+              preferredName: "Requested Recipient"
+              message: "Requested recipient message"
+              sendNotificationAt: $sendAt
+            }
+          }) {
+            giftCard {
+              id
+              note
+              expiresOn
+              customer { id }
+              templateSuffix
+              recipientAttributes {
+                message
+                preferredName
+                sendNotificationAt
+                recipient { id }
+              }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "recipientId": "gid://shopify/Customer/10587888714034",
+            "sendAt": "2026-07-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(supplied_create.status, 200);
+    let supplied_card = json!({
+        "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic",
+        "note": "Requested gift card note",
+        "expiresOn": "2028-01-31",
+        "customer": null,
+        "templateSuffix": null,
+        "recipientAttributes": {
+            "message": "Requested recipient message",
+            "preferredName": "Requested Recipient",
+            "sendNotificationAt": "2026-07-01T00:00:00Z",
+            "recipient": { "id": "gid://shopify/Customer/10587888714034" }
+        }
+    });
+    assert_eq!(
+        supplied_create.body["data"]["supplied"],
+        json!({
+            "giftCard": supplied_card,
+            "giftCardCode": "giftcard00000002",
+            "userErrors": []
+        })
+    );
+
+    let supplied_read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCreateSuppliedRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            expiresOn
+            customer { id }
+            templateSuffix
+            recipientAttributes {
+              message
+              preferredName
+              sendNotificationAt
+              recipient { id }
+            }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(supplied_read.status, 200);
+    assert_eq!(supplied_read.body["data"]["giftCard"], supplied_card);
+}
+
+#[test]
 fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_amount() {
     let mut proxy = snapshot_proxy();
 
