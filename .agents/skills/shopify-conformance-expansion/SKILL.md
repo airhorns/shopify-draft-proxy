@@ -54,7 +54,9 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
    `baseState`/`stagedState` seeds to make a parity scenario pass. If setup
    needs a product, variant, discount, customer, or other resource, create it
    through the supported GraphQL mutations or use an existing captured setup
-   request.
+   request. When the proxy needs upstream context, implement the handler's
+   production read/fetch path and record it as `upstreamCalls`; do not patch the
+   proxy store or teach the runner a one-off importer for the fixture.
 10. Prefer full-response strict parity targets over `selectedPaths` allowlists.
     When stable fields differ, model the behavior or expand the fixture/request
     first; use `expectedDifferences` as a narrow denylist only for unavoidable
@@ -86,7 +88,7 @@ mistakes. Check these before opening or returning a PR:
   `pnpm parity:record <scenario-id>`, and run `pnpm rust:test` (see
   `docs/parity-runner.md`). Captures must not carry top-level `seedX` keys —
   upstream context is recorded as `upstreamCalls`, not pre-seeded into base
-  state.
+  state or staged state through hidden setup payloads.
 - A scenario-level pass is not enough if the reviewed change did not add or
   touch the target that proves the changed branch. Make the parity target name
   identify the behavior under review, such as the specific userError path,
