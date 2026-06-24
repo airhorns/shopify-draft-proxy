@@ -324,6 +324,28 @@ fn bulk_operation_run_query_validates_admin_query_branches() {
             ]),
         ),
         (
+            "ordersNodesInsteadOfEdges",
+            "#graphql\n{\n  orders {\n    nodes {\n      id\n    }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'orders { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'orders'.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "multipleNodesInsteadOfEdges",
+            "#graphql\n{\n  orders {\n    nodes {\n      id\n    }\n  }\n  customers {\n    nodes {\n      id\n    }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'orders { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'orders', 'customers'.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
             "topLevelNode",
             "#graphql\n{\n  node(id: \"gid://shopify/Product/0\") {\n    id\n  }\n}",
             json!([
