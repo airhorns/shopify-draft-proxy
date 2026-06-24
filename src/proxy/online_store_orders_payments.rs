@@ -3748,14 +3748,6 @@ impl DraftProxy {
         self.next_proxy_synthetic_gid(typename)
     }
 
-    fn mobile_platform_application_exists(&self, typename: &str) -> bool {
-        self.store
-            .staged
-            .online_store_integrations
-            .values()
-            .any(|record| record.get("__typename").and_then(Value::as_str) == Some(typename))
-    }
-
     pub(in crate::proxy) fn mobile_platform_application_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3834,17 +3826,6 @@ impl DraftProxy {
                     )],
                 );
             }
-            if self.mobile_platform_application_exists("AndroidApplication") {
-                return mobile_app_payload(
-                    &field.selection,
-                    None,
-                    vec![mobile_app_error(
-                        "TAKEN",
-                        ["mobilePlatformApplication", "android"],
-                        "Android has already been taken",
-                    )],
-                );
-            }
             let id = self.next_online_store_id("MobilePlatformApplication");
             let record = json!({
                 "__typename": "AndroidApplication", "id": id, "applicationId": application_id,
@@ -3886,17 +3867,6 @@ impl DraftProxy {
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
             return mobile_app_payload(&field.selection, None, vec![error]);
-        }
-        if self.mobile_platform_application_exists("AppleApplication") {
-            return mobile_app_payload(
-                &field.selection,
-                None,
-                vec![mobile_app_error(
-                    "TAKEN",
-                    ["mobilePlatformApplication", "apple"],
-                    "Apple has already been taken",
-                )],
-            );
         }
         let id = self.next_online_store_id("MobilePlatformApplication");
         let record = json!({

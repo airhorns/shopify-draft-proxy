@@ -5193,7 +5193,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
       'config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql',
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_duplicate_platform.json`,
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_requires_one_platform.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_duplicate_platform.json',
       `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_requires_one_platform.json',
       'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
       'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
     ],
@@ -5201,7 +5205,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
     notes:
-      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence. Stale local-runtime parity specs for duplicate-platform and exact-platform create behavior are intentionally retired instead of being treated as Shopify evidence.',
   },
   {
     domain: 'online-store',

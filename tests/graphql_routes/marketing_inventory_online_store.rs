@@ -2933,6 +2933,82 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
 }
 
 #[test]
+fn online_store_mobile_platform_application_create_accepts_repeated_platforms() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationRepeatedCreates {
+          androidOne: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.one", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+          androidTwo: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.two", appLinksEnabled: false, sha256CertFingerprints: ["CC:DD"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+          appleOne: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.one", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+          appleTwo: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.two", universalLinksEnabled: true, sharedWebCredentialsEnabled: true, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["androidOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["androidTwo"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
+
+    let android_one_id = create.body["data"]["androidOne"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let android_two_id = create.body["data"]["androidTwo"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let apple_one_id = create.body["data"]["appleOne"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let apple_two_id = create.body["data"]["appleTwo"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(android_one_id, android_two_id);
+    assert_ne!(apple_one_id, apple_two_id);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationRepeatedCreatesRead {
+          mobilePlatformApplications(first: 10) {
+            nodes {
+              __typename
+              ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints }
+              ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["mobilePlatformApplications"]["nodes"],
+        json!([
+            {"__typename": "AndroidApplication", "id": android_one_id, "applicationId": "com.example.android.one", "appLinksEnabled": true, "sha256CertFingerprints": ["AA:BB"]},
+            {"__typename": "AndroidApplication", "id": android_two_id, "applicationId": "com.example.android.two", "appLinksEnabled": false, "sha256CertFingerprints": ["CC:DD"]},
+            {"__typename": "AppleApplication", "id": apple_one_id, "appId": "com.example.apple.one", "universalLinksEnabled": false, "sharedWebCredentialsEnabled": false, "appClipsEnabled": false, "appClipApplicationId": ""},
+            {"__typename": "AppleApplication", "id": apple_two_id, "appId": "com.example.apple.two", "universalLinksEnabled": true, "sharedWebCredentialsEnabled": true, "appClipsEnabled": false, "appClipApplicationId": ""}
+        ])
+    );
+}
+
+#[test]
 fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -2957,13 +3033,7 @@ fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_c
     ));
     assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
     assert_eq!(create.body["data"]["android"]["userErrors"], json!([]));
-    // A shop may hold at most one Apple application, so the second apple create
-    // is rejected (see the recorded duplicate-platform capture). Only appleOne
-    // and android survive in the connection.
-    assert_eq!(
-        create.body["data"]["appleTwo"],
-        json!({"mobilePlatformApplication": null, "userErrors": [{"code": "TAKEN", "field": ["mobilePlatformApplication", "apple"], "message": "Apple has already been taken"}]})
-    );
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
 
     let first_page = proxy.process_request(json_graphql_request(
         r#"
@@ -3013,10 +3083,36 @@ fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_c
             "nodes": [{"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}],
             "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "node": {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}}],
             "pageInfo": {
-                "hasNextPage": false,
+                "hasNextPage": true,
                 "hasPreviousPage": true,
                 "startCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
                 "endCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let third_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!, $after: String!) {
+          mobilePlatformApplications(first: $first, after: $after) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 1, "after": second_page.body["data"]["mobilePlatformApplications"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        third_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [{"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}],
+            "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic"
             }
         })
     );
