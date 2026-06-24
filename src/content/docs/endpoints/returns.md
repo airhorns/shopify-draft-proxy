@@ -81,10 +81,12 @@ Local staged mutations:
   `CLOSED` on immediate downstream `return(id:)` / `Order.returns` reads; local staging mirrors that split. Refund duties,
   refund shipping, financial transfers, exchange processing, and notification behavior are not emulated beyond local
   metadata and validation boundaries.
-- `reverseDeliveryCreateWithShipping` treats an empty `reverseDeliveryLineItems` input as Shopify documents it: the proxy
-  creates one local reverse delivery line for each line item on the reverse fulfillment order. `ReverseDeliveryLabelInput`
-  accepts Shopify's `fileUrl` field and preserves it as the downstream `label.publicFileUrl`; legacy local fixture aliases
-  `publicFileUrl` and `url` are still accepted for older recorded runtime fixtures.
+- `reverseDeliveryCreateWithShipping` builds staged reverse delivery lines from `reverseDeliveryLineItems`. Explicit
+  entries preserve input order, quantity, and the requested reverse fulfillment order line item; an empty input follows
+  Shopify's documented expansion rule and creates one local reverse delivery line for each reverse fulfillment order line
+  at that line's total quantity. `ReverseDeliveryLabelInput` accepts Shopify's `fileUrl` field and preserves it as the
+  downstream `label.publicFileUrl`; legacy local fixture aliases `publicFileUrl` and `url` are still accepted for older
+  recorded runtime fixtures.
 - Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
@@ -154,7 +156,9 @@ Local staged mutations:
   replays the same store-backed mutation/read flow with unrelated client operation names to guard against
   document-marker dispatch. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`; the live
+  recorder creates one two-line return for empty-array expansion and a second two-line return for explicit multi-line
+  input so both reverse delivery payloads are captured against real reverse fulfillment order state.
 - Reverse fulfillment disposal validation parity:
   `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-dispose-validation.json`

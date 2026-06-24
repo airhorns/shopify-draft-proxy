@@ -943,22 +943,63 @@ impl DraftProxy {
         let reverse_order_id =
             resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
         let id = self.next_synthetic_gid("ReverseDelivery");
-        let line_id = self.next_synthetic_gid("ReverseDeliveryLineItem");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
+        let rfo_lines = self
+            .store
+            .staged
+            .reverse_fulfillment_orders
+            .get(&reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        let input_lines = list_object_arg(&field.arguments, "reverseDeliveryLineItems");
+        let delivery_line_sources = if input_lines.is_empty() {
+            rfo_lines
+                .iter()
+                .map(|line| (line.clone(), line["totalQuantity"].as_i64().unwrap_or(0)))
+                .collect::<Vec<_>>()
+        } else {
+            input_lines
+                .iter()
+                .map(|input| {
+                    let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
+                        .unwrap_or_default();
+                    let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+                    let line = rfo_lines
+                        .iter()
+                        .find(|line| line["id"].as_str() == Some(line_id.as_str()))
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            json!({
+                                "id": line_id,
+                                "totalQuantity": Value::Null,
+                                "remainingQuantity": Value::Null
+                            })
+                        });
+                    (line, quantity)
+                })
+                .collect::<Vec<_>>()
+        };
+        let reverse_delivery_line_items = delivery_line_sources
+            .into_iter()
+            .map(|(line, quantity)| {
+                json!({
+                    "id": self.next_synthetic_gid("ReverseDeliveryLineItem"),
+                    "quantity": quantity,
+                    "reverseFulfillmentOrderLineItem": {
+                        "id": line["id"].clone(),
+                        "totalQuantity": line["totalQuantity"].clone(),
+                        "remainingQuantity": line["remainingQuantity"].clone()
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
         let delivery = json!({
             "id": id,
             "reverseFulfillmentOrder": { "id": reverse_order_id },
             "reverseDeliveryLineItems": {
-                "nodes": [{
-                    "id": line_id,
-                    "quantity": 1,
-                    "reverseFulfillmentOrderLineItem": {
-                        "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
-                        "totalQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "totalQuantity"),
-                        "remainingQuantity": self.first_reverse_fulfillment_order_line_field(&reverse_order_id, "remainingQuantity")
-                    }
-                }]
+                "nodes": reverse_delivery_line_items
             },
             "deliverable": {
                 "__typename": "ReverseDeliveryShippingDeliverable",
@@ -983,38 +1024,21 @@ impl DraftProxy {
             .reverse_fulfillment_orders
             .get_mut(&reverse_order_id)
         {
-            reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            if let Some(nodes) = reverse_order["reverseDeliveries"]["nodes"].as_array_mut() {
+                if !nodes
+                    .iter()
+                    .any(|node| node["id"].as_str() == Some(id.as_str()))
+                {
+                    nodes.push(json!({ "id": id }));
+                }
+            } else {
+                reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+            }
         }
         selected_json(
             &json!({ "reverseDelivery": delivery, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn first_reverse_fulfillment_order_line_id(&self, reverse_order_id: &str) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node["id"].clone())
-            .unwrap_or(Value::Null)
-    }
-
-    fn first_reverse_fulfillment_order_line_field(
-        &self,
-        reverse_order_id: &str,
-        field: &str,
-    ) -> Value {
-        self.store
-            .staged
-            .reverse_fulfillment_orders
-            .get(reverse_order_id)
-            .and_then(|order| order["lineItems"]["nodes"].as_array())
-            .and_then(|nodes| nodes.first())
-            .map(|node| node[field].clone())
-            .unwrap_or(Value::Null)
     }
 
     fn update_reverse_delivery(&mut self, id: &str, field: &RootFieldSelection) -> Value {
