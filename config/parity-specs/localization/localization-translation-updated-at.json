@@ -1,0 +1,111 @@
+{
+  "scenarioId": "localization-translation-updated-at",
+  "operationNames": ["productCreate", "shopLocaleEnable", "translationsRegister", "translatableResource"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translation-updated-at.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-enable-french-locale",
+        "capturePath": "$.setup.localeSetup.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "locale": "fr" }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shopLocale",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The live shop may already have French enabled, while parity replay enables it on a clean proxy before translationsRegister."
+          },
+          {
+            "path": "$.userErrors",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The setup locale branch is environment-dependent and is not the updatedAt behavior under test."
+          }
+        ]
+      },
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-digest-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setup.productCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a synthetic Product GID while Shopify returns the real disposable Product GID captured from the live shop."
+          }
+        ]
+      },
+      {
+        "name": "translations-register-updated-at",
+        "capturePath": "$.register.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translation-updated-at-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.register.variables.translations"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp translations at different times; parity requires the field to be present with a DateTime-shaped value."
+          }
+        ]
+      },
+      {
+        "name": "translatable-resource-updated-at-read",
+        "capturePath": "$.downstreamRead.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translation-updated-at-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads back the synthetic local Product GID while the live capture reads the disposable Shopify Product GID."
+          },
+          {
+            "path": "$.translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp translations at different times; parity requires the downstream row to retain a DateTime-shaped value."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture extends the localization digest/known-resource flow: it creates a disposable product, enables French, reads the product title digest, registers a valid title translation while selecting Translation.updatedAt, reads the staged translation back through translatableResource(...).translations, then deletes the product and restores the locale only when the script enabled it."
+}
