@@ -1454,7 +1454,7 @@ fn metaobject_value_is_valid_url(value: &str) -> bool {
 }
 
 fn metaobject_reference_value_error(value: &str, gid_type: &str, message: &str) -> Option<String> {
-    if value.starts_with(&format!("gid://shopify/{gid_type}/")) {
+    if value.starts_with(&shopify_gid(gid_type, "")) {
         None
     } else {
         Some(message.to_string())

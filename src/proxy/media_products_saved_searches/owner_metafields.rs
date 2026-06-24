@@ -1277,7 +1277,7 @@ fn owner_metafield_record(
             .and_then(|metafield| metafield.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| format!("gid://shopify/Metafield/{index}")),
+            .unwrap_or_else(|| shopify_gid("Metafield", index)),
         "namespace": namespace,
         "key": key,
         "type": metafield_type,
@@ -1296,7 +1296,7 @@ fn owner_metafield_record(
 
 fn owner_reference_from_gid(owner_id: &str) -> Value {
     json!({
-        "__typename": owner_typename_from_gid(owner_id),
+        "__typename": metafield_owner_gid_resource_type(owner_id),
         "id": owner_id
     })
 }
@@ -1445,9 +1445,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
                 .and_then(|item| item.get("id"))
                 .and_then(Value::as_str)
                 .map(str::to_string)
-                .unwrap_or_else(|| {
-                    format!("gid://shopify/InventoryItem/{}", resource_id_tail(&id))
-                }),
+                .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
             tracked: inventory_item
                 .and_then(|item| item.get("tracked"))
                 .and_then(Value::as_bool)
@@ -1461,10 +1459,6 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
         media_ids: variant_media_ids_from_json(value),
         extra_fields: BTreeMap::new(),
     })
-}
-
-fn owner_typename_from_gid(owner_id: &str) -> &'static str {
-    metafield_owner_gid_resource_type(owner_id)
 }
 
 fn owner_metafield_timestamp(ordinal: u64) -> String {

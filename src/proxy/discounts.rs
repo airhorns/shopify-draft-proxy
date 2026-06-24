@@ -4687,7 +4687,10 @@ pub(in crate::proxy) fn cart_transform_metafields_from_field(
                         "id": match index {
                             0 => "gid://shopify/Metafield/43125986558258".to_string(),
                             1 => "gid://shopify/Metafield/43125986591026".to_string(),
-                            _ => ids.get(index).cloned().unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index + 1)),
+                            _ => ids
+                                .get(index)
+                                .cloned()
+                                .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
                         },
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
@@ -4856,7 +4859,10 @@ fn fulfillment_constraint_rule_metafields_from_field(
                 ResolvedValue::Object(metafield) => {
                     let now = "2026-05-07T17:20:12Z";
                     Some(json!({
-                        "id": ids.get(index).cloned().unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index + 1)),
+                        "id": ids
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),

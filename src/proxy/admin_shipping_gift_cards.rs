@@ -2421,7 +2421,7 @@ impl DraftProxy {
             "field": ["localPickupSettings"],
             "message": format!(
                 "Unable to find an active location for location ID {}",
-                location_id_display_tail(location_id)
+                resource_id_path_tail(location_id)
             ),
             "code": if root_field == "locationLocalPickupEnable" {
                 "ACTIVE_LOCATION_NOT_FOUND"
@@ -7618,10 +7618,6 @@ fn location_local_pickup_disable_payload_selected_json(
             _ => None,
         }
     })
-}
-
-fn location_id_display_tail(location_id: &str) -> &str {
-    resource_id_path_tail(location_id)
 }
 
 fn local_pickup_time_is_standard(pickup_time: &str) -> bool {

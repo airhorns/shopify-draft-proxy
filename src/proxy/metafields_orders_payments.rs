@@ -1883,7 +1883,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
                 .map(|namespace| payment_customization_namespace(&namespace))
                 .unwrap_or_default();
             json!({
-                "id": format!("gid://shopify/Metafield/payment-customization-{}", index + 1),
+                "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
                 "namespace": namespace,
                 "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
                 "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
@@ -2232,7 +2232,7 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
             .map(|(tail, name, description, due_in_days, terms_type)| {
                 selected_json(
                     &json!({
-                        "id": format!("gid://shopify/PaymentTermsTemplate/{tail}"),
+                        "id": shopify_gid("PaymentTermsTemplate", tail),
                         "name": name,
                         "description": description,
                         "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
@@ -2432,7 +2432,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
         json!([])
     } else {
-        let schedule_id = format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id));
+        let schedule_id = shopify_gid("PaymentSchedule", resource_id_tail(id));
         let input_schedules = resolved_object_list_field(attrs, "paymentSchedules");
         let node = payment_schedule_node(
             &schedule_id,
@@ -2508,7 +2508,7 @@ pub(in crate::proxy) fn payment_terms_create_value(
     } else {
         reference_tail
     };
-    let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
+    let terms_id = shopify_gid("PaymentTerms", id_suffix);
     Ok((reference_id, terms_id, attrs))
 }
 
@@ -3263,7 +3263,7 @@ impl DraftProxy {
 
     fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let line_items = resolved_object_list_field(&order_input, "lineItems");
         let first_line = line_items.first().cloned().unwrap_or_default();
@@ -3758,7 +3758,7 @@ impl DraftProxy {
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let price_set = order_arg
             .get("lineItems")
