@@ -3715,7 +3715,7 @@ fn b2b_address_input_errors(
         if let Some(value) = resolved_string_field(address, field_name) {
             let invalid = b2b_contains_html_tags(&value)
                 || b2b_contains_emoji(&value)
-                || (reject_url && b2b_contains_url_substring(&value));
+                || (reject_url && super::customer_address_contains_url(&value));
             if invalid {
                 let mut field = prefix.to_vec();
                 field.push(field_name);
@@ -3864,11 +3864,6 @@ fn b2b_contains_emoji(value: &str) -> bool {
             || (0xfe00..=0xfe0f).contains(&code)
             || code == 0x200d
     })
-}
-
-fn b2b_contains_url_substring(value: &str) -> bool {
-    let lowered = value.to_ascii_lowercase();
-    lowered.contains("http://") || lowered.contains("https://") || lowered.contains("www.")
 }
 
 /// Canada subdivision (province/territory) catalog.
