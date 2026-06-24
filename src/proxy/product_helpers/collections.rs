@@ -666,11 +666,9 @@ impl DraftProxy {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &selection.selection))
-                            .collect(),
+                    "userErrors" => Some(selected_user_errors(
+                        user_errors.as_slice(),
+                        &selection.selection,
                     )),
                     _ => None,
                 }
@@ -1435,9 +1433,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -1463,9 +1459,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(Value::Array(
-                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }

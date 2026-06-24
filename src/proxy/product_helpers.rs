@@ -905,11 +905,9 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
             Some(transaction) => selected_json(transaction, &selection.selection),
             None => Value::Null,
         }),
-        "userErrors" => Some(Value::Array(
-            user_errors
-                .iter()
-                .map(|error| selected_json(error, &selection.selection))
-                .collect(),
+        "userErrors" => Some(selected_user_errors(
+            user_errors.as_slice(),
+            &selection.selection,
         )),
         _ => None,
     })
@@ -931,11 +929,9 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "userErrors" => Some(Value::Array(
-            user_errors
-                .iter()
-                .map(|error| selected_json(error, &selection.selection))
-                .collect(),
+        "userErrors" => Some(selected_user_errors(
+            user_errors.as_slice(),
+            &selection.selection,
         )),
         _ => None,
     })

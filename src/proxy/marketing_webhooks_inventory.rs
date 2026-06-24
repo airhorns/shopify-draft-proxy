@@ -3613,11 +3613,9 @@ impl DraftProxy {
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "inventoryLevel" => Some(inventory_level.clone().unwrap_or(Value::Null)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3629,11 +3627,9 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3656,11 +3652,9 @@ impl DraftProxy {
                     .as_ref()
                     .map_or(Value::Null, |levels| Value::Array(levels.clone())),
             ),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3677,11 +3671,9 @@ impl DraftProxy {
                 inventory_item.as_ref().unwrap_or(&Value::Null),
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
