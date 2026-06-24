@@ -2197,7 +2197,14 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
             fulfillmentConstraintRule { id }
             userErrors { code field message }
           }
-          unknownFunction: fulfillmentConstraintRuleCreate(
+          unknownId: fulfillmentConstraintRuleCreate(
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleCreate(
             functionHandle: "definitely-missing-fulfillment-constraint"
             deliveryMethodTypes: [SHIPPING]
           ) {
@@ -2249,12 +2256,20 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
                     "message": "Delivery method types cannot be empty."
                 }]
             },
-            "unknownFunction": {
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
                 "fulfillmentConstraintRule": null,
                 "userErrors": [{
                     "code": "FUNCTION_NOT_FOUND",
                     "field": ["functionHandle"],
-                    "message": "Could not find function with handle: definitely-missing-fulfillment-constraint."
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
                 }]
             },
             "wrongApi": {
@@ -2281,6 +2296,94 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identifiers() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageFulfillmentConstraintRuleForUpdateErrors {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let rule_id = create.body["data"]["fulfillmentConstraintRuleCreate"]
+        ["fulfillmentConstraintRule"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintRuleUpdateUnknownFunction($id: ID!) {
+          unknownId: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionId: "gid://shopify/ShopifyFunction/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+          unknownHandle: fulfillmentConstraintRuleUpdate(
+            id: $id
+            functionHandle: "definitely-missing-fulfillment-constraint"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+
+    assert_eq!(
+        update.body["data"],
+        json!({
+            "unknownId": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionId"],
+                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            },
+            "unknownHandle": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "FUNCTION_NOT_FOUND",
+                    "field": ["functionHandle"],
+                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                }]
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleAfterUnknownFunctionUpdate { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": rule_id,
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": { "handle": "fulfillment-constraint-local" }
+        }])
+    );
 }
 
 #[test]
