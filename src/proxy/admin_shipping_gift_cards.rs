@@ -1090,8 +1090,7 @@ impl DraftProxy {
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let api_client_id = request_api_client_id(request);
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
@@ -1136,8 +1135,7 @@ impl DraftProxy {
             });
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
         let caller_token = request_access_token(request).unwrap_or_default();
-        let caller_api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+        let caller_api_client_id = request_api_client_id(request);
 
         let mut status = false;
         let mut user_errors = Vec::new();

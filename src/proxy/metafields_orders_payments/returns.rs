@@ -1,11 +1,5 @@
 use super::*;
 
-fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(response_key.to_string(), value);
-    json!({ "data": Value::Object(data) })
-}
-
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
     json!({
         "nodes": nodes,
@@ -285,61 +279,61 @@ impl DraftProxy {
         match root_field {
             "returnCreate" => {
                 let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnRequest" => {
                 let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.approve_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.decline_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnClose" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnReopen" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnCancel" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "removeFromReturn" => {
                 let value = self.remove_from_return(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryCreateWithShipping" => {
                 let value = self.stage_reverse_delivery(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryShippingUpdate" => {
                 let id = resolved_string_arg(&field.arguments, "reverseDeliveryId")?;
                 let value = self.update_reverse_delivery(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseFulfillmentOrderDispose" => {
                 let value = self.dispose_reverse_fulfillment_order(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnProcess" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "returnId"))?;
                 let value = self.process_return(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             _ => None,
         }

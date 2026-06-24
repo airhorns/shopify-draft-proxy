@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 mod customer_payment_methods;
@@ -2769,46 +2770,13 @@ fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let bytes = input.as_bytes();
-    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0];
-        let b1 = *chunk.get(1).unwrap_or(&0);
-        let b2 = *chunk.get(2).unwrap_or(&0);
-        encoded.push(TABLE[(b0 >> 2) as usize] as char);
-        encoded.push(TABLE[(((b0 & 0b0000_0011) << 4) | (b1 >> 4)) as usize] as char);
-        if chunk.len() > 1 {
-            encoded.push(TABLE[(((b1 & 0b0000_1111) << 2) | (b2 >> 6)) as usize] as char);
-        }
-        if chunk.len() > 2 {
-            encoded.push(TABLE[(b2 & 0b0011_1111) as usize] as char);
-        }
-    }
-    encoded
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(input)
 }
 
 fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let lookup = |c: u8| -> Option<u8> { TABLE.iter().position(|&t| t == c).map(|i| i as u8) };
-    let mut output = Vec::with_capacity(input.len() / 4 * 3);
-    for chunk in input.as_bytes().chunks(4) {
-        if chunk.len() < 2 {
-            return None;
-        }
-        let s0 = lookup(chunk[0])?;
-        let s1 = lookup(chunk[1])?;
-        output.push((s0 << 2) | (s1 >> 4));
-        if chunk.len() > 2 {
-            let s2 = lookup(chunk[2])?;
-            output.push(((s1 & 0b0000_1111) << 4) | (s2 >> 2));
-            if chunk.len() > 3 {
-                let s3 = lookup(chunk[3])?;
-                output.push(((s2 & 0b0000_0011) << 6) | s3);
-            }
-        }
-    }
-    Some(output)
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(input)
+        .ok()
 }
 
 /// Recover the source `customerPaymentMethodId` encoded inside an
