@@ -2095,6 +2095,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'standard-metafield-definition-enable-reenable-idempotent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metafield-definition-enable-reenable-idempotent.mts',
+    purpose:
+      'standardMetafieldDefinitionEnable idempotent re-enable behavior, including id stability and over-cap pin re-enable suppression.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-reenable-idempotent.json`,
+      'config/parity-specs/metafields/standard-metafield-definition-enable-reenable-idempotent.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-reenable-idempotent.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-reenable-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions to reach the pin cap, deletes them, deletes the standard definition only when the capture created it, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-delete-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-delete-preconditions-conformance.mts',
@@ -5223,7 +5241,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
       'config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql',
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_duplicate_platform.json`,
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_requires_one_platform.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_duplicate_platform.json',
       `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_requires_one_platform.json',
       'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
       'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
     ],
@@ -5231,7 +5253,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
     expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
     notes:
-      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence. Stale local-runtime parity specs for duplicate-platform and exact-platform create behavior are intentionally retired instead of being treated as Shopify evidence.',
   },
   {
     domain: 'online-store',

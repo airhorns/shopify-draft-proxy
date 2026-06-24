@@ -3182,12 +3182,23 @@ Captured validation branches:
 
 Local support now uses the captured template slice as a bounded local catalog. Successful proxy calls stage a normalized `MetafieldDefinition` record, honor the selected owner type/access/capability/pin inputs that are represented in the local model, and make downstream definition reads observe the staged record without a live Shopify write.
 
+Admin GraphQL 2026-04 live capture for the PRODUCT `descriptors` / `subtitle`
+template recorded idempotent re-enable behavior: enabling the template,
+re-enabling it, and re-enabling it with `pin: true` all returned the same
+`MetafieldDefinition` id. After the capture temporarily created 20 disposable
+pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
+`pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
+`metafieldDefinition(id:)` by the original id still resolved the definition.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
 - when broader fidelity needs a success fixture, set up and clean up the disposable test shop instead of treating Shopify side effects as a capture blocker
 - commit replay should apply the original raw staged mutation to Shopify so the real schema side effect can happen at the intentional commit boundary
 - do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice
+- on the already-enabled standard path, preserve the existing definition id and
+  do not apply the ordinary owner-type pin-cap error; use the captured next
+  pinned position behavior for `pin: true`
 
 ## 65. Discount redeem-code bulk support is narrow by design
 
@@ -3764,3 +3775,22 @@ Practical rule:
 - a real live success-path fixture needs a disposable billing-capable app/store
   credential that can use Shopify's Billing API and safely approve test charges;
   do not hand-author a live billing success fixture from local proxy output
+
+## 87. Mobile platform applications are not unique per shop/platform
+
+Shopify Core does not enforce a one-Android and one-Apple mobile platform
+application limit per shop. The model validates platform-specific identifiers,
+Android certificate fingerprints, and app-clip fields, but does not validate
+platform uniqueness; the GraphQL create mutation unconditionally creates a
+record; and the table has no unique index on `(shop_id, platform)`.
+
+Practical rule:
+
+- do not fabricate `TAKEN` userErrors for repeated
+  `mobilePlatformApplicationCreate` calls with the same platform
+- stage every valid create as a distinct record and make
+  `mobilePlatformApplications` reads expose all staged records
+- the current conformance credential still lacks
+  `read_mobile_platform_applications` and `write_mobile_platform_applications`,
+  so repeated-create parity must wait for a scope-capable dev-store credential
+  rather than being replaced with local-runtime evidence
