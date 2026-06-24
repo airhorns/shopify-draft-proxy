@@ -215,9 +215,9 @@ Remaining gaps that should not be overclaimed:
   inputs return per-field `argumentNotAccepted` errors, `UserError.code` is not
   selectable for the payload, and downstream order reads remain unchanged.
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
-  line items, while `returnCancel`, `returnClose`, and `returnReopen` enforce captured status-machine preconditions and
-  idempotent no-op behavior before updating local return status. Top-level `return(id:)` and nested `Order.returns` read
-  from the same order graph. Broader calculation, returnable fulfillment, processing, removal, reverse-delivery, and
+  line items, while `returnCancel`, `returnClose`, `returnReopen`, and `removeFromReturn` enforce captured
+  status/editability preconditions before updating local return state. Top-level `return(id:)` and nested `Order.returns`
+  read from the same order graph. Broader calculation, returnable fulfillment, processing, reverse-delivery, and
   reverse-fulfillment-order roots are tracked in `/endpoints/returns/` until conformance-backed local models exist.
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.

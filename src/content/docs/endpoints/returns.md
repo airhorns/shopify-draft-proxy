@@ -73,9 +73,11 @@ Local staged mutations:
   Returns with processed or refunded return-line quantities produce `INVALID_STATE` on `["id"]` with Shopify's captured
   `Return is not cancelable.` message and do not mutate local state.
 - `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
-  reverse fulfillment order line quantities. Return line removal quantities must be positive and no greater than the
-  removable quantity for that return line. Exchange-line removal remains explicitly unsupported until exchange fixtures
-  exist.
+  reverse fulfillment order line quantities only while the return is `OPEN` or `REQUESTED`. Closed, canceled, declined,
+  and processed returns return `INVALID_STATE` on `["returnId"]` with Shopify's captured `Return status is invalid.`
+  message and leave return lines, totals, and reverse fulfillment order work unchanged. Return line removal quantities
+  must be positive and no greater than the removable quantity for that return line. Exchange-line removal remains
+  explicitly unsupported until exchange fixtures exist.
 - `returnProcess` updates processed quantities for local return line items and closes the return for subsequent reads when
   all lines are processed. Captured 2026-04 behavior returns the mutation payload with status `OPEN`, then exposes
   `CLOSED` on immediate downstream `return(id:)` / `Order.returns` reads; local staging mirrors that split. Refund duties,
@@ -112,8 +114,9 @@ Local staged mutations:
   shipping update, reverse-fulfillment disposal, return processing, and downstream reads from staged return and
   reverse-logistics records. Exchange processing, carrier label creation, notification sends, refund transfers, duties,
   and inventory/location movement remain explicit unsupported fidelity gaps.
-- Executable parity covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success transitions,
-  idempotent no-op branches, and processed-return cancel rejection in
+- Executable parity covers `returnClose`, `returnReopen`, `returnCancel`, and `removeFromReturn` status preconditions,
+  success transitions, idempotent no-op branches, remove-from-closed-return rejection/readback, and processed-return
+  cancel rejection in
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
 - Executable parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
   `unprocessed`, plus read-after-write `Return.returnShippingFees` / `Order.returns.returnShippingFees`, in

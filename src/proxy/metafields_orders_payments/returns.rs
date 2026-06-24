@@ -765,11 +765,12 @@ impl DraftProxy {
         )
     }
 
-    /// `removeFromReturn`: validate each removal against the return's removable
-    /// quantity (current minus processed) before mutating; on success reduce or
-    /// drop the affected return line items, recompute the total, and rebuild the
-    /// reverse fulfillment order's line items from the surviving return lines.
-    /// On any validation error the return is left null with the error payload.
+    /// `removeFromReturn`: validate the return is still editable, then validate
+    /// each removal against the return's removable quantity (current minus
+    /// processed) before mutating; on success reduce or drop the affected return
+    /// line items, recompute the total, and rebuild the reverse fulfillment
+    /// order's line items from the surviving return lines. On any validation
+    /// error the return is left null with the error payload.
     fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
         let removals = list_object_arg(&field.arguments, "returnLineItems");
@@ -779,6 +780,13 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        let status = record["status"].as_str().unwrap_or_default();
+        if !matches!(status, "OPEN" | "REQUESTED") {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return status is invalid.", "INVALID_STATE")] }),
+                &field.selection,
+            );
+        }
         let mut nodes = record["returnLineItems"]["nodes"]
             .as_array()
             .cloned()
