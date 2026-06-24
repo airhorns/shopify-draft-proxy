@@ -4553,11 +4553,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-engagement-create-validation-order-conformance.mts',
     purpose:
-      'Marketing engagement create selector-count, channel-handle, currency, and missing-activity validation order.',
+      'Marketing engagement create selector-count, channel-handle, currency, missing-activity, and invalid-channel message validation.',
     requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}marketing-engagement-create-validation-order.json`,
+      'config/parity-specs/marketing/marketing-engagement-create-invalid-channel-handle.json',
       'config/parity-specs/marketing/marketing-engagement-create-validation-order.json',
+      'config/parity-requests/marketing/marketing-engagement-create-invalid-channel-handle.graphql',
       'config/parity-requests/marketing/marketing-engagement-create-validation-order-multiple-activity-selectors.graphql',
       'config/parity-requests/marketing/marketing-engagement-create-validation-order-multiple-channel-selectors.graphql',
       'config/parity-requests/marketing/marketing-engagement-create-validation-order-setup.graphql',

@@ -387,6 +387,63 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
+fn marketing_channel_handle_errors_match_live_capture() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingChannelHandleMessages(
+          $createInput: MarketingActivityCreateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+          $engagement: MarketingEngagementInput!
+        ) {
+          invalidEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
+            marketingEngagement { occurredOn }
+            userErrors { field message code }
+          }
+          invalidCreate: marketingActivityCreateExternal(input: $createInput) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+          invalidUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "createInput": {"title": "Invalid create channel", "remoteId": "invalid-create-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-create-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-create-channel", "source": "email", "medium": "newsletter"}},
+            "upsertInput": {"title": "Invalid upsert channel", "remoteId": "invalid-upsert-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-upsert-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-upsert-channel", "source": "email", "medium": "newsletter"}},
+            "engagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00"}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["invalidEngagement"],
+        json!({"marketingEngagement": null, "userErrors": [{
+            "field": ["channelHandle"],
+            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+            "code": "INVALID_CHANNEL_HANDLE"
+        }]})
+    );
+    assert_eq!(
+        response.body["data"]["invalidCreate"],
+        json!({"marketingActivity": null, "userErrors": [{
+            "field": ["input"],
+            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+            "code": "INVALID_CHANNEL_HANDLE"
+        }]})
+    );
+    assert_eq!(
+        response.body["data"]["invalidUpsert"],
+        json!({"marketingActivity": null, "userErrors": [{
+            "field": ["input"],
+            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+            "code": "INVALID_CHANNEL_HANDLE"
+        }]})
+    );
+}
+
+#[test]
 fn marketing_external_activity_create_validation_reaches_rust_handler() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
