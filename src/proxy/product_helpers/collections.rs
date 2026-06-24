@@ -980,7 +980,9 @@ impl DraftProxy {
                 "collectionUpdate",
                 None,
                 None,
-                vec![collection_user_error(["id"], "Collection does not exist")],
+                vec![collection_user_error_null_field(
+                    "Collection does not exist",
+                )],
             ));
         };
         if let Some(response) = self.collection_input_validation_response(
@@ -1869,6 +1871,10 @@ fn collection_invalid_sort_order_response(
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
     user_error_omit_code(field, message, None)
+}
+
+fn collection_user_error_null_field(message: &str) -> Value {
+    user_error_omit_code(Value::Null, message, None)
 }
 
 fn strip_numeric_suffix(handle: &str) -> String {
