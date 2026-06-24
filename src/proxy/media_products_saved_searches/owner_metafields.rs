@@ -972,9 +972,6 @@ impl DraftProxy {
 
         let (entries, page_info) =
             connection_window(&entries, &selection.arguments, |entry| entry.id.clone());
-        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
-        let page_info_selection = nested_selected_fields(&selection.selection, &["pageInfo"]);
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
@@ -1000,34 +997,13 @@ impl DraftProxy {
                     )
                 }
             };
-        let mut connection = serde_json::Map::new();
-        for selected in &selection.selection {
-            let value = match selected.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    entries
-                        .iter()
-                        .map(|entry| render_variant(entry, &node_selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    entries
-                        .iter()
-                        .map(|entry| {
-                            json!({
-                                "cursor": entry.id,
-                                "node": render_variant(entry, &edge_node_selection)
-                            })
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(&page_info, &page_info_selection)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                connection.insert(selected.response_key.clone(), value);
-            }
-        }
-        Value::Object(connection)
+        selected_typed_connection_with_page_info(
+            &entries,
+            &selection.selection,
+            render_variant,
+            |entry| entry.id.clone(),
+            page_info,
+        )
     }
 
     fn owner_field_selects_metafields_at_root(
@@ -1136,35 +1112,15 @@ impl DraftProxy {
             }
         }
 
-        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
-        let nodes = records
-            .iter()
-            .map(|metafield| selected_json(metafield, &node_selection))
-            .collect::<Vec<_>>();
-        let edges = records
-            .iter()
-            .map(|metafield| {
-                let cursor = metafield_cursor(metafield).unwrap_or_default();
-                json!({
-                    "cursor": cursor,
-                    "node": selected_json(metafield, &edge_node_selection)
-                })
-            })
-            .collect::<Vec<_>>();
         let start_cursor = records.first().and_then(metafield_cursor);
         let end_cursor = records.last().and_then(metafield_cursor);
-        let connection = json!({
-            "nodes": nodes,
-            "edges": edges,
-            "pageInfo": connection_page_info(
-                has_next_page,
-                has_previous_page,
-                start_cursor,
-                end_cursor
-            )
-        });
-        selected_json(&connection, &selection.selection)
+        selected_typed_connection_with_page_info(
+            &records,
+            &selection.selection,
+            selected_json,
+            |metafield| metafield_cursor(metafield).unwrap_or_default(),
+            connection_page_info(has_next_page, has_previous_page, start_cursor, end_cursor),
+        )
     }
 
     fn selected_owner_metafields_connection_overlay(
