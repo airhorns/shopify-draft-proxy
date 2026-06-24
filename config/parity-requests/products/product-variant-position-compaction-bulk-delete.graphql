@@ -1,0 +1,19 @@
+mutation ProductVariantPositionCompactionBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+    product {
+      id
+      variants(first: 10) {
+        nodes {
+          id
+          sku
+          position
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

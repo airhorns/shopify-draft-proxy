@@ -1,0 +1,562 @@
+{
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "recordedAt": "2026-06-23T23:29:46.892Z",
+    "liveDeleteRoot": "productVariantsBulkDelete",
+    "notes": "The single-delete compatibility branch records Shopify janitor output through a one-id productVariantsBulkDelete call because the current 2025-01 live schema does not expose productVariantDelete."
+  },
+  "singleDelete": {
+    "create": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n          selectedOptions {\n            name\n            value\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Hermes Variant Position Single 1782257383758",
+            "status": "DRAFT",
+            "productOptions": [
+              {
+                "name": "Color",
+                "values": [
+                  {
+                    "name": "Red"
+                  },
+                  {
+                    "name": "Blue"
+                  },
+                  {
+                    "name": "Green"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220277399858",
+              "title": "Hermes Variant Position Single 1782257383758",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12777545793842",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Red"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295623474",
+                      "name": "Red",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295656242",
+                      "name": "Blue",
+                      "hasVariants": false
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295689010",
+                      "name": "Green",
+                      "hasVariants": false
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169610034",
+                    "sku": null,
+                    "position": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "bulkCreate": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionBulkCreate(\n  $productId: ID!\n  $variants: [ProductVariantsBulkInput!]!\n) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    product {\n      id\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n        }\n      }\n    }\n    productVariants {\n      id\n      sku\n      position\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10220277399858",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                }
+              ],
+              "price": "11.00",
+              "inventoryItem": {
+                "sku": "HERMES-POS-1782257383758-BLUE"
+              }
+            },
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Green"
+                }
+              ],
+              "price": "12.00",
+              "inventoryItem": {
+                "sku": "HERMES-POS-1782257383758-GREEN"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220277399858",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169610034",
+                    "sku": null,
+                    "position": 1
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169642802",
+                    "sku": "HERMES-POS-1782257383758-BLUE",
+                    "position": 2
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169675570",
+                    "sku": "HERMES-POS-1782257383758-GREEN",
+                    "position": 3
+                  }
+                ]
+              }
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51359169642802",
+                "sku": "HERMES-POS-1782257383758-BLUE",
+                "position": 2
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359169675570",
+                "sku": "HERMES-POS-1782257383758-GREEN",
+                "position": 3
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionBulkDelete($productId: ID!, $variantsIds: [ID!]!) {\n  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {\n    product {\n      id\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10220277399858",
+          "variantsIds": ["gid://shopify/ProductVariant/51359169642802"]
+        }
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkDelete": {
+            "product": {
+              "id": "gid://shopify/Product/10220277399858",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169610034",
+                    "sku": null,
+                    "position": 1
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169675570",
+                    "sku": "HERMES-POS-1782257383758-GREEN",
+                    "position": 2
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterDelete": {
+      "request": {
+        "query": "query ProductVariantPositionCompactionRead($id: ID!) {\n  product(id: $id) {\n    id\n    variants(first: 10) {\n      nodes {\n        id\n        sku\n        position\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Product/10220277399858"
+        }
+      },
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10220277399858",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51359169610034",
+                  "sku": null,
+                  "position": 1
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51359169675570",
+                  "sku": "HERMES-POS-1782257383758-GREEN",
+                  "position": 2
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "bulkDelete": {
+    "create": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n          selectedOptions {\n            name\n            value\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Hermes Variant Position Bulk 1782257383758",
+            "status": "DRAFT",
+            "productOptions": [
+              {
+                "name": "Color",
+                "values": [
+                  {
+                    "name": "Red"
+                  },
+                  {
+                    "name": "Blue"
+                  },
+                  {
+                    "name": "Green"
+                  },
+                  {
+                    "name": "Yellow"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220277465394",
+              "title": "Hermes Variant Position Bulk 1782257383758",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12777545892146",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Red"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295787314",
+                      "name": "Red",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295820082",
+                      "name": "Blue",
+                      "hasVariants": false
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295852850",
+                      "name": "Green",
+                      "hasVariants": false
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8215295885618",
+                      "name": "Yellow",
+                      "hasVariants": false
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169741106",
+                    "sku": null,
+                    "position": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "bulkCreate": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionBulkCreate(\n  $productId: ID!\n  $variants: [ProductVariantsBulkInput!]!\n) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    product {\n      id\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n        }\n      }\n    }\n    productVariants {\n      id\n      sku\n      position\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10220277465394",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                }
+              ],
+              "price": "11.00",
+              "inventoryItem": {
+                "sku": "HERMES-POS-1782257383758-BLUE"
+              }
+            },
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Green"
+                }
+              ],
+              "price": "12.00",
+              "inventoryItem": {
+                "sku": "HERMES-POS-1782257383758-GREEN"
+              }
+            },
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Yellow"
+                }
+              ],
+              "price": "13.00",
+              "inventoryItem": {
+                "sku": "HERMES-POS-1782257383758-YELLOW"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220277465394",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169741106",
+                    "sku": null,
+                    "position": 1
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169773874",
+                    "sku": "HERMES-POS-1782257383758-BLUE",
+                    "position": 2
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169806642",
+                    "sku": "HERMES-POS-1782257383758-GREEN",
+                    "position": 3
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169839410",
+                    "sku": "HERMES-POS-1782257383758-YELLOW",
+                    "position": 4
+                  }
+                ]
+              }
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51359169773874",
+                "sku": "HERMES-POS-1782257383758-BLUE",
+                "position": 2
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359169806642",
+                "sku": "HERMES-POS-1782257383758-GREEN",
+                "position": 3
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51359169839410",
+                "sku": "HERMES-POS-1782257383758-YELLOW",
+                "position": 4
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "query": "mutation ProductVariantPositionCompactionBulkDelete($productId: ID!, $variantsIds: [ID!]!) {\n  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {\n    product {\n      id\n      variants(first: 10) {\n        nodes {\n          id\n          sku\n          position\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10220277465394",
+          "variantsIds": ["gid://shopify/ProductVariant/51359169773874", "gid://shopify/ProductVariant/51359169806642"]
+        }
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkDelete": {
+            "product": {
+              "id": "gid://shopify/Product/10220277465394",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169741106",
+                    "sku": null,
+                    "position": 1
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51359169839410",
+                    "sku": "HERMES-POS-1782257383758-YELLOW",
+                    "position": 2
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterDelete": {
+      "request": {
+        "query": "query ProductVariantPositionCompactionRead($id: ID!) {\n  product(id: $id) {\n    id\n    variants(first: 10) {\n      nodes {\n        id\n        sku\n        position\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Product/10220277465394"
+        }
+      },
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10220277465394",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51359169741106",
+                  "sku": null,
+                  "position": 1
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51359169839410",
+                  "sku": "HERMES-POS-1782257383758-YELLOW",
+                  "position": 2
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
