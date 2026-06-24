@@ -228,7 +228,7 @@ impl DraftProxy {
         card["lastCharacters"] = json!(last_characters);
         card["maskedCode"] = json!(format!("•••• •••• •••• {}", last_characters));
         card["giftCardCode"] = json!(code);
-        card["initialValue"] = json!({ "amount": amount, "currencyCode": "CAD" });
+        card["initialValue"] = money_value(&amount, "CAD");
         card["balance"] = card["initialValue"].clone();
         card["notify"] = json!(notify);
         card["source"] = json!("api_client");
@@ -508,7 +508,7 @@ impl DraftProxy {
             "__typename": if is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
             "note": transaction_note,
             "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| GIFT_CARD_SYNTHETIC_NOW.to_string()),
-            "amount": { "amount": format_money_amount(signed_amount), "currencyCode": currency },
+            "amount": money_value(&format_money_amount(signed_amount), &currency),
             "giftCard": card.clone()
         });
         push_gift_card_transaction(&mut card, transaction.clone());
@@ -802,7 +802,7 @@ fn gift_card_seed_record(id: &str) -> Option<Value> {
             Some(card)
         }
         "gid://shopify/GiftCard/654867595570" => {
-            card["initialValue"] = json!({ "amount": "3000.0", "currencyCode": "CAD" });
+            card["initialValue"] = money_value("3000.0", "CAD");
             card["balance"] = card["initialValue"].clone();
             Some(card)
         }
