@@ -2418,31 +2418,34 @@ fn app_discount_input_user_errors(
         return errors;
     };
     let code_app = typename == "DiscountCodeApp";
-    match resolved_string_path(input, &["title"]) {
-        Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("title")],
-            if code_app {
-                "can't be blank"
-            } else {
-                "Title can't be blank."
-            },
-            Some("INVALID"),
-        )),
-        Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("title")],
-            "is too long (maximum is 255 characters)",
-            Some("INVALID"),
-        )),
-        Some(_) => {}
-        None => errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("title")],
-            if code_app {
-                "can't be blank"
-            } else {
-                "Title can't be blank."
-            },
-            Some("INVALID"),
-        )),
+    let validate_title = !code_app || create || resolved_string_path(input, &["title"]).is_some();
+    if validate_title {
+        match resolved_string_path(input, &["title"]) {
+            Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("title")],
+                if code_app {
+                    "can't be blank"
+                } else {
+                    "Title can't be blank."
+                },
+                Some("INVALID"),
+            )),
+            Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("title")],
+                "is too long (maximum is 255 characters)",
+                Some("INVALID"),
+            )),
+            Some(_) => {}
+            None => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("title")],
+                if code_app {
+                    "Required argument not found."
+                } else {
+                    "Title can't be blank."
+                },
+                Some("INVALID"),
+            )),
+        }
     }
     if code_app {
         match resolved_string_path(input, &["code"]) {

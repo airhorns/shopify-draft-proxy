@@ -20,6 +20,107 @@ fn seed_product(id: &str) -> ProductRecord {
     }
 }
 
+fn create_product_media_for_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    media_content_type: &str,
+    alt: &str,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductMediaForTest($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{
+                "mediaContentType": media_content_type,
+                "originalSource": if media_content_type == "EXTERNAL_VIDEO" {
+                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                } else {
+                    "https://placehold.co/640x480/png"
+                },
+                "alt": alt
+            }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("created media id should be present")
+        .to_string()
+}
+
+fn settle_product_media_for_test(proxy: &mut DraftProxy, product_id: &str, media_id: &str) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SettleProductMediaForTest($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media { id status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{ "id": media_id }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productUpdateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+}
+
+fn append_variant_media_for_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    variant_media: Value,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppendVariantMediaForTest($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantMedia": variant_media }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["productVariantAppendMedia"]["userErrors"].clone()
+}
+
+fn detach_variant_media_for_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    variant_media: Value,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DetachVariantMediaForTest($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantMedia": variant_media }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["productVariantDetachMedia"]["userErrors"].clone()
+}
+
 fn seed_product_with_options(id: &str) -> ProductRecord {
     let mut product = seed_product(id);
     product.extra_fields.insert(
@@ -1165,6 +1266,143 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
 }
 
 #[test]
+fn product_variant_media_validation_guards_match_captured_shopify_errors() {
+    let forwarded = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&forwarded);
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            panic!("product variant media validation should not call upstream")
+        });
+    let variant = create_legacy_variant(&mut proxy, product_id, "MEDIA-VALIDATION", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let ready_media_id =
+        create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Ready media");
+    settle_product_media_for_test(&mut proxy, product_id, &ready_media_id);
+    let second_ready_media_id =
+        create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Second ready media");
+    settle_product_media_for_test(&mut proxy, product_id, &second_ready_media_id);
+    let external_video_id = create_product_media_for_test(
+        &mut proxy,
+        product_id,
+        "EXTERNAL_VIDEO",
+        "External video media",
+    );
+
+    let too_many_pairs = Value::Array(
+        (0..101)
+            .map(|_| json!({ "variantId": variant_id, "mediaIds": [ready_media_id] }))
+            .collect(),
+    );
+    assert_eq!(
+        append_variant_media_for_test(&mut proxy, product_id, too_many_pairs.clone()),
+        json!([{
+            "field": ["variantMedia"],
+            "message": "Exceeded 100 variant-media pairs per mutation.",
+            "code": "MAXIMUM_VARIANT_MEDIA_PAIRS_EXCEEDED"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(&mut proxy, product_id, too_many_pairs),
+        json!([{
+            "field": ["variantMedia"],
+            "message": "Exceeded 100 variant-media pairs per mutation.",
+            "code": "MAXIMUM_VARIANT_MEDIA_PAIRS_EXCEEDED"
+        }])
+    );
+
+    let too_many_media_ids =
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id, second_ready_media_id] }]);
+    assert_eq!(
+        append_variant_media_for_test(&mut proxy, product_id, too_many_media_ids.clone()),
+        json!([{
+            "field": ["variantMedia", "0", "mediaIds"],
+            "message": "Only one mediaId is allowed per media input.",
+            "code": "TOO_MANY_MEDIA_PER_INPUT_PAIR"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(&mut proxy, product_id, too_many_media_ids),
+        json!([{
+            "field": ["variantMedia", "0", "mediaIds"],
+            "message": "Only one mediaId is allowed per media input.",
+            "code": "TOO_MANY_MEDIA_PER_INPUT_PAIR"
+        }])
+    );
+
+    let duplicate_variant = json!([
+        { "variantId": variant_id, "mediaIds": [ready_media_id] },
+        { "variantId": variant_id, "mediaIds": [second_ready_media_id] }
+    ]);
+    assert_eq!(
+        append_variant_media_for_test(&mut proxy, product_id, duplicate_variant.clone()),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "Variant was specified in more than one media input.",
+            "code": "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(&mut proxy, product_id, duplicate_variant),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "Variant was specified in more than one media input.",
+            "code": "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES"
+        }])
+    );
+
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [external_video_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "mediaIds"],
+            "message": "Non-image media cannot be attached to variants.",
+            "code": "INVALID_MEDIA_TYPE"
+        }])
+    );
+
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "The specified media is not attached to the specified variant.",
+            "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+        }])
+    );
+
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [second_ready_media_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "The given variant already has attached media.",
+            "code": "PRODUCT_VARIANT_ALREADY_HAS_MEDIA"
+        }])
+    );
+    assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
 fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
 
@@ -1940,6 +2178,27 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
         })
     );
 
+    let variant_only = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/Publication/2",
+            "input": { "publishablesToAdd": [variant_id] }
+        }),
+    ));
+    assert_eq!(variant_only.body["data"]["publicationUpdate"], Value::Null);
+    assert_eq!(
+        variant_only.body["errors"][0]["message"],
+        json!(format!("Invalid id: {variant_id}"))
+    );
+    assert_eq!(
+        variant_only.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        variant_only.body["errors"][0]["path"],
+        json!(["publicationUpdate"])
+    );
+
     let mixed = proxy.process_request(json_graphql_request(
         update_query,
         json!({
@@ -1947,13 +2206,18 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
             "input": { "publishablesToAdd": [product_id, variant_id] }
         }),
     ));
+    assert_eq!(mixed.body["data"]["publicationUpdate"], Value::Null);
     assert_eq!(
-        mixed.body["data"]["publicationUpdate"]["userErrors"],
-        json!([{
-            "field": ["input"],
-            "message": "Cannot combine products and variants in the same publication update",
-            "code": "CANNOT_COMBINE_PRODUCTS_AND_VARIANTS"
-        }])
+        mixed.body["errors"][0]["message"],
+        json!(format!("Invalid id: {variant_id}"))
+    );
+    assert_eq!(
+        mixed.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        mixed.body["errors"][0]["path"],
+        json!(["publicationUpdate"])
     );
 
     let invalid = proxy.process_request(json_graphql_request(
@@ -6499,6 +6763,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         mutation DeleteCollection($input: CollectionDeleteInput!) {
           collectionDelete(input: $input) {
             deletedCollectionId
+            shop { id }
             userErrors { field message }
           }
         }
@@ -6508,6 +6773,14 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     assert_eq!(
         delete.body["data"]["collectionDelete"]["deletedCollectionId"],
         json!(collection_id)
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["shop"],
+        json!({ "id": "gid://shopify/Shop/92891250994" })
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["userErrors"],
+        json!([])
     );
     let after_delete = proxy.process_request(json_graphql_request(
         r#"
@@ -6545,6 +6818,38 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
             "missing staged log entry for {root}: {log}"
         );
     }
+}
+
+#[test]
+fn collection_delete_payload_includes_shop_on_user_error() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingCollection($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) {
+            deletedCollectionId
+            shop { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Collection/missing" } }),
+    ));
+
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["collectionDelete"],
+        json!({
+            "deletedCollectionId": null,
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Collection does not exist"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
@@ -6618,6 +6923,73 @@ fn collection_create_rejects_client_supplied_id_without_staging() {
         proxy.get_log_snapshot()["entries"][0]["stagedResourceIds"],
         json!([collection_id])
     );
+}
+
+#[test]
+fn collection_update_missing_id_returns_top_level_bad_request_without_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionUpdateMissingId($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Missing Id" } }),
+    ));
+
+    assert_eq!(missing_id.status, 200);
+    assert_eq!(
+        missing_id.body["errors"][0]["message"],
+        json!("id must be specified on collectionUpdate")
+    );
+    assert_eq!(
+        missing_id.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        missing_id.body["errors"][0]["path"],
+        json!(["collectionUpdate"])
+    );
+    assert_eq!(missing_id.body["data"]["collectionUpdate"], Value::Null);
+    assert!(missing_id
+        .body
+        .pointer("/data/collectionUpdate/userErrors")
+        .is_none());
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionUpdateUnknownId($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Collection/999999999999999",
+                "title": "Unknown Id"
+            }
+        }),
+    ));
+
+    assert_eq!(unknown_id.status, 200);
+    assert_eq!(
+        unknown_id.body["data"]["collectionUpdate"],
+        json!({
+            "collection": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Collection does not exist"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]

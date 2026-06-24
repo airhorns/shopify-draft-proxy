@@ -1,0 +1,15 @@
+mutation SellingPlanGroupUpdateAppIdReadback($id: ID!, $input: SellingPlanGroupInput!) {
+  sellingPlanGroupUpdate(id: $id, input: $input) {
+    deletedSellingPlanIds
+    sellingPlanGroup {
+      id
+      appId
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

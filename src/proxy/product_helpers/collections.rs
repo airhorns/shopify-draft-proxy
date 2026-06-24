@@ -966,14 +966,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let input = collection_input(query, variables).unwrap_or_default();
-        let Some(id) = resolved_string_field(&input, "id") else {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionUpdate",
-                None,
-                None,
-                vec![collection_user_error(["id"], "Collection does not exist")],
+        let Some(id) = resolved_string_field(&input, "id").filter(|id| !id.trim().is_empty())
+        else {
+            return MutationOutcome::response(collection_update_missing_id_response(
+                query, variables,
             ));
         };
         self.hydrate_missing_collection_baseline(&id, &[]);
@@ -1461,10 +1457,12 @@ impl DraftProxy {
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let shop = effective_shop_json(&self.store);
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
+                    "shop" => Some(selected_json(&shop, &selection.selection)),
                     "userErrors" => Some(Value::Array(
                         user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
                     )),
@@ -1814,6 +1812,33 @@ fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Res
             "path": [root_field, "productIds"],
             "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
         }]
+    }))
+}
+
+fn collection_update_missing_id_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let field = primary_root_field(query, variables)
+        .or_else(|| primary_root_field(query, &BTreeMap::new()));
+    let response_key = field
+        .as_ref()
+        .map(|field| field.response_key.clone())
+        .unwrap_or_else(|| "collectionUpdate".to_string());
+    let location = field
+        .as_ref()
+        .map(|field| field.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [{
+            "message": "id must be specified on collectionUpdate",
+            "locations": [{"line": location.line, "column": location.column}],
+            "extensions": {"code": "BAD_REQUEST"},
+            "path": [response_key.clone()]
+        }],
+        "data": {
+            response_key: Value::Null
+        }
     }))
 }
 

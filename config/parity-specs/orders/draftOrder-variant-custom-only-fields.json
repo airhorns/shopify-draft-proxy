@@ -1,0 +1,42 @@
+{
+  "scenarioId": "draft-order-variant-custom-only-fields",
+  "operationNames": ["draftOrderCreate", "draftOrderCalculate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "normalization-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-variant-custom-only-fields.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draft-order-variant-custom-only-create.graphql",
+    "variablesCapturePath": "$.draftOrderCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.draftOrder.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The proxy allocates a local draft order GID while Shopify returns the live disposable draft order GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-variant-line-catalog-values",
+        "capturePath": "$.draftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate"
+      },
+      {
+        "name": "calculate-variant-line-catalog-values",
+        "capturePath": "$.draftOrderCalculate.response.data.draftOrderCalculate",
+        "proxyPath": "$.data.draftOrderCalculate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-variant-custom-only-calculate.graphql",
+          "variablesCapturePath": "$.draftOrderCalculate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence that draft-order line items with variantId ignore custom-only input fields such as title, sku, originalUnitPrice, taxable, and requiresShipping. The capture uses a disposable product variant with known catalog values, supplies bogus custom-only values to draftOrderCreate and draftOrderCalculate, and asserts Shopify returns catalog-derived line-item values."
+}
