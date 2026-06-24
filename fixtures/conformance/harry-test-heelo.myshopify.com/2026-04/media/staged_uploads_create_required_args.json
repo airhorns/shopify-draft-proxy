@@ -1,0 +1,80 @@
+{
+  "notes": "Captures Shopify Admin GraphQL stagedUploadsCreate schema coercion when required StagedUploadInput filename or mimeType is omitted. No upload target is allocated and no upload bytes are sent.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "missingFilename",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadRequiredArgsMissingFilename {\n    stagedUploadsCreate(input: [{ resource: FILE, mimeType: \"text/plain\" }]) {\n      stagedTargets {\n        url\n        resourceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'filename' on InputObject 'StagedUploadInput' is required. Expected type String!",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 33
+                }
+              ],
+              "path": [
+                "mutation StagedUploadRequiredArgsMissingFilename",
+                "stagedUploadsCreate",
+                "input",
+                0,
+                "filename"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "filename",
+                "argumentType": "String!",
+                "inputObjectType": "StagedUploadInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "missingMimeType",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadRequiredArgsMissingMimeType {\n    stagedUploadsCreate(input: [{ resource: FILE, filename: \"required-args.txt\" }]) {\n      stagedTargets {\n        url\n        resourceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'mimeType' on InputObject 'StagedUploadInput' is required. Expected type String!",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 33
+                }
+              ],
+              "path": [
+                "mutation StagedUploadRequiredArgsMissingMimeType",
+                "stagedUploadsCreate",
+                "input",
+                0,
+                "mimeType"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "mimeType",
+                "argumentType": "String!",
+                "inputObjectType": "StagedUploadInput"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

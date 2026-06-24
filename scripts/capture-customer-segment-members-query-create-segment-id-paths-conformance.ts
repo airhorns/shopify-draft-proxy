@@ -99,9 +99,16 @@ async function captureCase(
   name: string,
   query: string,
   variables: Record<string, unknown>,
+  options: { expectGraphqlErrors?: boolean } = {},
 ): Promise<ConformanceGraphqlResult> {
   const response = await runGraphqlRequest(query, variables);
-  assertSuccess(response, name);
+  if (options.expectGraphqlErrors) {
+    if (response.status < 200 || response.status >= 300 || !response.payload.errors) {
+      throw new Error(`${name} did not return expected GraphQL errors: ${JSON.stringify(response, null, 2)}`);
+    }
+  } else {
+    assertSuccess(response, name);
+  }
   cases.push({
     name,
     request: { query, variables },
@@ -147,6 +154,42 @@ try {
       segmentId: 'gid://shopify/Segment/999999999999999999',
     },
   });
+
+  await captureCase(
+    cases,
+    'malformedSegmentIdRejectedBeforeResolver',
+    memberQueryCreateMutation,
+    {
+      input: {
+        segmentId: 'not-a-gid',
+      },
+    },
+    { expectGraphqlErrors: true },
+  );
+
+  await captureCase(
+    cases,
+    'emptySegmentIdRejectedBeforeResolver',
+    memberQueryCreateMutation,
+    {
+      input: {
+        segmentId: '',
+      },
+    },
+    { expectGraphqlErrors: true },
+  );
+
+  await captureCase(
+    cases,
+    'wrongTypeSegmentIdRejectedBeforeResolver',
+    memberQueryCreateMutation,
+    {
+      input: {
+        segmentId: 'gid://shopify/Customer/1',
+      },
+    },
+    { expectGraphqlErrors: true },
+  );
 } finally {
   for (const segmentId of createdSegmentIds.reverse()) {
     const response = await runGraphqlRequest(segmentDeleteMutation, { id: segmentId });
@@ -169,6 +212,8 @@ await writeFile(
         'Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) accepts stored segment queries using broad segment grammar without revalidating the resolved query on this mutation surface.',
         "The configured live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead.",
         'Live evidence that an unknown valid Segment GID returns CustomerSegmentMembersQueryUserError field:null code:INVALID message:"Invalid segment ID."',
+        'Live evidence that malformed, empty, and wrong-resource segmentId inputs fail before the resolver with top-level GraphQL errors.',
+        'No store state is required for the malformed, empty, or wrong-resource GID cases and no cleanup is needed for those branches.',
         'Disposable segments are created to capture segmentId-backed branches, then deleted during cleanup.',
         'CustomerSegmentMembersQuery jobs are Shopify async query state and do not have a cleanup mutation.',
       ],

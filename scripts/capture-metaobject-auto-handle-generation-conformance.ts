@@ -31,10 +31,12 @@ const type = `auto_handle_${runId}`;
 const randomHandleBase = type.replaceAll('_', '-').toLowerCase();
 const explicitHandle = 'MyHandle';
 const explicitConflictHandle = explicitHandle.toLowerCase();
+const upsertHandle = 'UpsertHandle';
 
 const requestPaths = {
   definitionCreate: 'config/parity-requests/metaobjects/metaobject-auto-handle-generation-definition-create.graphql',
   create: 'config/parity-requests/metaobjects/metaobject-auto-handle-generation-create.graphql',
+  upsert: 'config/parity-requests/metaobjects/metaobject-auto-handle-generation-upsert.graphql',
 };
 
 const documents = Object.fromEntries(
@@ -199,6 +201,26 @@ function createVariables(handle?: string): Record<string, unknown> {
   };
 }
 
+function upsertVariables(handle: string, fieldValue: string): Record<string, unknown> {
+  return {
+    handle: { type, handle },
+    metaobject: {
+      fields: [{ key: 'body', value: fieldValue }],
+    },
+  };
+}
+
+function assertUpsertFallbackDisplayName(capture: Capture, label: string): void {
+  const handle = extractString(capture.response, ['data', 'metaobjectUpsert', 'metaobject', 'handle'], label);
+  const displayName = extractString(capture.response, ['data', 'metaobjectUpsert', 'metaobject', 'displayName'], label);
+  if (handle !== upsertHandle.toLowerCase()) {
+    throw new Error(`${label} returned handle ${handle}, expected ${upsertHandle.toLowerCase()}`);
+  }
+  if (displayName !== 'Upsert Handle') {
+    throw new Error(`${label} returned displayName ${displayName}, expected Upsert Handle`);
+  }
+}
+
 async function cleanup(
   createdMetaobjectIds: string[],
   definitionIds: string[],
@@ -239,7 +261,7 @@ function generatedHandleDifferences() {
 function buildSpec(): Record<string, unknown> {
   return {
     scenarioId: 'metaobject-auto-handle-generation',
-    operationNames: ['metaobjectDefinitionCreate', 'metaobjectCreate'],
+    operationNames: ['metaobjectDefinitionCreate', 'metaobjectCreate', 'metaobjectUpsert'],
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'runtime-staging'],
     liveCaptureFiles: [outputPath],
@@ -251,7 +273,7 @@ function buildSpec(): Record<string, unknown> {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'Live Shopify evidence for metaobjectCreate handle generation when no handle is supplied and the definition has no displayNameKey, plus explicit mixed-case handle lowercasing, titleized display-name fallback, and case-insensitive conflict suffixing.',
+      'Live Shopify evidence for metaobjectCreate handle generation when no handle is supplied and the definition has no displayNameKey, explicit mixed-case handle lowercasing, titleized display-name fallback, case-insensitive conflict suffixing, and metaobjectUpsert create/update fallback displayName derivation from the explicit handle.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [],
@@ -308,6 +330,28 @@ function buildSpec(): Record<string, unknown> {
             apiVersion,
           },
         },
+        {
+          name: 'upsert-create-explicit-handle-fallback-display-name',
+          capturePath: '$.upsertCreate.response.data.metaobjectUpsert',
+          proxyPath: '$.data.metaobjectUpsert',
+          selectedPaths: ['$.metaobject.handle', '$.metaobject.type', '$.metaobject.displayName', '$.userErrors'],
+          proxyRequest: {
+            documentPath: requestPaths.upsert,
+            variablesCapturePath: '$.upsertCreate.request.variables',
+            apiVersion,
+          },
+        },
+        {
+          name: 'upsert-update-explicit-handle-fallback-display-name',
+          capturePath: '$.upsertUpdate.response.data.metaobjectUpsert',
+          proxyPath: '$.data.metaobjectUpsert',
+          selectedPaths: ['$.metaobject.handle', '$.metaobject.type', '$.metaobject.displayName', '$.userErrors'],
+          proxyRequest: {
+            documentPath: requestPaths.upsert,
+            variablesCapturePath: '$.upsertUpdate.request.variables',
+            apiVersion,
+          },
+        },
       ],
     },
   };
@@ -321,6 +365,8 @@ let autoCreateOne: Capture | null = null;
 let autoCreateTwo: Capture | null = null;
 let explicitMixedCaseCreate: Capture | null = null;
 let explicitCaseConflictCreate: Capture | null = null;
+let upsertCreate: Capture | null = null;
+let upsertUpdate: Capture | null = null;
 
 try {
   definitionCreate = await captureGraphql('definition-create', documents.definitionCreate, {
@@ -385,6 +431,29 @@ try {
     ),
   );
 
+  upsertCreate = await captureGraphql(
+    'upsert-create-explicit-handle-fallback-display-name',
+    documents.upsert,
+    upsertVariables(upsertHandle, 'Upsert display name fallback'),
+  );
+  assertNoUserErrors(upsertCreate.response, 'metaobjectUpsert', 'upsert-create-explicit-handle-fallback-display-name');
+  assertUpsertFallbackDisplayName(upsertCreate, 'upsert-create-explicit-handle-fallback-display-name');
+  createdMetaobjectIds.push(
+    extractString(
+      upsertCreate.response,
+      ['data', 'metaobjectUpsert', 'metaobject', 'id'],
+      'upsert-create-explicit-handle-fallback-display-name',
+    ),
+  );
+
+  upsertUpdate = await captureGraphql(
+    'upsert-update-explicit-handle-fallback-display-name',
+    documents.upsert,
+    upsertVariables(upsertHandle, 'Updated upsert display name fallback'),
+  );
+  assertNoUserErrors(upsertUpdate.response, 'metaobjectUpsert', 'upsert-update-explicit-handle-fallback-display-name');
+  assertUpsertFallbackDisplayName(upsertUpdate, 'upsert-update-explicit-handle-fallback-display-name');
+
   await cleanup(createdMetaobjectIds, definitionIds, cleanupCaptures);
   createdMetaobjectIds.splice(0, createdMetaobjectIds.length);
   definitionIds.splice(0, definitionIds.length);
@@ -399,13 +468,14 @@ try {
         storeDomain,
         apiVersion,
         summary:
-          'metaobjectCreate auto-handle generation with no displayNameKey, second same-type generated create, explicit mixed-case handle lowercasing with titleized display-name fallback, and case-insensitive explicit handle conflict suffixing.',
+          'metaobjectCreate auto-handle generation with no displayNameKey, second same-type generated create, explicit mixed-case handle lowercasing with titleized display-name fallback, case-insensitive explicit handle conflict suffixing, and metaobjectUpsert create/update fallback displayName derivation from the explicit handle.',
         captureContext: {
           runId,
           type,
           randomHandleBase,
           explicitHandle,
           explicitConflictHandle,
+          upsertHandle,
           definitionId,
         },
         definitionCreate,
@@ -413,6 +483,8 @@ try {
         autoCreateTwo,
         explicitMixedCaseCreate,
         explicitCaseConflictCreate,
+        upsertCreate,
+        upsertUpdate,
         cleanup: cleanupCaptures,
         upstreamCalls: [],
       },
@@ -449,6 +521,7 @@ try {
           randomHandleBase,
           explicitHandle,
           explicitConflictHandle,
+          upsertHandle,
           definitionIds,
           createdMetaobjectIds,
         },
@@ -459,6 +532,8 @@ try {
           autoCreateTwo,
           explicitMixedCaseCreate,
           explicitCaseConflictCreate,
+          upsertCreate,
+          upsertUpdate,
         },
         cleanup: cleanupCaptures,
       },

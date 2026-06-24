@@ -111,6 +111,227 @@ fn settle_product_media_for_test(proxy: &mut DraftProxy, product_id: &str, media
     );
 }
 
+fn assert_product_media_type(
+    node: &Value,
+    media_content_type: &str,
+    typename: &str,
+    gid_type: &str,
+) {
+    let id = node["id"]
+        .as_str()
+        .expect("media node should include a string id");
+    assert!(
+        id.starts_with(&format!("gid://shopify/{gid_type}/")),
+        "expected {gid_type} gid, got {id}"
+    );
+    assert_eq!(node["__typename"], json!(typename));
+    assert_eq!(node["mediaContentType"], json!(media_content_type));
+}
+
+#[test]
+fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
+    let product_id = "gid://shopify/Product/media-types";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("product media type staging should not call upstream"));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateMediaTypes($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media {
+              id
+              __typename
+              alt
+              mediaContentType
+              status
+              ... on Video {
+                originalSource { url }
+                sources { url }
+              }
+              ... on Model3d {
+                originalSource { url }
+                sources { url }
+              }
+              ... on MediaImage {
+                image { url }
+              }
+            }
+            mediaUserErrors { field message }
+            product {
+              id
+              media(first: 10) {
+                nodes {
+                  id
+                  __typename
+                  mediaContentType
+                  status
+                  ... on Video { sources { url } }
+                  ... on Model3d { sources { url } }
+                  ... on MediaImage { image { url } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [
+                {
+                    "mediaContentType": "VIDEO",
+                    "originalSource": "https://cdn.example.com/declared-video.mp4",
+                    "alt": "Declared video"
+                },
+                {
+                    "mediaContentType": "EXTERNAL_VIDEO",
+                    "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "alt": "Declared external video"
+                },
+                {
+                    "mediaContentType": "MODEL_3D",
+                    "originalSource": "https://cdn.example.com/model.glb",
+                    "alt": "Declared model"
+                },
+                {
+                    "originalSource": "https://cdn.example.com/inferred-video.MP4?download=1",
+                    "alt": "Inferred video"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let created = create.body["data"]["productCreateMedia"]["media"]
+        .as_array()
+        .expect("created media should be an array");
+    assert_product_media_type(&created[0], "VIDEO", "Video", "Video");
+    assert_eq!(
+        created[0]["sources"],
+        json!([{ "url": "https://cdn.example.com/declared-video.mp4" }])
+    );
+    assert_product_media_type(
+        &created[1],
+        "EXTERNAL_VIDEO",
+        "ExternalVideo",
+        "ExternalVideo",
+    );
+    assert_product_media_type(&created[2], "MODEL_3D", "Model3d", "Model3d");
+    assert_eq!(
+        created[2]["sources"],
+        json!([{ "url": "https://cdn.example.com/model.glb" }])
+    );
+    assert_product_media_type(&created[3], "VIDEO", "Video", "Video");
+    assert_eq!(
+        created[3]["sources"],
+        json!([{ "url": "https://cdn.example.com/inferred-video.MP4?download=1" }])
+    );
+
+    let downstream = create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"]
+        .as_array()
+        .expect("downstream product media should be an array");
+    assert_product_media_type(&downstream[0], "VIDEO", "Video", "Video");
+    assert_product_media_type(
+        &downstream[1],
+        "EXTERNAL_VIDEO",
+        "ExternalVideo",
+        "ExternalVideo",
+    );
+    assert_product_media_type(&downstream[2], "MODEL_3D", "Model3d", "Model3d");
+    assert_product_media_type(&downstream[3], "VIDEO", "Video", "Video");
+
+    let external_video_id = created[1]["id"].as_str().unwrap();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateExternalVideo($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media {
+              id
+              __typename
+              alt
+              mediaContentType
+              status
+              ... on MediaImage { image { url } }
+            }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{ "id": external_video_id, "alt": "Updated external video" }]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let updated = &update.body["data"]["productUpdateMedia"]["media"][0];
+    assert_product_media_type(updated, "EXTERNAL_VIDEO", "ExternalVideo", "ExternalVideo");
+    assert_eq!(updated["alt"], json!("Updated external video"));
+    assert_eq!(updated["status"], json!("READY"));
+    assert!(
+        updated.get("image").is_none(),
+        "external video update should not project a MediaImage fragment"
+    );
+
+    let model_id = created[2]["id"].as_str().unwrap();
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductReorderNonImageMedia($productId: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $productId, moves: $moves) {
+            job { id done }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "moves": [
+                { "id": model_id, "newPosition": "0" },
+                { "id": external_video_id, "newPosition": "1" }
+            ]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMediaAfterReorder($productId: ID!) {
+          product(id: $productId) {
+            media(first: 10) {
+              nodes {
+                id
+                __typename
+                mediaContentType
+                status
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    let reordered = read.body["data"]["product"]["media"]["nodes"]
+        .as_array()
+        .expect("reordered media should be an array");
+    assert_product_media_type(&reordered[0], "MODEL_3D", "Model3d", "Model3d");
+    assert_eq!(reordered[0]["status"], json!("PROCESSING"));
+    assert_product_media_type(
+        &reordered[1],
+        "EXTERNAL_VIDEO",
+        "ExternalVideo",
+        "ExternalVideo",
+    );
+    assert_eq!(reordered[1]["status"], json!("PROCESSING"));
+}
+
 fn missing_product_hydrate_response() -> Response {
     Response {
         status: 200,
@@ -5779,6 +6000,82 @@ fn customer_segment_members_query_create_validates_stages_and_reads_node() {
 }
 
 #[test]
+fn customer_segment_members_query_create_coerces_segment_id_before_resolver_errors() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {
+          customerSegmentMembersQueryCreate(input: $input) {
+            customerSegmentMembersQuery { id }
+            userErrors { field code message }
+          }
+        }
+    "#;
+
+    for segment_id in ["not-a-gid", ""] {
+        let response = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "input": { "segmentId": segment_id } }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body.get("data"), None);
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!(
+                "Variable $input of type CustomerSegmentMembersQueryInput! was provided invalid value for segmentId (Invalid global id '{segment_id}')"
+            ))
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("INVALID_VARIABLE")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["problems"][0]["path"],
+            json!(["segmentId"])
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["problems"][0]["message"],
+            json!(format!("Invalid global id '{segment_id}'"))
+        );
+    }
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Customer/1" } }),
+    ));
+    assert_eq!(wrong_type.status, 200);
+    assert_eq!(
+        wrong_type.body["errors"],
+        json!([{
+            "message": "invalid id",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["customerSegmentMembersQueryCreate"]
+        }])
+    );
+    assert_eq!(
+        wrong_type.body["data"]["customerSegmentMembersQueryCreate"],
+        Value::Null
+    );
+
+    let unknown_segment = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Segment/999999999999" } }),
+    ));
+    assert_eq!(
+        unknown_segment.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "Invalid segment ID."
+            }]
+        })
+    );
+}
+
+#[test]
 fn saved_search_create_stages_and_reads_back_selection_aware_results() {
     let mut proxy = snapshot_proxy();
 
@@ -7784,7 +8081,7 @@ fn collection_update_missing_id_returns_top_level_bad_request_without_user_error
         json!({
             "collection": Value::Null,
             "userErrors": [{
-                "field": ["id"],
+                "field": Value::Null,
                 "message": "Collection does not exist"
             }]
         })

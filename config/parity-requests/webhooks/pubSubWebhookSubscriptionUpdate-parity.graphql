@@ -3,6 +3,7 @@ mutation PubSubWebhookSubscriptionUpdateParity($id: ID!, $webhookSubscription: P
     webhookSubscription {
       id
       topic
+      callbackUrl
       uri
       format
       includeFields

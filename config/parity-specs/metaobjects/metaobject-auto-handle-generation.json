@@ -1,6 +1,6 @@
 {
   "scenarioId": "metaobject-auto-handle-generation",
-  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate"],
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectUpsert"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "runtime-staging"],
   "liveCaptureFiles": [
@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify evidence for metaobjectCreate handle generation when no handle is supplied and the definition has no displayNameKey, plus explicit mixed-case handle lowercasing, titleized display-name fallback, and case-insensitive conflict suffixing.",
+  "notes": "Live Shopify evidence for metaobjectCreate handle generation when no handle is supplied and the definition has no displayNameKey, explicit mixed-case handle lowercasing, titleized display-name fallback, case-insensitive conflict suffixing, and metaobjectUpsert create/update fallback displayName derivation from the explicit handle.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -42,12 +42,12 @@
           },
           {
             "path": "$.handle",
-            "matcher": "regex:^auto-handle-1778241496658-[a-z0-9]{8}$",
+            "matcher": "regex:^auto-handle-1782315778999-[a-z0-9]{8}$",
             "reason": "Shopify and the proxy both generate Core-shaped random handle suffixes; the concrete random value is volatile."
           },
           {
             "path": "$.displayName",
-            "matcher": "regex:^Auto Handle 1778241496658 #[A-Z0-9]{8}$",
+            "matcher": "regex:^Auto Handle 1782315778999 #[A-Z0-9]{8}$",
             "reason": "Display-name fallback includes the generated random code, so parity validates the Core display-name shape instead of the concrete volatile code."
           }
         ]
@@ -70,12 +70,12 @@
           },
           {
             "path": "$.handle",
-            "matcher": "regex:^auto-handle-1778241496658-[a-z0-9]{8}$",
+            "matcher": "regex:^auto-handle-1782315778999-[a-z0-9]{8}$",
             "reason": "Shopify and the proxy both generate Core-shaped random handle suffixes; the concrete random value is volatile."
           },
           {
             "path": "$.displayName",
-            "matcher": "regex:^Auto Handle 1778241496658 #[A-Z0-9]{8}$",
+            "matcher": "regex:^Auto Handle 1782315778999 #[A-Z0-9]{8}$",
             "reason": "Display-name fallback includes the generated random code, so parity validates the Core display-name shape instead of the concrete volatile code."
           }
         ]
@@ -99,6 +99,28 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-auto-handle-generation-create.graphql",
           "variablesCapturePath": "$.explicitCaseConflictCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-create-explicit-handle-fallback-display-name",
+        "capturePath": "$.upsertCreate.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.type", "$.metaobject.displayName", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-auto-handle-generation-upsert.graphql",
+          "variablesCapturePath": "$.upsertCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-update-explicit-handle-fallback-display-name",
+        "capturePath": "$.upsertUpdate.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.type", "$.metaobject.displayName", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-auto-handle-generation-upsert.graphql",
+          "variablesCapturePath": "$.upsertUpdate.request.variables",
           "apiVersion": "2026-04"
         }
       }

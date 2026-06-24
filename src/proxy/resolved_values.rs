@@ -85,6 +85,16 @@ pub(in crate::proxy) fn resolved_string_arg(
 
 pub(in crate::proxy) use self::resolved_string_arg as resolved_string_field;
 
+pub(in crate::proxy) fn resolved_nullable_string_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Value {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => json!(value),
+        _ => Value::Null,
+    }
+}
+
 pub(in crate::proxy) fn list_object_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,

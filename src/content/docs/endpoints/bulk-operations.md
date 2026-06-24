@@ -37,7 +37,7 @@ Read behavior:
 
 Query export behavior:
 
-- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging.
+- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging, including connection `nodes` selections whose userError example names the offending connection field.
 - Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`.
 - Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic absolute `https://localhost:<proxy-port>/__meta/bulk-operations/<encoded-id>/result.jsonl` result URL, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.

@@ -1,0 +1,62 @@
+{
+  "scenarioId": "data-sale-opt-out-invalid-format",
+  "operationNames": ["dataSaleOptOut"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-invalid-format.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers Shopify Core format validation for dataSaleOptOut emails that pass the old local@domain split but fail EmailAddressValidator::EmailAddress strict_regexp shape or the 255-character length cap. These rejected branches require no store seeding; if Shopify ever creates a customer for one, the capture script deletes it before failing.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "leading-dot-local-failed-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        }
+      },
+      {
+        "name": "consecutive-dot-local-failed-data",
+        "capturePath": "$.validation.invalidFormats.consecutiveDotLocal.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.invalidFormats.consecutiveDotLocal.variables"
+        }
+      },
+      {
+        "name": "consecutive-dot-domain-failed-data",
+        "capturePath": "$.validation.invalidFormats.consecutiveDotDomain.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.invalidFormats.consecutiveDotDomain.variables"
+        }
+      },
+      {
+        "name": "ipv4-literal-domain-failed-data",
+        "capturePath": "$.validation.invalidFormats.ipv4LiteralDomain.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.invalidFormats.ipv4LiteralDomain.variables"
+        }
+      },
+      {
+        "name": "over-255-length-failed-data",
+        "capturePath": "$.validation.invalidFormats.over255Length.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.invalidFormats.over255Length.variables"
+        }
+      }
+    ]
+  }
+}
