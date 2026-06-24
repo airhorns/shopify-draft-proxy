@@ -123,20 +123,12 @@ fn user_error_code(code: Option<&str>) -> Value {
     code.map(Value::from).unwrap_or(Value::Null)
 }
 
-fn user_error_base(field: impl Into<UserErrorField>, message: &str, code: Value) -> Value {
-    json!({
-        "field": user_error_field(field),
-        "message": message,
-        "code": code,
-    })
-}
-
 pub(in crate::proxy) fn user_error(
     field: impl Into<UserErrorField>,
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    user_error_base(field, message, user_error_code(code))
+    user_error_with_code_value(field, message, user_error_code(code))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -184,7 +176,11 @@ pub(in crate::proxy) fn user_error_with_code_value(
     message: &str,
     code: Value,
 ) -> Value {
-    user_error_base(field, message, code)
+    json!({
+        "field": user_error_field(field),
+        "message": message,
+        "code": code,
+    })
 }
 
 pub(in crate::proxy) fn user_error_omit_code(
@@ -208,7 +204,7 @@ pub(in crate::proxy) fn user_error_typed(
     message: &str,
     code: Option<&str>,
 ) -> Value {
-    let mut error = user_error_base(field, message, user_error_code(code));
+    let mut error = user_error(field, message, code);
     error["__typename"] = json!(typename);
     error
 }
@@ -219,7 +215,7 @@ pub(in crate::proxy) fn user_error_typed_with_code_value(
     message: &str,
     code: Value,
 ) -> Value {
-    let mut error = user_error_base(field, message, code);
+    let mut error = user_error_with_code_value(field, message, code);
     error["__typename"] = json!(typename);
     error
 }
@@ -241,7 +237,7 @@ pub(in crate::proxy) fn user_error_with_extra_info(
     code: Option<&str>,
     extra_info: Value,
 ) -> Value {
-    let mut error = user_error_base(field, message, user_error_code(code));
+    let mut error = user_error(field, message, code);
     error["extraInfo"] = extra_info;
     error
 }
@@ -252,7 +248,7 @@ pub(in crate::proxy) fn user_error_with_element_index(
     code: Option<&str>,
     element_index: Value,
 ) -> Value {
-    let mut error = user_error_base(field, message, user_error_code(code));
+    let mut error = user_error(field, message, code);
     error["elementIndex"] = element_index;
     error
 }
@@ -264,7 +260,7 @@ pub(in crate::proxy) fn metaobject_indexed_user_error(
     element_key: Value,
     element_index: Value,
 ) -> Value {
-    let mut error = user_error_base(field, message, user_error_code(code));
+    let mut error = user_error(field, message, code);
     error["elementKey"] = element_key;
     error["elementIndex"] = element_index;
     error
