@@ -11,6 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 type JsonRecord = Record<string, unknown>;
 
 const scenarioId = 'localization-translations-digest-mismatch';
+const updatedAtScenarioId = 'localization-translation-updated-at';
 
 const productCreateMutation = `#graphql
   mutation LocalizationTranslationsDigestProductCreate($product: ProductCreateInput!) {
@@ -147,6 +148,46 @@ const registerMutation = `#graphql
   }
 `;
 
+const updatedAtRegisterMutation = `#graphql
+  mutation LocalizationTranslationUpdatedAtRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+    translationsRegister(resourceId: $resourceId, translations: $translations) {
+      translations {
+        key
+        value
+        locale
+        outdated
+        updatedAt
+        market {
+          id
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const updatedAtDownstreamReadQuery = `#graphql
+  query LocalizationTranslationUpdatedAtRead($resourceId: ID!) {
+    translatableResource(resourceId: $resourceId) {
+      resourceId
+      translations(locale: "fr") {
+        key
+        value
+        locale
+        outdated
+        updatedAt
+        market {
+          id
+        }
+      }
+    }
+  }
+`;
+
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -197,6 +238,52 @@ function assertInvalidDigest(payload: JsonRecord, label: string): void {
   }
 }
 
+function assertIsoTimestamp(value: unknown, label: string): void {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value)) {
+    throw new Error(`${label} was not an ISO-8601 UTC timestamp: ${JSON.stringify(value)}`);
+  }
+}
+
+function assertUpdatedAtTranslation(payload: JsonRecord, expectedValue: string, label: string): void {
+  assertNoUserErrors(payload, label);
+  const translations = payload['translations'];
+  if (!Array.isArray(translations) || translations.length !== 1 || !isRecord(translations[0])) {
+    throw new Error(`${label} did not return exactly one translation: ${JSON.stringify(payload)}`);
+  }
+  const translation = translations[0];
+  if (
+    translation['key'] !== 'title' ||
+    translation['value'] !== expectedValue ||
+    translation['locale'] !== 'fr' ||
+    translation['outdated'] !== false ||
+    translation['market'] !== null
+  ) {
+    throw new Error(`${label} returned an unexpected translation shape: ${JSON.stringify(payload)}`);
+  }
+  assertIsoTimestamp(translation['updatedAt'], `${label} updatedAt`);
+}
+
+function assertUpdatedAtDownstreamRead(
+  payload: ConformanceGraphqlPayload<unknown>,
+  expectedValue: string,
+  label: string,
+): void {
+  const resource = dataObject(payload)['translatableResource'];
+  if (!isRecord(resource) || !Array.isArray(resource['translations'])) {
+    throw new Error(`${label} did not return translations: ${JSON.stringify(payload)}`);
+  }
+  const translation = resource['translations'].find(
+    (entry) => isRecord(entry) && entry['key'] === 'title' && entry['locale'] === 'fr',
+  );
+  if (!isRecord(translation)) {
+    throw new Error(`${label} did not return the title translation: ${JSON.stringify(payload)}`);
+  }
+  if (translation['value'] !== expectedValue || translation['outdated'] !== false || translation['market'] !== null) {
+    throw new Error(`${label} returned an unexpected translation shape: ${JSON.stringify(payload)}`);
+  }
+  assertIsoTimestamp(translation['updatedAt'], `${label} updatedAt`);
+}
+
 function shopLocaleIsEnabled(payload: ConformanceGraphqlPayload<unknown>, locale: string): boolean {
   const locales = dataObject(payload)['shopLocales'];
   return Array.isArray(locales) && locales.some((entry) => isRecord(entry) && entry['locale'] === locale);
@@ -235,6 +322,7 @@ async function main(): Promise<void> {
 
   const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'localization');
   const outputPath = path.join(outputDir, `${scenarioId}.json`);
+  const updatedAtOutputPath = path.join(outputDir, `${updatedAtScenarioId}.json`);
   const captureToken = Date.now().toString();
   const originalTitle = `Digest validation ${captureToken}`;
   const updatedTitle = `Digest validation updated ${captureToken}`;
@@ -297,6 +385,32 @@ async function main(): Promise<void> {
       payloadField(correctDigestRegister, 'translationsRegister'),
       'correct digest translationsRegister',
     );
+    const updatedAtTranslationValue = `Titre updated at ${captureToken}`;
+    const updatedAtRegisterVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: 'fr',
+          key: 'title',
+          value: updatedAtTranslationValue,
+          translatableContentDigest: currentDigest,
+        },
+      ],
+    };
+    const updatedAtRegister = await runGraphql(updatedAtRegisterMutation, updatedAtRegisterVariables);
+    assertUpdatedAtTranslation(
+      payloadField(updatedAtRegister, 'translationsRegister'),
+      updatedAtTranslationValue,
+      'updatedAt translationsRegister',
+    );
+    const updatedAtDownstreamReadVariables = { resourceId: createdProductId };
+    const updatedAtDownstreamRead = await runGraphql(updatedAtDownstreamReadQuery, updatedAtDownstreamReadVariables);
+    assertUpdatedAtDownstreamRead(
+      updatedAtDownstreamRead,
+      updatedAtTranslationValue,
+      'updatedAt downstream translatableResource read',
+    );
+
     const wrongDigestRegister = await runGraphql(registerMutation, wrongDigestVariables);
     assertInvalidDigest(payloadField(wrongDigestRegister, 'translationsRegister'), 'wrong digest translationsRegister');
 
@@ -373,7 +487,46 @@ async function main(): Promise<void> {
       )}\n`,
       'utf8',
     );
+    await writeFile(
+      updatedAtOutputPath,
+      `${JSON.stringify(
+        {
+          scenarioId: updatedAtScenarioId,
+          storeDomain,
+          apiVersion,
+          capturedAt: new Date().toISOString(),
+          setup: {
+            localeSetup: {
+              variables: { locale: 'fr' },
+              response: localeSetup,
+            },
+            productCreate: {
+              variables: productCreateVariables,
+              response: productCreate,
+            },
+          },
+          setupRead: {
+            variables: setupReadVariables,
+            response: setupRead,
+          },
+          register: {
+            variables: updatedAtRegisterVariables,
+            response: updatedAtRegister,
+          },
+          downstreamRead: {
+            variables: updatedAtDownstreamReadVariables,
+            response: updatedAtDownstreamRead,
+          },
+          cleanup,
+          upstreamCalls: [],
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
     console.log(`Wrote ${outputPath}`);
+    console.log(`Wrote ${updatedAtOutputPath}`);
   } finally {
     if (createdProductId !== null || shouldDisableFrenchLocale) {
       cleanup = await bestEffortCleanup({

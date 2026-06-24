@@ -1,8 +1,8 @@
 {
-  "scenarioId": "localization-translations-digest-mismatch",
+  "scenarioId": "localization-translation-updated-at",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-24T01:09:59.609Z",
+  "capturedAt": "2026-06-24T01:09:59.610Z",
   "setup": {
     "localeSetup": {
       "variables": {
@@ -49,36 +49,6 @@
               "title": "Digest validation 1782263397006",
               "handle": "digest-validation-1782263397006",
               "status": "DRAFT"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "productUpdate": {
-      "variables": {
-        "product": {
-          "id": "gid://shopify/Product/10220303286578",
-          "title": "Digest validation updated 1782263397006"
-        }
-      },
-      "response": {
-        "data": {
-          "productUpdate": {
-            "product": {
-              "id": "gid://shopify/Product/10220303286578",
-              "title": "Digest validation updated 1782263397006"
             },
             "userErrors": []
           }
@@ -164,14 +134,14 @@
       }
     }
   },
-  "correctDigestRegister": {
+  "register": {
     "variables": {
       "resourceId": "gid://shopify/Product/10220303286578",
       "translations": [
         {
           "locale": "fr",
           "key": "title",
-          "value": "Titre digest 1782263397006",
+          "value": "Titre updated at 1782263397006",
           "translatableContentDigest": "07bfe36ae19339b4c4d1ac7f7615c832b079716c61d487b5aa668913b30e425b"
         }
       ]
@@ -182,9 +152,10 @@
           "translations": [
             {
               "key": "title",
-              "value": "Titre digest 1782263397006",
+              "value": "Titre updated at 1782263397006",
               "locale": "fr",
               "outdated": false,
+              "updatedAt": "2026-06-24T01:09:58Z",
               "market": null
             }
           ],
@@ -204,76 +175,33 @@
       }
     }
   },
-  "wrongDigestRegister": {
+  "downstreamRead": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578",
-      "translations": [
-        {
-          "locale": "fr",
-          "key": "title",
-          "value": "Titre wrong digest 1782263397006",
-          "translatableContentDigest": "deadbeef0000000000000000000000000000000000000000000000000000dead"
-        }
-      ]
+      "resourceId": "gid://shopify/Product/10220303286578"
     },
     "response": {
       "data": {
-        "translationsRegister": {
-          "translations": [],
-          "userErrors": [
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10220303286578",
+          "translations": [
             {
-              "field": ["translations", "0", "translatableContentDigest"],
-              "message": "Translatable content hash is invalid",
-              "code": "INVALID_TRANSLATABLE_CONTENT"
+              "key": "title",
+              "value": "Titre updated at 1782263397006",
+              "locale": "fr",
+              "outdated": false,
+              "updatedAt": "2026-06-24T01:09:58Z",
+              "market": null
             }
           ]
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 10,
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
-        }
-      }
-    }
-  },
-  "staleDigestRegister": {
-    "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578",
-      "translations": [
-        {
-          "locale": "fr",
-          "key": "title",
-          "value": "Titre stale digest 1782263397006",
-          "translatableContentDigest": "07bfe36ae19339b4c4d1ac7f7615c832b079716c61d487b5aa668913b30e425b"
-        }
-      ]
-    },
-    "response": {
-      "data": {
-        "translationsRegister": {
-          "translations": [],
-          "userErrors": [
-            {
-              "field": ["translations", "0", "translatableContentDigest"],
-              "message": "Translatable content hash is invalid",
-              "code": "INVALID_TRANSLATABLE_CONTENT"
-            }
-          ]
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1997,
             "restoreRate": 100
           }
         }

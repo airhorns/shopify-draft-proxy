@@ -1888,6 +1888,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafields-set-input-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-cas-success-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-duplicate-input-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-invalid-compare-digest-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-key-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-owner-parity.json',
@@ -1899,6 +1900,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields/metafields-set-parity.json',
+      'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       `${CAPTURE_ROOT}metafields-delete-parity.json`,
     ],
     cleanupBehavior: 'Creates disposable products/collections and removes them after metafield probes.',
@@ -3525,6 +3527,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, enables French only when needed, captures correct/wrong/stale digest branches, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization-translation-updated-at',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-digest-mismatch-conformance.mts',
+    purpose:
+      'translationsRegister Translation.updatedAt payload presence and downstream translatableResource readback for a known Product resource.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translation-updated-at.json`,
+      'config/parity-specs/localization/localization-translation-updated-at.json',
+      'config/parity-requests/localization/localization-translation-updated-at-register.graphql',
+      'config/parity-requests/localization/localization-translation-updated-at-read.graphql',
+    ],
+    cleanupBehavior:
+      'Reuses the digest-mismatch known-product setup, registers a French title translation selecting updatedAt, reads it back with updatedAt, then deletes the disposable product and restores the locale when the script enabled it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

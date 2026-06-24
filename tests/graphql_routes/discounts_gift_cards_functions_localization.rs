@@ -19,6 +19,16 @@ fn assert_synthetic_gid(id: &str, resource_type: &str) {
     );
 }
 
+fn assert_datetime_string(value: &Value, context: &str) {
+    let timestamp = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a string, got {value}"));
+    assert!(
+        timestamp.contains('T') && timestamp.ends_with('Z'),
+        "{context} should be an ISO-8601 DateTime-shaped string, got {timestamp}"
+    );
+}
+
 #[test]
 fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_alias() {
     let hits = Arc::new(Mutex::new(0usize));
@@ -2691,7 +2701,7 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     }
 
     let registered = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
         json!({
             "resourceId": resource_id,
             "translations": [
@@ -2703,9 +2713,17 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     assert_eq!(
         registered.body["data"]["translationsRegister"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
+    );
+    assert_datetime_string(
+        &registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        "registered title translation updatedAt",
+    );
+    assert_datetime_string(
+        &registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"],
+        "registered body translation updatedAt",
     );
     assert_eq!(
         registered.body["data"]["translationsRegister"]["userErrors"],
@@ -2713,19 +2731,19 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     );
 
     let downstream = proxy.process_request(json_graphql_request(
-        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
         json!({ "resourceId": resource_id }),
     ));
     assert_eq!(
         downstream.body["data"]["translatableResource"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
     );
 
     let mixed = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
         json!({
             "resourceId": resource_id,
             "translations": [
@@ -2738,9 +2756,17 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     assert_eq!(
         mixed.body["data"]["translationsRegister"]["translations"],
         json!([
-            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null },
-            { "key": "title", "value": "Titulo local", "locale": "es", "outdated": false, "market": null }
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "title", "value": "Titulo local", "locale": "es", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
         ])
+    );
+    assert_datetime_string(
+        &mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        "mixed seo translation updatedAt",
+    );
+    assert_datetime_string(
+        &mixed.body["data"]["translationsRegister"]["translations"][1]["updatedAt"],
+        "mixed es title translation updatedAt",
     );
     assert_eq!(
         mixed.body["data"]["translationsRegister"]["userErrors"][0]["field"],
@@ -2748,15 +2774,46 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     );
 
     let downstream_after_mixed = proxy.process_request(json_graphql_request(
-        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
         json!({ "resourceId": resource_id }),
     ));
     assert_eq!(
         downstream_after_mixed.body["data"]["translatableResource"]["translations"],
         json!([
-            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
-            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null },
-            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null }
+            { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null },
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null }
+        ])
+    );
+    let original_title_updated_at =
+        registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"].clone();
+    let reregister = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated updatedAt market { id } } userErrors { field message code } } }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre local rafraichi", "translatableContentDigest": title_digest }
+            ]
+        }),
+    ));
+    let refreshed_title_updated_at =
+        reregister.body["data"]["translationsRegister"]["translations"][0]["updatedAt"].clone();
+    assert_datetime_string(
+        &refreshed_title_updated_at,
+        "reregistered title translation updatedAt",
+    );
+    assert_ne!(refreshed_title_updated_at, original_title_updated_at);
+
+    let downstream_after_reregister = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated updatedAt market { id } } } }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        downstream_after_reregister.body["data"]["translatableResource"]["translations"],
+        json!([
+            { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null },
+            { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+            { "key": "title", "value": "Titre local rafraichi", "locale": "fr", "outdated": false, "updatedAt": refreshed_title_updated_at, "market": null }
         ])
     );
 }
