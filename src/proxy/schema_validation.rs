@@ -125,13 +125,7 @@ pub(in crate::proxy) fn user_error(
 
 #[derive(Debug, Clone, Copy)]
 pub(in crate::proxy) enum LengthUserErrorBound {
-    TooLong {
-        maximum: usize,
-    },
-    #[allow(dead_code, reason = "TOO_SHORT supports follow-up migrations.")]
-    TooShort {
-        minimum: usize,
-    },
+    TooLong { maximum: usize },
 }
 
 pub(in crate::proxy) fn presence_user_error(
@@ -154,10 +148,6 @@ pub(in crate::proxy) fn length_user_error(
         LengthUserErrorBound::TooLong { maximum } => (
             format!("{field_name} is too long (maximum is {maximum} characters)"),
             "TOO_LONG",
-        ),
-        LengthUserErrorBound::TooShort { minimum } => (
-            format!("{field_name} is too short (minimum is {minimum} characters)"),
-            "TOO_SHORT",
         ),
     };
     user_error(field, &message, Some(code))

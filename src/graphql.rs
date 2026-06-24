@@ -195,20 +195,6 @@ pub fn primary_root_field(
     root_fields(query, variables)?.into_iter().next()
 }
 
-pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
-    let root_field = primary_root_field(query, &BTreeMap::new())?;
-    Some(root_field.selection)
-}
-
-pub fn root_field_response_key(query: &str) -> Option<String> {
-    let root_field = primary_root_field(query, &BTreeMap::new())?;
-    Some(root_field.response_key)
-}
-
-pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
-    nested_root_field_path_selection(query, &[child_name])
-}
-
 pub fn variable_definition_info(
     query: &str,
     variable_name: &str,
