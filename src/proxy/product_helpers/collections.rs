@@ -966,14 +966,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let input = collection_input(query, variables).unwrap_or_default();
-        let Some(id) = resolved_string_field(&input, "id") else {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionUpdate",
-                None,
-                None,
-                vec![collection_user_error(["id"], "Collection does not exist")],
+        let Some(id) = resolved_string_field(&input, "id").filter(|id| !id.trim().is_empty())
+        else {
+            return MutationOutcome::response(collection_update_missing_id_response(
+                query, variables,
             ));
         };
         self.hydrate_missing_collection_baseline(&id, &[]);
@@ -1260,6 +1256,26 @@ impl DraftProxy {
         ) {
             return MutationOutcome::response(response);
         }
+        self.hydrate_collection_reorder_sort_order(&collection_id);
+        if self
+            .store
+            .collection_by_id(&collection_id)
+            .and_then(|collection| collection.get("sortOrder"))
+            .and_then(Value::as_str)
+            != Some("MANUAL")
+        {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionReorderProducts",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["id"],
+                    "Can't reorder products unless collection is manually sorted",
+                )],
+            ));
+        }
         let mut products = self.collection_products(&collection_id);
         for move_input in moves {
             let product_id = resolved_string_field(&move_input, "id")
@@ -1441,10 +1457,12 @@ impl DraftProxy {
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let shop = effective_shop_json(&self.store);
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
+                    "shop" => Some(selected_json(&shop, &selection.selection)),
                     "userErrors" => Some(Value::Array(
                         user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
                     )),
@@ -1540,6 +1558,43 @@ impl DraftProxy {
         ids.sort();
         ids.dedup();
         self.hydrate_product_nodes_for_observation(ids);
+    }
+
+    fn hydrate_collection_reorder_sort_order(&mut self, collection_id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || collection_id.is_empty()
+            || self
+                .store
+                .collection_by_id(collection_id)
+                .and_then(|collection| collection.get("sortOrder"))
+                .and_then(Value::as_str)
+                .is_some()
+        {
+            return;
+        }
+        let path = self
+            .log_entries
+            .last()
+            .and_then(|entry| entry.get("path"))
+            .and_then(Value::as_str)
+            .unwrap_or("/admin/api/2025-01/graphql.json")
+            .to_string();
+        let response = self.upstream_post(
+            &Request {
+                method: "POST".to_string(),
+                path,
+                headers: BTreeMap::new(),
+                body: String::new(),
+            },
+            json!({
+                "query": COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY,
+                "operationName": "CollectionReorderProductsCollectionHydrate",
+                "variables": { "id": collection_id }
+            }),
+        );
+        if let Some(collection) = response.body.pointer("/data/collection") {
+            self.stage_collection_from_observed_json(collection);
+        }
     }
 
     fn stage_collection_job(&mut self) -> Value {
@@ -1757,6 +1812,33 @@ fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Res
             "path": [root_field, "productIds"],
             "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
         }]
+    }))
+}
+
+fn collection_update_missing_id_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let field = primary_root_field(query, variables)
+        .or_else(|| primary_root_field(query, &BTreeMap::new()));
+    let response_key = field
+        .as_ref()
+        .map(|field| field.response_key.clone())
+        .unwrap_or_else(|| "collectionUpdate".to_string());
+    let location = field
+        .as_ref()
+        .map(|field| field.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [{
+            "message": "id must be specified on collectionUpdate",
+            "locations": [{"line": location.line, "column": location.column}],
+            "extensions": {"code": "BAD_REQUEST"},
+            "path": [response_key.clone()]
+        }],
+        "data": {
+            response_key: Value::Null
+        }
     }))
 }
 

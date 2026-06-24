@@ -1,0 +1,61 @@
+mutation DiscountCodeAppTitleUpdate(
+  $codeId: ID!
+  $automaticId: ID!
+  $blank: DiscountCodeAppInput!
+  $missing: DiscountCodeAppInput!
+  $tooLong: DiscountCodeAppInput!
+  $automaticBlank: DiscountAutomaticAppInput!
+) {
+  blankTitle: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $blank) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  missingTitle: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $missing) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  tooLongTitle: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $tooLong) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBlankTitle: discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticBlank) {
+    automaticAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
