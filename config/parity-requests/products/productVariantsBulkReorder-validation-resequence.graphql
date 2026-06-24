@@ -1,0 +1,26 @@
+mutation ProductVariantsBulkReorderValidationResequence(
+  $productId: ID!
+  $positions: [ProductVariantPositionInput!]!
+) {
+  productVariantsBulkReorder(productId: $productId, positions: $positions) {
+    product {
+      id
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          position
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
