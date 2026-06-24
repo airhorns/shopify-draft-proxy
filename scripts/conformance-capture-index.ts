@@ -5267,6 +5267,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-reorder-products-manual-sort',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-reorder-products-conformance.mts',
+    purpose:
+      'collectionReorderProducts manual-sort success plus rejection for custom collections whose sortOrder is not MANUAL.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-reorder-products-manual-sort.json`,
+      'config/parity-specs/products/collectionReorderProducts-parity-plan.json',
+      'config/parity-requests/products/collectionReorderProducts-parity-plan.graphql',
+      'config/parity-requests/products/collectionReorderProducts-order-read.graphql',
+      'config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql',
+      'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable manual and non-manual custom collections using existing products, captures success/rejection branches, then deletes both collections in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-update-ruleset-job-parity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-update-ruleset-job-conformance.mts',

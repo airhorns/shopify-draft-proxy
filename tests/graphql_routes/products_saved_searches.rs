@@ -6726,6 +6726,128 @@ fn collection_validations_and_reorder_are_store_backed() {
             "message": "Can't manually add products to a smart collection"
         }])
     );
+    let smart_reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmartReorder($id: ID!, $moves: [MoveInput!]!) {
+          collectionReorderProducts(id: $id, moves: $moves) {
+            job { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": smart_id,
+            "moves": [{ "id": "gid://shopify/Product/first", "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(
+        smart_reorder.body["data"]["collectionReorderProducts"]["job"],
+        Value::Null
+    );
+    assert_eq!(
+        smart_reorder.body["data"]["collectionReorderProducts"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Can't manually add products to a smart collection"
+        }])
+    );
+
+    let missing_reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingReorder($id: ID!, $moves: [MoveInput!]!) {
+          collectionReorderProducts(id: $id, moves: $moves) {
+            job { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Collection/missing",
+            "moves": [{ "id": "gid://shopify/Product/first", "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(
+        missing_reorder.body["data"]["collectionReorderProducts"]["job"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_reorder.body["data"]["collectionReorderProducts"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Collection does not exist"
+        }])
+    );
+
+    let non_manual_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonManualCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id sortOrder }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Best Selling Collection", "sortOrder": "BEST_SELLING" } }),
+    ));
+    let non_manual_id = non_manual_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let non_manual_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddNonManual($id: ID!, $productIds: [ID!]!) {
+          collectionAddProductsV2(id: $id, productIds: $productIds) {
+            job { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": non_manual_id,
+            "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
+        }),
+    ));
+    assert_eq!(
+        non_manual_add.body["data"]["collectionAddProductsV2"]["userErrors"],
+        json!([])
+    );
+    let state_before_rejected_reorder = proxy.get_state_snapshot();
+    let log_len_before_rejected_reorder = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+    let non_manual_reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonManualReorder($id: ID!, $moves: [MoveInput!]!) {
+          collectionReorderProducts(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": non_manual_id,
+            "moves": [{ "id": "gid://shopify/Product/second", "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(
+        non_manual_reorder.body["data"]["collectionReorderProducts"],
+        json!({
+            "job": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Can't reorder products unless collection is manually sorted"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_before_rejected_reorder);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_before_rejected_reorder
+    );
 
     let custom_create = proxy.process_request(json_graphql_request(
         r#"
