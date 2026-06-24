@@ -2467,6 +2467,13 @@ impl DraftProxy {
             true,
             &mut errors,
         );
+        if errors.is_empty() {
+            if let Some(error) =
+                self.web_presence_unpublished_default_locale_error(&draft.default_locale)
+            {
+                errors.push(error);
+            }
+        }
         if !errors.is_empty() {
             return json!({"webPresence": null, "userErrors": errors});
         }
@@ -3674,6 +3681,38 @@ impl DraftProxy {
     fn localization_shop_locale_added(&self, locale: &str) -> bool {
         self.store.base.shop_locales.contains_key(locale)
             || self.store.staged.shop_locales.contains_key(locale)
+    }
+
+    fn localization_shop_locale_published(&self, locale: &str) -> bool {
+        self.store
+            .staged
+            .shop_locales
+            .get(locale)
+            .or_else(|| self.store.base.shop_locales.get(locale))
+            .and_then(|record| record.get("published"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    fn web_presence_unpublished_default_locale_error(&self, default_locale: &str) -> Option<Value> {
+        let language = default_locale
+            .split('-')
+            .next()
+            .unwrap_or(default_locale)
+            .to_ascii_lowercase();
+        if self.localization_shop_locale_published(&language) {
+            return None;
+        }
+        let language_name = self
+            .localization_available_locale_name(&language)
+            .unwrap_or(language.as_str());
+        Some(market_user_error(
+            vec!["input", "defaultLocale"],
+            &format!(
+                "Default locale The default language isn't published to the store: {language_name}"
+            ),
+            json!("UNPUBLISHED_LANGUAGE"),
+        ))
     }
 
     pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {

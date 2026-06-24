@@ -1,0 +1,182 @@
+{
+  "capturedAt": "2026-06-24T17:52:26.323Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "web-presence-create-unpublished-default-locale",
+  "setup": {
+    "baselineShopLocales": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopLocales": [
+            {
+              "locale": "en",
+              "published": true,
+              "marketWebPresences": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194"
+                }
+              ]
+            },
+            {
+              "locale": "es",
+              "published": false,
+              "marketWebPresences": []
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "originalItalianLocale": null,
+    "enableItalianUnpublished": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": {
+              "locale": "it",
+              "published": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "forceItalianUnpublished": null
+  },
+  "cases": {
+    "unpublishedItalianDefault": {
+      "name": "webPresenceCreateUnpublishedItalianDefaultLocale",
+      "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {\n    webPresenceCreate(input: $input) {\n      webPresence {\n        ...MarketWebPresenceLifecycleFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "defaultLocale": "it",
+          "alternateLocales": [],
+          "subfolderSuffix": "harpijoqlzknu"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceCreate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "field": ["input", "defaultLocale"],
+                  "message": "Default locale The default language isn't published to the store: Italian",
+                  "code": "UNPUBLISHED_LANGUAGE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "unexpectedWebPresenceCleanupResponse": null,
+    "localeCleanupResponse": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopLocaleDisable": {
+            "locale": "it",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "finalShopLocales": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopLocales": [
+            {
+              "locale": "en",
+              "published": true,
+              "marketWebPresences": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194"
+                }
+              ]
+            },
+            {
+              "locale": "es",
+              "published": false,
+              "marketWebPresences": []
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
