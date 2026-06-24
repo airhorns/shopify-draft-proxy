@@ -1248,7 +1248,7 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
         json!({
             "recurring": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "Only usage-pricing line items support cappedAmount updates" }]
+                "userErrors": [{ "field": null, "message": "Only variable subscriptions can be updated." }]
             },
             "currencyMismatch": {
                 "appSubscription": null,

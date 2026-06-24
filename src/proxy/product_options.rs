@@ -255,7 +255,7 @@ impl DraftProxy {
             let mut variant = {
                 let id = self.next_proxy_synthetic_gid("ProductVariant");
                 let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
-                empty_product_variant_record(product, id, inventory_item_id)
+                empty_product_variant_record(product.id.clone(), id, inventory_item_id)
             };
             variant.selected_options = combination
                 .iter()
@@ -304,7 +304,8 @@ impl DraftProxy {
         if default_only {
             let id = self.next_proxy_synthetic_gid("ProductVariant");
             let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
-            let mut variant = empty_product_variant_record(product, id, inventory_item_id);
+            let mut variant =
+                empty_product_variant_record(product.id.clone(), id, inventory_item_id);
             variant.selected_options = selected_options;
             variant.title = variant_title(&variant.selected_options);
             return vec![variant];
@@ -1438,14 +1439,14 @@ fn default_title_graph(proxy: &mut DraftProxy) -> ProductOptionGraph {
     }
 }
 
-fn empty_product_variant_record(
-    product: &ProductRecord,
+pub(in crate::proxy) fn empty_product_variant_record(
+    product_id: String,
     id: String,
     inventory_item_id: String,
 ) -> ProductVariantRecord {
     ProductVariantRecord {
         id,
-        product_id: product.id.clone(),
+        product_id,
         title: "Default Title".to_string(),
         sku: String::new(),
         barcode: None,

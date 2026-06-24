@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::OnceLock;
 
 const SHOP_POLICY_BODY_MAX_BYTES: usize = 524_287;
 const SHOP_POLICY_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
@@ -98,6 +99,21 @@ impl DraftProxy {
                 }),
                 payload_selection,
             );
+        }
+        if policy_type == "PRIVACY_POLICY" {
+            if let Some(message) = shop_policy_liquid_syntax_error_message(&body) {
+                return selected_json(
+                    &json!({
+                        "shopPolicy": Value::Null,
+                        "userErrors": [user_error_with_code_value(
+                            vec!["shopPolicy", "body"],
+                            &message,
+                            Value::Null
+                        )]
+                    }),
+                    payload_selection,
+                );
+            }
         }
 
         self.hydrate_shop_policy_base(request);
@@ -261,19 +277,7 @@ impl DraftProxy {
                     }
                 }
                 "nodes" => {
-                    let Some(ids) = field.arguments.get("ids") else {
-                        continue;
-                    };
-                    let ids = match ids {
-                        ResolvedValue::List(values) => values
-                            .iter()
-                            .filter_map(|value| match value {
-                                ResolvedValue::String(id) => Some(id.clone()),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>(),
-                        _ => Vec::new(),
-                    };
+                    let ids = resolved_string_list_arg(&field.arguments, "ids");
                     if ids
                         .iter()
                         .any(|id| shopify_gid_resource_type(id) == Some("ShopPolicy"))
@@ -481,6 +485,52 @@ fn shop_policy_update_invalid_variable_response(
             problems,
         )]
     })))
+}
+
+fn shop_policy_liquid_syntax_error_message(body: &str) -> Option<String> {
+    static PARSER: OnceLock<liquid::Parser> = OnceLock::new();
+    let parser = PARSER.get_or_init(|| {
+        liquid::ParserBuilder::with_stdlib()
+            .build()
+            .expect("shop policy Liquid parser should build")
+    });
+    parser.parse(body).err().map(|error| {
+        format!(
+            "Body Liquid syntax error: {}",
+            shop_policy_liquid_error_detail(&error.to_string())
+        )
+    })
+}
+
+fn shop_policy_liquid_error_detail(error: &str) -> String {
+    if let Some(tag) = error.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("requested=")
+            .map(str::trim)
+            .filter(|tag| !tag.is_empty())
+    }) {
+        return format!("Unknown tag '{tag}'");
+    }
+
+    if let Some(message) = error.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("= ")
+            .map(str::trim)
+            .filter(|message| !message.is_empty())
+    }) {
+        return message.trim_end_matches('.').to_string();
+    }
+
+    error
+        .trim()
+        .strip_prefix("liquid:")
+        .unwrap_or(error.trim())
+        .lines()
+        .next()
+        .unwrap_or("Invalid Liquid syntax")
+        .trim()
+        .trim_end_matches('.')
+        .to_string()
 }
 
 fn shop_policy_title(policy_type: &str) -> Option<&'static str> {

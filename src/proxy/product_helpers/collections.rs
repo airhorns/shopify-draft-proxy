@@ -1833,24 +1833,29 @@ fn collection_invalid_sort_order_response(
     input: &BTreeMap<String, ResolvedValue>,
     sort_order: &str,
 ) -> Response {
+    let expected_sort_orders = collection_sort_orders_message();
     let location = variable_definition_info(query, "input")
         .map(|definition| definition.location)
         .or_else(|| parsed_document(query, &BTreeMap::new()).map(|document| document.location))
         .unwrap_or(SourceLocation { line: 1, column: 1 });
     ok_json(json!({
         "errors": [{
-            "message": format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC)"),
+            "message": format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
             "locations": [{"line": location.line, "column": location.column}],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
                 "problems": [{
                     "path": ["sortOrder"],
-                    "explanation": format!("Expected \"{sort_order}\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC")
+                    "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
                 }]
             }
         }]
     }))
+}
+
+fn collection_sort_orders_message() -> String {
+    COLLECTION_SORT_ORDERS.join(", ")
 }
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {

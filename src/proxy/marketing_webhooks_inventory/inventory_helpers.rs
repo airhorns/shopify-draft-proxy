@@ -167,9 +167,18 @@ pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id:
     )
 }
 
-pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
+pub(in crate::proxy) fn inventory_level_id_tail(id: &str) -> Option<&str> {
+    id.strip_prefix("gid://shopify/InventoryLevel/")
+        .map(|rest| rest.split('?').next().unwrap_or_default())
+}
+
+pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
     let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
-    let (level_tail, query) = rest.split_once("?inventory_item_id=")?;
+    rest.split_once("?inventory_item_id=")
+}
+
+pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
+    let (level_tail, query) = inventory_level_id_tail_and_query(id)?;
     let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
     let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
         query.to_string()
