@@ -623,7 +623,7 @@ impl DraftProxy {
                 .store
                 .staged
                 .metafield_definitions
-                .get(&(namespace, key))
+                .get(&metafield_definition_store_key("PRODUCT", &namespace, &key))
             else {
                 continue;
             };

@@ -1,0 +1,105 @@
+{
+  "scenarioId": "metafield-definition-owner-scoped-duplicates",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-owner-scoped-duplicates.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql",
+    "variablesCapturePath": "$.captures[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-product-definition-payload",
+        "capturePath": "$.captures[0].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-product-definition-taken",
+        "capturePath": "$.captures[1].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql",
+          "variablesCapturePath": "$.captures[1].request.variables"
+        }
+      },
+      {
+        "name": "create-customer-definition-same-key-payload",
+        "capturePath": "$.captures[2].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql",
+          "variablesCapturePath": "$.captures[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "owner-type-scoped-definition-readback",
+        "capturePath": "$.captures[3].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-read.graphql",
+          "variablesCapturePath": "$.captures[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productByIdentifier.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the staged synthetic product definition ID for downstream reads."
+          },
+          {
+            "path": "$.customerByIdentifier.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the staged synthetic customer definition ID for downstream reads."
+          },
+          {
+            "path": "$.productCatalog.nodes[0].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the staged synthetic product definition ID in the owner-type catalog."
+          },
+          {
+            "path": "$.customerCatalog.nodes[0].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the staged synthetic customer definition ID in the owner-type catalog."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Records owner-type scoped uniqueness for metafieldDefinitionCreate: duplicate PRODUCT create returns TAKEN, while CUSTOMER can use the same namespace/key and both owner-type catalogs read back independently."
+}
