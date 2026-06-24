@@ -3045,12 +3045,13 @@ Practical rule:
 
 ## 61. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
 
-HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
+HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, invalid compare digest for a missing row, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
 
 Important captured behavior:
 
 - `compareDigest` is an opaque CAS token on Shopify. Local staged metafields use deterministic draft digests instead, and parity treats the digest strings as opaque non-empty values for staged writes.
 - A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
+- A string `compareDigest` for an absent `(ownerId, namespace, key)` row returns `INVALID_COMPARE_DIGEST` at `['metafields', '0']`, leaves `metafields: []`, and does not create the submitted row.
 - `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
 - More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
 - Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.

@@ -209,7 +209,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Linen", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "stale"},
             {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
         ]}),
     ));
@@ -221,6 +221,10 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     assert_eq!(
         rejected.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
         json!("STALE_OBJECT")
+    );
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+        json!(["metafields", "0"])
     );
     assert_eq!(
         rejected.body["data"]["metafieldsSet"]["userErrors"][1]["message"],
@@ -259,6 +263,61 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     assert_eq!(
         accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
         json!("Cotton")
+    );
+    let accepted_digest = accepted.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(accepted_digest, digest);
+
+    let after_accept = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalCasMetafieldsRead($id: ID!) {
+          product(id: $id) { material: metafield(namespace: "custom", key: "material") { value compareDigest } }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_accept.body["data"]["product"]["material"]["value"],
+        json!("Cotton")
+    );
+    assert_eq!(
+        after_accept.body["data"]["product"]["material"]["compareDigest"],
+        json!(accepted_digest)
+    );
+}
+
+#[test]
+fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_metafield() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654399";
+
+    let invalid_compare_digest = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalCasMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "no-current-row"}]}),
+    ));
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
+        json!("INVALID_COMPARE_DIGEST")
+    );
+    assert_eq!(
+        invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+        json!(["metafields", "0"])
     );
 }
 
@@ -3705,7 +3764,18 @@ fn product_metafields_set_stages_product_owned_readbacks() {
             _ => unreachable!(),
         })
         .unwrap();
-        let mut proxy = snapshot_proxy();
+        let needs_owner_hydration = fixture["mutation"]["variables"]["metafields"]
+            .as_array()
+            .is_some_and(|inputs| {
+                inputs
+                    .iter()
+                    .any(|input| input["compareDigest"].as_str().is_some())
+            });
+        let mut proxy = if needs_owner_hydration {
+            owner_metafield_hydration_proxy(fixture.clone())
+        } else {
+            snapshot_proxy()
+        };
 
         let mutation = proxy.process_request(json_graphql_request(
             mutation_query,
@@ -3796,7 +3866,10 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
         let response = if query.contains("OwnerMetafieldsHydrateNodes")
             || query.contains("ProductsHydrateNodes")
         {
-            fixture["upstreamCalls"][0]["response"]["body"].clone()
+            fixture["upstreamCalls"][0]["response"]
+                .get("body")
+                .cloned()
+                .unwrap_or_else(|| fixture["upstreamCalls"][0]["response"].clone())
         } else {
             json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
         };
