@@ -407,6 +407,38 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
     )).body["data"]["standardMetafieldDefinitionEnable"].clone()
 }
 
+fn standard_enable_subtitle(proxy: &mut DraftProxy, pin: Option<bool>) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation StandardMetafieldDefinitionEnableSubtitle($pin: Boolean) {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+            pin: $pin
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              pinnedPosition
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+              access { admin storefront customerAccount }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({ "pin": pin }),
+        ))
+        .body["data"]["standardMetafieldDefinitionEnable"]
+        .clone()
+}
+
 #[test]
 fn metafield_definition_pin_and_unpin_require_backed_definition_records() {
     let mut proxy = snapshot_proxy();
@@ -460,6 +492,118 @@ fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
             ["pinnedPosition"],
         json!(2)
     );
+}
+
+#[test]
+fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = standard_enable_subtitle(&mut proxy, None);
+    assert_eq!(initial["userErrors"], json!([]));
+    let initial_id = initial["createdDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let reenabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionReenableMerge {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "descriptors"
+            key: "subtitle"
+            access: { admin: PUBLIC_READ_WRITE, storefront: PUBLIC_READ }
+            capabilities: { adminFilterable: { enabled: true } }
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              pinnedPosition
+              access { admin storefront customerAccount }
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let payload = &reenabled.body["data"]["standardMetafieldDefinitionEnable"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(payload["createdDefinition"]["id"], json!(initial_id));
+    assert_eq!(
+        payload["createdDefinition"]["access"],
+        json!({
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ",
+            "customerAccount": "NONE"
+        })
+    );
+    assert_eq!(
+        payload["createdDefinition"]["capabilities"]["adminFilterable"],
+        json!({ "enabled": true, "eligible": true, "status": "FILTERABLE" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StandardMetafieldDefinitionReenableRead($id: ID!) {
+          byOriginalId: metafieldDefinition(id: $id) {
+            id
+            namespace
+            key
+            capabilities { adminFilterable { enabled status } }
+          }
+          byIdentifier: metafieldDefinition(
+            identifier: { ownerType: PRODUCT, namespace: "descriptors", key: "subtitle" }
+          ) {
+            id
+            namespace
+            key
+            capabilities { adminFilterable { enabled status } }
+          }
+        }
+        "#,
+        json!({ "id": initial_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["byOriginalId"],
+        read.body["data"]["byIdentifier"]
+    );
+    assert_eq!(read.body["data"]["byOriginalId"]["id"], json!(initial_id));
+    assert_eq!(
+        read.body["data"]["byOriginalId"]["capabilities"]["adminFilterable"],
+        json!({ "enabled": true, "status": "FILTERABLE" })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_reenable_pin_over_cap_uses_next_position() {
+    let namespace = "standard_reenable_pin_cap";
+    let mut proxy = snapshot_proxy();
+
+    for index in 1..=20 {
+        let key = format!("pin_{index:02}");
+        let created = create_definition(&mut proxy, namespace, &key, true);
+        assert_eq!(created["userErrors"], json!([]));
+    }
+
+    let initial = standard_enable_subtitle(&mut proxy, None);
+    assert_eq!(initial["userErrors"], json!([]));
+    assert_eq!(initial["createdDefinition"]["pinnedPosition"], Value::Null);
+    let initial_id = initial["createdDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let reenabled = standard_enable_subtitle(&mut proxy, Some(true));
+    assert_eq!(reenabled["userErrors"], json!([]));
+    assert_eq!(reenabled["createdDefinition"]["id"], json!(initial_id));
+    assert_eq!(reenabled["createdDefinition"]["pinnedPosition"], json!(21));
 }
 
 #[test]
