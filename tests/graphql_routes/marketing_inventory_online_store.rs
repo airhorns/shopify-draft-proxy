@@ -1493,7 +1493,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
                 variant { id inventoryQuantity product { id totalInventory tracksInventory } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1525,7 +1525,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
         r#"
         mutation DeactivateInventoryLevel($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1724,7 +1724,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
             inventoryLevel { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1735,20 +1735,17 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         .unwrap();
     assert!(activate_errors.contains(&json!({
         "field": ["available"],
-        "message": "Available must be greater than or equal to 0",
-        "code": "NEGATIVE"
+        "message": "Available must be greater than or equal to 0"
     })));
     assert!(activate_errors.contains(&json!({
         "field": ["locationId"],
-        "message": "The product couldn't be stocked because the location wasn't found.",
-        "code": "NOT_FOUND"
+        "message": "The product couldn't be stocked because the location wasn't found."
     })));
-
     let duplicate_activate = proxy.process_request(json_graphql_request(
         r#"
         mutation DuplicateActivate($inventoryItemId: ID!, $locationId: ID!) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: 1) {
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1766,6 +1763,52 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         r#"
         mutation LastLocationDeactivate($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": level_id}),
+    ));
+    assert_eq!(
+        last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The product couldn't be unstocked from Source location because products need to be stocked at a minimum of 1 location."
+        }])
+    );
+
+    let activate_code_selection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
+    ));
+    assert_eq!(
+        activate_code_selection.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
+    );
+    assert_eq!(
+        activate_code_selection.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidActivateCodeSelection",
+            "inventoryActivate",
+            "userErrors",
+            "code"
+        ])
+    );
+
+    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
             userErrors { field message code }
           }
         }
@@ -1773,8 +1816,21 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         json!({"inventoryLevelId": level_id}),
     ));
     assert_eq!(
-        last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"][0]["code"],
-        json!("CANNOT_DEACTIVATE_LAST_LOCATION")
+        deactivate_code_selection.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
+    );
+    assert_eq!(
+        deactivate_code_selection.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidDeactivateCodeSelection",
+            "inventoryDeactivate",
+            "userErrors",
+            "code"
+        ])
     );
 
     let invalid_bulk = proxy.process_request(json_graphql_request(
@@ -2331,7 +2387,7 @@ fn stock_transfer_item_at_origin(
             available: $available
           ) {
             inventoryLevel { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,

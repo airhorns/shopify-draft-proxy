@@ -1859,9 +1859,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'inventory',
     captureId: 'inventory-deactivate-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-deactivate-validation-conformance.mts',
     purpose:
-      'inventoryDeactivate validation for 2026-04 non-zero committed/incoming/reserved quantities, missing inventory levels, only-location errors, and inventoryActivate available conflicts.',
+      'inventoryDeactivate validation for 2026-04 non-zero committed/incoming/reserved quantities, missing inventory levels, only-location errors, inventoryActivate available conflicts, and activate/deactivate generic userError code-selection schema errors.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
