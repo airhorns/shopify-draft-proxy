@@ -1037,7 +1037,7 @@ impl Store {
         self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
     }
 
-    fn effective_shop(&self) -> Value {
+    pub(in crate::proxy) fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
         shop["shopPolicies"] = Value::Array(

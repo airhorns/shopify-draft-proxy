@@ -289,7 +289,7 @@ pub(in crate::proxy) fn saved_search_delete_payload_json(
                 Some(id) => json!(id),
                 None => Value::Null,
             }),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
         }

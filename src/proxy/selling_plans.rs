@@ -158,6 +158,11 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
+        let mut unique_product_ids = Vec::new();
+        extend_unique_strings(&mut unique_product_ids, product_ids);
+        let mut unique_product_variant_ids = Vec::new();
+        extend_unique_strings(&mut unique_product_variant_ids, product_variant_ids);
+
         let group = SellingPlanGroupRecord {
             id: id.clone(),
             app_id: resolved_string_field(&input, "appId"),
@@ -169,8 +174,8 @@ impl DraftProxy {
             created_at,
             name,
             selling_plans,
-            product_ids: unique_preserve_order(product_ids),
-            product_variant_ids: unique_preserve_order(product_variant_ids),
+            product_ids: unique_product_ids,
+            product_variant_ids: unique_product_variant_ids,
         };
         self.store.stage_selling_plan_group(group.clone());
 
@@ -1758,10 +1763,4 @@ fn resource_members_mut(
         ResourceKind::Product => &mut group.product_ids,
         ResourceKind::ProductVariant => &mut group.product_variant_ids,
     }
-}
-
-fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
-    let mut unique = Vec::new();
-    extend_unique_strings(&mut unique, values);
-    unique
 }

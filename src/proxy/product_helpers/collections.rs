@@ -661,7 +661,7 @@ impl DraftProxy {
             let publishable_selection =
                 selected_child_selection(&field.selection, "publishable").unwrap_or_default();
             let publishable = self.publishable_resource_value(&resource_id, &publishable_selection);
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             let payload = selected_payload_json(&field.selection, |selection| {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
@@ -1445,7 +1445,7 @@ impl DraftProxy {
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let shop = effective_shop_json(&self.store);
+        let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
