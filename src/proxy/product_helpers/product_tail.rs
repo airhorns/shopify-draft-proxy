@@ -643,11 +643,18 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn product_tail_job_read(&self, field: &RootFieldSelection) -> Value {
+        self.product_tail_job_read_with_error(field).0
+    }
+
+    fn product_tail_job_read_with_error(
+        &self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<Value>) {
         let Some(id) = resolved_string_arg(&field.arguments, "id") else {
-            return Value::Null;
+            return (Value::Null, None);
         };
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
-            return selected_json(job, &field.selection);
+            return (selected_json(job, &field.selection), None);
         }
         // A job enqueued locally (e.g. a metafield-definition validation job)
         // is addressed by a synthetic Job gid. Reading it back returns a
@@ -660,25 +667,52 @@ impl DraftProxy {
                 "done": false,
                 "query": Value::Null,
             });
-            return selected_json(&job, &field.selection);
+            return (selected_json(&job, &field.selection), None);
         }
-        Value::Null
+        match shopify_gid_resource_type(&id) {
+            Some("Job") => {
+                let job = json!({
+                    "__typename": "Job",
+                    "id": id,
+                    "done": true,
+                    "query": { "__typename": "QueryRoot" },
+                });
+                (selected_json(&job, &field.selection), None)
+            }
+            Some(_) => (
+                Value::Null,
+                Some(json!({
+                    "message": format!("Invalid id: {id}"),
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "extensions": { "code": "RESOURCE_NOT_FOUND" },
+                    "path": [field.response_key.clone()]
+                })),
+            ),
+            None => (Value::Null, None),
+        }
     }
 
-    pub(in crate::proxy) fn product_tail_job_query_data(
+    pub(in crate::proxy) fn product_tail_job_query_body(
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
         let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
         for field in fields {
             if field.name == "job" {
-                data.insert(
-                    field.response_key.clone(),
-                    self.product_tail_job_read(field),
-                );
+                let (value, error) = self.product_tail_job_read_with_error(field);
+                data.insert(field.response_key.clone(), value);
+                if let Some(error) = error {
+                    errors.push(error);
+                }
             }
         }
-        Value::Object(data)
+        let mut body = serde_json::Map::new();
+        if !errors.is_empty() {
+            body.insert("errors".to_string(), Value::Array(errors));
+        }
+        body.insert("data".to_string(), Value::Object(data));
+        Value::Object(body)
     }
 
     pub(in crate::proxy) fn has_products_tail_staged_resource_id(&self, resource_id: &str) -> bool {

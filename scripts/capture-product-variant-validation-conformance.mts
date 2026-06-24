@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -13,6 +13,10 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'product-variants-bulk-validation-atomicity.json');
+const productsHydrateNodesObservationQuery = await readFile(
+  path.join('config', 'parity-requests', 'products', 'products-hydrate-nodes-observation.graphql'),
+  'utf8',
+);
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -187,8 +191,43 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
+function productHydrateIdsForVariables(variables) {
+  const productId = typeof variables?.productId === 'string' ? variables.productId : null;
+  if (!productId) return [];
+
+  const variantIds = [];
+  if (Array.isArray(variables?.variants)) {
+    for (const variant of variables.variants) {
+      if (typeof variant?.id === 'string') variantIds.push(variant.id);
+    }
+  }
+  if (Array.isArray(variables?.variantsIds)) {
+    for (const variantId of variables.variantsIds) {
+      if (typeof variantId === 'string') variantIds.push(variantId);
+    }
+  }
+
+  const uniqueSortedVariantIds = [...new Set(variantIds)].sort();
+  return [productId, ...uniqueSortedVariantIds];
+}
+
 async function readProductState(productId) {
   return await runGraphql(productStateQuery, { id: productId });
+}
+
+async function captureProductHydrateCall(variables) {
+  const ids = productHydrateIdsForVariables(variables);
+  if (ids.length === 0) return null;
+  const response = await runGraphqlRaw(productsHydrateNodesObservationQuery, { ids });
+  return {
+    operationName: 'ProductsHydrateNodes',
+    variables: { ids },
+    query: productsHydrateNodesObservationQuery,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
 }
 
 async function captureCase({ name, query, variables, productId }) {
@@ -211,10 +250,10 @@ async function captureCase({ name, query, variables, productId }) {
 await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
-const skuPrefix = `HAR290-${runId.slice(-6)}`;
+const skuPrefix = `PVV-${runId.slice(-6)}`;
 const createProductResponse = await runGraphql(createProductMutation, {
   product: {
-    title: `HAR-290 Bulk Variant Validation ${runId}`,
+    title: `Bulk Variant Validation ${runId}`,
     status: 'DRAFT',
   },
 });
@@ -413,7 +452,33 @@ try {
       query: bulkDeleteMutation,
       variables: { productId, variantsIds: [defaultVariantId, unknownVariantId] },
     },
+    {
+      name: 'update-options-and-option-values-conflict',
+      query: bulkUpdateMutation,
+      variables: {
+        productId,
+        variants: [
+          {
+            id: defaultVariantId,
+            options: ['Blue', 'Large'],
+            optionValues: [
+              { optionName: 'Color', name: 'Blue' },
+              { optionName: 'Size', name: 'Large' },
+            ],
+          },
+        ],
+      },
+    },
   ];
+
+  const upstreamCalls = [];
+  for (const entry of cases) {
+    if (entry.name === 'update-options-and-option-values-conflict') {
+      continue;
+    }
+    const upstreamCall = await captureProductHydrateCall(entry.variables);
+    if (upstreamCall) upstreamCalls.push(upstreamCall);
+  }
 
   const capturedCases = [];
   for (const entry of cases) {
@@ -431,7 +496,8 @@ try {
       setupOptionsResponse,
     },
     notes:
-      'HAR-290 live validation and atomicity capture for productVariantsBulkCreate, productVariantsBulkUpdate, and productVariantsBulkDelete. All rejected branches preserve before/after product state.',
+      'Live validation and atomicity capture for productVariantsBulkCreate, productVariantsBulkUpdate, and productVariantsBulkDelete. All rejected branches preserve before/after product state.',
+    upstreamCalls,
     cases: capturedCases,
   };
 

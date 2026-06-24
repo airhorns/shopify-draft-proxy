@@ -1667,11 +1667,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'products',
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
-    purpose: 'Bulk variant validation atomicity for create/update/delete.',
+    purpose:
+      'Bulk variant validation atomicity for create/update/delete, including public-schema options-key rejection.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-validation-atomicity.json`,
       'config/parity-specs/products/product-variants-bulk-validation-atomicity.json',
+      'config/parity-requests/products/productVariantsBulkUpdate-validation-options.graphql',
     ],
     cleanupBehavior: 'Creates disposable products and removes them after validation probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1681,7 +1683,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
-      'productVariantsBulkCreate scalar validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, and max input size.',
+      'productVariantsBulkCreate scalar and option validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,
@@ -5265,6 +5267,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-reorder-products-manual-sort',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-reorder-products-conformance.mts',
+    purpose:
+      'collectionReorderProducts manual-sort success plus rejection for custom collections whose sortOrder is not MANUAL.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-reorder-products-manual-sort.json`,
+      'config/parity-specs/products/collectionReorderProducts-parity-plan.json',
+      'config/parity-requests/products/collectionReorderProducts-parity-plan.graphql',
+      'config/parity-requests/products/collectionReorderProducts-order-read.graphql',
+      'config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql',
+      'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable manual and non-manual custom collections using existing products, captures success/rejection branches, then deletes both collections in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-update-ruleset-job-parity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-update-ruleset-job-conformance.mts',
@@ -7897,7 +7919,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
       `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-job-arbitrary-gid.json',
       'config/parity-specs/admin-platform/admin-platform-node-malformed-gid.json',
+      'config/parity-requests/admin-platform/admin-platform-job-arbitrary-gid.graphql',
       'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-node.graphql',
       'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-nodes.graphql',
       'config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-validation.json',

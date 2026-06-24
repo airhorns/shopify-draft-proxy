@@ -17,6 +17,10 @@ pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = incl
     "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
 );
 
+pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
+);
+
 // The generic observation query above does not select product `options`, which the
 // productOptionsReorder graph needs. This options-aware node hydrate selects the
 // option/optionValue graph (and variants) and is forwarded only by the reorder

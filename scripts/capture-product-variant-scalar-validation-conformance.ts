@@ -43,6 +43,16 @@ const productCreateMutation = `#graphql
 const productOptionsCreateMutation = `#graphql
   mutation ProductVariantScalarValidationOptions($productId: ID!, $options: [OptionCreateInput!]!) {
     productOptionsCreate(productId: $productId, options: $options) {
+      product {
+        options {
+          id
+          name
+          optionValues {
+            id
+            name
+          }
+        }
+      }
       userErrors {
         field
         message
@@ -111,6 +121,47 @@ function longText(prefix: string): string {
   return `${prefix}${'x'.repeat(256 - prefix.length)}`;
 }
 
+type SetupOptionValue = {
+  id?: unknown;
+  name?: unknown;
+};
+
+type SetupOption = {
+  id?: unknown;
+  name?: unknown;
+  optionValues?: SetupOptionValue[] | null;
+};
+
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Missing ${label}`);
+  }
+  return value;
+}
+
+function requireOption(options: SetupOption[], name: string): SetupOption & { id: string } {
+  const option = options.find((candidate) => candidate.name === name);
+  if (!option) {
+    throw new Error(`Could not find setup option ${name}`);
+  }
+  return {
+    ...option,
+    id: requireString(option.id, `${name} option id`),
+  };
+}
+
+function requireOptionValue(option: SetupOption, name: string): SetupOptionValue & { id: string } {
+  const values = option.optionValues ?? [];
+  const value = values.find((candidate) => candidate.name === name);
+  if (!value) {
+    throw new Error(`Could not find setup option value ${String(option.name)} / ${name}`);
+  }
+  return {
+    ...value,
+    id: requireString(value.id, `${String(option.name)} / ${name} option value id`),
+  };
+}
+
 async function capture(query: string, variables: Record<string, unknown>): Promise<CaptureEntry> {
   return {
     query,
@@ -124,7 +175,7 @@ async function productState(productId: string): Promise<unknown> {
   return result.data?.product ?? null;
 }
 
-const runId = `har-574-${Date.now()}`;
+const runId = `variant-validation-${Date.now()}`;
 const createVariables = {
   product: {
     title: `${runId} Product Variant Scalar Validation`,
@@ -152,12 +203,16 @@ try {
     ],
   });
   const setupPayload = setupOptions.result.payload as {
-    data?: { productOptionsCreate?: { userErrors?: unknown[] } };
+    data?: { productOptionsCreate?: { product?: { options?: SetupOption[] | null }; userErrors?: unknown[] } };
   };
   const setupErrors = setupPayload.data?.productOptionsCreate?.userErrors ?? [];
   if (Array.isArray(setupErrors) && setupErrors.length > 0) {
     throw new Error(`Option setup returned userErrors: ${JSON.stringify(setupErrors, null, 2)}`);
   }
+  const setupProductOptions = setupPayload.data?.productOptionsCreate?.product?.options ?? [];
+  const colorOption = requireOption(setupProductOptions, 'Color');
+  requireOption(setupProductOptions, 'Size');
+  const blueValue = requireOptionValue(colorOption, 'Blue');
 
   const validOptions = [
     { optionName: 'Color', name: 'Blue' },
@@ -213,6 +268,48 @@ try {
         },
       ],
     ],
+    [
+      'optionsAndOptionValues',
+      [
+        {
+          options: ['Blue', 'Large'],
+          optionValues: validOptions,
+        },
+      ],
+    ],
+    [
+      'optionIdAndOptionName',
+      [
+        {
+          optionValues: [
+            { optionId: colorOption.id, optionName: 'Color', name: 'Blue' },
+            { optionName: 'Size', name: 'Large' },
+          ],
+        },
+      ],
+    ],
+    [
+      'optionValueIdAndName',
+      [
+        {
+          optionValues: [
+            { optionName: 'Color', id: blueValue.id, name: 'Blue' },
+            { optionName: 'Size', name: 'Large' },
+          ],
+        },
+      ],
+    ],
+    [
+      'duplicateOptionTuple',
+      [
+        {
+          optionValues: validOptions,
+        },
+        {
+          optionValues: validOptions,
+        },
+      ],
+    ],
     ['maxInputSize', Array.from({ length: 2049 }, () => ({ price: '1' }))],
   ];
 
@@ -228,7 +325,7 @@ try {
 
   const payload = {
     notes: [
-      'HAR-574 productVariantsBulkCreate scalar validation capture.',
+      'productVariantsBulkCreate scalar and option validation capture.',
       'Each rejected branch was captured against a disposable product with Color/Size options.',
       'atomicNoWrite compares before/after product reads and must remain true for each captured rejection.',
     ],
