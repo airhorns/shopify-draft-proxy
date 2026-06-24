@@ -239,7 +239,7 @@ impl DraftProxy {
                 "webhookSubscription" => field
                     .arguments
                     .get("id")
-                    .and_then(resolved_as_string)
+                    .and_then(resolved_value_string)
                     .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),
@@ -2407,22 +2407,17 @@ impl DraftProxy {
         let start_cursor = edges
             .first()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let end_cursor = edges
             .last()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         Some(json!({
             "edges": edges,
             "nodes": nodes,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": start_cursor,
-                "endCursor": end_cursor
-            }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         }))
     }
 
@@ -3752,11 +3747,9 @@ impl DraftProxy {
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "inventoryLevel" => Some(inventory_level.clone().unwrap_or(Value::Null)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3768,11 +3761,9 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3795,11 +3786,9 @@ impl DraftProxy {
                     .as_ref()
                     .map_or(Value::Null, |levels| Value::Array(levels.clone())),
             ),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3816,11 +3805,9 @@ impl DraftProxy {
                 inventory_item.as_ref().unwrap_or(&Value::Null),
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -4658,12 +4645,7 @@ impl DraftProxy {
             })),
             "lineItems": {
                 "nodes": line_items,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }
@@ -5295,12 +5277,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }),
             selection,
         )
@@ -5334,12 +5311,7 @@ impl DraftProxy {
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
             "lineItems": {
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }

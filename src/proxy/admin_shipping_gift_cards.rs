@@ -1304,7 +1304,7 @@ impl DraftProxy {
 
         let name = arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let price = match arguments.get("price") {
             Some(ResolvedValue::Object(price)) => price.clone(),
@@ -2111,12 +2111,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3485,12 +3480,7 @@ impl DraftProxy {
                         .collect(),
                 )),
                 "pageInfo" => Some(selected_json(
-                    &json!({
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }),
+                    &empty_page_info(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -5848,7 +5838,7 @@ impl DraftProxy {
             let value = field
                 .arguments
                 .get("id")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
                 .and_then(|id| {
                     self.store
                         .staged
@@ -5960,7 +5950,7 @@ impl DraftProxy {
                     let value = field
                         .arguments
                         .get("id")
-                        .and_then(resolved_as_string)
+                        .and_then(resolved_value_string)
                         .and_then(|id| {
                             if self.store.staged.fulfillment_services.is_tombstoned(&id) {
                                 None
@@ -5973,7 +5963,7 @@ impl DraftProxy {
                     data.insert(field.response_key.clone(), value);
                 }
                 "location" => {
-                    let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+                    let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
                         continue;
                     };
                     if self
@@ -6112,12 +6102,12 @@ impl DraftProxy {
         let name = field
             .arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let callback_url = field
             .arguments
             .get("callbackUrl")
-            .and_then(resolved_as_string);
+            .and_then(resolved_value_string);
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
             user_errors.push(user_error_omit_code(["name"], "Name can't be blank", None));
@@ -6190,7 +6180,7 @@ impl DraftProxy {
     ) -> (Value, Vec<String>) {
         let service_selection =
             selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
-        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
             return (
                 fulfillment_service_not_found_payload(&field.selection),
                 vec![],
@@ -6205,14 +6195,14 @@ impl DraftProxy {
         let name = field
             .arguments
             .get("name")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .or_else(|| existing["serviceName"].as_str().map(str::to_string))
             .unwrap_or_default();
         let callback_url = if field.arguments.contains_key("callbackUrl") {
             field
                 .arguments
                 .get("callbackUrl")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
         } else {
             existing
                 .get("callbackUrl")
@@ -6319,16 +6309,16 @@ impl DraftProxy {
         let id = field
             .arguments
             .get("id")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         let inventory_action = field
             .arguments
             .get("inventoryAction")
-            .and_then(resolved_as_string);
+            .and_then(resolved_value_string);
         let destination_location_id = field
             .arguments
             .get("destinationLocationId")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .filter(|value| !value.trim().is_empty());
         if !self.store.staged.fulfillment_services.contains_key(&id) {
             return (
@@ -6427,7 +6417,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
             return Value::Null;
         };
         if self.store.staged.carrier_services.is_tombstoned(&id) {
@@ -6445,7 +6435,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let query = field.arguments.get("query").and_then(resolved_as_string);
+        let query = field.arguments.get("query").and_then(resolved_value_string);
         let active_filter = match query.as_deref() {
             Some("active:true") => Some(true),
             Some("active:false") => Some(false),
@@ -6684,7 +6674,7 @@ impl DraftProxy {
         let id = field
             .arguments
             .get("id")
-            .and_then(resolved_as_string)
+            .and_then(resolved_value_string)
             .unwrap_or_default();
         if !self.store.staged.carrier_services.contains_key(&id) {
             return carrier_service_delete_payload(
@@ -7449,11 +7439,9 @@ fn location_edit_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7468,11 +7456,9 @@ fn location_delete_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationDeleteUserErrors" | "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7549,11 +7535,9 @@ fn location_add_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7572,11 +7556,9 @@ fn location_local_pickup_enable_payload_selected_json(
             } else {
                 selected_json(&settings, &selection.selection)
             }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7591,11 +7573,9 @@ fn location_local_pickup_disable_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "locationId" => Some(json!(location_id)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7626,11 +7606,9 @@ fn location_activate_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "location" => Some(location_selected_json(&location, &selection.selection)),
-            "locationActivateUserErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "locationActivateUserErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         }
@@ -7704,12 +7682,7 @@ fn location_metafields_connection_json(location: &Value, selection: &SelectedFie
     selected_json(
         &json!({
             "nodes": metafields,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
+            "pageInfo": empty_page_info()
         }),
         &selection.selection,
     )

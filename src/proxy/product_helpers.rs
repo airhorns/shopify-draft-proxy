@@ -404,7 +404,7 @@ pub(in crate::proxy) fn product_publication_field_json(
             let publication_id = selection
                 .arguments
                 .get("publicationId")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
                 .unwrap_or_default();
             Some(Value::Bool(product_is_published_on_publication(
                 product,
@@ -913,11 +913,9 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
             Some(transaction) => selected_json(transaction, &selection.selection),
             None => Value::Null,
         }),
-        "userErrors" => Some(Value::Array(
-            user_errors
-                .iter()
-                .map(|error| selected_json(error, &selection.selection))
-                .collect(),
+        "userErrors" => Some(selected_user_errors(
+            user_errors.as_slice(),
+            &selection.selection,
         )),
         _ => None,
     })
@@ -939,11 +937,9 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "userErrors" => Some(Value::Array(
-            user_errors
-                .iter()
-                .map(|error| selected_json(error, &selection.selection))
-                .collect(),
+        "userErrors" => Some(selected_user_errors(
+            user_errors.as_slice(),
+            &selection.selection,
         )),
         _ => None,
     })
