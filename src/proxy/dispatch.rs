@@ -1,5 +1,33 @@
 use super::*;
 
+const PRODUCT_OVERLAY_ROOTS: &[&str] = &[
+    "product",
+    "products",
+    "productsCount",
+    "productByIdentifier",
+    "productOperation",
+    "productVariant",
+];
+
+const INVENTORY_OVERLAY_ROOTS: &[&str] = &[
+    "inventoryItem",
+    "inventoryItems",
+    "inventoryLevel",
+    "inventoryProperties",
+    "inventoryTransfer",
+    "inventoryTransfers",
+    "inventoryShipment",
+];
+
+macro_rules! try_root_fields {
+    ($query:expr, $variables:expr) => {
+        match Self::root_fields_or_error($query, $variables) {
+            Ok(fields) => fields,
+            Err(response) => return response,
+        }
+    };
+}
+
 /// Catalog-aggregate search predicates that the local product overlay cannot
 /// faithfully evaluate from its partial staged state, because they depend on
 /// store-wide aggregates computed across every location (e.g. `inventory_total:`
@@ -104,10 +132,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        let fields = match Self::root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
+        let fields = try_root_fields!(query, variables);
         match root_field {
             "backupRegion" => {
                 let mut data = serde_json::Map::new();
@@ -189,36 +214,32 @@ impl DraftProxy {
             return (self.upstream_transport)(request.clone());
         }
 
-        match Self::root_fields_or_error(query, variables) {
-            Ok(fields) => {
-                let mut data = serde_json::Map::new();
-                for field in fields {
-                    match field.name.as_str() {
-                        "order" | "draftOrder" | "return" | "abandonment" => {
-                            data.insert(field.response_key, Value::Null);
-                        }
-                        "orders" => {
-                            data.insert(field.response_key, connection_json(Vec::new()));
-                        }
-                        "ordersCount" => {
-                            data.insert(
-                                field.response_key,
-                                selected_json(
-                                    &json!({
-                                        "count": 0,
-                                        "precision": "EXACT"
-                                    }),
-                                    &field.selection,
-                                ),
-                            );
-                        }
-                        _ => {}
-                    }
+        let fields = try_root_fields!(query, variables);
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            match field.name.as_str() {
+                "order" | "draftOrder" | "return" | "abandonment" => {
+                    data.insert(field.response_key, Value::Null);
                 }
-                ok_json(json!({ "data": Value::Object(data) }))
+                "orders" => {
+                    data.insert(field.response_key, connection_json(Vec::new()));
+                }
+                "ordersCount" => {
+                    data.insert(
+                        field.response_key,
+                        selected_json(
+                            &json!({
+                                "count": 0,
+                                "precision": "EXACT"
+                            }),
+                            &field.selection,
+                        ),
+                    );
+                }
+                _ => {}
             }
-            Err(response) => response,
         }
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
     fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -558,7 +579,6 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
-        let has_local_dispatch = capability.domain != CapabilityDomain::Unknown;
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the
@@ -577,48 +597,21 @@ impl DraftProxy {
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "product"
-                            | "products"
-                            | "productsCount"
-                            | "productByIdentifier"
-                            | "productOperation"
-                            | "productVariant"
-                    ) =>
+                if PRODUCT_OVERLAY_ROOTS.contains(&root_field) =>
             {
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
                 }
-                let has_inventory_fields = operation.root_fields.iter().any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "inventoryItem"
-                            | "inventoryItems"
-                            | "inventoryLevel"
-                            | "inventoryProperties"
-                            | "inventoryTransfer"
-                            | "inventoryTransfers"
-                            | "inventoryShipment"
-                    )
-                });
-                let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "product"
-                            | "products"
-                            | "productsCount"
-                            | "productByIdentifier"
-                            | "productOperation"
-                            | "productVariant"
-                    )
-                });
+                let has_inventory_fields = operation
+                    .root_fields
+                    .iter()
+                    .any(|field| INVENTORY_OVERLAY_ROOTS.contains(&field.as_str()));
+                let has_product_overlay_fields = operation
+                    .root_fields
+                    .iter()
+                    .any(|field| PRODUCT_OVERLAY_ROOTS.contains(&field.as_str()));
                 if has_inventory_fields && !has_product_overlay_fields {
-                    let fields = match Self::root_fields_or_error(&query, &variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
+                    let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
                 } else if Self::product_query_needs_upstream_catalog_search(&query, &variables) {
                     (self.upstream_transport)(request.clone())
@@ -643,49 +636,27 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
                     && root_field == "productOperation" =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.product_operation_query_data(&fields) }))
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "inventoryItem"
-                            | "inventoryItems"
-                            | "inventoryLevel"
-                            | "inventoryProperties"
-                            | "inventoryTransfer"
-                            | "inventoryTransfers"
-                            | "inventoryShipment"
-                    ) =>
+                    && INVENTORY_OVERLAY_ROOTS.contains(&root_field) =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
                     && matches!(root_field, "sellingPlanGroup" | "sellingPlanGroups") =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
                     && root_field == "collections" =>
             {
                 // The catalog's opaque cursors and server-side query filtering
@@ -697,16 +668,12 @@ impl DraftProxy {
                 if self.store.staged.collection_catalog.is_empty() {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let fields = match Self::root_fields_or_error(&query, &variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
+                    let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "publication"
@@ -724,16 +691,12 @@ impl DraftProxy {
                 if !self.publication_engine_active() {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let fields = match Self::root_fields_or_error(&query, &variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
+                    let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({ "data": self.publication_roots_read_data(&fields) }))
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "publicationCreate"
@@ -755,65 +718,62 @@ impl DraftProxy {
                 .unwrap_or_else(|| no_dispatcher("products", root_field))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productCreate" =>
+                if root_field == "productCreate" =>
             {
                 let outcome = self.product_create(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productUpdate" =>
+                if root_field == "productUpdate" =>
             {
                 let outcome = self.product_update(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productDelete" =>
+                if root_field == "productDelete" =>
             {
                 let outcome = self.product_delete(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productSet" =>
+                if root_field == "productSet" =>
             {
                 let outcome = self.product_set(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productDuplicate" =>
+                if root_field == "productDuplicate" =>
             {
                 let outcome = self.product_duplicate(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+                if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
             {
                 let outcome = self.product_bundle_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(root_field, "productPublish" | "productUnpublish") =>
+                if matches!(root_field, "productPublish" | "productUnpublish") =>
             {
                 let outcome =
                     self.product_publication_mutation(root_field, &query, &variables, request);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productChangeStatus" =>
+                if root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "productCreateMedia"
-                            | "productUpdateMedia"
-                            | "productDeleteMedia"
-                            | "productReorderMedia"
-                    ) =>
+                if matches!(
+                    root_field,
+                    "productCreateMedia"
+                        | "productUpdateMedia"
+                        | "productDeleteMedia"
+                        | "productReorderMedia"
+                ) =>
             {
                 // Media staging is store-backed: in Snapshot mode (unit tests) no
                 // upstream product has been observed, so there is nothing to stage
@@ -851,7 +811,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "productVariantAppendMedia" | "productVariantDetachMedia"
@@ -876,24 +835,22 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "collectionCreate"
-                            | "collectionUpdate"
-                            | "collectionDelete"
-                            | "collectionAddProducts"
-                            | "collectionAddProductsV2"
-                            | "collectionRemoveProducts"
-                            | "collectionReorderProducts"
-                    ) =>
+                if matches!(
+                    root_field,
+                    "collectionCreate"
+                        | "collectionUpdate"
+                        | "collectionDelete"
+                        | "collectionAddProducts"
+                        | "collectionAddProductsV2"
+                        | "collectionRemoveProducts"
+                        | "collectionReorderProducts"
+                ) =>
             {
                 let outcome = self.collection_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "productVariantCreate"
@@ -911,7 +868,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "sellingPlanGroupCreate"
@@ -938,7 +894,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "productOptionsCreate"
@@ -951,14 +906,13 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && matches!(root_field, "tagsAdd" | "tagsRemove") =>
+                if matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
                 let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "metafieldsSet" =>
             {
                 match metafields_set_coercion_error(&query, &variables) {
@@ -971,7 +925,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "metafieldsDelete" =>
             {
                 let outcome = self.owner_metafields_delete(request, &query, &variables);
@@ -979,7 +932,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "inventoryAdjustQuantities"
@@ -1009,23 +961,14 @@ impl DraftProxy {
                             | "inventoryShipmentDelete"
                     ) =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 let outcome = self.inventory_mutation_data(request, &fields);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
-                if has_local_dispatch =>
-            {
-                ok_json(json!({
-                    "data": self.saved_search_overlay_read_fields(&query, &variables)
-                }))
-            }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
-                if has_local_dispatch =>
-            {
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
+                "data": self.saved_search_overlay_read_fields(&query, &variables)
+            })),
+            (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
                 }
@@ -1033,27 +976,24 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 self.admin_platform_query_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "backupRegionUpdate" =>
             {
                 self.backup_region_update(request, &query, &variables)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(root_field, "flowGenerateSignature" | "flowTriggerReceive") =>
             {
                 self.flow_utility_mutation(root_field, request, &query, &variables)
             }
             (CapabilityDomain::Apps, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
                     && root_field == "currentAppInstallation" =>
             {
                 if self.store.staged.app_uninstalled
@@ -1062,10 +1002,7 @@ impl DraftProxy {
                     || !self.store.staged.revoked_app_access_scopes.is_empty()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
-                    let fields = match Self::root_fields_or_error(&query, &variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
+                    let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({
                         "data": self.current_app_installation_read_data(&fields)
                     }))
@@ -1074,7 +1011,7 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Apps, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 match root_field {
                     "appSubscriptionCreate" => {
@@ -1109,30 +1046,21 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::OnlineStore, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 self.online_store_query_response(request, &fields)
             }
             (CapabilityDomain::OnlineStore, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 self.online_store_mutation(&fields, request, &query, &variables)
             }
             (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if self.config.read_mode != ReadMode::Snapshot
                     && !self.has_local_metaobject_entry_state()
                 {
@@ -1142,12 +1070,9 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Metaobjects, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if self.metaobject_mutation_is_local(&fields) {
                     self.metaobject_mutation(&fields, request, &query, &variables)
                 } else {
@@ -1157,62 +1082,53 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "bulkOperationRunQuery" =>
             {
                 self.bulk_operation_run_query(request, &query, &variables)
             }
             (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "bulkOperationRunMutation" =>
             {
                 self.bulk_operation_run_mutation(request, &query, &variables)
             }
             (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "bulkOperationCancel" =>
             {
                 self.bulk_operation_cancel(request, &query, &variables)
             }
             (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 self.discounts_query_response(request, &query, &variables)
             }
             (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 let outcome = self.discounts_mutation(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.gift_card_read_data(&fields) }))
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 self.gift_card_mutation_response(&fields, request, &query, &variables)
             }
             (CapabilityDomain::Orders, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
@@ -1221,7 +1137,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
             {
                 if let Some(data) =
@@ -1234,7 +1149,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "orderCancel" =>
             {
                 if let Some(data) =
@@ -1247,7 +1161,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "orderDelete" =>
             {
                 if let Some(data) =
@@ -1260,7 +1173,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
@@ -1290,7 +1202,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "orderCreate" =>
             {
                 if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
@@ -1321,7 +1232,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "orderUpdate" =>
             {
                 if let Some(data) =
@@ -1334,7 +1244,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(root_field, "orderClose" | "orderOpen") =>
             {
                 if let Some(data) =
@@ -1347,7 +1256,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "draftOrderCreate"
@@ -1382,7 +1290,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "draftOrderComplete" =>
             {
                 if let Some(data) =
@@ -1395,7 +1302,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
@@ -1409,7 +1315,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "fulfillmentCreate"
@@ -1436,7 +1341,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "returnCreate"
@@ -1460,7 +1364,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
             {
                 if let Some(data) =
@@ -1472,12 +1375,9 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Payments, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if root_field == "customerPaymentMethod" {
                     if let Some(data) =
                         self.customer_payment_method_local_data(request, &query, &variables)
@@ -1502,12 +1402,9 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Payments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if matches!(
                     root_field,
                     "customerPaymentMethodCreditCardCreate"
@@ -1589,21 +1486,15 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Marketing, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.marketing_query_data(&fields) }))
             }
             (CapabilityDomain::Marketing, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 let response = self.marketing_mutation(&fields, request);
                 let staged_ids: Vec<String> = fields
                     .iter()
@@ -1622,30 +1513,24 @@ impl DraftProxy {
                 response
             }
             (CapabilityDomain::Webhooks, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.webhook_subscriptions_query_data(&fields) }))
             }
             (CapabilityDomain::Webhooks, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 self.webhook_mutation(request, &query, &variables)
             }
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": event_empty_read_data(&fields) }))
             }
             (CapabilityDomain::Localization, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 // Cold LiveHybrid reads forward verbatim upstream and hydrate the
                 // base stores as a side effect (product existence, shop locales);
@@ -1660,19 +1545,13 @@ impl DraftProxy {
                     }
                     return response;
                 }
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.localization_query_data(&fields, request) }))
             }
             (CapabilityDomain::Localization, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 let data = self.localization_mutation_data(&fields);
                 self.record_mutation_log_entry(
                     request,
@@ -1687,7 +1566,7 @@ impl DraftProxy {
                 ok_json(json!({ "data": data }))
             }
             (CapabilityDomain::Markets, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 // Cold LiveHybrid reads forward verbatim upstream and hydrate the
                 // staged stores as a side effect; once a lifecycle has staged
@@ -1710,10 +1589,7 @@ impl DraftProxy {
                     }
                     return response;
                 }
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if operation
                     .root_fields
                     .iter()
@@ -1742,12 +1618,9 @@ impl DraftProxy {
                 ok_json(json!({ "data": data }))
             }
             (CapabilityDomain::Markets, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
@@ -1823,18 +1696,15 @@ impl DraftProxy {
                 ok_json(json!({ "data": data }))
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 let data = self.functions_metadata_mutation_data(&fields);
                 self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 ok_json(json!({ "data": data }))
             }
             (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 // A cold function read (no validation/cart-transform staged this
                 // session) forwards to the upstream so `shopifyFunctions` /
@@ -1844,10 +1714,7 @@ impl DraftProxy {
                 if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let fields = match Self::root_fields_or_error(&query, &variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
+                    let fields = try_root_fields!(&query, &variables);
                     let selection_errors =
                         cart_transform_selection_errors(&query, &variables, &fields);
                     if selection_errors.is_empty() {
@@ -1858,7 +1725,7 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::Metafields, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 // Cold LiveHybrid definition reads forward verbatim to the
                 // upstream; only once a lifecycle has staged definitions do we
@@ -1873,23 +1740,19 @@ impl DraftProxy {
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "standardMetafieldDefinitionEnable" =>
             {
                 self.standard_metafield_definition_enable(request, &query, &variables)
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 self.metafield_definition_pinning_mutation(request, &query, &variables)
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if root_field == "collection" {
                     if self.should_route_owner_metafields_read(&query, &variables) {
                         self.owner_metafields_read(request, &query, &variables)
@@ -1947,7 +1810,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "publishablePublish"
@@ -1960,14 +1822,12 @@ impl DraftProxy {
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "shopPolicyUpdate" =>
             {
                 self.shop_policy_update(request, &query, &variables)
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
@@ -1982,18 +1842,14 @@ impl DraftProxy {
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "locationDeactivate" =>
             {
                 self.location_deactivate(&query, &variables, request)
             }
             (CapabilityDomain::Segments, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if root_field == "customerSegmentMembersQuery" {
                     ok_json(json!({
                         "data": self.customer_segment_members_query_read_data(&fields)
@@ -2024,23 +1880,19 @@ impl DraftProxy {
             }
             (CapabilityDomain::Segments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerSegmentMembersQueryCreate" =>
             {
                 self.customer_segment_members_query_create(&query, &variables, request)
             }
             (CapabilityDomain::Segments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 self.segment_mutation(root_field, &query, &variables, request)
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 if matches!(root_field, "reverseDelivery" | "reverseFulfillmentOrder") {
                     if let Some(data) = self
                         .order_return_local_runtime_data(request, root_field, &query, &variables)
@@ -2087,7 +1939,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "reverseDeliveryCreateWithShipping"
@@ -2115,7 +1966,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "shippingPackageUpdate"
@@ -2127,7 +1977,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
@@ -2137,7 +1986,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "fulfillmentServiceCreate"
@@ -2149,7 +1997,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "fulfillmentOrderMove" =>
             {
                 if fulfillment_order_move_is_sentinel_scenario(&query, &variables) {
@@ -2163,7 +2010,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
@@ -2180,7 +2026,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "fulfillmentOrdersSetFulfillmentDeadline" =>
             {
                 if fulfillment_order_set_deadline_is_sentinel_scenario(&query, &variables) {
@@ -2194,7 +2039,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
@@ -2204,7 +2048,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "locationLocalPickupEnable" | "locationLocalPickupDisable"
@@ -2214,7 +2057,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "fulfillmentOrderHold"
@@ -2238,15 +2080,12 @@ impl DraftProxy {
                 )
             }
             (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
                 }
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 // A query may combine `customer*` reads with a standalone
                 // `storeCreditAccount(id:)` read (or carry only the latter).
                 // Each is served from its own staged overlay and the two field
@@ -2283,35 +2122,30 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerCreate" =>
             {
                 self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerUpdate" =>
             {
                 self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerDelete" =>
             {
                 self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerMerge" =>
             {
                 self.customer_merge(&query, &variables, request)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "customerRequestDataErasure" | "customerCancelDataErasure"
@@ -2327,14 +2161,12 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "customerSet" =>
             {
                 self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "customerAddressCreate"
@@ -2347,7 +2179,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "storeCreditAccountCredit" | "storeCreditAccountDebit"
@@ -2359,7 +2190,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "customerAddTaxExemptions"
@@ -2367,10 +2197,7 @@ impl DraftProxy {
                             | "customerReplaceTaxExemptions"
                     ) =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 // Enum coercion errors (invalid `taxExemptions`) are raised before
                 // any staging, matching Shopify's request-validation ordering.
                 if let Some(response) =
@@ -2382,16 +2209,12 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "customerEmailMarketingConsentUpdate" | "customerSmsMarketingConsentUpdate"
                     ) =>
             {
-                let fields = match Self::root_fields_or_error(&query, &variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
+                let fields = try_root_fields!(&query, &variables);
                 // SMS marketingState values outside `CustomerSmsMarketingState` fail
                 // enum coercion before any staging, matching Shopify's ordering.
                 if let Some(response) = customer_sms_consent_invalid_enum_response(&query, &fields)
@@ -2402,7 +2225,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::Privacy, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && root_field == "dataSaleOptOut" =>
             {
                 let outcome = self.data_sale_opt_out(request, &query, &variables);
@@ -2410,7 +2232,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "companyLocationUpdate"
@@ -2455,7 +2276,6 @@ impl DraftProxy {
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
                     && self.config.read_mode == ReadMode::Snapshot =>
             {
                 // Snapshot mode (unit tests) has no upstream to forward to, so every
@@ -2471,7 +2291,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| no_dispatcher("b2b", root_field))
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 // Live/hybrid mode: apply the local cascade side-effects and forward
                 // upstream so the recorded Shopify response is returned. Roots
@@ -2581,7 +2401,7 @@ impl DraftProxy {
                 }
             }
             (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+                if operation.operation_type == OperationType::Query =>
             {
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
@@ -2619,14 +2439,12 @@ impl DraftProxy {
                 })
             }
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query
-                    && has_local_dispatch
-                    && root_field == "files" =>
+                if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
                 self.media_files_read(&query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+                if operation.operation_type == OperationType::Mutation =>
             {
                 let outcome = self.media_mutation(root_field, request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
