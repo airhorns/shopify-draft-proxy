@@ -1411,7 +1411,7 @@ mod tests {
                 json!({
                     "node": {
                         "originType": "FIXED",
-                        "variant": { "id": format!("gid://shopify/ProductVariant/{index}") }
+                        "variant": { "id": shopify_gid("ProductVariant", index) }
                     }
                 })
             })

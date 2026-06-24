@@ -1,11 +1,5 @@
 use super::*;
 
-fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(response_key.to_string(), value);
-    json!({ "data": Value::Object(data) })
-}
-
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
     json!({
         "nodes": nodes,
@@ -263,6 +257,18 @@ fn return_status_transition_error(
 }
 
 impl DraftProxy {
+    fn return_payload(
+        &self,
+        return_value: Value,
+        user_errors: Vec<Value>,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_json(
+            &json!({ "return": return_value, "userErrors": user_errors }),
+            selection,
+        )
+    }
+
     pub(in crate::proxy) fn order_return_local_runtime_data(
         &mut self,
         request: &Request,
@@ -285,61 +291,61 @@ impl DraftProxy {
         match root_field {
             "returnCreate" => {
                 let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnRequest" => {
                 let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnApproveRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.approve_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.decline_return_request(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnClose" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnReopen" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnCancel" => {
                 let id = resolved_string_arg(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "removeFromReturn" => {
                 let value = self.remove_from_return(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryCreateWithShipping" => {
                 let value = self.stage_reverse_delivery(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryShippingUpdate" => {
                 let id = resolved_string_arg(&field.arguments, "reverseDeliveryId")?;
                 let value = self.update_reverse_delivery(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "reverseFulfillmentOrderDispose" => {
                 let value = self.dispose_reverse_fulfillment_order(field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             "returnProcess" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "returnId"))?;
                 let value = self.process_return(&id, field);
-                Some(orders_payments_data_response(&field.response_key, value))
+                Some(data_response(&field.response_key, value))
             }
             _ => None,
         }
@@ -426,15 +432,13 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let items = resolved_object_list_field(&input, "returnLineItems");
         if items.is_empty() {
-            return selected_json(
-                &json!({
-                    "return": Value::Null,
-                    "userErrors": [return_user_error(
-                        &["returnLineItems"],
-                        "Return must include at least one line item.",
-                        "INVALID",
-                    )]
-                }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_user_error(
+                    &["returnLineItems"],
+                    "Return must include at least one line item.",
+                    "INVALID",
+                )],
                 &field.selection,
             );
         }
@@ -444,10 +448,7 @@ impl DraftProxy {
             .filter_map(|(index, item)| validate_return_line_item_reason(input_name, index, item))
             .collect::<Vec<_>>();
         if !reason_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": reason_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, reason_errors, &field.selection);
         }
         // Validate every line first, allocating return-line-item ids only for
         // valid lines (matching the reference fold). Any error short-circuits
@@ -508,10 +509,7 @@ impl DraftProxy {
             }
         }
         if !user_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": user_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, user_errors, &field.selection);
         }
         let return_id = self.next_synthetic_gid("Return");
         let order_name = order["name"].as_str().unwrap_or("#ORDER").to_string();
@@ -572,10 +570,7 @@ impl DraftProxy {
             .entry(order_id)
             .or_default()
             .push(return_id);
-        selected_json(
-            &json!({ "return": return_record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(return_record, Vec::new(), &field.selection)
     }
 
     /// Total quantity already consumed against a fulfillment line item by
@@ -654,14 +649,16 @@ impl DraftProxy {
     /// state untouched.
     fn approve_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         };
         if record["status"].as_str() != Some("REQUESTED") {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         }
@@ -671,10 +668,7 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `returnDeclineRequest`: validate the decline input (reason enum, note
@@ -686,21 +680,20 @@ impl DraftProxy {
         let reason = match validate_return_decline_input(&input) {
             Ok(reason) => reason,
             Err(errors) => {
-                return selected_json(
-                    &json!({ "return": Value::Null, "userErrors": errors }),
-                    &field.selection,
-                );
+                return self.return_payload(Value::Null, errors, &field.selection);
             }
         };
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         };
         if record["status"].as_str() != Some("REQUESTED") {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         }
@@ -711,10 +704,7 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `returnClose` / `returnReopen` / `returnCancel`. Allowed transitions
@@ -730,15 +720,21 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist.", "INVALID")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_user_error(
+                    &["id"],
+                    "Return does not exist.",
+                    "INVALID",
+                )],
                 &field.selection,
             );
         };
         let current = record["status"].as_str().unwrap_or_default().to_string();
         if let Some((message, code)) = return_status_transition_error(target_status, &record) {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], message, code)] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_user_error(&["id"], message, code)],
                 &field.selection,
             );
         }
@@ -754,10 +750,7 @@ impl DraftProxy {
                 .returns
                 .insert(id.to_string(), record.clone());
         }
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `removeFromReturn`: validate the return is still editable, then validate
@@ -770,8 +763,13 @@ impl DraftProxy {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
         let removals = list_object_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_user_error(
+                    &["returnId"],
+                    "Return does not exist.",
+                    "INVALID",
+                )],
                 &field.selection,
             );
         };
@@ -827,10 +825,7 @@ impl DraftProxy {
             }
         }
         if !user_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": user_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, user_errors, &field.selection);
         }
         let total_quantity: i64 = nodes
             .iter()
@@ -840,10 +835,7 @@ impl DraftProxy {
         record["totalQuantity"] = json!(total_quantity);
         self.sync_reverse_fulfillment_line_items(&mut record);
         self.store.staged.returns.insert(return_id, record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// Build the OPEN reverse fulfillment order for a return: one RFO line item
@@ -1231,8 +1223,13 @@ impl DraftProxy {
 
     fn process_return(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist", "NOT_FOUND")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_user_error(
+                    &["returnId"],
+                    "Return does not exist",
+                    "NOT_FOUND",
+                )],
                 &field.selection,
             );
         };
@@ -1260,9 +1257,6 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), stored_record);
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 }
