@@ -1,0 +1,128 @@
+{
+  "capturedAt": "2026-06-24T08:42:37.225Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Captures live giftCardCreate behavior when the input contains only initialValue.",
+    "Shopify returns null note, expiresOn, customer, templateSuffix, and recipientAttributes in the create payload and immediate giftCard(id:) readback.",
+    "Setup creates one disposable gift card with only initialValue; cleanup deactivates the setup gift card."
+  ],
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "initialValue": "25.00"
+      }
+    }
+  },
+  "setup": [
+    {
+      "label": "createOmittedOptionalFields",
+      "query": "#graphql\n  mutation GiftCardCreateOmittedOptionalFields($input: GiftCardCreateInput!) {\n    giftCardCreate(input: $input) {\n      giftCard {\n        id\n        note\n        expiresOn\n        customer {\n          id\n        }\n        templateSuffix\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "initialValue": "25.00"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661370994994",
+                "note": null,
+                "expiresOn": null,
+                "customer": null,
+                "templateSuffix": null,
+                "recipientAttributes": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "readAfterCreate": {
+      "label": "readAfterCreate",
+      "query": "#graphql\n  query GiftCardCreateOmittedOptionalFieldsRead($id: ID!) {\n    giftCard(id: $id) {\n      id\n      note\n      expiresOn\n      customer {\n        id\n      }\n      templateSuffix\n      recipientAttributes {\n        message\n        preferredName\n        sendNotificationAt\n        recipient {\n          id\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/661370994994"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/661370994994",
+              "note": null,
+              "expiresOn": null,
+              "customer": null,
+              "templateSuffix": null,
+              "recipientAttributes": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:omittedOptionalFieldsCard",
+      "query": "#graphql\n      mutation GiftCardCreateOmittedOptionalFieldsDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/661370994994"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661370994994",
+                "enabled": false,
+                "deactivatedAt": "2026-06-24T08:42:37Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -1,6 +1,6 @@
 {
   "scenarioId": "inventory-quantity-contracts-2026-04",
-  "operationNames": ["inventorySetQuantities", "inventoryAdjustQuantities"],
+  "operationNames": ["inventorySetQuantities", "inventoryAdjustQuantities", "inventoryMoveQuantities"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "schema-contract",
@@ -8,6 +8,7 @@
     "idempotency-parity",
     "payload-shape",
     "route-version-parity",
+    "user-errors-parity",
     "downstream-read-parity"
   ],
   "liveCaptureFiles": [
@@ -89,6 +90,72 @@
         }
       },
       {
+        "name": "set-unknown-inventory-item-user-errors",
+        "capturePath": "$.unknownIdValidation.setUnknownInventoryItem.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-set-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.setUnknownInventoryItem.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "set-unknown-location-user-errors",
+        "capturePath": "$.unknownIdValidation.setUnknownLocation.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-set-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.setUnknownLocation.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-unknown-inventory-item-user-errors",
+        "capturePath": "$.unknownIdValidation.adjustUnknownInventoryItem.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-adjust-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.adjustUnknownInventoryItem.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-unknown-location-user-errors",
+        "capturePath": "$.unknownIdValidation.adjustUnknownLocation.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-adjust-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.adjustUnknownLocation.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "move-unknown-inventory-item-user-errors",
+        "capturePath": "$.unknownIdValidation.moveUnknownInventoryItem.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-move-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.moveUnknownInventoryItem.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "move-unknown-location-user-errors",
+        "capturePath": "$.unknownIdValidation.moveUnknownLocation.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-move-unknown-id-validation.graphql",
+          "variablesCapturePath": "$.unknownIdValidation.moveUnknownLocation.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "quantity-contract-downstream-read",
         "capturePath": "$.downstreamRead.data",
         "proxyPath": "$.data",
@@ -118,5 +185,5 @@
       }
     ]
   },
-  "notes": "HAR-408 captures Admin GraphQL 2026-04 inventory quantity mutation contract drift. The live fixture records InventoryChangeInput/InventorySetQuantityInput schema fields, missing @idempotent behavior for inventoryAdjustQuantities and inventorySetQuantities, changeFromQuantity-required validation for adjust/set quantity inputs, legacy ignoreCompareQuantity rejection, and successful changeFromQuantity set/adjust writes against a disposable product. The parity runner strictly replays the missing changeFromQuantity set branch, successful set/adjust writes, the missing changeFromQuantity adjust branch, and downstream product/variant/inventory-item read effects through 2026-04 proxy requests without runtime Shopify writes; committed runtime tests replay the remaining fixture-backed branches through /admin/api/2026-04/graphql.json."
+  "notes": "HAR-408 captures Admin GraphQL 2026-04 inventory quantity mutation contract drift. The live fixture records InventoryChangeInput/InventorySetQuantityInput schema fields, missing @idempotent behavior for inventoryAdjustQuantities and inventorySetQuantities, changeFromQuantity-required validation for adjust/set quantity inputs, unknown inventory item/location userErrors for adjust/set/move, legacy ignoreCompareQuantity rejection, and successful changeFromQuantity set/adjust writes against a disposable product. The unknown-id setup uses one real tracked inventory item/location plus deliberately non-resolving InventoryItem and Location GIDs. The parity runner strictly replays the missing changeFromQuantity set branch, successful set/adjust writes, the missing changeFromQuantity adjust branch, unknown existence-validation branches, and downstream product/variant/inventory-item read effects through 2026-04 proxy requests without runtime Shopify writes; committed runtime tests replay the remaining fixture-backed branches through /admin/api/2026-04/graphql.json."
 }
