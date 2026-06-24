@@ -1520,9 +1520,8 @@ impl DraftProxy {
                         )]
                     });
                 }
-                existing_definition["pinnedPosition"] = json!(
-                    self.next_metafield_definition_pin_position(owner_type, &namespace, &key)
-                );
+                existing_definition["pinnedPosition"] =
+                    json!(self.next_metafield_definition_pin_position(owner_type));
             } else if resolved_bool_field(&args, "pin") == Some(false) {
                 existing_definition["pinnedPosition"] = Value::Null;
             }
