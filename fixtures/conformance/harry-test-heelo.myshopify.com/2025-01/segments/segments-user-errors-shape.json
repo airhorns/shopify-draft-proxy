@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T17:47:37.502Z",
+  "capturedAt": "2026-06-24T01:41:18.705Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "cases": [
@@ -51,7 +51,7 @@
       "request": {
         "query": "#graphql\n  mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "name": "HAR-712 user errors har712-user-errors-1778003256374",
+          "name": "Segment user errors segment-user-errors-1782265277426",
           "query": "number_of_orders >= 1"
         }
       },
@@ -61,7 +61,7 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/648277492018"
+                "id": "gid://shopify/Segment/652121833778"
               },
               "userErrors": []
             }
@@ -81,11 +81,153 @@
       }
     },
     {
+      "name": "segmentUpdateNameLiteralNullOnly",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateNameLiteralNullOnly($id: ID!) {\n    segmentUpdate(id: $id, name: null) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652121833778"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": null,
+                  "message": "At least one attribute to change must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentReadAfterNameLiteralNullOnly",
+      "request": {
+        "query": "#graphql\n  query SegmentReadAfterLiteralNullUpdate($id: ID!) {\n    node(id: $id) {\n      ... on Segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652121833778"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/Segment/652121833778",
+              "name": "Segment user errors segment-user-errors-1782265277426",
+              "query": "number_of_orders >= 1",
+              "creationDate": "2026-06-24T01:41:17Z",
+              "lastEditDate": "2026-06-24T01:41:17Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateQueryLiteralNullOnly",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateQueryLiteralNullOnly($id: ID!) {\n    segmentUpdate(id: $id, query: null) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652121833778"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": null,
+                  "message": "At least one attribute to change must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentReadAfterQueryLiteralNullOnly",
+      "request": {
+        "query": "#graphql\n  query SegmentReadAfterLiteralNullUpdate($id: ID!) {\n    node(id: $id) {\n      ... on Segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652121833778"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/Segment/652121833778",
+              "name": "Segment user errors segment-user-errors-1782265277426",
+              "query": "number_of_orders >= 1",
+              "creationDate": "2026-06-24T01:41:17Z",
+              "lastEditDate": "2026-06-24T01:41:17Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "segmentUpdateEmptyInput",
       "request": {
         "query": "#graphql\n  mutation SegmentUpdateUserErrorsShape($id: ID!) {\n    segmentUpdate(id: $id) {\n      segment {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Segment/648277492018"
+          "id": "gid://shopify/Segment/652121833778"
         }
       },
       "response": {
@@ -183,11 +325,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -221,11 +363,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -235,9 +377,10 @@
     }
   ],
   "notes": [
-    "HAR-712 live evidence for segment and customerSegmentMembersQueryCreate userErrors shape.",
+    "Live evidence for segment and customerSegmentMembersQueryCreate userErrors shape.",
     "Shopify UserError for segmentCreate/segmentUpdate/segmentDelete exposes __typename, field, and message; selecting code on UserError is rejected by the live schema, so default code:null behavior is covered by runtime tests.",
     "segmentUpdateEmptyInput uses one disposable live segment for the id-only validation branch, then deletes it during cleanup.",
+    "segmentUpdateNameLiteralNullOnly and segmentUpdateQueryLiteralNullOnly use the same disposable segment to prove literal null mutable attributes are treated as absent changes.",
     "CustomerSegmentMembersQueryUserError exposes code and returns INVALID for selector validation branches."
   ],
   "upstreamCalls": []

@@ -1,0 +1,41 @@
+{
+  "scenarioId": "sellingPlanGroup-summary",
+  "operationNames": ["sellingPlanGroup", "sellingPlanGroupCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "computed-field-parity", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql",
+    "variablesCapturePath": "$.scenarios.createSummary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-summary-user-errors",
+        "capturePath": "$.scenarios.createSummary.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors"
+      },
+      {
+        "name": "summary-read-after-create",
+        "capturePath": "$.scenarios.readSummary.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            }
+          }
+        },
+        "excludedPaths": ["$.id", "$.sellingPlans.nodes[*].id"]
+      }
+    ]
+  },
+  "notes": "Admin 2026-04 sellingPlanGroup.summary after local create staging: count comes from sellingPlans, frequency/frequencies is pluralized by plan count, percentage and fixed-value discount ranges are computed across all plans, and mixed discount pieces join with a middle dot."
+}

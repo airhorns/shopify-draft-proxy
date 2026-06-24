@@ -99,6 +99,24 @@ const productStateQuery = `#graphql
   }
 `;
 
+const locationsQuery = `#graphql
+  query ProductVariantScalarValidationLocations {
+    shop {
+      resourceLimits {
+        locationLimit
+      }
+    }
+    locations(first: 25) {
+      nodes {
+        id
+        name
+        isActive
+        fulfillsOnlineOrders
+      }
+    }
+  }
+`;
+
 const bulkCreateMutation = `mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
   productVariantsBulkCreate(productId: $productId, variants: $variants) {
     productVariants {
@@ -132,6 +150,21 @@ type SetupOption = {
   optionValues?: SetupOptionValue[] | null;
 };
 
+type LocationNode = {
+  id?: unknown;
+  isActive?: unknown;
+};
+
+type LocationLimitCapturePayload = {
+  data?: {
+    shop?: {
+      resourceLimits?: {
+        locationLimit?: unknown;
+      } | null;
+    } | null;
+  };
+};
+
 function requireString(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`Missing ${label}`);
@@ -160,6 +193,24 @@ function requireOptionValue(option: SetupOption, name: string): SetupOptionValue
     ...value,
     id: requireString(value.id, `${String(option.name)} / ${name} option value id`),
   };
+}
+
+function locationIdsFromCapture(entry: CaptureEntry): string[] {
+  const payload = entry.result.payload as { data?: { locations?: { nodes?: LocationNode[] | null } } };
+  const nodes = payload.data?.locations?.nodes ?? [];
+  return nodes
+    .filter((location) => location.isActive !== false)
+    .map((location) => location.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+function locationLimitFromCapture(entry: CaptureEntry): number {
+  const payload = entry.result.payload as LocationLimitCapturePayload;
+  const limit = payload.data?.shop?.resourceLimits?.locationLimit;
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
+    throw new Error(`Missing shop.resourceLimits.locationLimit: ${JSON.stringify(entry.result.payload, null, 2)}`);
+  }
+  return limit;
 }
 
 async function capture(query: string, variables: Record<string, unknown>): Promise<CaptureEntry> {
@@ -213,6 +264,23 @@ try {
   const colorOption = requireOption(setupProductOptions, 'Color');
   requireOption(setupProductOptions, 'Size');
   const blueValue = requireOptionValue(colorOption, 'Blue');
+  const locations = await capture(locationsQuery, {});
+  const locationIds = locationIdsFromCapture(locations);
+  if (locationIds.length < 1) {
+    throw new Error('Need at least one active location to capture inventory location validation.');
+  }
+  const locationLimit = locationLimitFromCapture(locations);
+  const primaryLocationId = locationIds[0] ?? '';
+  const tooManyInventoryLocationQuantities = Array.from({ length: locationLimit + 1 }, () => ({
+    availableQuantity: 1,
+    locationId: primaryLocationId,
+  }));
+  const inventoryQuantitiesLimitVariants = Array.from({ length: 2048 }, () => ({
+    inventoryQuantities: Array.from({ length: 25 }, () => ({
+      availableQuantity: 1,
+      locationId: primaryLocationId,
+    })),
+  }));
 
   const validOptions = [
     { optionName: 'Color', name: 'Blue' },
@@ -250,6 +318,17 @@ try {
         {
           price: '10',
           inventoryQuantities: [{ availableQuantity: 2_000_000_000, locationId: 'gid://shopify/Location/1' }],
+          optionValues: validOptions,
+        },
+      ],
+    ],
+    ['inventoryQuantitiesLimit', inventoryQuantitiesLimitVariants],
+    [
+      'tooManyInventoryLocations',
+      [
+        {
+          price: '10',
+          inventoryQuantities: tooManyInventoryLocationQuantities,
           optionValues: validOptions,
         },
       ],
@@ -327,6 +406,8 @@ try {
     notes: [
       'productVariantsBulkCreate scalar and option validation capture.',
       'Each rejected branch was captured against a disposable product with Color/Size options.',
+      "inventoryQuantitiesLimit uses 2048 variants with 25 entries each to exceed Shopify's 50,000 cumulative limit while reusing one valid live location id.",
+      'tooManyInventoryLocations uses shop.resourceLimits.locationLimit + 1 inventoryQuantity entries on one active live location to confirm the public per-variant cap.',
       'atomicNoWrite compares before/after product reads and must remain true for each captured rejection.',
     ],
     run: {
@@ -334,10 +415,13 @@ try {
       productId,
       storeDomain,
       apiVersion,
+      activeLocationCount: locationIds.length,
+      locationLimit,
     },
     captures: {
       productCreate,
       setupOptions,
+      locations,
       ...cases,
     },
     upstreamCalls: [],

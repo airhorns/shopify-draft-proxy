@@ -1,0 +1,22 @@
+#graphql
+mutation PaymentTermsUpdateMissingTemplateId($input: PaymentTermsUpdateInput!) {
+  paymentTermsUpdate(input: $input) {
+    paymentTerms {
+      id
+      paymentTermsName
+      paymentTermsType
+      dueInDays
+      paymentSchedules(first: 1) {
+        nodes {
+          issuedAt
+          dueAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

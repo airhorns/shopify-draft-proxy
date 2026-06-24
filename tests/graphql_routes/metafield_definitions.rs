@@ -139,6 +139,235 @@ fn create_app_definition_for_resource_limit(
     proxy.process_request(request).body["data"]["metafieldDefinitionCreate"].clone()
 }
 
+#[test]
+fn metafield_definition_create_duplicate_and_cross_owner_keys_are_owner_scoped() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "owner_scope";
+
+    let create = |proxy: &mut DraftProxy, owner_type: &str, name: &str| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionCreateScoped($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType name pinnedPosition }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+                json!({
+                    "definition": {
+                        "ownerType": owner_type,
+                        "namespace": namespace,
+                        "key": "spec",
+                        "name": name,
+                        "type": "single_line_text_field"
+                    }
+                }),
+            ))
+            .body["data"]["metafieldDefinitionCreate"]
+            .clone()
+    };
+
+    let product = create(&mut proxy, "PRODUCT", "Product spec");
+    let product_id = product["createdDefinition"]["id"].clone();
+    assert_eq!(product["userErrors"], json!([]));
+
+    let duplicate = create(&mut proxy, "PRODUCT", "Duplicate product spec");
+    assert_eq!(
+        duplicate,
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionCreateUserError",
+                "field": ["definition", "key"],
+                "message": "Key is in use for Product metafields on the 'owner_scope' namespace.",
+                "code": "TAKEN"
+            }]
+        })
+    );
+
+    let customer = create(&mut proxy, "CUSTOMER", "Customer spec");
+    let customer_id = customer["createdDefinition"]["id"].clone();
+    assert_eq!(customer["userErrors"], json!([]));
+    assert_ne!(product_id, customer_id);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionReadScoped($namespace: String!) {
+          productByIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "spec" }) {
+            id ownerType namespace key name pinnedPosition
+          }
+          customerByIdentifier: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: $namespace, key: "spec" }) {
+            id ownerType namespace key name pinnedPosition
+          }
+          productCatalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 10) {
+            nodes { id ownerType namespace key name pinnedPosition }
+          }
+          customerCatalog: metafieldDefinitions(ownerType: CUSTOMER, namespace: $namespace, first: 10) {
+            nodes { id ownerType namespace key name pinnedPosition }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "productByIdentifier": {
+                "id": product_id,
+                "ownerType": "PRODUCT",
+                "namespace": namespace,
+                "key": "spec",
+                "name": "Product spec",
+                "pinnedPosition": null
+            },
+            "customerByIdentifier": {
+                "id": customer_id,
+                "ownerType": "CUSTOMER",
+                "namespace": namespace,
+                "key": "spec",
+                "name": "Customer spec",
+                "pinnedPosition": null
+            },
+            "productCatalog": {
+                "nodes": [{
+                    "id": product_id,
+                    "ownerType": "PRODUCT",
+                    "namespace": namespace,
+                    "key": "spec",
+                    "name": "Product spec",
+                    "pinnedPosition": null
+                }]
+            },
+            "customerCatalog": {
+                "nodes": [{
+                    "id": customer_id,
+                    "ownerType": "CUSTOMER",
+                    "namespace": namespace,
+                    "key": "spec",
+                    "name": "Customer spec",
+                    "pinnedPosition": null
+                }]
+            }
+        })
+    );
+
+    let customer_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateScoped($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id ownerType namespace key name }
+            userErrors { field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "CUSTOMER",
+                "namespace": namespace,
+                "key": "spec",
+                "name": "Updated customer spec"
+            }
+        }),
+    ));
+    assert_eq!(
+        customer_update.body["data"]["metafieldDefinitionUpdate"]["updatedDefinition"],
+        json!({
+            "id": customer_id,
+            "ownerType": "CUSTOMER",
+            "namespace": namespace,
+            "key": "spec",
+            "name": "Updated customer spec"
+        })
+    );
+
+    let pinned = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionPinScoped($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionPin(identifier: $identifier) {
+            pinnedDefinition { id ownerType namespace key name pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "identifier": { "ownerType": "PRODUCT", "namespace": namespace, "key": "spec" } }),
+    ));
+    assert_eq!(
+        pinned.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"],
+        json!({
+            "id": product_id,
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": "spec",
+            "name": "Product spec",
+            "pinnedPosition": 1
+        })
+    );
+
+    let unpinned = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUnpinScoped($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionUnpin(identifier: $identifier) {
+            unpinnedDefinition { id ownerType namespace key name pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "identifier": { "ownerType": "PRODUCT", "namespace": namespace, "key": "spec" } }),
+    ));
+    assert_eq!(
+        unpinned.body["data"]["metafieldDefinitionUnpin"]["unpinnedDefinition"]["pinnedPosition"],
+        json!(null)
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionDeleteScoped($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionDelete(identifier: $identifier) {
+            deletedDefinition { ownerType namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "identifier": { "ownerType": "PRODUCT", "namespace": namespace, "key": "spec" } }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinition": {
+                "ownerType": "PRODUCT",
+                "namespace": namespace,
+                "key": "spec"
+            },
+            "userErrors": []
+        })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionReadAfterScopedDelete($namespace: String!) {
+          productByIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "spec" }) { id }
+          customerByIdentifier: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: $namespace, key: "spec" }) { id ownerType name }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["productByIdentifier"],
+        json!(null)
+    );
+    assert_eq!(
+        after_delete.body["data"]["customerByIdentifier"],
+        json!({
+            "id": customer_id,
+            "ownerType": "CUSTOMER",
+            "name": "Updated customer spec"
+        })
+    );
+}
+
 fn update_definition_pin(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
     proxy.process_request(json_graphql_request(
         r#"
@@ -176,6 +405,38 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
             "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
         }),
     )).body["data"]["standardMetafieldDefinitionEnable"].clone()
+}
+
+fn standard_enable_subtitle(proxy: &mut DraftProxy, pin: Option<bool>) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation StandardMetafieldDefinitionEnableSubtitle($pin: Boolean) {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+            pin: $pin
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              pinnedPosition
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+              access { admin storefront customerAccount }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({ "pin": pin }),
+        ))
+        .body["data"]["standardMetafieldDefinitionEnable"]
+        .clone()
 }
 
 #[test]
@@ -231,6 +492,118 @@ fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
             ["pinnedPosition"],
         json!(2)
     );
+}
+
+#[test]
+fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = standard_enable_subtitle(&mut proxy, None);
+    assert_eq!(initial["userErrors"], json!([]));
+    let initial_id = initial["createdDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let reenabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionReenableMerge {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "descriptors"
+            key: "subtitle"
+            access: { admin: PUBLIC_READ_WRITE, storefront: PUBLIC_READ }
+            capabilities: { adminFilterable: { enabled: true } }
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              pinnedPosition
+              access { admin storefront customerAccount }
+              capabilities {
+                adminFilterable { enabled eligible status }
+                smartCollectionCondition { enabled eligible }
+                uniqueValues { enabled eligible }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let payload = &reenabled.body["data"]["standardMetafieldDefinitionEnable"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(payload["createdDefinition"]["id"], json!(initial_id));
+    assert_eq!(
+        payload["createdDefinition"]["access"],
+        json!({
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ",
+            "customerAccount": "NONE"
+        })
+    );
+    assert_eq!(
+        payload["createdDefinition"]["capabilities"]["adminFilterable"],
+        json!({ "enabled": true, "eligible": true, "status": "FILTERABLE" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StandardMetafieldDefinitionReenableRead($id: ID!) {
+          byOriginalId: metafieldDefinition(id: $id) {
+            id
+            namespace
+            key
+            capabilities { adminFilterable { enabled status } }
+          }
+          byIdentifier: metafieldDefinition(
+            identifier: { ownerType: PRODUCT, namespace: "descriptors", key: "subtitle" }
+          ) {
+            id
+            namespace
+            key
+            capabilities { adminFilterable { enabled status } }
+          }
+        }
+        "#,
+        json!({ "id": initial_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["byOriginalId"],
+        read.body["data"]["byIdentifier"]
+    );
+    assert_eq!(read.body["data"]["byOriginalId"]["id"], json!(initial_id));
+    assert_eq!(
+        read.body["data"]["byOriginalId"]["capabilities"]["adminFilterable"],
+        json!({ "enabled": true, "status": "FILTERABLE" })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_reenable_pin_over_cap_uses_next_position() {
+    let namespace = "standard_reenable_pin_cap";
+    let mut proxy = snapshot_proxy();
+
+    for index in 1..=20 {
+        let key = format!("pin_{index:02}");
+        let created = create_definition(&mut proxy, namespace, &key, true);
+        assert_eq!(created["userErrors"], json!([]));
+    }
+
+    let initial = standard_enable_subtitle(&mut proxy, None);
+    assert_eq!(initial["userErrors"], json!([]));
+    assert_eq!(initial["createdDefinition"]["pinnedPosition"], Value::Null);
+    let initial_id = initial["createdDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let reenabled = standard_enable_subtitle(&mut proxy, Some(true));
+    assert_eq!(reenabled["userErrors"], json!([]));
+    assert_eq!(reenabled["createdDefinition"]["id"], json!(initial_id));
+    assert_eq!(reenabled["createdDefinition"]["pinnedPosition"], json!(21));
 }
 
 #[test]

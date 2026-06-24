@@ -18,6 +18,8 @@ const outputPath = path.join(outputDir, 'inventory-quantity-contracts-2026-04.js
 const expectedAvailableQuantity = 7;
 const downstreamInventoryPollDelayMs = 2_000;
 const downstreamInventoryPollAttempts = 15;
+const unknownInventoryItemId = 'gid://shopify/InventoryItem/999999999999';
+const unknownLocationId = 'gid://shopify/Location/999999999999';
 
 const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -110,6 +112,15 @@ const inventorySetMutation = `#graphql
   }
 `;
 
+const inventorySetValidationMutation = `#graphql
+  mutation InventoryQuantityContractSetValidation($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message code }
+    }
+  }
+`;
+
 const inventorySetMissingIdempotencyMutation = `#graphql
   mutation InventoryQuantityContractSetMissingIdempotency($input: InventorySetQuantitiesInput!) {
     inventorySetQuantities(input: $input) {
@@ -136,6 +147,24 @@ const inventoryAdjustMutation = `#graphql
         }
       }
       userErrors { field message }
+    }
+  }
+`;
+
+const inventoryAdjustValidationMutation = `#graphql
+  mutation InventoryQuantityContractAdjustValidation($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+    inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message code }
+    }
+  }
+`;
+
+const inventoryMoveValidationMutation = `#graphql
+  mutation InventoryQuantityContractMoveValidation($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+    inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message code }
     }
   }
 `;
@@ -468,6 +497,148 @@ try {
     missingAdjustChangeFromQuantityVariables,
   );
 
+  const setUnknownInventoryItemVariables = {
+    input: {
+      name: 'available',
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-unknown-item/${runId}`,
+      quantities: [
+        {
+          inventoryItemId: unknownInventoryItemId,
+          locationId: location.id,
+          quantity: 3,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-unknown-item-${runId}`,
+  };
+  const setUnknownInventoryItem = await runGraphqlAllowGraphqlErrors(
+    inventorySetValidationMutation,
+    setUnknownInventoryItemVariables,
+  );
+
+  const setUnknownLocationVariables = {
+    input: {
+      name: 'available',
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-unknown-location/${runId}`,
+      quantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: unknownLocationId,
+          quantity: 3,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-unknown-location-${runId}`,
+  };
+  const setUnknownLocation = await runGraphqlAllowGraphqlErrors(
+    inventorySetValidationMutation,
+    setUnknownLocationVariables,
+  );
+
+  const adjustUnknownInventoryItemVariables = {
+    input: {
+      name: 'available',
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/adjust-unknown-item/${runId}`,
+      changes: [
+        {
+          inventoryItemId: unknownInventoryItemId,
+          locationId: location.id,
+          delta: 1,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-adjust-unknown-item-${runId}`,
+  };
+  const adjustUnknownInventoryItem = await runGraphqlAllowGraphqlErrors(
+    inventoryAdjustValidationMutation,
+    adjustUnknownInventoryItemVariables,
+  );
+
+  const adjustUnknownLocationVariables = {
+    input: {
+      name: 'available',
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/adjust-unknown-location/${runId}`,
+      changes: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: unknownLocationId,
+          delta: 1,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-adjust-unknown-location-${runId}`,
+  };
+  const adjustUnknownLocation = await runGraphqlAllowGraphqlErrors(
+    inventoryAdjustValidationMutation,
+    adjustUnknownLocationVariables,
+  );
+
+  const moveUnknownInventoryItemVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/move-unknown-item/${runId}`,
+      changes: [
+        {
+          inventoryItemId: unknownInventoryItemId,
+          quantity: 1,
+          from: {
+            locationId: location.id,
+            name: 'available',
+            changeFromQuantity: expectedAvailableQuantity,
+          },
+          to: {
+            locationId: location.id,
+            name: 'damaged',
+            changeFromQuantity: 0,
+            ledgerDocumentUri: `ledger://inventory-quantity/move-unknown-item/${runId}`,
+          },
+        },
+      ],
+    },
+    idempotencyKey: `inventory-move-unknown-item-${runId}`,
+  };
+  const moveUnknownInventoryItem = await runGraphqlAllowGraphqlErrors(
+    inventoryMoveValidationMutation,
+    moveUnknownInventoryItemVariables,
+  );
+
+  const moveUnknownLocationVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/move-unknown-location/${runId}`,
+      changes: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          quantity: 1,
+          from: {
+            locationId: unknownLocationId,
+            name: 'available',
+            changeFromQuantity: expectedAvailableQuantity,
+          },
+          to: {
+            locationId: unknownLocationId,
+            name: 'damaged',
+            changeFromQuantity: 0,
+            ledgerDocumentUri: `ledger://inventory-quantity/move-unknown-location/${runId}`,
+          },
+        },
+      ],
+    },
+    idempotencyKey: `inventory-move-unknown-location-${runId}`,
+  };
+  const moveUnknownLocation = await runGraphqlAllowGraphqlErrors(
+    inventoryMoveValidationMutation,
+    moveUnknownLocationVariables,
+  );
+
   const downstreamRead = await waitForDownstreamInventoryRead(product.productId, product.inventoryItemId);
   const cleanup = await deleteProduct(product.productId);
   productId = null;
@@ -510,6 +681,36 @@ try {
     missingAdjustChangeFromQuantity: {
       variables: missingAdjustChangeFromQuantityVariables,
       response: missingAdjustChangeFromQuantity,
+    },
+    unknownIdValidation: {
+      knownInventoryItemId: product.inventoryItemId,
+      knownLocationId: location.id,
+      unknownInventoryItemId,
+      unknownLocationId,
+      setUnknownInventoryItem: {
+        variables: setUnknownInventoryItemVariables,
+        response: setUnknownInventoryItem,
+      },
+      setUnknownLocation: {
+        variables: setUnknownLocationVariables,
+        response: setUnknownLocation,
+      },
+      adjustUnknownInventoryItem: {
+        variables: adjustUnknownInventoryItemVariables,
+        response: adjustUnknownInventoryItem,
+      },
+      adjustUnknownLocation: {
+        variables: adjustUnknownLocationVariables,
+        response: adjustUnknownLocation,
+      },
+      moveUnknownInventoryItem: {
+        variables: moveUnknownInventoryItemVariables,
+        response: moveUnknownInventoryItem,
+      },
+      moveUnknownLocation: {
+        variables: moveUnknownLocationVariables,
+        response: moveUnknownLocation,
+      },
     },
     downstreamRead,
     cleanup,

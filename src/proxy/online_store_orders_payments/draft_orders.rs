@@ -1994,7 +1994,7 @@ impl DraftProxy {
             .into_iter()
             .map(|mut line| {
                 if let Some(tail) = line["id"].as_str().map(resource_id_path_tail) {
-                    line["id"] = json!(format!("gid://shopify/LineItem/{tail}"));
+                    line["id"] = json!(shopify_gid("LineItem", tail));
                 }
                 if line["sku"].as_str() == Some("") {
                     line["sku"] = Value::Null;
@@ -2386,7 +2386,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_draft_order_bulk_tag_job(&mut self) -> Value {
         let id = self.store.staged.next_draft_order_bulk_tag_job_id;
         self.store.staged.next_draft_order_bulk_tag_job_id += 1;
-        json!({ "id": format!("gid://shopify/Job/{id}"), "done": false })
+        json!({ "id": shopify_gid("Job", id), "done": false })
     }
 
     pub(in crate::proxy) fn draft_order_bulk_add_tags(

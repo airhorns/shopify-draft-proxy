@@ -1,0 +1,237 @@
+{
+  "metadata": {
+    "scenario": "sellingPlanGroup.summary computed discount range",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-06-24T00:41:04.624Z",
+    "expectedSummary": "4 delivery frequencies, 10-20%·$5-$8 discount"
+  },
+  "scenarios": {
+    "createSummary": {
+      "label": "createSummary",
+      "variables": {
+        "input": {
+          "name": "Summary parity 20260624004103",
+          "options": ["Delivery frequency", "Billing cadence"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly percentage",
+              "options": ["Monthly percentage", "Monthly billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Annual percentage",
+              "options": ["Annual percentage", "Annual billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 20
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Monthly fixed",
+              "options": ["Monthly fixed", "Monthly fixed billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "FIXED_AMOUNT",
+                    "adjustmentValue": {
+                      "fixedValue": "5.0"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Annual fixed",
+              "options": ["Annual fixed", "Annual fixed billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "FIXED_AMOUNT",
+                    "adjustmentValue": {
+                      "fixedValue": "7.5"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3102179634",
+              "summary": "4 delivery frequencies, 10-20%·$5-$8 discount",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7259619634"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7259652402"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7259685170"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7259717938"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readSummary": {
+      "label": "readSummary",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102179634"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "id": "gid://shopify/SellingPlanGroup/3102179634",
+            "summary": "4 delivery frequencies, 10-20%·$5-$8 discount",
+            "sellingPlans": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlan/7259619634"
+                },
+                {
+                  "id": "gid://shopify/SellingPlan/7259652402"
+                },
+                {
+                  "id": "gid://shopify/SellingPlan/7259685170"
+                },
+                {
+                  "id": "gid://shopify/SellingPlan/7259717938"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanupDelete": {
+      "label": "cleanupDelete",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3102179634"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3102179634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

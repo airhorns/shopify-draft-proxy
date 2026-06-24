@@ -1,0 +1,34 @@
+mutation RemoveFromReturnStatePrecondition($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
+  removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
+    return {
+      id
+      name
+      status
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+          lineItems(first: 5) {
+            nodes {
+              id
+              totalQuantity
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -13,6 +13,10 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+
+const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
+const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
+
 impl DraftProxy {
     pub(in crate::proxy) fn record_passthrough_log_entry(
         &mut self,
@@ -627,7 +631,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         product_id: &str,
     ) -> Option<(Vec<Value>, ProductVariantRecord)> {
-        let product_options = Self::resolved_object_list_arg(input, "productOptions");
+        let product_options = list_object_field(input, "productOptions");
         if product_options.is_empty() {
             return None;
         }
@@ -635,7 +639,7 @@ impl DraftProxy {
         let mut selected_options = Vec::new();
         for (index, option) in product_options.iter().enumerate() {
             let name = resolved_string_field(option, "name").unwrap_or_default();
-            let value_names: Vec<String> = Self::resolved_object_list_arg(option, "values")
+            let value_names: Vec<String> = list_object_field(option, "values")
                 .iter()
                 .filter_map(|value| resolved_string_field(value, "name"))
                 .collect();
@@ -1266,11 +1270,9 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -1572,7 +1574,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         if variants_input.len() > 2048 {
             return MutationOutcome::response(Self::product_variant_bulk_input_size_error(
                 &field,
@@ -1595,6 +1597,17 @@ impl DraftProxy {
                 )],
             ));
         };
+        if let Some(error) =
+            Self::product_variant_bulk_inventory_quantities_limit_user_error(&variants_input)
+        {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                None,
+                Some(Vec::new()),
+                vec![error],
+            ));
+        }
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
@@ -1722,7 +1735,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         // Hydrate the product together with the variants referenced by the update so
         // a cold backend stages both before the update is applied, matching the
         // node hydration the proxy records during capture.
@@ -1944,7 +1957,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let positions = Self::resolved_object_list_arg(&field.arguments, "positions");
+        let positions = list_object_field(&field.arguments, "positions");
         let position_variant_ids = positions
             .iter()
             .filter_map(|position| resolved_string_field(position, "id"))
@@ -2103,11 +2116,9 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -2231,11 +2242,9 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &error_selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &error_selection,
                 )),
                 _ => None,
             }
@@ -2250,22 +2259,6 @@ impl DraftProxy {
         root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_field)
-    }
-
-    fn resolved_object_list_arg(
-        arguments: &BTreeMap<String, ResolvedValue>,
-        name: &str,
-    ) -> Vec<BTreeMap<String, ResolvedValue>> {
-        match arguments.get(name) {
-            Some(ResolvedValue::List(values)) => values
-                .iter()
-                .filter_map(|value| match value {
-                    ResolvedValue::Object(object) => Some(object.clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        }
     }
 
     fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
@@ -2295,6 +2288,24 @@ impl DraftProxy {
                 .map(|code| Value::String(code.to_string()))
                 .unwrap_or(Value::Null),
         })
+    }
+
+    fn product_variant_bulk_inventory_quantities_limit_user_error(
+        variants_input: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let quantity_count: usize = variants_input
+            .iter()
+            .map(|input| resolved_object_list_field(input, "inventoryQuantities").len())
+            .sum();
+        if quantity_count > PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT {
+            Some(Self::bulk_user_error(
+                &["variants"],
+                "Inventory quantity input exceeds the limit of 50000. Consider using separate `inventorySetQuantities` mutations.",
+                Some("INVALID_INPUT"),
+            ))
+        } else {
+            None
+        }
     }
 
     fn product_variant_bulk_option_user_errors(
@@ -2433,18 +2444,23 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         index: usize,
     ) -> Vec<Value> {
+        let inventory_quantities = resolved_object_list_field(input, "inventoryQuantities");
+        if inventory_quantities.len() > self.product_variant_bulk_inventory_location_limit() {
+            return vec![Self::bulk_user_error(
+                &["variants", &index.to_string()],
+                "Inventory locations cannot exceed the allowed resource limit",
+                Some("TOO_MANY_INVENTORY_LOCATIONS"),
+            )];
+        }
         let variant_title = resolved_product_variant_selected_options(input)
             .iter()
             .map(|option| option.value.as_str())
             .collect::<Vec<_>>()
             .join(" / ");
-        if resolved_object_list_field(input, "inventoryQuantities")
-            .iter()
-            .any(|quantity| {
-                resolved_string_field(quantity, "locationId")
-                    .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
-            })
-        {
+        if inventory_quantities.iter().any(|quantity| {
+            resolved_string_field(quantity, "locationId")
+                .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
+        }) {
             vec![Self::bulk_user_error(
                 &["variants", &index.to_string(), "inventoryQuantities"],
                 &format!(
@@ -2460,6 +2476,18 @@ impl DraftProxy {
         } else {
             Vec::new()
         }
+    }
+
+    fn product_variant_bulk_inventory_location_limit(&self) -> usize {
+        self.store
+            .base
+            .shop
+            .get("resourceLimits")
+            .and_then(|limits| limits.get("locationLimit"))
+            .and_then(Value::as_u64)
+            .and_then(|limit| usize::try_from(limit).ok())
+            .filter(|limit| *limit > 0)
+            .unwrap_or(PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT)
     }
 
     fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
@@ -2547,12 +2575,7 @@ impl DraftProxy {
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &error_selection))
-                            .collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -2829,7 +2852,7 @@ impl DraftProxy {
         id: &str,
         request: &Request,
     ) -> Option<ProductRecord> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
         let response = self.upstream_post(
@@ -3038,7 +3061,7 @@ impl DraftProxy {
             .as_ref()
             .is_some_and(product_publication_state_known);
         let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
+            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
             .unwrap_or_else(|| {
                 let timestamp = default_product_timestamp(&product_id);
                 ProductRecord {
@@ -3103,8 +3126,8 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3119,35 +3142,6 @@ impl DraftProxy {
         } else {
             MutationOutcome::response(response)
         }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
     }
 
     fn product_publication_user_errors(
@@ -3247,7 +3241,7 @@ pub(in crate::proxy) fn metafields_mutation_inputs(
         .map(|field| list_object_field(&field.arguments, "metafields"))
         .unwrap_or_default();
     if from_field.is_empty() {
-        list_object_arg(variables, "metafields")
+        list_object_field(variables, "metafields")
     } else {
         from_field
     }
@@ -3366,18 +3360,6 @@ fn product_publication_input_entries(
             publish_date: resolved_string_field(&publication, "publishDate"),
         })
         .collect()
-}
-
-fn selected_product_publication_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
 }
 
 fn product_publication_publish_date_is_before_1970(value: &str) -> bool {

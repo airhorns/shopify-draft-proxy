@@ -46,6 +46,8 @@ const DEFAULT_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/106318430514
 const FALLBACK_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/68509171945";
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
 const INVENTORY_ITEM_WEIGHT_UNITS: &[&str] = &["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"];
+const COMMON_MISSING_INVENTORY_ID_TAILS: &[&str] = &["999999999999", "missing", "unknown"];
+const INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS: &[&str] = &["999999999998", "999999999999999"];
 const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "AC", "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AR", "AT", "AU", "AW", "AX", "AZ",
     "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
@@ -239,7 +241,7 @@ impl DraftProxy {
                 "webhookSubscription" => field
                     .arguments
                     .get("id")
-                    .and_then(resolved_as_string)
+                    .and_then(resolved_value_string)
                     .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),
@@ -934,9 +936,7 @@ impl DraftProxy {
                         &field.selection,
                     )
                 }
-                "marketingEngagementCreate" => {
-                    self.marketing_engagement_create(field, request, &mut top_errors)
-                }
+                "marketingEngagementCreate" => self.marketing_engagement_create(field, request),
                 "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
                 "marketingActivityCreate" => selected_json(
                     &json!({
@@ -1230,9 +1230,8 @@ impl DraftProxy {
                 );
             }
         }
-        let id = existing_id.unwrap_or_else(|| {
-            format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
-        });
+        let id =
+            existing_id.unwrap_or_else(|| shopify_gid("MarketingActivity", self.next_synthetic_id));
         if !self.store.staged.marketing_activities.contains_key(&id) {
             self.next_synthetic_id += 2;
         }
@@ -1347,7 +1346,6 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-        _top_errors: &mut Vec<Value>,
     ) -> Value {
         let has_activity_id = field.arguments.contains_key("marketingActivityId");
         let has_remote = field.arguments.contains_key("remoteId");
@@ -1559,27 +1557,10 @@ impl DraftProxy {
         remote: &str,
         request: &Request,
     ) -> Option<String> {
-        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
-        self.store
-            .staged
-            .marketing_activities
-            .iter()
-            .find_map(|(id, record)| {
-                if self.store.staged.marketing_activities.is_tombstoned(id) {
-                    return None;
-                }
-                if record["remoteId"].as_str() != Some(remote)
-                    && record["marketingEvent"]["remoteId"].as_str() != Some(remote)
-                {
-                    return None;
-                }
-                let record_app = record["apiClientId"].as_str();
-                if app.map(String::as_str) == record_app {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
+        self.find_marketing_activity_matching(request, |record| {
+            record["remoteId"].as_str() == Some(remote)
+                || record["marketingEvent"]["remoteId"].as_str() == Some(remote)
+        })
     }
 
     pub(in crate::proxy) fn find_marketing_activity_by_utm(
@@ -1587,31 +1568,25 @@ impl DraftProxy {
         campaign: &str,
         request: &Request,
     ) -> Option<String> {
-        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
-        self.store
-            .staged
-            .marketing_activities
-            .iter()
-            .find_map(|(id, record)| {
-                if self.store.staged.marketing_activities.is_tombstoned(id) {
-                    return None;
-                }
-                if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
-                    return None;
-                }
-                let record_app = record["apiClientId"].as_str();
-                if app.map(String::as_str) == record_app {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
+        self.find_marketing_activity_matching(request, |record| {
+            record["utmParameters"]["campaign"].as_str() == Some(campaign)
+        })
     }
 
     pub(in crate::proxy) fn find_marketing_activity_by_url_parameter(
         &self,
         url_parameter_value: &str,
         request: &Request,
+    ) -> Option<String> {
+        self.find_marketing_activity_matching(request, |record| {
+            record["urlParameterValue"].as_str() == Some(url_parameter_value)
+        })
+    }
+
+    fn find_marketing_activity_matching(
+        &self,
+        request: &Request,
+        matches_record: impl Fn(&Value) -> bool,
     ) -> Option<String> {
         let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
         self.store
@@ -1622,7 +1597,7 @@ impl DraftProxy {
                 if self.store.staged.marketing_activities.is_tombstoned(id) {
                     return None;
                 }
-                if record["urlParameterValue"].as_str() != Some(url_parameter_value) {
+                if !matches_record(record) {
                     return None;
                 }
                 let record_app = record["apiClientId"].as_str();
@@ -1756,7 +1731,13 @@ impl DraftProxy {
                 }
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.inventory_item_selected_json(&id, variables, &field.selection)
+                    if self.inventory_item_id_is_missing(&id)
+                        && !self.inventory_item_has_local_state(&id)
+                    {
+                        Value::Null
+                    } else {
+                        self.inventory_item_selected_json(&id, variables, &field.selection)
+                    }
                 }
                 "inventoryLevel" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2401,22 +2382,17 @@ impl DraftProxy {
         let start_cursor = edges
             .first()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let end_cursor = edges
             .last()
             .and_then(|edge| edge.get("cursor"))
-            .cloned()
-            .unwrap_or(Value::Null);
+            .and_then(Value::as_str)
+            .map(str::to_string);
         Some(json!({
             "edges": edges,
             "nodes": nodes,
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": start_cursor,
-                "endCursor": end_cursor
-            }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         }))
     }
 
@@ -2627,6 +2603,11 @@ impl DraftProxy {
         if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
             return MutationFieldOutcome::unlogged(error_payload);
         }
+        if let Some(error_payload) =
+            self.inventory_set_quantities_existence_payload(field, &quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2723,6 +2704,11 @@ impl DraftProxy {
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
         if let Some(error_payload) =
             inventory_invalid_public_quantity_name_payload(field, &name, json!(["input", "name"]))
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            self.inventory_adjust_quantities_existence_payload(field, &changes_input)
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
@@ -2826,6 +2812,15 @@ impl DraftProxy {
             ) {
                 return MutationFieldOutcome::unlogged(error_payload);
             }
+        }
+        if let Some(error_payload) =
+            self.inventory_move_quantities_existence_payload(field, &changes_input)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        for (index, change) in changes_input.iter().enumerate() {
+            let from = resolved_object_field(change, "from").unwrap_or_default();
+            let to = resolved_object_field(change, "to").unwrap_or_default();
             if resolved_string_field(&from, "locationId")
                 != resolved_string_field(&to, "locationId")
             {
@@ -2922,6 +2917,118 @@ impl DraftProxy {
         )
     }
 
+    fn inventory_set_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        quantities: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, quantity) in quantities.iter().enumerate() {
+            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "quantities".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "quantities".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_adjust_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        changes: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, change) in changes.iter().enumerate() {
+            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(change, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_move_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        changes: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, change) in changes.iter().enumerate() {
+            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let from = resolved_object_field(change, "from").unwrap_or_default();
+            let from_location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&from_location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "from".to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+            let to = resolved_object_field(change, "to").unwrap_or_default();
+            let to_location_id = resolved_string_field(&to, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&to_location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "changes".to_string(),
+                    index.to_string(),
+                    "to".to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
     pub(in crate::proxy) fn inventory_activate(
         &mut self,
         field: &RootFieldSelection,
@@ -2939,7 +3046,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["inventoryItemId"],
                 "The product couldn't be stocked because it wasn't found.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2951,14 +3057,12 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Available must be greater than or equal to 0",
-                Some("NEGATIVE"),
             ));
         }
         if !self.inventory_location_exists(&location_id) {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location wasn't found.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2970,7 +3074,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location is not active.",
-                Some("LOCATION_NOT_ACTIVE"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -2992,7 +3095,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
-                None,
             ));
             let level = self.inventory_level_for_payload(
                 &inventory_item_id,
@@ -3014,7 +3116,6 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
                 "The product couldn't be stocked because it has reached the maximum number of inventory locations.",
-                Some("TOO_MANY_INVENTORY_LEVELS"),
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -3078,7 +3179,6 @@ impl DraftProxy {
         else {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the product was deleted.",
-                Some("NOT_FOUND"),
             ));
             return MutationFieldOutcome::unlogged(
                 self.inventory_deactivate_payload(&field.selection, user_errors),
@@ -3088,12 +3188,10 @@ impl DraftProxy {
         if !self.inventory_item_exists(&inventory_item_id) {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the product was deleted.",
-                Some("NOT_FOUND"),
             ));
         } else if self.inventory_level_id_is_missing(&inventory_level_id) {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the location was deleted.",
-                Some("LOCATION_NOT_FOUND"),
             ));
         } else if !self.store.staged.inventory_levels.contains_key(&key) {
             self.ensure_default_inventory_level(&inventory_item_id, &location_id);
@@ -3110,7 +3208,6 @@ impl DraftProxy {
                     "The product couldn't be unstocked from {} because products need to be stocked at a minimum of 1 location.",
                     self.inventory_location_display_name(&location_id)
                 ),
-                Some("CANNOT_DEACTIVATE_LAST_LOCATION"),
             ));
         }
         if !user_errors.is_empty() {
@@ -3160,7 +3257,9 @@ impl DraftProxy {
                 index.to_string(),
                 "locationId".to_string(),
             ];
-            if !self.inventory_location_exists(&location_id) {
+            if !self.inventory_location_exists(&location_id)
+                || !self.inventory_location_is_active(&location_id)
+            {
                 user_errors.push(inventory_bulk_toggle_user_error(
                     location_path.clone(),
                     "The quantity couldn't be updated because the location was not found.",
@@ -3173,41 +3272,6 @@ impl DraftProxy {
                     user_errors,
                 ));
             }
-            if !self.inventory_location_is_active(&location_id) {
-                user_errors.push(inventory_bulk_toggle_user_error(
-                    location_path.clone(),
-                    "The quantity couldn't be updated because the location is not active.",
-                    Some("LOCATION_NOT_ACTIVE"),
-                ));
-                return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                    None,
-                    None,
-                    &field.selection,
-                    user_errors,
-                ));
-            }
-            if let Some(quantity) = resolved_int_field(update, "available")
-                .or_else(|| resolved_int_field(update, "quantity"))
-            {
-                if quantity < 0 {
-                    user_errors.push(inventory_bulk_toggle_user_error(
-                        vec![
-                            "inventoryItemUpdates".to_string(),
-                            index.to_string(),
-                            "available".to_string(),
-                        ],
-                        "Available must be greater than or equal to 0",
-                        Some("NEGATIVE"),
-                    ));
-                    return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                        None,
-                        None,
-                        &field.selection,
-                        user_errors,
-                    ));
-                }
-            }
-
             let key = (inventory_item_id.clone(), location_id.clone());
             let is_active = self.store.staged.inventory_levels.contains_key(&key)
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
@@ -3222,24 +3286,6 @@ impl DraftProxy {
                 && !self.store.staged.inactive_inventory_levels.contains(&key);
             if activate {
                 if !is_active {
-                    if !self.store.staged.inactive_inventory_levels.contains(&key)
-                        && self
-                            .active_inventory_levels_for_item(&inventory_item_id)
-                            .len()
-                            >= INVENTORY_MAX_ACTIVE_LEVELS
-                    {
-                        user_errors.push(inventory_bulk_toggle_user_error(
-                            location_path.clone(),
-                            "The quantity couldn't be updated because the product has reached the maximum number of inventory locations.",
-                            Some("TOO_MANY_INVENTORY_LEVELS"),
-                        ));
-                        return MutationFieldOutcome::unlogged(self.inventory_bulk_toggle_payload(
-                            None,
-                            None,
-                            &field.selection,
-                            user_errors,
-                        ));
-                    }
                     self.activate_inventory_level(&inventory_item_id, &location_id);
                 }
                 if let Some(level) = self.inventory_level_for_payload(
@@ -3370,6 +3416,18 @@ impl DraftProxy {
             || inventory_item_id.starts_with("gid://shopify/InventoryItem/")
     }
 
+    fn inventory_item_has_local_state(&self, inventory_item_id: &str) -> bool {
+        self.store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .is_some()
+            || self
+                .store
+                .staged
+                .inventory_levels
+                .keys()
+                .any(|(item_id, _)| item_id == inventory_item_id)
+    }
+
     fn inventory_location_exists(&self, location_id: &str) -> bool {
         if location_id.is_empty()
             || location_id.ends_with("/999999999999")
@@ -3394,66 +3452,48 @@ impl DraftProxy {
     }
 
     fn inventory_location_is_active(&self, location_id: &str) -> bool {
-        self.store
-            .staged
-            .locations
-            .get(location_id)
-            .or_else(|| {
-                self.store
-                    .staged
-                    .fulfillment_service_locations
-                    .get(location_id)
-            })
+        self.inventory_location_record(location_id)
             .and_then(|location| location.get("isActive"))
             .and_then(Value::as_bool)
             .unwrap_or(true)
     }
 
     fn inventory_location_display_name(&self, location_id: &str) -> String {
-        self.store
-            .staged
-            .locations
-            .get(location_id)
-            .or_else(|| {
-                self.store
-                    .staged
-                    .fulfillment_service_locations
-                    .get(location_id)
-            })
+        self.inventory_location_record(location_id)
             .and_then(|location| location.get("name"))
             .and_then(Value::as_str)
             .map(str::to_string)
             .unwrap_or_else(|| inventory_location_name(location_id).to_string())
     }
 
+    fn inventory_location_record(&self, location_id: &str) -> Option<&Value> {
+        self.store.staged.locations.get(location_id).or_else(|| {
+            self.store
+                .staged
+                .fulfillment_service_locations
+                .get(location_id)
+        })
+    }
+
     fn inventory_item_id_is_missing(&self, inventory_item_id: &str) -> bool {
         let tail = resource_id_tail(inventory_item_id);
-        tail.is_empty()
-            || tail == "999999999998"
-            || tail == "999999999999"
-            || tail == "999999999999999"
-            || tail.eq_ignore_ascii_case("missing")
-            || tail.eq_ignore_ascii_case("unknown")
+        inventory_id_tail_is_missing(tail)
+            || INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS
+                .iter()
+                .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
     }
 
     fn inventory_level_id_is_missing(&self, inventory_level_id: &str) -> bool {
-        let tail = inventory_level_id
-            .strip_prefix("gid://shopify/InventoryLevel/")
-            .and_then(|rest| rest.split('?').next())
-            .unwrap_or_default();
-        tail.is_empty()
-            || tail == "999999999999"
-            || tail.eq_ignore_ascii_case("missing")
-            || tail.eq_ignore_ascii_case("unknown")
+        let tail = inventory_level_id_tail(inventory_level_id).unwrap_or_default();
+        inventory_id_tail_is_missing(tail)
     }
 
     fn inventory_level_parts_from_id_or_fallback(&self, id: &str) -> Option<(String, String)> {
-        let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
-        let (_, query) = rest.split_once("?inventory_item_id=")?;
+        let (_, query) = inventory_level_id_tail_and_query(id)?;
         let inventory_item_id = if query.starts_with("gid://shopify/InventoryItem/") {
             query.to_string()
         } else {
-            format!("gid://shopify/InventoryItem/{query}")
+            shopify_gid("InventoryItem", query)
         };
         if let Some(((item_id, location_id), _)) = self
             .store
@@ -3613,11 +3653,9 @@ impl DraftProxy {
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "inventoryLevel" => Some(inventory_level.clone().unwrap_or(Value::Null)),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3629,11 +3667,9 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3656,11 +3692,9 @@ impl DraftProxy {
                     .as_ref()
                     .map_or(Value::Null, |levels| Value::Array(levels.clone())),
             ),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -3677,11 +3711,9 @@ impl DraftProxy {
                 inventory_item.as_ref().unwrap_or(&Value::Null),
                 &selection.selection,
             )),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
+            "userErrors" => Some(selected_user_errors(
+                user_errors.as_slice(),
+                &selection.selection,
             )),
             _ => None,
         })
@@ -4519,12 +4551,7 @@ impl DraftProxy {
             })),
             "lineItems": {
                 "nodes": line_items,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }
@@ -5156,12 +5183,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }),
             selection,
         )
@@ -5195,12 +5217,7 @@ impl DraftProxy {
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
             "lineItems": {
                 "nodes": nodes,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                }
+                "pageInfo": empty_page_info()
             }
         })
     }
@@ -5227,11 +5244,9 @@ impl DraftProxy {
                     line_item.inventory_item_id.clone(),
                     record.origin_location_id.clone(),
                 ))
-                .or_default();
+                .or_insert_with(default_transfer_inventory_quantities);
             if origin.is_empty() {
-                origin.insert("available".to_string(), 5);
-                origin.insert("reserved".to_string(), 0);
-                origin.insert("on_hand".to_string(), 5);
+                *origin = default_transfer_inventory_quantities();
             }
             self.store
                 .staged
@@ -5463,7 +5478,7 @@ impl DraftProxy {
         };
         let product = variant.get("product").cloned().unwrap_or_else(|| {
             json!({
-                "id": format!("gid://shopify/Product/{}", resource_id_tail(&item_id)),
+                "id": shopify_gid("Product", resource_id_tail(&item_id)),
                 "title": "",
                 "handle": "",
                 "status": "ACTIVE",
@@ -5489,7 +5504,7 @@ impl DraftProxy {
             .and_then(|product| product.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| format!("gid://shopify/Product/{}", resource_id_tail(&item_id)));
+            .unwrap_or_else(|| shopify_gid("Product", resource_id_tail(&item_id)));
         let mut variant_value = variant.clone();
         if let Some(fields) = variant_value.as_object_mut() {
             fields.insert("id".to_string(), json!(variant_id));
@@ -5570,13 +5585,7 @@ impl DraftProxy {
             .staged
             .inventory_levels
             .entry((inventory_item_id.to_string(), location_id.to_string()))
-            .or_insert_with(|| {
-                BTreeMap::from([
-                    ("available".to_string(), 5),
-                    ("reserved".to_string(), 0),
-                    ("on_hand".to_string(), 5),
-                ])
-            });
+            .or_insert_with(default_transfer_inventory_quantities);
         *level.entry("available".to_string()).or_insert(0) -= reserved_delta;
         *level.entry("reserved".to_string()).or_insert(0) += reserved_delta;
         let available = level.get("available").copied().unwrap_or(0);
@@ -6031,6 +6040,21 @@ fn empty_inventory_quantities() -> BTreeMap<String, i64> {
     ])
 }
 
+fn default_transfer_inventory_quantities() -> BTreeMap<String, i64> {
+    BTreeMap::from([
+        ("available".to_string(), 5),
+        ("reserved".to_string(), 0),
+        ("on_hand".to_string(), 5),
+    ])
+}
+
+fn inventory_id_tail_is_missing(tail: &str) -> bool {
+    tail.is_empty()
+        || COMMON_MISSING_INVENTORY_ID_TAILS
+            .iter()
+            .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
+}
+
 fn inventory_shipment_tracking_from_input(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Option<InventoryShipmentTrackingRecord> {
@@ -6154,12 +6178,12 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
     quantities
 }
 
-fn inventory_activate_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(field, message, code)
+fn inventory_activate_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
-fn inventory_deactivate_user_error(message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(Value::Null, message, code)
+fn inventory_deactivate_user_error(message: &str) -> Value {
+    user_error_omit_code(Value::Null, message, None)
 }
 
 fn inventory_bulk_toggle_user_error(
@@ -6448,6 +6472,22 @@ fn inventory_invalid_adjustment_payload(
         }),
         &field.selection,
     )
+}
+
+fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
+    json!({
+        "field": field,
+        "message": "The specified inventory item could not be found.",
+        "code": "INVALID_INVENTORY_ITEM"
+    })
+}
+
+fn inventory_unknown_location_error(field: Vec<String>) -> Value {
+    json!({
+        "field": field,
+        "message": "The specified location could not be found.",
+        "code": "INVALID_LOCATION"
+    })
 }
 
 #[cfg(test)]

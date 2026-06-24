@@ -4453,7 +4453,7 @@ impl DraftProxy {
         let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
         let id = if order_email.ends_with("example.test") {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
-            format!("gid://shopify/Order/{}", ordinal.max(1))
+            shopify_gid("Order", ordinal.max(1))
         } else {
             synthetic_shopify_gid("Order", self.next_synthetic_id)
         };
@@ -6754,7 +6754,15 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let metafields = if input.loyalty.is_null() {
         json!({ "nodes": [], "pageInfo": empty_page_info() })
     } else {
-        json!({ "nodes": [input.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+        json!({
+            "nodes": [input.loyalty.clone()],
+            "pageInfo": connection_page_info(
+                false,
+                false,
+                Some("cursor:customer-metafield:1".to_string()),
+                Some("cursor:customer-metafield:1".to_string())
+            )
+        })
     };
     let default_address = input.addresses.first().cloned().unwrap_or(Value::Null);
     let start_cursor = input.addresses.first().and_then(customer_address_cursor);
@@ -6790,7 +6798,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "addressesV2": {
             "nodes": input.addresses,
             "edges": address_edges,
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": start_cursor, "endCursor": end_cursor }
+            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
         },
         "createdAt": input.created_at,
         "updatedAt": input.updated_at
@@ -7055,12 +7063,7 @@ fn customer_rebuild_addresses(customer: &mut Value, nodes: Vec<Value>, default_i
             json!({
                 "nodes": nodes,
                 "edges": edges,
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": start_cursor,
-                    "endCursor": end_cursor
-                }
+                "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
             }),
         );
     }
@@ -8002,7 +8005,7 @@ fn b2b_address_input_errors(
         if let Some(value) = resolved_string_field(address, field_name) {
             let invalid = b2b_contains_html_tags(&value)
                 || b2b_contains_emoji(&value)
-                || (reject_url && b2b_contains_url_substring(&value));
+                || (reject_url && customer_address_contains_url(&value));
             if invalid {
                 let mut field = prefix.to_vec();
                 field.push(field_name);
@@ -8151,11 +8154,6 @@ fn b2b_contains_emoji(value: &str) -> bool {
             || (0xfe00..=0xfe0f).contains(&code)
             || code == 0x200d
     })
-}
-
-fn b2b_contains_url_substring(value: &str) -> bool {
-    let lowered = value.to_ascii_lowercase();
-    lowered.contains("http://") || lowered.contains("https://") || lowered.contains("www.")
 }
 
 /// Canada subdivision (province/territory) catalog.
@@ -9433,12 +9431,7 @@ fn nodes_connection(nodes: Vec<Value>) -> Value {
     let end_cursor = nodes.last().map(node_connection_cursor);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": start_cursor,
-            "endCursor": end_cursor
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 

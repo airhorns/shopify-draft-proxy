@@ -1,0 +1,16 @@
+mutation SegmentUpdateNameLiteralNullOnly($id: ID!) {
+  segmentUpdate(id: $id, name: null) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}

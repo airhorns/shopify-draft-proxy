@@ -1,0 +1,12 @@
+mutation ReturnCreateReasonValidation($returnInput: ReturnInput!) {
+  returnCreate(returnInput: $returnInput) {
+    return {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

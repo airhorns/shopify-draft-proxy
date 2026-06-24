@@ -6,6 +6,18 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
+fn market_relation_connection<'a>(
+    records: impl Iterator<Item = &'a Value>,
+    market_id: &str,
+    market_ids: impl Fn(&Value) -> Vec<String>,
+) -> Value {
+    let nodes = records
+        .filter(|record| market_ids(record).iter().any(|id| id == market_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    json!({"nodes": nodes})
+}
+
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
 /// hydrate their baseline price-list/product/variant records from a recorded
 /// preflight keyed on this sentinel query plus the mutation's own variables. The
@@ -169,7 +181,7 @@ impl DraftProxy {
                         .collect(),
                 ),
                 "shopifyFunctions" => {
-                    let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
+                    let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
                     let api_type = match api_type.as_str() {
                         "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
                         "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
@@ -1056,31 +1068,19 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_catalogs_connection(&self, market_id: &str) -> Value {
-        let nodes = self
-            .store
-            .staged
-            .catalogs
-            .values()
-            .filter(|catalog| catalog_market_ids(catalog).iter().any(|id| id == market_id))
-            .cloned()
-            .collect::<Vec<_>>();
-        json!({"nodes": nodes})
+        market_relation_connection(
+            self.store.staged.catalogs.values(),
+            market_id,
+            catalog_market_ids,
+        )
     }
 
     pub(in crate::proxy) fn market_web_presences_connection(&self, market_id: &str) -> Value {
-        let nodes = self
-            .store
-            .staged
-            .web_presences
-            .values()
-            .filter(|web_presence| {
-                web_presence_market_ids(web_presence)
-                    .iter()
-                    .any(|id| id == market_id)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        json!({"nodes": nodes})
+        market_relation_connection(
+            self.store.staged.web_presences.values(),
+            market_id,
+            web_presence_market_ids,
+        )
     }
 
     pub(in crate::proxy) fn add_market_to_catalog(&mut self, catalog_id: &str, market_id: &str) {
@@ -1555,7 +1555,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
-        format!("gid://shopify/MarketCatalog/{numeric_id}")
+        shopify_gid("MarketCatalog", numeric_id)
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
@@ -2530,7 +2530,7 @@ impl DraftProxy {
             + (self.store.staged.catalogs.len() * 2)
             + self.store.staged.price_lists.len()
             + 1;
-        format!("gid://shopify/PriceList/{numeric_id}")
+        shopify_gid("PriceList", numeric_id)
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(
@@ -4141,5 +4141,5 @@ pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) ->
         "ONLINE_STORE_THEME" => "OnlineStoreTheme",
         _ => "Product",
     };
-    format!("gid://shopify/{gid_type}/9801098789170")
+    shopify_gid(gid_type, "9801098789170")
 }

@@ -380,10 +380,7 @@ pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> 
         .max()
         .unwrap_or(0);
     let number = next.max(highest + 1);
-    (
-        format!("gid://shopify/OrderTransaction/{number}"),
-        number + 1,
-    )
+    (shopify_gid("OrderTransaction", number), number + 1)
 }
 
 pub(in crate::proxy) fn build_refund_line_items(
@@ -655,12 +652,12 @@ pub(in crate::proxy) fn payment_transaction_record_from_amount_set(
         .or_else(|| resource_id_path_tail(id).parse::<u64>().ok());
     let payment_id = match (kind, transaction_number) {
         ("AUTHORIZATION", _) => Value::Null,
-        (_, Some(number)) => json!(format!("gid://shopify/Payment/{}", number + 1)),
+        (_, Some(number)) => json!(shopify_gid("Payment", number + 1)),
         _ => Value::Null,
     };
     let payment_reference_id = match (kind, transaction_number) {
         ("CAPTURE", Some(number)) if number > 0 => {
-            json!(format!("gid://shopify/PaymentReference/{}", number - 1))
+            json!(shopify_gid("PaymentReference", number - 1))
         }
         _ => Value::Null,
     };
@@ -869,7 +866,7 @@ impl DraftProxy {
         let presentment_currency = order_presentment_currency(&order, &shop_currency);
         let refund_amount = refund_input_total_amount(&input, &order);
         let shipping_refund_amount = refund_input_shipping_amount(&input, &order);
-        let refund_id = format!("gid://shopify/Refund/{}", self.store.staged.next_refund_id);
+        let refund_id = shopify_gid("Refund", self.store.staged.next_refund_id);
         self.store.staged.next_refund_id += 1;
         let mut next_line_item_id = self.store.staged.next_refund_line_item_id;
         let refund_line_items = build_refund_line_items(
@@ -1206,7 +1203,7 @@ impl DraftProxy {
     }
 
     pub(super) fn stage_payment_order(&mut self, field: &RootFieldSelection) -> Value {
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
         let currency =

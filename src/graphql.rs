@@ -58,6 +58,7 @@ pub struct ParsedOperation {
 pub struct SelectedField {
     pub name: String,
     pub response_key: String,
+    pub location: SourceLocation,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
     pub type_condition: Option<String>,
@@ -195,20 +196,6 @@ pub fn primary_root_field(
     root_fields(query, variables)?.into_iter().next()
 }
 
-pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
-    let root_field = primary_root_field(query, &BTreeMap::new())?;
-    Some(root_field.selection)
-}
-
-pub fn root_field_response_key(query: &str) -> Option<String> {
-    let root_field = primary_root_field(query, &BTreeMap::new())?;
-    Some(root_field.response_key)
-}
-
-pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
-    nested_root_field_path_selection(query, &[child_name])
-}
-
 pub fn variable_definition_info(
     query: &str,
     variable_name: &str,
@@ -235,6 +222,7 @@ fn selected_fields<'a>(
             Selection::Field(field) => vec![SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
+                location: source_location(field.position),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
                 type_condition: None,

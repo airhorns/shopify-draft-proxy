@@ -1,0 +1,18 @@
+mutation SellingPlanGroupCreateSummary($input: SellingPlanGroupInput!) {
+  sellingPlanGroupCreate(input: $input) {
+    sellingPlanGroup {
+      id
+      summary
+      sellingPlans(first: 10) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -426,17 +426,6 @@ pub(in crate::proxy) fn order_mutation_timestamp(ordinal: u64) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", ordinal % 60)
 }
 
-pub(in crate::proxy) fn resolved_nullable_string_field(
-    input: &BTreeMap<String, ResolvedValue>,
-    field: &str,
-) -> Value {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        Some(ResolvedValue::Null) => Value::Null,
-        _ => Value::Null,
-    }
-}
-
 pub(in crate::proxy) fn order_update_has_mutable_fields(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
@@ -719,7 +708,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         })
         .unwrap_or(Value::Null);
     let line = json!({
-        "id": format!("gid://shopify/LineItem/{}", index + 1),
+        "id": shopify_gid("LineItem", index + 1),
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
@@ -783,7 +772,7 @@ pub(in crate::proxy) fn order_fulfillment_order_line_item_record(
         .unwrap_or(1)
         .max(0);
     json!({
-        "id": format!("gid://shopify/FulfillmentOrderLineItem/{id_tail}"),
+        "id": shopify_gid("FulfillmentOrderLineItem", id_tail),
         "totalQuantity": quantity,
         "remainingQuantity": quantity,
         "lineItem": line_item
@@ -801,7 +790,7 @@ pub(in crate::proxy) fn order_default_fulfillment_order(
         .map(|(index, line_item)| order_fulfillment_order_line_item_record(line_item, index))
         .collect::<Vec<_>>();
     json!({
-        "id": format!("gid://shopify/FulfillmentOrder/{tail}"),
+        "id": shopify_gid("FulfillmentOrder", tail),
         "status": "OPEN",
         "requestStatus": "UNSUBMITTED",
         "supportedActions": [],
@@ -818,7 +807,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
     let amount = input_money_amount(&amount_input).unwrap_or(0.0);
     let currency = input_money_currency(&amount_input).unwrap_or_else(|| currency_code.to_string());
     json!({
-        "id": format!("gid://shopify/OrderTransaction/{}", index + 3),
+        "id": shopify_gid("OrderTransaction", index + 3),
         "kind": resolved_string_field(input, "kind").unwrap_or_else(|| "SALE".to_string()),
         "status": resolved_string_field(input, "status").unwrap_or_else(|| "SUCCESS".to_string()),
         "gateway": resolved_string_field(input, "gateway").unwrap_or_else(|| "manual".to_string()),
@@ -1011,22 +1000,17 @@ pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
         .first()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     let end_cursor = nodes
         .last()
         .and_then(|node| node.get("id"))
         .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
     json!({
         "nodes": nodes,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if start_cursor.is_empty() { Value::Null } else { json!(start_cursor) },
-            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
-        }
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
     })
 }
 
@@ -1385,7 +1369,7 @@ impl DraftProxy {
             }
         }
 
-        let order_id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let order = self.build_order_create_record(&order_id, &order_input);
         self.store
@@ -1997,7 +1981,7 @@ impl DraftProxy {
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![entry.root_field.to_string()]);
         self.log_entries.push(json!({
-            "id": format!("gid://shopify/MutationLogEntry/{}", self.log_entries.len() + 1),
+            "id": shopify_gid("MutationLogEntry", self.log_entries.len() + 1),
             "operationName": entry.root_field,
             "path": entry.request.path,
             "query": entry.query,
@@ -2384,7 +2368,7 @@ impl DraftProxy {
                 .unwrap_or("0"),
         );
         let line = json!({
-            "calcId": format!("gid://shopify/CalculatedLineItem/oe-{seq}"),
+            "calcId": shopify_gid("CalculatedLineItem", format_args!("oe-{seq}")),
             "orderLineId": Value::Null,
             "kind": "added",
             "title": catalog_entry.get("title").cloned().unwrap_or(Value::Null),
@@ -2566,7 +2550,7 @@ impl DraftProxy {
         }
         let seq = oe_next_seq(&mut session);
         let line = json!({
-            "calcId": format!("gid://shopify/CalculatedLineItem/oe-{seq}"),
+            "calcId": shopify_gid("CalculatedLineItem", format_args!("oe-{seq}")),
             "orderLineId": Value::Null,
             "kind": "custom",
             "title": title,
@@ -2648,9 +2632,14 @@ impl DraftProxy {
             .and_then(oe_money_obj_cents)
             .unwrap_or(0);
         let seq = oe_next_seq(&mut session);
-        let app_id = format!("gid://shopify/CalculatedManualDiscountApplication/oe-disc-{seq}");
-        let staged_change_id =
-            format!("gid://shopify/OrderStagedChangeAddLineItemDiscount/oe-disc-{seq}");
+        let app_id = shopify_gid(
+            "CalculatedManualDiscountApplication",
+            format_args!("oe-disc-{seq}"),
+        );
+        let staged_change_id = shopify_gid(
+            "OrderStagedChangeAddLineItemDiscount",
+            format_args!("oe-disc-{seq}"),
+        );
         let discount_entry = json!({
             "perUnitCents": per_unit,
             "description": description.clone(),
@@ -2779,7 +2768,7 @@ impl DraftProxy {
         let price_cents = oe_money_obj_cents(&price).unwrap_or(0);
         let seq = oe_next_seq(&mut session);
         let shipping = json!({
-            "id": format!("gid://shopify/CalculatedShippingLine/oe-ship-{seq}"),
+            "id": shopify_gid("CalculatedShippingLine", format_args!("oe-ship-{seq}")),
             "title": title,
             "stagedStatus": "ADDED",
             "priceCents": price_cents

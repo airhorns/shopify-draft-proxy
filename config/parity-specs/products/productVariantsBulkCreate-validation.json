@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.captures.productCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Scalar and option validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch, including public-schema rejection for the legacy/internal options key, structured optionValues mutual exclusions, and duplicate option tuples. Runtime tests assert rejected branches do not stage additional variants.",
+  "notes": "Scalar, option, and inventory validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch, including public-schema rejection for the legacy/internal options key, structured optionValues mutual exclusions, duplicate option tuples, the 50,000 cumulative inventoryQuantities cap, and the shop.resourceLimits.locationLimit per-variant inventory location cap. Runtime tests assert rejected branches do not stage additional variants.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -114,6 +114,30 @@
           "variables": {
             "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
             "variants": { "fromCapturePath": "$.captures.inventoryTooHigh.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "inventory-quantities-limit-payload",
+        "capturePath": "$.captures.inventoryQuantitiesLimit.result.payload.data.productVariantsBulkCreate",
+        "proxyPath": "$.data.productVariantsBulkCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.inventoryQuantitiesLimit.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "too-many-inventory-locations-payload",
+        "capturePath": "$.captures.tooManyInventoryLocations.result.payload.data.productVariantsBulkCreate",
+        "proxyPath": "$.data.productVariantsBulkCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.tooManyInventoryLocations.variables.variants" }
           }
         }
       },

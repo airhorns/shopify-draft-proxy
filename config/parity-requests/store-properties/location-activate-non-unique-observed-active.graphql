@@ -1,0 +1,14 @@
+query LocationActivateNonUniqueObservedActive($first: Int!) {
+  locationsAvailableForDeliveryProfilesConnection(first: $first) {
+    nodes {
+      id
+      name
+      isActive
+      isFulfillmentService
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

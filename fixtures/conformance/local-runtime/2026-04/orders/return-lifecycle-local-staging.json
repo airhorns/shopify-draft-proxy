@@ -40,7 +40,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/missing",
             "quantity": 1,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }
