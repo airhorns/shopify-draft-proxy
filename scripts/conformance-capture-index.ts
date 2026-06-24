@@ -4441,6 +4441,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-web-presence-unpublished-default-locale',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-web-presence-unpublished-default-locale-conformance.mts',
+    purpose:
+      'Web presence default-locale validation for valid supported languages that are enabled but unpublished on the shop.',
+    requiredAuthScopes: ['read_locales', 'write_locales', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-web-presence-unpublished-default-locale.json`,
+      'config/parity-specs/markets/web-presence-create-unpublished-default-locale.json',
+    ],
+    cleanupBehavior:
+      'Enables Italian as an unpublished shop locale when needed, records rejected webPresenceCreate(defaultLocale: it), deletes any unexpected web presence success, and restores Italian locale state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'markets-delete-cascades',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-delete-cascades-conformance.mts',
