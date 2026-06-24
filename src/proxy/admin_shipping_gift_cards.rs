@@ -2483,7 +2483,7 @@ impl DraftProxy {
             };
             data.insert(
                 field.response_key.clone(),
-                location_add_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -2794,7 +2794,7 @@ impl DraftProxy {
 
             data.insert(
                 field.response_key,
-                location_edit_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -7467,7 +7467,7 @@ fn location_edit_invalid_variable_error(
     })
 }
 
-fn location_edit_payload_selected_json(
+fn location_payload_selected_json(
     location: Value,
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -7506,12 +7506,10 @@ fn location_delete_payload_selected_json(
 }
 
 fn location_country_name(country_code: &str) -> Option<&'static str> {
-    match country_code {
-        "CA" => Some("Canada"),
-        "US" => Some("United States"),
-        "GB" => Some("United Kingdom"),
-        "AU" => Some("Australia"),
-        _ => None,
+    if matches!(country_code, "CA" | "US" | "GB" | "AU") {
+        country_name_for_code(country_code)
+    } else {
+        None
     }
 }
 
@@ -7560,27 +7558,6 @@ fn location_idempotency_required_error(
             "path": [root_field]
         }],
         "data": { response_key: Value::Null }
-    })
-}
-
-fn location_add_payload_selected_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                location_selected_json(&location, &selection.selection)
-            }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
-            _ => None,
-        }
     })
 }
 
