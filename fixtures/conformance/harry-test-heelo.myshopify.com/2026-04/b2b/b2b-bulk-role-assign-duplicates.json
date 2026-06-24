@@ -1,0 +1,433 @@
+{
+  "scenarioId": "b2b-bulk-role-assign-duplicates",
+  "capturedAt": "2026-06-24T01:59:01.715Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable company with a contact, role, and locations; seed one contact/location role assignment; prove both bulk role-assign mutations reject a duplicate contact+location entry while accepting a valid sibling entry; then delete the company.",
+    "setupConditions": "The duplicate entry targets a contact that already holds a role at the location. The sibling entry targets a location/contact pair without an existing role assignment."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      mainContact {\n        id\n        title\n        isMainContact\n        roleAssignments(first: 5) {\n          nodes {\n            id\n            role {\n              id\n              name\n            }\n            companyLocation {\n              id\n              name\n            }\n          }\n        }\n      }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role {\n                id\n                name\n              }\n              companyLocation {\n                id\n                name\n              }\n            }\n          }\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B bulk role duplicate 20260624015859",
+            "note": "Bulk role duplicate conformance",
+            "externalId": "bulk-role-duplicate-20260624015859"
+          },
+          "companyContact": {
+            "firstName": "Bulk",
+            "lastName": "Duplicate",
+            "email": "bulk-role-duplicate-20260624015859@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "B2B bulk role duplicate HQ 20260624015859",
+            "phone": "+16135550111"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5698224434",
+            "name": "B2B bulk role duplicate 20260624015859",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10385129778",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44891472178",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/11184701746",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8564080946",
+                      "name": "B2B bulk role duplicate HQ 20260624015859"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10385129778",
+                  "title": "Buyer",
+                  "isMainContact": true,
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44891472178",
+                        "role": {
+                          "id": "gid://shopify/CompanyContactRole/11184701746",
+                          "name": "Ordering only"
+                        },
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8564080946",
+                          "name": "B2B bulk role duplicate HQ 20260624015859"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8564080946",
+                  "name": "B2B bulk role duplicate HQ 20260624015859"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/11184668978",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/11184701746",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 70,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateLocationCreate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      company {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5698224434",
+        "input": {
+          "name": "B2B duplicate location 20260624015859",
+          "phone": "+16135550112"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8564113714",
+            "name": "B2B duplicate location 20260624015859",
+            "company": {
+              "id": "gid://shopify/Company/5698224434",
+              "name": "B2B bulk role duplicate 20260624015859"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validLocationCreate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      company {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5698224434",
+        "input": {
+          "name": "B2B valid sibling location 20260624015859",
+          "phone": "+16135550113"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8564146482",
+            "name": "B2B valid sibling location 20260624015859",
+            "company": {
+              "id": "gid://shopify/Company/5698224434",
+              "name": "B2B bulk role duplicate 20260624015859"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondContactCreate": {
+    "request": {
+      "query": "mutation B2BBulkRoleAssignDuplicateContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n  companyContactCreate(companyId: $companyId, input: $input) {\n    companyContact {\n      id\n      title\n      company {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5698224434",
+        "input": {
+          "firstName": "Second",
+          "lastName": "Buyer",
+          "email": "bulk-role-duplicate-second-20260624015859@example.com",
+          "title": "Second Buyer"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10385162546",
+            "title": "Second Buyer",
+            "company": {
+              "id": "gid://shopify/Company/5698224434"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "seedAssign": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsAssignRole(\n  $companyContactId: ID!\n  $companyContactRoleId: ID!\n  $companyLocationId: ID!\n) {\n  companyContactAssignRole(\n    companyContactId: $companyContactId\n    companyContactRoleId: $companyContactRoleId\n    companyLocationId: $companyLocationId\n  ) {\n    companyContactRoleAssignment {\n      id\n      companyContact {\n        id\n        title\n      }\n      role {\n        id\n        name\n      }\n      companyLocation {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10385129778",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11184668978",
+        "companyLocationId": "gid://shopify/CompanyLocation/8564113714"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": {
+            "id": "gid://shopify/CompanyContactRoleAssignment/44891504946",
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/10385129778",
+              "title": "Buyer"
+            },
+            "role": {
+              "id": "gid://shopify/CompanyContactRole/11184668978",
+              "name": "Location admin"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8564113714",
+              "name": "B2B duplicate location 20260624015859"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateContactAssignRoles": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsAssignRoles(\n  $companyContactId: ID!\n  $rolesToAssign: [CompanyContactRoleAssign!]!\n) {\n  companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n    roleAssignments {\n      id\n      companyContact {\n        id\n        title\n      }\n      role {\n        id\n        name\n      }\n      companyLocation {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10385129778",
+        "rolesToAssign": [
+          {
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/11184668978",
+            "companyLocationId": "gid://shopify/CompanyLocation/8564113714"
+          },
+          {
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/11184668978",
+            "companyLocationId": "gid://shopify/CompanyLocation/8564146482"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44891537714",
+              "companyContact": {
+                "id": "gid://shopify/CompanyContact/10385129778",
+                "title": "Buyer"
+              },
+              "role": {
+                "id": "gid://shopify/CompanyContactRole/11184668978",
+                "name": "Location admin"
+              },
+              "companyLocation": {
+                "id": "gid://shopify/CompanyLocation/8564146482",
+                "name": "B2B valid sibling location 20260624015859"
+              }
+            }
+          ],
+          "userErrors": [
+            {
+              "field": ["rolesToAssign", "0"],
+              "message": "Company contact has already been assigned a role in that company location.",
+              "code": "LIMIT_REACHED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateLocationAssignRoles": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsLocationAssignRoles(\n  $companyLocationId: ID!\n  $rolesToAssign: [CompanyLocationRoleAssign!]!\n) {\n  companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n    roleAssignments {\n      id\n      companyContact {\n        id\n        title\n      }\n      role {\n        id\n        name\n      }\n      companyLocation {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8564146482",
+        "rolesToAssign": [
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10385129778",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/11184668978"
+          },
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10385162546",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/11184668978"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44891570482",
+              "companyContact": {
+                "id": "gid://shopify/CompanyContact/10385162546",
+                "title": "Second Buyer"
+              },
+              "role": {
+                "id": "gid://shopify/CompanyContactRole/11184668978",
+                "name": "Location admin"
+              },
+              "companyLocation": {
+                "id": "gid://shopify/CompanyLocation/8564146482",
+                "name": "B2B valid sibling location 20260624015859"
+              }
+            }
+          ],
+          "userErrors": [
+            {
+              "field": ["rolesToAssign", "0"],
+              "message": "Company contact has already been assigned a role in that company location.",
+              "code": "LIMIT_REACHED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "mutation B2BCompanyLifecycleCompanyDelete($id: ID!) {\n  companyDelete(id: $id) {\n    deletedCompanyId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Company/5698224434"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5698224434",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

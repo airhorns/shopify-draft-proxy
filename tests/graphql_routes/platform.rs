@@ -3641,6 +3641,79 @@ fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_state
 }
 
 #[test]
+fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order() {
+    let order_id = "gid://shopify/Order/7002002";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/2234567891";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#7003",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/3233445501",
+                2,
+                "OPEN",
+            ),
+        ]));
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OpenAlreadyOpenFulfillmentOrder($id: ID!) {
+          fulfillmentOrderOpen(id: $id) {
+            fulfillmentOrder { id status updatedAt supportedActions { action } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["fulfillmentOrderOpen"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Expected fulfillment order status to be valid but it was open.",
+                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }]
+        })
+    );
+
+    let after_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOpenFulfillmentOrderAfterRejectedOpen($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10) {
+              nodes { id status updatedAt supportedActions { action } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        after_rejection.body["data"]["order"],
+        json!({
+            "id": order_id,
+            "fulfillmentOrders": { "nodes": [{
+                "id": fulfillment_order_id,
+                "status": "OPEN",
+                "updatedAt": "2026-06-15T11:00:00Z",
+                "supportedActions": [
+                    { "action": "CREATE_FULFILLMENT" },
+                    { "action": "REPORT_PROGRESS" },
+                    { "action": "MOVE" },
+                    { "action": "HOLD" },
+                    { "action": "SPLIT" }
+                ]
+            }] }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
     let mut proxy = snapshot_proxy();
     let open = proxy.process_request(json_graphql_request(

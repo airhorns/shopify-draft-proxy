@@ -2739,6 +2739,11 @@ fn draft_order_base_record(
     let currency = draft_order_input_currency(input);
     let line_items = resolved_object_list_field(input, "lineItems");
     let line_item_nodes = draft_order_line_items(&line_items, id, &currency, variant_hydrations);
+    let original_subtotal = line_item_nodes
+        .iter()
+        .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum::<f64>();
     json!({
         "id": id,
         "name": name,
@@ -2757,7 +2762,7 @@ fn draft_order_base_record(
         "tags": normalize_taggable_tags(resolved_string_list_field_unsorted(input, "tags")),
         "invoiceUrl": draft_order_invoice_url(id),
         "customAttributes": draft_order_input_custom_attributes(input),
-        "appliedDiscount": draft_order_applied_discount(input),
+        "appliedDiscount": draft_order_applied_discount(input, original_subtotal),
         "billingAddress": order_create_address(resolved_object_field(input, "billingAddress")),
         "shippingAddress": order_create_address(resolved_object_field(input, "shippingAddress")),
         "shippingLine": draft_order_shipping_line(input),
@@ -2791,7 +2796,7 @@ fn draft_order_calculated_record(
         .as_str()
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let applied_discount = draft_order_applied_discount(input);
+    let applied_discount = draft_order_applied_discount(input, original_subtotal);
     let discount_total = line_discount_total + draft_order_discount_amount(&applied_discount);
     let subtotal = (original_subtotal - discount_total).max(0.0);
     let total = subtotal + shipping_total;
@@ -2911,7 +2916,7 @@ fn draft_order_line_item(
             resolved_bool_field(input, "taxable")
         }.unwrap_or(true),
         "customAttributes": draft_order_input_custom_attributes(input),
-        "appliedDiscount": draft_order_applied_discount_from_line(input, currency),
+        "appliedDiscount": draft_order_applied_discount_from_line(input, currency, line_total),
         "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
         "originalTotalSet": order_create_money_set(line_total, currency),
         "discountedTotalSet": order_create_money_set(discounted_total, currency),
@@ -3014,28 +3019,37 @@ fn draft_order_shipping_line(input: &BTreeMap<String, ResolvedValue>) -> Value {
     })
 }
 
-fn draft_order_applied_discount(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn draft_order_applied_discount(input: &BTreeMap<String, ResolvedValue>, line_total: f64) -> Value {
     let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
         return Value::Null;
     };
-    draft_order_discount_record(&discount, &draft_order_input_currency(input))
+    draft_order_discount_record(
+        &discount,
+        &draft_order_input_currency(input),
+        draft_order_discount_amount_from_discount(&discount, line_total),
+    )
 }
 
 fn draft_order_applied_discount_from_line(
     input: &BTreeMap<String, ResolvedValue>,
     currency: &str,
+    line_total: f64,
 ) -> Value {
     let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
         return Value::Null;
     };
-    draft_order_discount_record(&discount, currency)
+    draft_order_discount_record(
+        &discount,
+        currency,
+        draft_order_discount_amount_from_discount(&discount, line_total),
+    )
 }
 
 fn draft_order_discount_record(
     discount: &BTreeMap<String, ResolvedValue>,
     currency: &str,
+    amount: f64,
 ) -> Value {
-    let amount = resolved_number_field(discount, "amount").unwrap_or(0.0);
     json!({
         "title": resolved_string_field(discount, "title"),
         "description": resolved_string_field(discount, "description"),
@@ -3060,6 +3074,17 @@ fn draft_order_line_discount_total(line_items: &[Value]) -> f64 {
         .sum()
 }
 
+fn draft_order_discount_amount_from_discount(
+    discount: &BTreeMap<String, ResolvedValue>,
+    line_total: f64,
+) -> f64 {
+    if resolved_string_field(discount, "valueType").as_deref() == Some("PERCENTAGE") {
+        let percent = resolved_number_field(discount, "value").unwrap_or(0.0);
+        return line_total * percent / 100.0;
+    }
+    resolved_number_field(discount, "amount").unwrap_or(0.0)
+}
+
 fn draft_order_applied_discount_amount(
     input: &BTreeMap<String, ResolvedValue>,
     line_total: f64,
@@ -3067,11 +3092,7 @@ fn draft_order_applied_discount_amount(
     let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
         return 0.0;
     };
-    if resolved_string_field(&discount, "valueType").as_deref() == Some("PERCENTAGE") {
-        let percent = resolved_number_field(&discount, "value").unwrap_or(0.0);
-        return line_total * percent / 100.0;
-    }
-    resolved_number_field(&discount, "amount").unwrap_or(0.0)
+    draft_order_discount_amount_from_discount(&discount, line_total)
 }
 
 fn draft_order_line_unit_amount(input: &BTreeMap<String, ResolvedValue>) -> Option<f64> {
@@ -3106,6 +3127,80 @@ fn draft_order_input_currency(input: &BTreeMap<String, ResolvedValue>) -> String
                 })
         })
         .unwrap_or_else(|| "CAD".to_string())
+}
+
+fn draft_order_applied_discount_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    update: bool,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(discount) = resolved_object_field(input, "appliedDiscount") {
+        if let Some(error) = draft_order_applied_discount_value_error(
+            &discount,
+            draft_order_discount_field(update, None),
+        ) {
+            errors.push(error);
+        }
+    }
+    for (index, line_item) in resolved_object_list_field(input, "lineItems")
+        .iter()
+        .enumerate()
+    {
+        let Some(discount) = resolved_object_field(line_item, "appliedDiscount") else {
+            continue;
+        };
+        if let Some(error) = draft_order_applied_discount_value_error(
+            &discount,
+            draft_order_discount_field(update, Some(index)),
+        ) {
+            errors.push(error);
+        }
+    }
+    errors
+}
+
+fn draft_order_applied_discount_value_error(
+    discount: &BTreeMap<String, ResolvedValue>,
+    field: Value,
+) -> Option<Value> {
+    let value = resolved_number_field(discount, "value")?;
+    if resolved_string_field(discount, "valueType").as_deref() != Some("PERCENTAGE") {
+        return None;
+    }
+    if draft_order_discount_value_has_more_than_two_decimals(value) {
+        return Some(user_error_omit_code(
+            field,
+            "Applied discount value can have at most 2 digits after decimal point",
+            None,
+        ));
+    }
+    if value > 100.0 {
+        return Some(user_error_omit_code(
+            field,
+            "Applied discount value must be less than or equal to 100%",
+            None,
+        ));
+    }
+    None
+}
+
+fn draft_order_discount_value_has_more_than_two_decimals(value: f64) -> bool {
+    let shifted = value * 100.0;
+    (shifted - shifted.round()).abs() > 1e-9
+}
+
+fn draft_order_discount_field(update: bool, line_index: Option<usize>) -> Value {
+    let mut segments = Vec::new();
+    if update {
+        segments.push(json!("input"));
+    }
+    if let Some(index) = line_index {
+        segments.push(json!("lineItems"));
+        segments.push(json!(index.to_string()));
+    }
+    segments.push(json!("appliedDiscount"));
+    segments.push(json!("value"));
+    Value::Array(segments)
 }
 
 fn draft_order_currency(draft_order: &Value) -> String {
@@ -3277,6 +3372,10 @@ fn draft_order_input_user_errors(
                 None,
             )]);
         }
+    }
+    let discount_errors = draft_order_applied_discount_user_errors(input, update);
+    if !discount_errors.is_empty() {
+        return Some(discount_errors);
     }
     if resolved_object_field(input, "paymentTerms").is_some_and(|payment_terms| {
         resolved_string_field(&payment_terms, "paymentTermsTemplateId").is_none()
@@ -7876,7 +7975,13 @@ impl DraftProxy {
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
         if input.contains_key("appliedDiscount") {
-            draft_order["appliedDiscount"] = draft_order_applied_discount(input);
+            let line_items = connection_nodes(&draft_order["lineItems"]);
+            let original_subtotal = line_items
+                .iter()
+                .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
+                .filter_map(|amount| amount.parse::<f64>().ok())
+                .sum::<f64>();
+            draft_order["appliedDiscount"] = draft_order_applied_discount(input, original_subtotal);
         }
         if input.contains_key("taxExempt") {
             draft_order["taxExempt"] =

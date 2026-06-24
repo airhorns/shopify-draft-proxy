@@ -4507,23 +4507,28 @@ impl DraftProxy {
             .and_then(|order| order["status"].as_str().map(str::to_string))
             .unwrap_or_default();
         let invalid = match (root_field, current_status.as_str()) {
+            ("fulfillmentOrderOpen", "SCHEDULED" | "IN_PROGRESS") => None,
+            ("fulfillmentOrderOpen", "OPEN") => Some((
+                "Expected fulfillment order status to be valid but it was open.",
+                Value::Null,
+            )),
             ("fulfillmentOrderOpen", "CLOSED" | "CANCELLED" | "ON_HOLD") => {
-                Some("Fulfillment order must be scheduled.")
+                Some(("Fulfillment order must be scheduled.", json!(["id"])))
             }
             (
                 "fulfillmentOrderReportProgress",
                 "SCHEDULED" | "CLOSED" | "CANCELLED" | "ON_HOLD",
-            ) => Some("Fulfillment order must be in progress."),
+            ) => Some(("Fulfillment order must be in progress.", json!(["id"]))),
             _ => None,
         };
-        if let Some(message) = invalid {
+        if let Some((message, field)) = invalid {
             return ok_json(json!({
                 "data": {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
                         vec![json!({
-                            "field": ["id"],
+                            "field": field,
                             "message": message,
                             "code": "INVALID_FULFILLMENT_ORDER_STATUS"
                         })]

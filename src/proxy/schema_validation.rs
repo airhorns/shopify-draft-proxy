@@ -1166,7 +1166,7 @@ fn validate_argument_value(
                 };
                 let mut problems = Vec::new();
                 for (index, item) in items.iter().enumerate() {
-                    let item_path = vec![index.to_string()];
+                    let item_path = vec![json!(index)];
                     match item {
                         ResolvedValue::Object(fields) => {
                             problems.extend(validate_resolved_input_object(
@@ -1179,7 +1179,7 @@ fn validate_argument_value(
                             ));
                         }
                         ResolvedValue::Null if type_ref_has_non_null_list_items(type_ref) => {
-                            problems.push(variable_problem(
+                            problems.push(variable_problem_value_path(
                                 &item_path,
                                 "Expected value to not be null",
                             ));
@@ -1317,31 +1317,66 @@ fn validate_raw_input_object(
                 location.unwrap_or(context.field_location),
             ));
         }
+        if let Some(invalid_value) =
+            enum_literal_coercion_value(field_value, &field_schema.type_ref)
+        {
+            errors.push(argument_literal_incompatible_error(
+                input_type_name,
+                field_name,
+                &invalid_value,
+                &field_schema.type_ref.display,
+                path,
+                context,
+                location.unwrap_or(context.field_location),
+            ));
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
         };
-        if let RawArgumentValue::Object(nested_fields) = field_value {
-            let mut nested_path = path.to_vec();
-            nested_path.push(field_name.clone());
-            // Anchor errors inside the nested object at that object literal's value
-            // (the `{` after `field_name:`), so a missing required attribute reports
-            // its own column rather than falling back to the enclosing field.
-            let nested_location = inline_input_field_value_location(
-                context.query,
-                context.field_location,
-                target_depth,
-                field_name,
-            );
-            errors.extend(validate_raw_input_object(
-                &field_schema.type_ref.named_type,
-                nested_input_object,
-                nested_fields,
-                &nested_path,
-                schema,
-                context,
-                nested_location,
-            ));
+        match field_value {
+            RawArgumentValue::Object(nested_fields) => {
+                let mut nested_path = path.to_vec();
+                nested_path.push(field_name.clone());
+                // Anchor errors inside the nested object at that object literal's value
+                // (the `{` after `field_name:`), so a missing required attribute reports
+                // its own column rather than falling back to the enclosing field.
+                let nested_location = inline_input_field_value_location(
+                    context.query,
+                    context.field_location,
+                    target_depth,
+                    field_name,
+                );
+                errors.extend(validate_raw_input_object(
+                    &field_schema.type_ref.named_type,
+                    nested_input_object,
+                    nested_fields,
+                    &nested_path,
+                    schema,
+                    context,
+                    nested_location,
+                ));
+            }
+            RawArgumentValue::List(items) if type_ref_is_list(&field_schema.type_ref) => {
+                for (index, item) in items.iter().enumerate() {
+                    let RawArgumentValue::Object(nested_fields) = item else {
+                        continue;
+                    };
+                    let mut nested_path = path.to_vec();
+                    nested_path.push(field_name.clone());
+                    nested_path.push(index.to_string());
+                    errors.extend(validate_raw_input_object(
+                        &field_schema.type_ref.named_type,
+                        nested_input_object,
+                        nested_fields,
+                        &nested_path,
+                        schema,
+                        context,
+                        location,
+                    ));
+                }
+            }
+            _ => {}
         }
     }
     errors
@@ -1351,7 +1386,7 @@ fn validate_resolved_input_object(
     input_type_name: &str,
     input_object: &BTreeMap<String, SchemaInputField>,
     fields: &BTreeMap<String, ResolvedValue>,
-    problem_path: &[String],
+    problem_path: &[Value],
     schema: &AdminInputSchema,
     order_source: &str,
 ) -> Vec<Value> {
@@ -1368,8 +1403,8 @@ fn validate_resolved_input_object(
     unknown_fields.sort_by_key(|field_name| key_order_index(order_source, field_name));
     for field_name in unknown_fields {
         let mut nested_path = problem_path.to_vec();
-        nested_path.push(field_name.clone());
-        problems.push(variable_problem(
+        nested_path.push(json!(field_name));
+        problems.push(variable_problem_value_path(
             &nested_path,
             &format!("Field is not defined on {input_type_name}"),
         ));
@@ -1387,8 +1422,8 @@ fn validate_resolved_input_object(
             !fields.contains_key(field_name) || matches!(provided, Some(ResolvedValue::Null));
         if field_schema.type_ref.non_null && missing_or_null {
             let mut nested_path = problem_path.to_vec();
-            nested_path.push(field_name.clone());
-            problems.push(variable_problem(
+            nested_path.push(json!(field_name));
+            problems.push(variable_problem_value_path(
                 &nested_path,
                 "Expected value to not be null",
             ));
@@ -1399,30 +1434,64 @@ fn validate_resolved_input_object(
         };
         if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
-            nested_path.push(field_name.clone());
+            nested_path.push(json!(field_name));
             if problem.include_message {
-                problems.push(variable_problem_with_message(
+                problems.push(variable_problem_with_message_value_path(
                     &nested_path,
                     &problem.explanation,
                 ));
             } else {
-                problems.push(variable_problem(&nested_path, &problem.explanation));
+                problems.push(variable_problem_value_path(
+                    &nested_path,
+                    &problem.explanation,
+                ));
             }
         }
         if let Some(nested_input_object) =
             schema.input_objects.get(&field_schema.type_ref.named_type)
         {
-            if let ResolvedValue::Object(nested_fields) = field_value {
-                let mut nested_path = problem_path.to_vec();
-                nested_path.push(field_name.clone());
-                problems.extend(validate_resolved_input_object(
-                    &field_schema.type_ref.named_type,
-                    nested_input_object,
-                    nested_fields,
-                    &nested_path,
-                    schema,
-                    order_source,
-                ));
+            match field_value {
+                ResolvedValue::Object(nested_fields) => {
+                    let mut nested_path = problem_path.to_vec();
+                    nested_path.push(json!(field_name));
+                    problems.extend(validate_resolved_input_object(
+                        &field_schema.type_ref.named_type,
+                        nested_input_object,
+                        nested_fields,
+                        &nested_path,
+                        schema,
+                        order_source,
+                    ));
+                }
+                ResolvedValue::List(items) if type_ref_is_list(&field_schema.type_ref) => {
+                    for (index, item) in items.iter().enumerate() {
+                        let mut nested_path = problem_path.to_vec();
+                        nested_path.push(json!(field_name));
+                        nested_path.push(json!(index));
+                        match item {
+                            ResolvedValue::Object(nested_fields) => {
+                                problems.extend(validate_resolved_input_object(
+                                    &field_schema.type_ref.named_type,
+                                    nested_input_object,
+                                    nested_fields,
+                                    &nested_path,
+                                    schema,
+                                    order_source,
+                                ));
+                            }
+                            ResolvedValue::Null
+                                if type_ref_has_non_null_list_items(&field_schema.type_ref) =>
+                            {
+                                problems.push(variable_problem_value_path(
+                                    &nested_path,
+                                    "Expected value to not be null",
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -1496,6 +1565,15 @@ fn validate_resolved_scalar(
                 include_message: false,
             })
         }
+        "DraftOrderAppliedDiscountType" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (!draft_order_applied_discount_type_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: draft_order_applied_discount_type_expected_message(raw),
+                include_message: false,
+            })
+        }
         _ => None,
     }
 }
@@ -1507,6 +1585,14 @@ const CURRENCY_CODE_VALUES: &str = "USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS,
 
 fn currency_code_is_allowed(code: &str) -> bool {
     CURRENCY_CODE_VALUES.split(", ").any(|value| value == code)
+}
+
+fn draft_order_applied_discount_type_is_allowed(value: &str) -> bool {
+    matches!(value, "FIXED_AMOUNT" | "PERCENTAGE")
+}
+
+fn draft_order_applied_discount_type_expected_message(value: &str) -> String {
+    format!("Expected \"{value}\" to be one of: FIXED_AMOUNT, PERCENTAGE")
 }
 
 fn fulfillment_event_status_is_allowed(status: &str) -> bool {
@@ -1671,6 +1757,24 @@ fn int_literal_coercion_value(
     }
     match value {
         RawArgumentValue::Float(raw) => Some(format_float_literal(*raw)),
+        _ => None,
+    }
+}
+
+fn enum_literal_coercion_value(
+    value: &RawArgumentValue,
+    type_ref: &SchemaTypeRef,
+) -> Option<String> {
+    let provided = match value {
+        RawArgumentValue::Enum(value) | RawArgumentValue::String(value) => value,
+        _ => return None,
+    };
+    match type_ref.named_type.as_str() {
+        "DraftOrderAppliedDiscountType"
+            if !draft_order_applied_discount_type_is_allowed(provided) =>
+        {
+            Some(provided.clone())
+        }
         _ => None,
     }
 }
@@ -1991,17 +2095,7 @@ pub(in crate::proxy) fn invalid_variable_error(
     let problem_display = problems
         .iter()
         .filter_map(|problem| {
-            let path = problem["path"]
-                .as_array()?
-                .iter()
-                .filter_map(|segment| {
-                    segment
-                        .as_u64()
-                        .map(|index| index.to_string())
-                        .or_else(|| segment.as_str().map(str::to_string))
-                })
-                .collect::<Vec<_>>()
-                .join(".");
+            let path = variable_problem_path_display(problem["path"].as_array()?)?;
             let explanation = problem["explanation"].as_str()?;
             Some(format!("{path} ({explanation})"))
         })
@@ -2023,30 +2117,22 @@ pub(in crate::proxy) fn invalid_variable_error(
     })
 }
 
-pub(in crate::proxy) fn variable_problem(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem_value_path(path: &[Value], explanation: &str) -> Value {
     json!({
-        "path": variable_problem_path(path),
+        "path": path,
         "explanation": explanation
     })
 }
 
-pub(in crate::proxy) fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+pub(in crate::proxy) fn variable_problem_with_message_value_path(
+    path: &[Value],
+    explanation: &str,
+) -> Value {
     json!({
-        "path": variable_problem_path(path),
+        "path": path,
         "explanation": explanation,
         "message": explanation
     })
-}
-
-fn variable_problem_path(path: &[String]) -> Vec<Value> {
-    path.iter()
-        .map(|segment| {
-            segment
-                .parse::<u64>()
-                .map(Value::from)
-                .unwrap_or_else(|_| Value::String(segment.clone()))
-        })
-        .collect()
 }
 
 fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
@@ -2765,12 +2851,180 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "DraftOrderAppliedDiscountInput".to_string(),
+        BTreeMap::from([
+            ("amount".to_string(), input_field(named("Money"))),
+            (
+                "amountWithCurrency".to_string(),
+                input_field(named("MoneyInput")),
+            ),
+            ("description".to_string(), input_field(named("String"))),
+            ("title".to_string(), input_field(named("String"))),
+            ("value".to_string(), input_field(non_null("Float"))),
+            (
+                "valueType".to_string(),
+                input_field(non_null("DraftOrderAppliedDiscountType")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DraftOrderLineItemInput".to_string(),
+        BTreeMap::from([
+            (
+                "appliedDiscount".to_string(),
+                input_field(named("DraftOrderAppliedDiscountInput")),
+            ),
+            (
+                "customAttributes".to_string(),
+                input_field(list_of_non_null("AttributeInput")),
+            ),
+            ("grams".to_string(), input_field(named("Int"))),
+            ("originalUnitPrice".to_string(), input_field(named("Money"))),
+            (
+                "originalUnitPriceWithCurrency".to_string(),
+                input_field(named("MoneyInput")),
+            ),
+            ("quantity".to_string(), input_field(non_null("Int"))),
+            (
+                "requiresShipping".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("sku".to_string(), input_field(named("String"))),
+            ("taxable".to_string(), input_field(named("Boolean"))),
+            ("title".to_string(), input_field(named("String"))),
+            ("variantId".to_string(), input_field(named("ID"))),
+            ("weight".to_string(), input_field(named("WeightInput"))),
+            ("uuid".to_string(), input_field(named("String"))),
+            (
+                "bundleComponents".to_string(),
+                input_field(list_of_non_null(
+                    "BundlesDraftOrderBundleLineItemComponentInput",
+                )),
+            ),
+            (
+                "components".to_string(),
+                input_field(list_of_non_null("DraftOrderLineItemComponentInput")),
+            ),
+            (
+                "generatePriceOverride".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "priceOverride".to_string(),
+                input_field(named("MoneyInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DraftOrderInput".to_string(),
+        BTreeMap::from([
+            (
+                "appliedDiscount".to_string(),
+                input_field(named("DraftOrderAppliedDiscountInput")),
+            ),
+            (
+                "discountCodes".to_string(),
+                input_field(list_of_non_null("String")),
+            ),
+            (
+                "acceptAutomaticDiscounts".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "billingAddress".to_string(),
+                input_field(named("MailingAddressInput")),
+            ),
+            ("customerId".to_string(), input_field(named("ID"))),
+            (
+                "customAttributes".to_string(),
+                input_field(list_of_non_null("AttributeInput")),
+            ),
+            ("email".to_string(), input_field(named("String"))),
+            (
+                "lineItems".to_string(),
+                input_field(list_of_non_null("DraftOrderLineItemInput")),
+            ),
+            (
+                "metafields".to_string(),
+                input_field(list_of_non_null("MetafieldInput")),
+            ),
+            (
+                "localizationExtensions".to_string(),
+                input_field(list_of_non_null("LocalizationExtensionInput")),
+            ),
+            (
+                "localizedFields".to_string(),
+                input_field(list_of_non_null("LocalizedFieldInput")),
+            ),
+            ("note".to_string(), input_field(named("String"))),
+            (
+                "shippingAddress".to_string(),
+                input_field(named("MailingAddressInput")),
+            ),
+            (
+                "shippingLine".to_string(),
+                input_field(named("ShippingLineInput")),
+            ),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
+            ("taxExempt".to_string(), input_field(named("Boolean"))),
+            (
+                "useCustomerDefaultAddress".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "visibleToCustomer".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "reserveInventoryUntil".to_string(),
+                input_field(named("DateTime")),
+            ),
+            (
+                "presentmentCurrencyCode".to_string(),
+                input_field(named("CurrencyCode")),
+            ),
+            (
+                "marketRegionCountryCode".to_string(),
+                input_field(named("CountryCode")),
+            ),
+            ("phone".to_string(), input_field(named("String"))),
+            (
+                "paymentTerms".to_string(),
+                input_field(named("PaymentTermsInput")),
+            ),
+            (
+                "purchasingEntity".to_string(),
+                input_field(named("PurchasingEntityInput")),
+            ),
+            ("sourceName".to_string(), input_field(named("String"))),
+            (
+                "allowDiscountCodesInCheckout".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("poNumber".to_string(), input_field(named("String"))),
+            ("sessionToken".to_string(), input_field(named("String"))),
+            (
+                "transformerFingerprint".to_string(),
+                input_field(named("String")),
+            ),
+        ]),
+    );
+
     // The order/draft-order create + edit mutations require their primary
     // argument (a non-null input object or id). Each is registered with its full
     // set of accepted root arguments so that valid calls (which pass optional
     // arguments like paymentGatewayId / notifyCustomer) are not flagged as
-    // "argument not accepted". The input objects themselves are left
-    // unregistered — field-level validation stays with the local resolvers.
+    // "argument not accepted". Draft-order input objects are registered for the
+    // public GraphQL coercion branches the local resolver never sees, while
+    // domain-level userErrors stay with the local draft-order resolver.
+    schema.mutation_fields.insert(
+        "draftOrderCalculate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("DraftOrderInput")),
+        )]),
+    );
     schema.mutation_fields.insert(
         "draftOrderCreate".to_string(),
         BTreeMap::from([(

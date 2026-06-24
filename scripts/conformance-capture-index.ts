@@ -277,6 +277,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-bulk-role-assign-duplicates',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-bulk-role-assign-duplicates-conformance.mts',
+    purpose:
+      'B2B bulk companyContactAssignRoles and companyLocationAssignRoles duplicate contact/location role-assignment LIMIT_REACHED behavior with valid sibling entries.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-bulk-role-assign-duplicates.json`,
+      'config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json',
+      'config/parity-requests/b2b/b2b-bulk-role-assign-duplicate-contact-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with two extra locations and one extra contact, records duplicate bulk role-assignment branches, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-revoke-role-scope-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-revoke-role-scope-conformance.mts',
@@ -6582,6 +6599,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable draft orders for setup and normalized-count acceptance, captures rejected validation branches, and deletes created draft orders after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-applied-discount-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-applied-discount-validation-conformance.ts',
+    purpose:
+      'DraftOrderAppliedDiscountInput percentage value bounds, decimal precision, and valueType coercion for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draftOrder-applied-discount-validation.json`,
+      'config/parity-specs/orders/draftOrder-applied-discount-validation.json',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-setup.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-create.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-update.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-validation-calculate.graphql',
+      'config/parity-requests/orders/draftOrder-applied-discount-value-type-required.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one setup draft order plus accepted validation branches, captures rejected validation/coercion branches, and deletes created draft orders after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live 2025-01 and 2026-04 probes accepted negative percentage discounts, so the parity-backed local validation intentionally does not reject them.',
   },
   {
     domain: 'draft-orders',
