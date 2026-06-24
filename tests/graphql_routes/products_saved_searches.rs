@@ -7231,14 +7231,27 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         }),
     ));
     assert_eq!(
-        add.body["data"]["collectionAddProducts"],
-        json!({
-            "collection": null,
-            "userErrors": [{
-                "field": ["productIds"],
-                "message": "Product is already included in this collection"
-            }]
-        })
+        add.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/first",
+                "title": "First Product",
+                "handle": "first-product"
+            },
+            {
+                "id": "gid://shopify/Product/second",
+                "title": "Second Product",
+                "handle": "second-product"
+            }
+        ])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["hasFirst"],
+        json!(true)
     );
 
     let add = proxy.process_request(json_graphql_request(
@@ -7261,11 +7274,23 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         }),
     ));
     assert_eq!(
-        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
+        add.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/first",
+                "title": "First Product",
+                "handle": "first-product"
+            },
+            {
+                "id": "gid://shopify/Product/second",
+                "title": "Second Product",
+                "handle": "second-product"
+            }
+        ])
     );
     assert_eq!(
         add.body["data"]["collectionAddProducts"]["collection"]["hasFirst"],
