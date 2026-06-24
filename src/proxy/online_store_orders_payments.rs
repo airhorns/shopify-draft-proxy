@@ -2772,11 +2772,14 @@ fn draft_order_base_record(
     })
 }
 
-fn draft_order_calculated_record(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn draft_order_calculated_record(
+    input: &BTreeMap<String, ResolvedValue>,
+    variant_hydrations: &BTreeMap<String, Value>,
+) -> Value {
     let currency = draft_order_input_currency(input);
     let line_items = resolved_object_list_field(input, "lineItems");
     let line_item_nodes =
-        draft_order_line_items(&line_items, "calculated", &currency, &BTreeMap::new());
+        draft_order_line_items(&line_items, "calculated", &currency, variant_hydrations);
     let original_subtotal = line_item_nodes
         .iter()
         .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
@@ -2805,19 +2808,6 @@ fn draft_order_calculated_record(input: &BTreeMap<String, ResolvedValue>) -> Val
         "lineItems": line_item_nodes,
         "availableShippingRates": []
     })
-}
-
-fn draft_order_line_items_connection(
-    line_items: &[BTreeMap<String, ResolvedValue>],
-    draft_order_id: &str,
-    currency: String,
-) -> Value {
-    order_connection(draft_order_line_items(
-        line_items,
-        draft_order_id,
-        &currency,
-        &BTreeMap::new(),
-    ))
 }
 
 fn draft_order_line_items(
@@ -2853,34 +2843,38 @@ fn draft_order_line_item(
     let hydrated_variant = variant_id
         .as_ref()
         .and_then(|id| variant_hydrations.get(id));
-    let unit_amount = draft_order_line_unit_amount(input)
-        .or_else(|| {
-            hydrated_variant.and_then(|variant| {
-                variant["price"]
-                    .as_str()
-                    .and_then(|value| value.parse::<f64>().ok())
-            })
-        })
-        .unwrap_or(0.0);
+    let variant_unit_amount = hydrated_variant.and_then(|variant| {
+        variant["price"]
+            .as_str()
+            .and_then(|value| value.parse::<f64>().ok())
+    });
+    let unit_amount = if variant_id.is_some() {
+        variant_unit_amount
+    } else {
+        draft_order_line_unit_amount(input)
+    }
+    .unwrap_or(0.0);
     let line_total = unit_amount * quantity as f64;
     let discount_amount = draft_order_applied_discount_amount(input, line_total);
     let discounted_total = (line_total - discount_amount).max(0.0);
-    let title = resolved_string_field(input, "title")
-        .or_else(|| {
-            hydrated_variant
-                .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
-        })
-        .or_else(|| {
-            variant_id
-                .as_ref()
-                .map(|id| format!("Variant {}", resource_id_tail(id)))
-        })
-        .unwrap_or_else(|| "Custom Item".to_string());
-    let sku = resolved_string_field(input, "sku")
-        .or_else(|| {
-            hydrated_variant.and_then(|variant| variant["sku"].as_str().map(str::to_string))
-        })
-        .unwrap_or_default();
+    let title = if variant_id.is_some() {
+        hydrated_variant
+            .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
+            .or_else(|| {
+                variant_id
+                    .as_ref()
+                    .map(|id| format!("Variant {}", resource_id_tail(id)))
+            })
+    } else {
+        resolved_string_field(input, "title")
+    }
+    .unwrap_or_else(|| "Custom Item".to_string());
+    let sku = if variant_id.is_some() {
+        hydrated_variant.and_then(|variant| variant["sku"].as_str().map(str::to_string))
+    } else {
+        resolved_string_field(input, "sku")
+    }
+    .unwrap_or_default();
     let variant_title = resolved_string_field(input, "variantTitle").or_else(|| {
         hydrated_variant.and_then(|variant| variant["title"].as_str().map(str::to_string))
     });
@@ -2906,12 +2900,16 @@ fn draft_order_line_item(
         "sku": sku,
         "variantTitle": Value::Null,
         "custom": variant_id.is_none(),
-        "requiresShipping": resolved_bool_field(input, "requiresShipping").or_else(|| {
+        "requiresShipping": if variant_id.is_some() {
             hydrated_variant.and_then(|variant| variant["inventoryItem"]["requiresShipping"].as_bool())
-        }).unwrap_or(true),
-        "taxable": resolved_bool_field(input, "taxable").or_else(|| {
+        } else {
+            resolved_bool_field(input, "requiresShipping")
+        }.unwrap_or(true),
+        "taxable": if variant_id.is_some() {
             hydrated_variant.and_then(|variant| variant["taxable"].as_bool())
-        }).unwrap_or(true),
+        } else {
+            resolved_bool_field(input, "taxable")
+        }.unwrap_or(true),
         "customAttributes": draft_order_input_custom_attributes(input),
         "appliedDiscount": draft_order_applied_discount_from_line(input, currency),
         "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
@@ -3100,9 +3098,10 @@ fn draft_order_input_currency(input: &BTreeMap<String, ResolvedValue>) -> String
         })
         .or_else(|| {
             resolved_object_list_field(input, "lineItems")
-                .first()
+                .into_iter()
+                .find(|line| resolved_string_field(line, "variantId").is_none())
                 .and_then(|line| {
-                    resolved_object_field(line, "originalUnitPriceWithCurrency")
+                    resolved_object_field(&line, "originalUnitPriceWithCurrency")
                         .and_then(|money| input_money_currency(&money))
                 })
         })
@@ -3269,7 +3268,9 @@ fn draft_order_input_user_errors(
                 None,
             )]);
         }
-        if draft_order_line_unit_amount(line_item).is_some_and(|amount| amount < 0.0) {
+        if resolved_string_field(line_item, "variantId").is_none()
+            && draft_order_line_unit_amount(line_item).is_some_and(|amount| amount < 0.0)
+        {
             return Some(vec![user_error_omit_code(
                 Value::Null,
                 "Cannot send negative price for line_item",
@@ -7256,7 +7257,7 @@ impl DraftProxy {
                 "draftOrderUpdate" => {
                     self.stage_draft_order_update(request, query, variables, &field)
                 }
-                "draftOrderCalculate" => self.calculate_draft_order_payload(&field),
+                "draftOrderCalculate" => self.calculate_draft_order_payload(request, &field),
                 "draftOrderDuplicate" => {
                     self.stage_draft_order_duplicate(request, query, variables, &field)
                 }
@@ -7356,7 +7357,12 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let updated = self.merge_draft_order_input(existing, &input);
+        let variant_hydrations = if input.contains_key("lineItems") {
+            self.hydrate_draft_order_variants(request, draft_order_line_item_variant_ids(&input))
+        } else {
+            BTreeMap::new()
+        };
+        let updated = self.merge_draft_order_input(existing, &input, &variant_hydrations);
         self.store
             .staged
             .draft_orders
@@ -7379,7 +7385,11 @@ impl DraftProxy {
         )
     }
 
-    fn calculate_draft_order_payload(&self, field: &RootFieldSelection) -> Value {
+    fn calculate_draft_order_payload(
+        &self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(user_errors) = draft_order_input_user_errors(&input, false) {
             return selected_json(
@@ -7393,7 +7403,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let calculated = draft_order_calculated_record(&input);
+        let variant_hydrations =
+            self.hydrate_draft_order_variants(request, draft_order_line_item_variant_ids(&input));
+        let calculated = draft_order_calculated_record(&input, &variant_hydrations);
         selected_json(
             &json!({ "calculatedDraftOrder": calculated, "userErrors": [] }),
             &field.selection,
@@ -7823,6 +7835,7 @@ impl DraftProxy {
         &self,
         mut draft_order: Value,
         input: &BTreeMap<String, ResolvedValue>,
+        variant_hydrations: &BTreeMap<String, Value>,
     ) -> Value {
         if input.contains_key("email") {
             draft_order["email"] = resolved_string_field(input, "email")
@@ -7854,11 +7867,12 @@ impl DraftProxy {
                 order_create_address(resolved_object_field(input, "shippingAddress"));
         }
         if input.contains_key("lineItems") {
-            draft_order["lineItems"] = draft_order_line_items_connection(
+            draft_order["lineItems"] = order_connection(draft_order_line_items(
                 &resolved_object_list_field(input, "lineItems"),
                 draft_order["id"].as_str().unwrap_or_default(),
-                draft_order_currency(&draft_order),
-            );
+                &draft_order_currency(&draft_order),
+                variant_hydrations,
+            ));
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
         if input.contains_key("appliedDiscount") {

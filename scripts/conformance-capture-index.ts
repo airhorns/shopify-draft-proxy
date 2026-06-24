@@ -6462,6 +6462,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-variant-custom-only-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-variant-custom-only-fields-conformance.ts',
+    purpose:
+      'draftOrderCreate and draftOrderCalculate line items with variantId ignore custom-only title, sku, price, taxable, and requiresShipping input fields and return hydrated catalog values.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-variant-custom-only-fields.json`,
+      'config/parity-specs/orders/draftOrder-variant-custom-only-fields.json',
+      'config/parity-requests/orders/draft-order-variant-custom-only-create.graphql',
+      'config/parity-requests/orders/draft-order-variant-custom-only-calculate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product/variant and one draft order, captures create/calculate normalization, then deletes the draft and product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-line-items-max',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-line-items-max-conformance.ts',
