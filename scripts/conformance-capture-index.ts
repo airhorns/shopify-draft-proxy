@@ -7167,6 +7167,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-starts-at-required-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-starts-at-required-validation-conformance.ts',
+    purpose: 'Native discount create startsAt presence validation for all six native create roots.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-starts-at-required-validation.json`,
+      'config/parity-specs/discounts/discount-starts-at-required-validation.json',
+      'config/parity-requests/discounts/discount-starts-at-required-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; creates no discounts when Shopify rejects missing or blank startsAt, with defensive cleanup if a root unexpectedly creates one.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-app-function-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-app-function-validation-conformance.ts',

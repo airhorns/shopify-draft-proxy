@@ -1958,6 +1958,13 @@ fn discount_input_user_errors(
             )),
         }
     }
+    if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
+        errors.push(discount_user_error(
+            vec![input_arg, "startsAt"],
+            "Starts at can't be blank",
+            "BLANK",
+        ));
+    }
     if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
         errors.push(error);
     }
