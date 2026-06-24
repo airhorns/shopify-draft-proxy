@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.captures.productCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-574 scalar validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch. Runtime tests assert rejected branches do not stage additional variants.",
+  "notes": "Scalar and option validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch, including public-schema rejection for the legacy/internal options key, structured optionValues mutual exclusions, and duplicate option tuples. Runtime tests assert rejected branches do not stage additional variants.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -150,6 +150,54 @@
           "variables": {
             "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
             "variants": { "fromCapturePath": "$.captures.optionValueTooLong.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "options-field-invalid-variable-errors",
+        "capturePath": "$.captures.optionsAndOptionValues.result.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.optionsAndOptionValues.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "option-id-and-option-name-conflict-payload",
+        "capturePath": "$.captures.optionIdAndOptionName.result.payload.data.productVariantsBulkCreate",
+        "proxyPath": "$.data.productVariantsBulkCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.optionIdAndOptionName.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "option-value-id-and-name-conflict-payload",
+        "capturePath": "$.captures.optionValueIdAndName.result.payload.data.productVariantsBulkCreate",
+        "proxyPath": "$.data.productVariantsBulkCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.optionValueIdAndName.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "duplicate-option-tuple-payload",
+        "capturePath": "$.captures.duplicateOptionTuple.result.payload.data.productVariantsBulkCreate",
+        "proxyPath": "$.data.productVariantsBulkCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.duplicateOptionTuple.variables.variants" }
           }
         }
       },

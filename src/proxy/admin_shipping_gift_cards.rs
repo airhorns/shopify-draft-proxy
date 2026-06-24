@@ -1,3 +1,4 @@
+use super::resolved_values;
 use super::*;
 
 mod gift_cards;
@@ -103,6 +104,15 @@ query ShippingFulfillmentOrderHydrate($id: ID!) {
   }
 }
 "#;
+
+struct FulfillmentOrderStoreBackedPreamble {
+    response_key: String,
+    payload_selection: Vec<SelectedField>,
+    arguments: BTreeMap<String, ResolvedValue>,
+    id: String,
+    order_id: String,
+    index: usize,
+}
 
 const SHIPPING_FULFILLMENT_ORDER_DIRECT_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderHydrate($id: ID!) {
     fulfillmentOrder(id: $id) {
@@ -3937,22 +3947,91 @@ impl DraftProxy {
         response
     }
 
+    fn fulfillment_order_store_backed_parts(
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
+        primary_root_response_parts(query, variables, || root_field.to_string())
+    }
+
+    fn fulfillment_order_store_backed_preamble(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        guardrail_message: Option<&str>,
+    ) -> Result<FulfillmentOrderStoreBackedPreamble, Response> {
+        let (response_key, payload_selection, arguments) =
+            Self::fulfillment_order_store_backed_parts(root_field, query, variables);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
+            return Err(self.fulfillment_order_missing_response(
+                root_field,
+                query,
+                &response_key,
+                &id,
+                guardrail_message,
+            ));
+        }
+        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
+            return Err(self.fulfillment_order_missing_response(
+                root_field,
+                query,
+                &response_key,
+                &id,
+                guardrail_message,
+            ));
+        };
+        Ok(FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments,
+            id,
+            order_id,
+            index,
+        })
+    }
+
+    fn fulfillment_order_missing_response(
+        &self,
+        root_field: &str,
+        query: &str,
+        response_key: &str,
+        id: &str,
+        guardrail_message: Option<&str>,
+    ) -> Response {
+        if let Some(message) = guardrail_message {
+            self.fulfillment_order_guardrail_response(root_field, query, message)
+        } else {
+            self.fulfillment_order_not_found_response(root_field, response_key, id)
+        }
+    }
+
     fn fulfillment_order_hold_store_backed(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrderHold".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderHold",
-                &response_key,
-                &id,
-            );
-        }
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderHold",
+            query,
+            variables,
+            request,
+            None,
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         let Some(input) = resolved_object_field(&arguments, "fulfillmentHold") else {
             return ok_json(json!({
                 "data": {
@@ -3969,13 +4048,6 @@ impl DraftProxy {
                     )
                 }
             }));
-        };
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderHold",
-                &response_key,
-                &id,
-            );
         };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let hold = self.shipping_fulfillment_hold_from_input(&input);
@@ -4161,27 +4233,25 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "fulfillmentOrderReleaseHold".to_string()
-            });
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderReleaseHold",
-                &response_key,
-                &id,
-            );
-        }
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderReleaseHold",
+            query,
+            variables,
+            request,
+            None,
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         let hold_ids = resolved_string_list_field_unsorted(&arguments, "holdIds");
         let external_id = resolved_string_field(&arguments, "externalId");
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderReleaseHold",
-                &response_key,
-                &id,
-            );
-        };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut released = Value::Null;
         if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
@@ -4248,9 +4318,23 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrderMove".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderMove",
+            query,
+            variables,
+            request,
+            None,
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         if self
             .shipping_fulfillment_order_by_id(&id)
             .and_then(|order| {
@@ -4276,23 +4360,9 @@ impl DraftProxy {
                 }
             }));
         }
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderMove",
-                &response_key,
-                &id,
-            );
-        }
         let new_location_id =
             resolved_string_field(&arguments, "newLocationId").unwrap_or_default();
         let requested = fulfillment_order_line_item_quantities(&arguments);
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderMove",
-                &response_key,
-                &id,
-            );
-        };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let assigned_location = self.shipping_assigned_location(&new_location_id);
         let current_order = self
@@ -4419,12 +4489,19 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || root_field.to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_not_found_response(root_field, &response_key, &id);
-        }
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments: _,
+            id,
+            order_id,
+            index,
+        } = match self
+            .fulfillment_order_store_backed_preamble(root_field, query, variables, request, None)
+        {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         let current_status = self
             .shipping_fulfillment_order_by_id(&id)
             .and_then(|order| order["status"].as_str().map(str::to_string))
@@ -4454,9 +4531,6 @@ impl DraftProxy {
                 }
             }));
         }
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_not_found_response(root_field, &response_key, &id);
-        };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut updated = Value::Null;
         if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
@@ -4497,16 +4571,23 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrderCancel".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderCancel",
-                &response_key,
-                &id,
-            );
-        }
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments: _,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderCancel",
+            query,
+            variables,
+            request,
+            None,
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         let status = self
             .shipping_fulfillment_order_by_id(&id)
             .and_then(|order| order["status"].as_str().map(str::to_string))
@@ -4543,13 +4624,6 @@ impl DraftProxy {
                 }
             }));
         }
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_not_found_response(
-                "fulfillmentOrderCancel",
-                &response_key,
-                &id,
-            );
-        };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let replacement_id = self.next_proxy_synthetic_gid("FulfillmentOrder");
         let mut cancelled = Value::Null;
@@ -4598,9 +4672,11 @@ impl DraftProxy {
         request: &Request,
     ) -> Response {
         let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "fulfillmentOrdersSetFulfillmentDeadline".to_string()
-            });
+            Self::fulfillment_order_store_backed_parts(
+                "fulfillmentOrdersSetFulfillmentDeadline",
+                query,
+                variables,
+            );
         let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
         for id in &ids {
             self.ensure_shipping_fulfillment_order_hydrated(request, id);
@@ -4677,16 +4753,23 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrderClose".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
-            return self.fulfillment_order_guardrail_response(
-                "fulfillmentOrderClose",
-                query,
-                "The fulfillment order's assigned fulfillment service must be of api type",
-            );
-        }
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments: _,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderClose",
+            query,
+            variables,
+            request,
+            Some("The fulfillment order's assigned fulfillment service must be of api type"),
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
         let accepted_request = self
             .shipping_fulfillment_order_by_id(&id)
             .and_then(|order| order["requestStatus"].as_str().map(str::to_string))
@@ -4699,13 +4782,6 @@ impl DraftProxy {
                 "The fulfillment order's assigned fulfillment service must be of api type",
             );
         }
-        let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
-            return self.fulfillment_order_guardrail_response(
-                "fulfillmentOrderClose",
-                query,
-                "The fulfillment order's assigned fulfillment service must be of api type",
-            );
-        };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut closed = Value::Null;
         if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
@@ -6886,26 +6962,7 @@ fn raw_argument_json(value: &RawArgumentValue) -> Value {
 }
 
 fn resolved_value_display(value: &ResolvedValue) -> String {
-    resolved_value_json(value).to_string()
-}
-
-fn resolved_value_json(value: &ResolvedValue) -> Value {
-    match value {
-        ResolvedValue::String(value) => json!(value),
-        ResolvedValue::Int(value) => json!(value),
-        ResolvedValue::Float(value) => json!(value),
-        ResolvedValue::Bool(value) => json!(value),
-        ResolvedValue::Null => Value::Null,
-        ResolvedValue::List(values) => {
-            Value::Array(values.iter().map(resolved_value_json).collect())
-        }
-        ResolvedValue::Object(fields) => Value::Object(
-            fields
-                .iter()
-                .map(|(key, value)| (key.clone(), resolved_value_json(value)))
-                .collect(),
-        ),
-    }
+    resolved_values::resolved_value_json(value).to_string()
 }
 
 const LOCATION_COUNTRY_CODES: &str = "AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ";
@@ -7313,7 +7370,7 @@ fn location_add_invalid_variable_error(
             ),
             "extensions": {
                 "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
+                "value": resolved_values::resolved_value_json(&ResolvedValue::Object(input.clone())),
                 "problems": [{
                     "path": path_parts,
                     "explanation": explanation
@@ -7338,7 +7395,7 @@ fn location_edit_invalid_variable_error(
             ),
             "extensions": {
                 "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
+                "value": resolved_values::resolved_value_json(&ResolvedValue::Object(input.clone())),
                 "problems": [{
                     "path": path_parts,
                     "explanation": explanation
@@ -7911,7 +7968,7 @@ pub(in crate::proxy) fn publishable_empty_string_publication_error(
             "locations": [{ "line": field.location.line, "column": column }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(input),
+                "value": resolved_values::resolved_value_json(input),
                 "problems": [{
                     "path": [0, "publicationId"],
                     "explanation": "Invalid global id ''",
@@ -8098,7 +8155,7 @@ impl DraftProxy {
                 false,
             );
         };
-        let payload_json = resolved_value_json(payload);
+        let payload_json = resolved_values::resolved_value_json(payload);
         let canonical_payload = canonical_json_string(&payload_json);
         if canonical_payload.len() > 50_000 {
             return (

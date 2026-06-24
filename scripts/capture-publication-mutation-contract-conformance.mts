@@ -159,6 +159,22 @@ const deleteProductMutation = `#graphql
   }
 `;
 
+const variantNodeQuery = `#graphql
+  query PublicationContractVariantNode($id: ID!) {
+    node(id: $id) {
+      __typename
+      id
+      ... on ProductVariant {
+        title
+        product {
+          id
+          title
+        }
+      }
+    }
+  }
+`;
+
 async function captureCase(query: string, variables: JsonObject): Promise<CaptureCase> {
   return {
     query,
@@ -180,6 +196,7 @@ await mkdir(outputDir, { recursive: true });
 const runId = Date.now().toString(36);
 let product: ProductSeed | null = null;
 let publicationId: string | null = null;
+let variantId: string | null = null;
 let productCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let publicationCleanup: ConformanceGraphqlResult<PublicationDeleteData> | null = null;
 let deleteCreated: CaptureCase | null = null;
@@ -199,6 +216,12 @@ try {
       `publication mutation contract capture could not create a seed product: ${JSON.stringify(productCreate)}`,
     );
   }
+  variantId = product.variants?.nodes?.[0]?.id ?? null;
+  if (!variantId) {
+    throw new Error(
+      `publication mutation contract capture could not resolve a seed variant: ${JSON.stringify(productCreate)}`,
+    );
+  }
   cases['productCreate'] = {
     query: createProductMutation,
     variables: {
@@ -214,7 +237,9 @@ try {
   // resolves to a hydrated node (so publicationUpdate stages it), while the
   // sentinel id resolves to a null node (so it is reported "not found").
   upstreamCalls.push(await recordObservationHydrate([product.id]));
+  upstreamCalls.push(await recordObservationHydrate([variantId]));
   upstreamCalls.push(await recordObservationHydrate(['gid://shopify/Product/999999999999']));
+  cases['variantNode'] = await captureCase(variantNodeQuery, { id: variantId });
 
   const createOmittedCatalog = await captureCase(publicationCreateMutation, { input: {} });
   cases['createOmittedCatalog'] = createOmittedCatalog;
@@ -251,6 +276,18 @@ try {
     id: publicationId,
     input: {
       publishablesToRemove: [product.id],
+    },
+  });
+  cases['updateAddVariant'] = await captureCase(publicationUpdateMutation, {
+    id: publicationId,
+    input: {
+      publishablesToAdd: [variantId],
+    },
+  });
+  cases['updateAddProductAndVariant'] = await captureCase(publicationUpdateMutation, {
+    id: publicationId,
+    input: {
+      publishablesToAdd: [product.id, variantId],
     },
   });
   cases['updateInvalidProduct'] = await captureCase(publicationUpdateMutation, {
@@ -343,7 +380,7 @@ await writeFile(
         'Live Admin GraphQL 2026-04 publicationCreate accepts omitted catalogId and creates a publication.',
         'Live unknown catalogId returns CATALOG_NOT_FOUND with an id-specific message.',
         'Live publicationUpdate accepts Product publishables and returns payload userErrors for missing Product IDs and update batches over 50.',
-        'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for variants on this store, so this fixture does not assert the local ProductVariant guardrail.',
+        'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for ProductVariant-only and Product+ProductVariant publishablesToAdd inputs.',
         'publicationDelete payload exposes deletedId and userErrors only.',
       ],
       upstreamCalls,
@@ -360,6 +397,7 @@ console.log(
       ok: true,
       outputPath,
       productId: product.id,
+      variantId,
       caseCount: Object.keys(cases).length,
       deletedPublicationId: deleteCreated.response.payload.data?.publicationDelete?.deletedId ?? null,
       cleanupDeletedProductId: productCleanup?.payload.data?.productDelete?.deletedProductId ?? null,

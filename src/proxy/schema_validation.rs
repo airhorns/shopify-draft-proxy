@@ -1797,6 +1797,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema);
+        extend_product_variant_input_schema(&mut schema);
         extend_publication_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
         extend_shipping_input_schema(&mut schema);
@@ -1804,6 +1805,86 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
+    // The public Admin schema for `ProductVariantsBulkInput` exposes
+    // `optionValues`, not the legacy/internal `options` key. Registering the
+    // bulk input object keeps unsupported keys as GraphQL coercion errors before
+    // the local product variant handler stages anything.
+    schema.input_objects.insert(
+        "ProductVariantsBulkInput".to_string(),
+        BTreeMap::from([
+            ("barcode".to_string(), input_field(named("String"))),
+            ("compareAtPrice".to_string(), input_field(named("Money"))),
+            ("id".to_string(), input_field(named("ID"))),
+            (
+                "mediaSrc".to_string(),
+                input_field(list_of_non_null("String")),
+            ),
+            (
+                "inventoryPolicy".to_string(),
+                input_field(named("ProductVariantInventoryPolicy")),
+            ),
+            (
+                "inventoryQuantities".to_string(),
+                input_field(list_of_non_null("InventoryLevelInput")),
+            ),
+            (
+                "quantityAdjustments".to_string(),
+                input_field(list_of_non_null("InventoryQuantityAdjustmentInput")),
+            ),
+            (
+                "inventoryItem".to_string(),
+                input_field(named("InventoryItemInput")),
+            ),
+            ("mediaId".to_string(), input_field(named("ID"))),
+            (
+                "metafields".to_string(),
+                input_field(list_of_non_null("MetafieldInput")),
+            ),
+            (
+                "optionValues".to_string(),
+                input_field(list_of_non_null("VariantOptionValueInput")),
+            ),
+            ("price".to_string(), input_field(named("Money"))),
+            ("taxable".to_string(), input_field(named("Boolean"))),
+            ("taxCode".to_string(), input_field(named("String"))),
+            (
+                "unitPriceMeasurement".to_string(),
+                input_field(named("UnitPriceMeasurementInput")),
+            ),
+            ("showUnitPrice".to_string(), input_field(named("Boolean"))),
+            (
+                "requiresComponents".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "productVariantsBulkCreate".to_string(),
+        BTreeMap::from([
+            ("productId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "variants".to_string(),
+                mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+            (
+                "strategy".to_string(),
+                mutation_arg(named("ProductVariantsBulkCreateStrategy")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "productVariantsBulkUpdate".to_string(),
+        BTreeMap::from([
+            ("productId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "variants".to_string(),
+                mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+        ]),
+    );
 }
 
 fn extend_publication_input_schema(schema: &mut AdminInputSchema) {

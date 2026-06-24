@@ -183,6 +183,23 @@ let schema validation reject unknown `ProductInput` fields such as `variants`.
 The checked-in anchor is
 `config/parity-specs/products/product-create-no-key-on-create.json`.
 
+## Current: publicationUpdate treats ProductVariant publishables as invalid IDs
+
+A 2026-04 `publicationUpdate` capture against `harry-test-heelo` showed that a
+ProductVariant GID can resolve through `node(id:)` and still be rejected by
+`publicationUpdate`. Both ProductVariant-only and Product+ProductVariant
+`publishablesToAdd` inputs returned `data.publicationUpdate: null` plus a
+top-level `RESOURCE_NOT_FOUND` error whose message is `Invalid id: <variant
+gid>`. Shopify did not return a payload `INVALID_PUBLISHABLE_ID` userError and
+did not use the source-described mixed Product/ProductVariant guardrail on this
+public dev store.
+
+Practical rule: model Product publication updates locally, but treat
+ProductVariant publishables as the captured top-level invalid-id boundary unless
+a newer version-specific capture proves the public Admin behavior changed. The
+checked-in anchor is
+`config/parity-specs/products/publication-update-delete-contract.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against
@@ -2410,6 +2427,7 @@ Live evidence refreshed on this host:
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
+- Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; it is not the payload-level `Collection does not exist` userError branch used for supplied ids that fail lookup.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 

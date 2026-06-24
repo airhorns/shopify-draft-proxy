@@ -1,0 +1,9 @@
+query AdminPlatformJobArbitraryGid {
+  job(id: "gid://shopify/Job/0") {
+    id
+    done
+    query {
+      __typename
+    }
+  }
+}
