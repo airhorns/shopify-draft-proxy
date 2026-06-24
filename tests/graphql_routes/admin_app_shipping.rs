@@ -6256,14 +6256,34 @@ fn delivery_profile_validations_match_captured_write_subset() {
         })
     );
 
-    let long_name = "x".repeat(128);
-    let too_long = proxy.process_request(json_graphql_request(
+    let max_name = "x".repeat(128);
+    let max_create = proxy.process_request(json_graphql_request(
         create_query,
-        json!({ "profile": { "name": long_name } }),
+        json!({ "profile": { "name": max_name } }),
     ));
     assert_eq!(
-        too_long.body["data"]["deliveryProfileCreate"]["userErrors"][0]["message"],
-        json!("Profile name must be less than 128 characters long")
+        max_create.body["data"]["deliveryProfileCreate"]["profile"]["name"],
+        json!(max_name)
+    );
+    assert_eq!(
+        max_create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+
+    let too_long_name = "x".repeat(129);
+    let too_long = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "profile": { "name": too_long_name } }),
+    ));
+    assert_eq!(
+        too_long.body["data"]["deliveryProfileCreate"],
+        json!({
+            "profile": null,
+            "userErrors": [{
+                "field": ["profile", "name"],
+                "message": "Profile name must be less than 128 characters long"
+            }]
+        })
     );
 
     let disallowed = proxy.process_request(json_graphql_request(
@@ -6327,6 +6347,36 @@ fn delivery_profile_validations_match_captured_write_subset() {
         .as_str()
         .unwrap()
         .to_string();
+
+    let update_max_name = "y".repeat(128);
+    let max_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": id, "profile": { "name": update_max_name } }),
+    ));
+    assert_eq!(
+        max_update.body["data"]["deliveryProfileUpdate"]["profile"]["name"],
+        json!(update_max_name)
+    );
+    assert_eq!(
+        max_update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let update_too_long_name = "y".repeat(129);
+    let too_long_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": id, "profile": { "name": update_too_long_name } }),
+    ));
+    assert_eq!(
+        too_long_update.body["data"]["deliveryProfileUpdate"],
+        json!({
+            "profile": null,
+            "userErrors": [{
+                "field": ["profile", "name"],
+                "message": "Profile name must be less than 128 characters long"
+            }]
+        })
+    );
 
     let missing_update = proxy.process_request(json_graphql_request(
         update_query,

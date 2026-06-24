@@ -616,6 +616,10 @@ pub(in crate::proxy) fn delivery_profile_update_user_errors(
     delivery_profile_common_shape_user_errors(profile)
 }
 
+const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
+const DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE: &str =
+    "Profile name must be less than 128 characters long";
+
 fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let name = resolved_string_arg(profile, "name")?;
     if name.is_empty() {
@@ -624,10 +628,10 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
             "Add a profile name",
         ));
     }
-    if name.chars().count() >= 128 {
+    if name.chars().count() > DELIVERY_PROFILE_MAX_NAME_LENGTH {
         return Some(delivery_profile_user_error(
             json!(["profile", "name"]),
-            "Profile name must be less than 128 characters long",
+            DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE,
         ));
     }
     None

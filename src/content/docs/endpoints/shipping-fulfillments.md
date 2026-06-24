@@ -167,7 +167,10 @@ default profile and stage proxy-modelable updates without writing to Shopify at
 runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name
 input with empty `userErrors` while preserving the public default display name
 and incrementing `version`; unsupported side effects such as rate recalculation
-remain outside this slice.
+remain outside this slice. Delivery profile name validation accepts exactly 128
+characters and rejects 129-character names on both create and update with a
+public `UserError` payload containing `field` and `message`; `code` is not
+selectable on the captured Admin GraphQL 2026-04 `UserError` type.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
