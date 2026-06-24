@@ -722,6 +722,10 @@ const cancelAfterReportProgress = await capture(cancelMutation, {
 });
 const open = await capture(openMutation, { id: scheduleProgressOrder.order.fulfillmentOrderId });
 const afterOpen = await readAfter(scheduleProgressOrder.order);
+const openAgain = await capture(openMutation, {
+  id: scheduleProgressOrder.order.fulfillmentOrderId,
+});
+const afterOpenAgain = await readAfter(scheduleProgressOrder.order);
 const close = await capture(closeMutation, {
   id: scheduleProgressOrder.order.fulfillmentOrderId,
   message: 'HAR-234 close lifecycle capture',
@@ -831,6 +835,8 @@ const output = {
       cancelAfterReportProgress,
       open,
       afterOpen,
+      openAgain,
+      afterOpenAgain,
       close,
       afterClose,
     },

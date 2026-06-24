@@ -127,7 +127,12 @@ IDs for parity replay.
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
 reschedule guardrails, deadline setting, assigned-order filtering, and selected
-validation branches. Store-backed local staging now covers
+validation branches. Captured public 2026-04 behavior allows
+`fulfillmentOrderOpen` to mark an `IN_PROGRESS` fulfillment order `OPEN`, but a
+second open attempt on an already-`OPEN` fulfillment order returns a base
+`userErrors` entry (`field: null`) and leaves the local fulfillment-order
+status, supported actions, and timestamp unchanged; this public `UserError`
+shape exposes `field` / `message` only. Store-backed local staging now covers
 `fulfillmentCreate` payload `Fulfillment.name` reference numbers as
 `<orderName>-F<n>` for order-backed fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
