@@ -1,14 +1,14 @@
 {
-  "capturedAt": "2026-06-22T21:22:31.973Z",
+  "capturedAt": "2026-06-24T00:13:49.601Z",
   "scenarioId": "orderEdit-shipping-line-validation",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "source": "live-shopify-admin-graphql",
-  "notes": "Live orderEdit shipping-line validation capture against one disposable CAD order-edit session. The precondition order is resolved via a real cold OrdersOrderEditHydrate forward (single upstreamCall) rather than a seed/setup block. Invalid branches do not stage shipping lines or discounts; the source order is cancelled in cleanup.",
+  "notes": "Live orderEdit shipping-line validation capture against one disposable CAD order-edit session. The precondition order is resolved via a real cold OrdersOrderEditHydrate forward (single upstreamCall) rather than a seed/setup block. Invalid branches do not stage shipping lines or discounts; unknown calculated-order probes use a known-bad CalculatedOrder GID, with removeDiscount carrying a real captured discount application ID; the source order is cancelled in cleanup.",
   "begin": {
     "query": "mutation OrderEditShippingLineValidationBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      subtotalLineItemsQuantity\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8837913608498"
+      "id": "gid://shopify/Order/8839813464370"
     },
     "response": {
       "status": 200,
@@ -16,7 +16,7 @@
         "data": {
           "orderEditBegin": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/112469082418",
+              "id": "gid://shopify/CalculatedOrder/112604807474",
               "subtotalLineItemsQuantity": 1,
               "subtotalPriceSet": {
                 "shopMoney": {
@@ -33,8 +33,8 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/19494987923762",
-                    "title": "Order edit source item 20260622212228",
+                    "id": "gid://shopify/CalculatedLineItem/19498583163186",
+                    "title": "Order edit source item 20260624001346",
                     "quantity": 1,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -48,7 +48,7 @@
               "shippingLines": []
             },
             "orderEditSession": {
-              "id": "gid://shopify/OrderEditSession/112469082418"
+              "id": "gid://shopify/OrderEditSession/112604807474"
             },
             "userErrors": []
           }
@@ -71,7 +71,7 @@
     "addMissingPrice": {
       "query": "mutation OrderEditShippingLineValidationAddMissingPrice($id: ID!) {\n  orderEditAddShippingLine(id: $id, shippingLine: { title: \"\" }) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n      }\n    }\n    calculatedShippingLine {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/CalculatedOrder/112469082418"
+        "id": "gid://shopify/CalculatedOrder/112604807474"
       },
       "response": {
         "status": 200,
@@ -105,7 +105,7 @@
     "addCurrencyMismatch": {
       "query": "mutation OrderEditShippingLineValidationAdd($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {\n  orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    calculatedShippingLine {\n      id\n      title\n      stagedStatus\n      price {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/CalculatedOrder/112469082418",
+        "id": "gid://shopify/CalculatedOrder/112604807474",
         "shippingLine": {
           "title": "Currency mismatch shipping",
           "price": {
@@ -147,7 +147,7 @@
     "updateUnknown": {
       "query": "mutation OrderEditShippingLineValidationUpdate(\n  $id: ID!\n  $shippingLineId: ID!\n  $shippingLine: OrderEditUpdateShippingLineInput!\n) {\n  orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/CalculatedOrder/112469082418",
+        "id": "gid://shopify/CalculatedOrder/112604807474",
         "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999",
         "shippingLine": {
           "title": "Unknown update",
@@ -189,7 +189,7 @@
     "removeUnknown": {
       "query": "mutation OrderEditShippingLineValidationRemove($id: ID!, $shippingLineId: ID!) {\n  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/CalculatedOrder/112469082418",
+        "id": "gid://shopify/CalculatedOrder/112604807474",
         "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999"
       },
       "response": {
@@ -221,11 +221,211 @@
         }
       }
     },
+    "addLineItemDiscountForRemoveDiscountId": {
+      "query": "mutation OrderEditShippingLineValidationAddLineItemDiscount(\n  $id: ID!\n  $lineItemId: ID!\n  $discount: OrderEditAppliedDiscountInput!\n) {\n  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {\n    calculatedLineItem {\n      id\n      calculatedDiscountAllocations {\n        discountApplication {\n          id\n          description\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/112604807474",
+        "lineItemId": "gid://shopify/CalculatedLineItem/19498583163186",
+        "discount": {
+          "description": "Shipping-line validation discount",
+          "fixedValue": {
+            "amount": "1.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddLineItemDiscount": {
+              "calculatedLineItem": {
+                "id": "gid://shopify/CalculatedLineItem/19498583163186",
+                "calculatedDiscountAllocations": [
+                  {
+                    "discountApplication": {
+                      "id": "gid://shopify/CalculatedManualDiscountApplication/5aa1ba1d-e3a8-4e1c-8957-9db03d601d0d",
+                      "description": "Shipping-line validation discount"
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addUnknownCalculatedOrder": {
+      "query": "mutation OrderEditShippingLineValidationAdd($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {\n  orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    calculatedShippingLine {\n      id\n      title\n      stagedStatus\n      price {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999",
+        "shippingLine": {
+          "title": "Unknown calculated order shipping",
+          "price": {
+            "amount": "9.99",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddShippingLine": {
+              "calculatedOrder": null,
+              "calculatedShippingLine": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateUnknownCalculatedOrder": {
+      "query": "mutation OrderEditShippingLineValidationUpdate(\n  $id: ID!\n  $shippingLineId: ID!\n  $shippingLine: OrderEditUpdateShippingLineInput!\n) {\n  orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999",
+        "shippingLine": {
+          "title": "Unknown calculated order update",
+          "price": {
+            "amount": "19.99",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditUpdateShippingLine": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeUnknownCalculatedOrder": {
+      "query": "mutation OrderEditShippingLineValidationRemove($id: ID!, $shippingLineId: ID!) {\n  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditRemoveShippingLine": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeDiscountUnknownCalculatedOrder": {
+      "query": "mutation OrderEditShippingLineValidationRemoveDiscount($id: ID!, $discountApplicationId: ID!) {\n  orderEditRemoveDiscount(id: $id, discountApplicationId: $discountApplicationId) {\n    calculatedOrder {\n      id\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999",
+        "discountApplicationId": "gid://shopify/CalculatedManualDiscountApplication/5aa1ba1d-e3a8-4e1c-8957-9db03d601d0d"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditRemoveDiscount": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "discountMissingCurrency": {
       "query": "mutation OrderEditShippingLineValidationDiscountMissingCurrency($id: ID!, $lineItemId: ID!) {\n  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: { fixedValue: { amount: \"5.00\" } }) {\n    calculatedLineItem {\n      id\n      discountedUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      calculatedDiscountAllocations {\n        allocatedAmountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/CalculatedOrder/112469082418",
-        "lineItemId": "gid://shopify/CalculatedLineItem/19494987923762"
+        "id": "gid://shopify/CalculatedOrder/112604807474",
+        "lineItemId": "gid://shopify/CalculatedLineItem/19498583163186"
       },
       "response": {
         "status": 200,
@@ -261,7 +461,7 @@
   "cleanup": {
     "query": "mutation OrderEditShippingLineValidationCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8837913608498",
+      "orderId": "gid://shopify/Order/8839813464370",
       "reason": "OTHER",
       "notifyCustomer": false,
       "restock": true
@@ -272,7 +472,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/0b9124f1-96fe-4d24-8f6c-3345437e5ab6"
+              "id": "gid://shopify/Job/8638864f-4e4d-43f9-a851-857ab0a9e8f8"
             },
             "userErrors": []
           }
@@ -295,7 +495,7 @@
     {
       "operationName": "OrdersOrderEditHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8837913608498"
+        "id": "gid://shopify/Order/8839813464370"
       },
       "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
@@ -303,8 +503,8 @@
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8837913608498",
-              "name": "#1489",
+              "id": "gid://shopify/Order/8839813464370",
+              "name": "#1523",
               "merchantEditable": true,
               "cancelledAt": null,
               "cancelReason": null,
@@ -312,11 +512,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19494987923762",
-                    "title": "Order edit source item 20260622212228",
+                    "id": "gid://shopify/LineItem/19498583163186",
+                    "title": "Order edit source item 20260624001346",
                     "quantity": 1,
                     "currentQuantity": 1,
-                    "sku": "order-edit-shipping-line-20260622212228",
+                    "sku": "order-edit-shipping-line-20260624001346",
                     "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {

@@ -1,0 +1,21 @@
+mutation OrderEditShippingLineValidationAddLineItemDiscount(
+  $id: ID!
+  $lineItemId: ID!
+  $discount: OrderEditAppliedDiscountInput!
+) {
+  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+    calculatedLineItem {
+      id
+      calculatedDiscountAllocations {
+        discountApplication {
+          id
+          description
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

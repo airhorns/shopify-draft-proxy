@@ -9165,7 +9165,7 @@ impl DraftProxy {
                         vec![oe_user_error(
                             &["id"],
                             "The calculated order does not exist.",
-                            None,
+                            Some("INVALID"),
                         )],
                         &field.selection,
                     ),
@@ -9223,7 +9223,7 @@ impl DraftProxy {
                         vec![oe_user_error(
                             &["id"],
                             "The calculated order does not exist.",
-                            None,
+                            Some("INVALID"),
                         )],
                         &field.selection,
                     ),
@@ -9309,7 +9309,7 @@ impl DraftProxy {
                         vec![oe_user_error(
                             &["id"],
                             "The calculated order does not exist.",
-                            None,
+                            Some("INVALID"),
                         )],
                         &field.selection,
                     ),
@@ -9409,7 +9409,7 @@ impl DraftProxy {
                         vec![oe_user_error(
                             &["id"],
                             "The calculated order does not exist.",
-                            None,
+                            Some("INVALID"),
                         )],
                         &field.selection,
                     ),
