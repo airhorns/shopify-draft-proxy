@@ -124,7 +124,7 @@ impl DraftProxy {
                 .or_else(|| base.as_ref().map(|product| product.product_type.clone()))
                 .unwrap_or_default(),
             tags: if input.contains_key("tags") {
-                normalize_product_tags(resolved_string_list_field_unsorted(&input, "tags"))
+                normalize_taggable_tags(resolved_string_list_field_unsorted(&input, "tags"))
             } else {
                 base.as_ref()
                     .map(|product| product.tags.clone())

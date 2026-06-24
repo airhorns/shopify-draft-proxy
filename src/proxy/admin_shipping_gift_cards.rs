@@ -5500,7 +5500,7 @@ impl DraftProxy {
             if user_errors.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             data.insert(
                 field.response_key,
                 publishable_payload_json(

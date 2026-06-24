@@ -119,7 +119,7 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
             } else {
                 selected_json(&token, token_selection)
             }),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -138,7 +138,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -154,14 +154,6 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     code: &str,
 ) -> Value {
     user_error(Value::Null, message, Some(code))
-}
-
-pub(in crate::proxy) fn synthetic_shop_json() -> Value {
-    default_shop_json()
-}
-
-pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
-    store.effective_shop()
 }
 
 pub(in crate::proxy) fn local_app_json() -> Value {
@@ -1908,10 +1900,6 @@ pub(in crate::proxy) fn normalize_taggable_tags(tags: Vec<String>) -> Vec<String
     }
     normalized.sort_by_key(|tag| tag.to_lowercase());
     normalized
-}
-
-pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
-    normalize_taggable_tags(tags)
 }
 
 pub(in crate::proxy) fn normalized_taggable_tags_argument(

@@ -338,8 +338,8 @@ impl DraftProxy {
                 return product_count_json(0, &field.selection);
             }
             if let Some(tag) = product_tag_query_value(query) {
-                let count = self
-                    .effective_products()
+                let products = self.store.products();
+                let count = products
                     .into_iter()
                     .filter(|product| {
                         self.store
@@ -353,8 +353,8 @@ impl DraftProxy {
                 return product_count_json(count, &field.selection);
             }
             if query.trim_start().starts_with("sku:") {
-                let count = self
-                    .effective_products()
+                let products = self.store.products();
+                let count = products
                     .into_iter()
                     .filter(|product| {
                         let variants = self.store.product_variants_for_product(&product.id);
@@ -364,15 +364,7 @@ impl DraftProxy {
                 return product_count_json(count, &field.selection);
             }
         }
-        product_count_json(self.effective_product_count(), &field.selection)
-    }
-
-    pub(in crate::proxy) fn effective_products(&self) -> Vec<ProductRecord> {
-        self.store.products()
-    }
-
-    pub(in crate::proxy) fn effective_product_count(&self) -> usize {
-        self.store.product_count()
+        product_count_json(self.store.product_count(), &field.selection)
     }
 
     pub(in crate::proxy) fn product_create(
@@ -864,7 +856,7 @@ impl DraftProxy {
             product_type: resolved_string_field(&input, "productType")
                 .unwrap_or(existing.product_type),
             tags: if input.contains_key("tags") {
-                normalize_product_tags(incoming_tags.unwrap_or_default())
+                normalize_taggable_tags(incoming_tags.unwrap_or_default())
             } else {
                 existing.tags
             },
