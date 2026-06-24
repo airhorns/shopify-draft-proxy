@@ -1389,6 +1389,213 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     assert_eq!(log["entries"][0]["status"], json!("staged"));
 }
 
+#[test]
+fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";
+    let location_id = "gid://shopify/Location/1";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-set", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": unknown_inventory_item_id, "locationId": location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-adjust", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": unknown_inventory_item_id, "locationId": location_id, "delta": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-item-move", "input": {"reason": "correction", "changes": [{
+            "inventoryItemId": unknown_inventory_item_id,
+            "quantity": 1,
+            "from": {"locationId": location_id, "name": "available", "changeFromQuantity": 0},
+            "to": {"locationId": location_id, "name": "damaged", "changeFromQuantity": 0, "ledgerDocumentUri": "ledger://inventory/unknown-item"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownInventoryItemRead($id: ID!) {
+          inventoryItem(id: $id) { id inventoryLevels(first: 5) { nodes { location { id } } } }
+        }
+        "#,
+        json!({"id": unknown_inventory_item_id}),
+    ));
+    assert_eq!(read.body["data"]["inventoryItem"], Value::Null);
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/store-backed";
+    let unknown_location_id = "gid://shopify/Location/999999999999";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-set", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": unknown_location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-adjust", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": inventory_item_id, "locationId": unknown_location_id, "delta": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "unknown-location-move", "input": {"reason": "correction", "changes": [{
+            "inventoryItemId": inventory_item_id,
+            "quantity": 1,
+            "from": {"locationId": unknown_location_id, "name": "available", "changeFromQuantity": 0},
+            "to": {"locationId": unknown_location_id, "name": "damaged", "changeFromQuantity": 0, "ledgerDocumentUri": "ledger://inventory/unknown-location"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+                {
+                    "field": ["input", "changes", "0", "from", "locationId"],
+                    "message": "The specified location could not be found.",
+                    "code": "INVALID_LOCATION"
+                },
+                {
+                    "field": ["input", "changes", "0", "to", "locationId"],
+                    "message": "The specified location could not be found.",
+                    "code": "INVALID_LOCATION"
+                }
+            ]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownLocationRead($id: ID!) {
+          inventoryItem(id: $id) {
+            id
+            inventoryLevels(first: 5) { nodes { location { id } } }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    let levels = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(!levels
+        .iter()
+        .any(|level| level["location"]["id"] == json!(unknown_location_id)));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
 fn inventory_activation_base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
