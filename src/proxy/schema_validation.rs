@@ -1626,7 +1626,12 @@ pub(in crate::proxy) fn invalid_variable_error(
             let path = problem["path"]
                 .as_array()?
                 .iter()
-                .filter_map(Value::as_str)
+                .filter_map(|segment| {
+                    segment
+                        .as_u64()
+                        .map(|index| index.to_string())
+                        .or_else(|| segment.as_str().map(str::to_string))
+                })
                 .collect::<Vec<_>>()
                 .join(".");
             let explanation = problem["explanation"].as_str()?;
@@ -1652,17 +1657,28 @@ pub(in crate::proxy) fn invalid_variable_error(
 
 pub(in crate::proxy) fn variable_problem(path: &[String], explanation: &str) -> Value {
     json!({
-        "path": path,
+        "path": variable_problem_path(path),
         "explanation": explanation
     })
 }
 
 pub(in crate::proxy) fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
     json!({
-        "path": path,
+        "path": variable_problem_path(path),
         "explanation": explanation,
         "message": explanation
     })
+}
+
+fn variable_problem_path(path: &[String]) -> Vec<Value> {
+    path.iter()
+        .map(|segment| {
+            segment
+                .parse::<u64>()
+                .map(Value::from)
+                .unwrap_or_else(|_| Value::String(segment.clone()))
+        })
+        .collect()
 }
 
 fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
@@ -1695,6 +1711,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema);
+        extend_product_variant_input_schema(&mut schema);
         extend_publication_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
         extend_shipping_input_schema(&mut schema);
@@ -1702,6 +1719,86 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
+    // The public Admin schema for `ProductVariantsBulkInput` exposes
+    // `optionValues`, not the legacy/internal `options` key. Registering the
+    // bulk input object keeps unsupported keys as GraphQL coercion errors before
+    // the local product variant handler stages anything.
+    schema.input_objects.insert(
+        "ProductVariantsBulkInput".to_string(),
+        BTreeMap::from([
+            ("barcode".to_string(), input_field(named("String"))),
+            ("compareAtPrice".to_string(), input_field(named("Money"))),
+            ("id".to_string(), input_field(named("ID"))),
+            (
+                "mediaSrc".to_string(),
+                input_field(list_of_non_null("String")),
+            ),
+            (
+                "inventoryPolicy".to_string(),
+                input_field(named("ProductVariantInventoryPolicy")),
+            ),
+            (
+                "inventoryQuantities".to_string(),
+                input_field(list_of_non_null("InventoryLevelInput")),
+            ),
+            (
+                "quantityAdjustments".to_string(),
+                input_field(list_of_non_null("InventoryQuantityAdjustmentInput")),
+            ),
+            (
+                "inventoryItem".to_string(),
+                input_field(named("InventoryItemInput")),
+            ),
+            ("mediaId".to_string(), input_field(named("ID"))),
+            (
+                "metafields".to_string(),
+                input_field(list_of_non_null("MetafieldInput")),
+            ),
+            (
+                "optionValues".to_string(),
+                input_field(list_of_non_null("VariantOptionValueInput")),
+            ),
+            ("price".to_string(), input_field(named("Money"))),
+            ("taxable".to_string(), input_field(named("Boolean"))),
+            ("taxCode".to_string(), input_field(named("String"))),
+            (
+                "unitPriceMeasurement".to_string(),
+                input_field(named("UnitPriceMeasurementInput")),
+            ),
+            ("showUnitPrice".to_string(), input_field(named("Boolean"))),
+            (
+                "requiresComponents".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "productVariantsBulkCreate".to_string(),
+        BTreeMap::from([
+            ("productId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "variants".to_string(),
+                mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+            (
+                "strategy".to_string(),
+                mutation_arg(named("ProductVariantsBulkCreateStrategy")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "productVariantsBulkUpdate".to_string(),
+        BTreeMap::from([
+            ("productId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "variants".to_string(),
+                mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+        ]),
+    );
 }
 
 fn extend_publication_input_schema(schema: &mut AdminInputSchema) {

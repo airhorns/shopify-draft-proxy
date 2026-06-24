@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Replays the HAR-290 live validation and atomicity matrix against the local proxy. The fixture records before/after Shopify product state for each rejected branch with allAtomic: true; parity compares the mutation payloads while runtime tests assert no local partial writes to options, variants, inventory items, inventory quantities, or product inventory summaries.",
+  "notes": "Replays the live validation and atomicity matrix against the local proxy. The fixture records before/after Shopify product state for each rejected branch with allAtomic: true; parity compares the mutation payloads and the public-schema update options-key rejection while runtime tests assert no local partial writes to options, variants, inventory items, inventory quantities, or product inventory summaries.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -172,6 +172,15 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productVariantsBulkDelete-validation-atomicity.graphql",
           "variablesCapturePath": "$.cases[17].request.variables"
+        }
+      },
+      {
+        "name": "update-options-field-invalid-variable-errors",
+        "capturePath": "$.cases[18].response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-validation-options.graphql",
+          "variablesCapturePath": "$.cases[18].request.variables"
         }
       }
     ]
