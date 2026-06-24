@@ -4148,6 +4148,101 @@ fn data_sale_opt_out_validation_and_sanitization_boundaries_match_captured_shape
 }
 
 #[test]
+fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let downstream_read = r#"
+        query DataSaleOptOutInvalidFormatRead($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#;
+    let over_255_email = format!("{}@example.com", "a".repeat(244));
+    assert_eq!(over_255_email.chars().count(), 256);
+    let invalid_emails = [
+        ".me@example.com".to_string(),
+        "me.@example.com".to_string(),
+        "me..example@example.com".to_string(),
+        "me@example..com".to_string(),
+        "me@-example.com".to_string(),
+        "me@example-.com".to_string(),
+        "me@8.8.8.8".to_string(),
+        "💩💩💩@example.com".to_string(),
+        "#@%^%#.com".to_string(),
+        "me@example.com (First Name)".to_string(),
+        over_255_email,
+    ];
+
+    for email in invalid_emails {
+        let mut proxy = snapshot_proxy().with_upstream_transport(|_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "customer": null,
+                    "customerByIdentifier": null,
+                    "customers": {
+                        "nodes": [],
+                        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                    }
+                }
+            }),
+        });
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        assert_eq!(response.status, 200, "status for {email}");
+        assert_eq!(
+            response.body["data"]["dataSaleOptOut"],
+            json!({
+                "customerId": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "Data sale opt out failed.",
+                    "code": "FAILED"
+                }]
+            }),
+            "mutation payload for {email}"
+        );
+        assert_eq!(
+            proxy.get_log_snapshot()["entries"],
+            json!([]),
+            "mutation log for {email}"
+        );
+        assert_eq!(
+            proxy.get_state_snapshot()["stagedState"]["customers"],
+            json!({}),
+            "staged customers for {email}"
+        );
+
+        let read = proxy.process_request(json_graphql_request(
+            downstream_read,
+            json!({
+                "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+                "identifier": { "emailAddress": email.clone() },
+                "query": "tag:created-by-dns-form",
+                "first": 5
+            }),
+        ));
+        assert_eq!(read.status, 200, "downstream read status for {email}");
+        assert_eq!(read.body["data"]["customer"], Value::Null);
+        assert_eq!(read.body["data"]["customerByIdentifier"], Value::Null);
+        assert_eq!(read.body["data"]["customers"]["nodes"], json!([]));
+    }
+}
+
+#[test]
 fn data_sale_opt_out_missing_or_null_email_is_schema_coercion_error() {
     let mut proxy = snapshot_proxy();
     let missing = proxy.process_request(json_graphql_request(
