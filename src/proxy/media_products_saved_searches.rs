@@ -48,14 +48,6 @@ impl DraftProxy {
         }));
     }
 
-    pub(in crate::proxy) fn product_overlay_read_fields(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        self.product_overlay_read_data(&root_fields(query, variables).unwrap_or_default())
-    }
-
     pub(in crate::proxy) fn product_overlay_read_data(
         &self,
         root_fields: &[RootFieldSelection],

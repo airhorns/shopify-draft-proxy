@@ -1,28 +1,6 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn product_operation_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "productOperation" {
-                continue;
-            }
-            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-            let value = self
-                .store
-                .staged
-                .product_operations
-                .get(&id)
-                .map(|operation| self.product_operation_json(operation, &field.selection))
-                .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
     pub(in crate::proxy) fn product_set(
         &mut self,
         query: &str,
