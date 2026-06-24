@@ -1,4 +1,4 @@
-mutation HAR594CollectionAddProducts($id: ID!, $productIds: [ID!]!) {
+mutation CollectionMembershipAddProducts($id: ID!, $productIds: [ID!]!) {
   collectionAddProducts(id: $id, productIds: $productIds) {
     collection {
       id

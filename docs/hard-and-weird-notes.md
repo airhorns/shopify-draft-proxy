@@ -1413,7 +1413,7 @@ Takeaway:
 
 Public Shopify docs for the real mutations already force two different local semantics:
 
-- `collectionAddProducts` is atomic for duplicate membership: if any requested product is already in the collection, return a `userErrors` entry and add none of them
+- `collectionAddProducts` treats duplicate membership as a no-op success: already-member products remain in place, no duplicate-member `userErrors` are emitted, and any not-yet-member products in the same request are still added
 - `collectionAddProducts` ignores product IDs that do not resolve to products, while still adding known products from the same request and returning the updated collection payload
 - refreshed live capture showed default `collection.products(first: ...)` for a newly-created manual collection returning a multi-product add batch in reverse request order; keep the mutation payload and downstream `collection(id:)` read on the same staged membership ordering instead of patching one response shape
 - `collectionAddProducts` returns `collection: null` plus an `id`-scoped user error for unknown collections and smart collections; smart collections cannot be manually managed through this mutation
@@ -2127,6 +2127,11 @@ That distinction matters:
 - `fileCreate` takes store-level `FileCreateInput` records and creates Files API assets from URLs or staged uploads
 - current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
 - the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment
+- omitted `contentType` inference is not the same as explicit media creation:
+  Shopify's auto-detector maps image-like results to `MediaImage`, video-like
+  results to `Video`, and everything else to `GenericFile`. 3D model extensions
+  such as `.glb`, `.gltf`, and `.usdz` do not auto-create `Model3d`; callers
+  must pass `contentType: MODEL_3D` explicitly for that type.
 
 The matching generic media delete worklist item maps to `fileDelete`, not
 `productDeleteMedia`.
@@ -2440,6 +2445,7 @@ Live evidence refreshed on this host:
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
+- A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; it is not the payload-level `Collection does not exist` userError branch used for supplied ids that fail lookup.
@@ -2795,6 +2801,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
 - On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
@@ -3696,6 +3703,9 @@ Observed behavior:
   accepted by the public API in the captured probe
 - duplicate `US` countries across two `zonesToCreate` entries in an update were
   accepted by the public API in the captured probe
+- a name-input update against the shop default delivery profile returned empty
+  `userErrors` and incremented `version`, but the selected public payload kept
+  the default profile display name as `General profile`
 
 Practical rule:
 
@@ -3703,6 +3713,9 @@ Practical rule:
   keep ticket-required local guardrails for `profileLocationGroups` unknown
   locations and overlapping zone countries covered by runtime tests unless newer
   public evidence shows a different update-side rejection shape
+- do not reject default-profile updates just because the profile is default;
+  for the public name-input branch, preserve the hydrated default display name
+  while staging Shopify's accepted payload shape
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 

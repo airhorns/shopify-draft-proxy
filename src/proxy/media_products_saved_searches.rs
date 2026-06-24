@@ -630,7 +630,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         product_id: &str,
     ) -> Option<(Vec<Value>, ProductVariantRecord)> {
-        let product_options = Self::resolved_object_list_arg(input, "productOptions");
+        let product_options = list_object_field(input, "productOptions");
         if product_options.is_empty() {
             return None;
         }
@@ -638,7 +638,7 @@ impl DraftProxy {
         let mut selected_options = Vec::new();
         for (index, option) in product_options.iter().enumerate() {
             let name = resolved_string_field(option, "name").unwrap_or_default();
-            let value_names: Vec<String> = Self::resolved_object_list_arg(option, "values")
+            let value_names: Vec<String> = list_object_field(option, "values")
                 .iter()
                 .filter_map(|value| resolved_string_field(value, "name"))
                 .collect();
@@ -1269,11 +1269,9 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -1575,7 +1573,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         if variants_input.len() > 2048 {
             return MutationOutcome::response(Self::product_variant_bulk_input_size_error(
                 &field,
@@ -1736,7 +1734,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        let variants_input = list_object_field(&field.arguments, "variants");
         // Hydrate the product together with the variants referenced by the update so
         // a cold backend stages both before the update is applied, matching the
         // node hydration the proxy records during capture.
@@ -1958,7 +1956,7 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let positions = Self::resolved_object_list_arg(&field.arguments, "positions");
+        let positions = list_object_field(&field.arguments, "positions");
         let position_variant_ids = positions
             .iter()
             .filter_map(|position| resolved_string_field(position, "id"))
@@ -2117,11 +2115,9 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &selection.selection,
                 )),
                 _ => None,
             }
@@ -2245,11 +2241,9 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &error_selection))
-                        .collect(),
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
+                    &error_selection,
                 )),
                 _ => None,
             }
@@ -2264,22 +2258,6 @@ impl DraftProxy {
         root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_field)
-    }
-
-    fn resolved_object_list_arg(
-        arguments: &BTreeMap<String, ResolvedValue>,
-        name: &str,
-    ) -> Vec<BTreeMap<String, ResolvedValue>> {
-        match arguments.get(name) {
-            Some(ResolvedValue::List(values)) => values
-                .iter()
-                .filter_map(|value| match value {
-                    ResolvedValue::Object(object) => Some(object.clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        }
     }
 
     fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
@@ -2596,12 +2574,7 @@ impl DraftProxy {
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &error_selection))
-                            .collect(),
-                    )),
+                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
                     _ => None,
                 })
             }
@@ -3152,8 +3125,8 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
+                "userErrors" => Some(selected_user_errors(
+                    user_errors.as_slice(),
                     &selection.selection,
                 )),
                 _ => None,
@@ -3296,7 +3269,7 @@ pub(in crate::proxy) fn metafields_mutation_inputs(
         .map(|field| list_object_field(&field.arguments, "metafields"))
         .unwrap_or_default();
     if from_field.is_empty() {
-        list_object_arg(variables, "metafields")
+        list_object_field(variables, "metafields")
     } else {
         from_field
     }
@@ -3415,18 +3388,6 @@ fn product_publication_input_entries(
             publish_date: resolved_string_field(&publication, "publishDate"),
         })
         .collect()
-}
-
-fn selected_product_publication_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
 }
 
 fn product_publication_publish_date_is_before_1970(value: &str) -> bool {

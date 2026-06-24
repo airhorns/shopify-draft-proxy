@@ -97,7 +97,7 @@ impl DraftProxy {
                         .collect(),
                 ),
                 "shopifyFunctions" => {
-                    let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
+                    let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
                     let api_type = match api_type.as_str() {
                         "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
                         "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {

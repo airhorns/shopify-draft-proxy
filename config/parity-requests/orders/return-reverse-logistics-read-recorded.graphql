@@ -32,6 +32,15 @@ query ReturnReverseLogisticsReadRecorded(
   }
   reverseDelivery(id: $reverseDeliveryId) {
     id
+    reverseDeliveryLineItems(first: 5) {
+      nodes {
+        quantity
+        reverseFulfillmentOrderLineItem {
+          id
+          totalQuantity
+        }
+      }
+    }
     deliverable {
       __typename
       ... on ReverseDeliveryShippingDeliverable {

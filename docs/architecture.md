@@ -47,6 +47,7 @@ App/test harness
        │    ├─ health/config/log/state/reset/dump/restore
        │    └─ commit replay
        └─ Admin GraphQL route
+            ├─ run version-scoped public Admin GraphQL base validation before domain dispatch
             ├─ parse document/root fields/arguments/selections
             ├─ apply captured Shopify schema input-object validation for covered local roots
             ├─ classify root through operation registry
@@ -69,6 +70,7 @@ App/test harness
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
+- run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
 

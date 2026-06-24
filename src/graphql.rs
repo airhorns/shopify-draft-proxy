@@ -58,6 +58,7 @@ pub struct ParsedOperation {
 pub struct SelectedField {
     pub name: String,
     pub response_key: String,
+    pub location: SourceLocation,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
     pub type_condition: Option<String>,
@@ -235,6 +236,7 @@ fn selected_fields<'a>(
             Selection::Field(field) => vec![SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
+                location: source_location(field.position),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
                 type_condition: None,

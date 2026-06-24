@@ -1,6 +1,6 @@
 {
   "scenarioId": "product-media-validation-branches",
-  "operationNames": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia"],
+  "operationNames": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia", "productReorderMedia"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "mutation-no-write-parity", "payload-shape"],
   "liveCaptureFiles": [
@@ -38,6 +38,24 @@
         "name": "create-unknown-product-data",
         "capturePath": "$.scenarios[1].response.payload.data",
         "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables"
+        }
+      },
+      {
+        "name": "create-unknown-product-user-errors",
+        "capturePath": "$.scenarios[1].response.payload.data.productCreateMedia.userErrors",
+        "proxyPath": "$.data.productCreateMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables"
+        }
+      },
+      {
+        "name": "create-unknown-product-media-user-errors",
+        "capturePath": "$.scenarios[1].response.payload.data.productCreateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productCreateMedia.mediaUserErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreateMedia-validation-branches.graphql",
           "variablesCapturePath": "$.scenarios[1].variables"
@@ -107,6 +125,24 @@
         }
       },
       {
+        "name": "update-unknown-product-user-errors",
+        "capturePath": "$.scenarios[6].response.payload.data.productUpdateMedia.userErrors",
+        "proxyPath": "$.data.productUpdateMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[6].variables"
+        }
+      },
+      {
+        "name": "update-unknown-product-media-user-errors",
+        "capturePath": "$.scenarios[6].response.payload.data.productUpdateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productUpdateMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[6].variables"
+        }
+      },
+      {
         "name": "update-empty-data",
         "capturePath": "$.scenarios[7].response.payload.data",
         "proxyPath": "$.data",
@@ -119,6 +155,24 @@
         "name": "update-unknown-media-data",
         "capturePath": "$.scenarios[8].response.payload.data",
         "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[8].variables"
+        }
+      },
+      {
+        "name": "update-unknown-media-user-errors",
+        "capturePath": "$.scenarios[8].response.payload.data.productUpdateMedia.userErrors",
+        "proxyPath": "$.data.productUpdateMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[8].variables"
+        }
+      },
+      {
+        "name": "update-unknown-media-media-user-errors",
+        "capturePath": "$.scenarios[8].response.payload.data.productUpdateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productUpdateMedia.mediaUserErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productUpdateMedia-validation-branches.graphql",
           "variablesCapturePath": "$.scenarios[8].variables"
@@ -140,7 +194,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-media-validation-downstream-read.graphql",
           "variables": {
-            "productId": "gid://shopify/Product/10170577518898"
+            "productId": {
+              "fromCapturePath": "$.scenarios[9].variables.productId"
+            }
           }
         }
       },
@@ -166,6 +222,15 @@
         "name": "delete-unknown-product-errors",
         "capturePath": "$.scenarios[10].response.payload.data.productDeleteMedia.mediaUserErrors",
         "proxyPath": "$.data.productDeleteMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDeleteMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[10].variables"
+        }
+      },
+      {
+        "name": "delete-unknown-product-user-errors",
+        "capturePath": "$.scenarios[10].response.payload.data.productDeleteMedia.userErrors",
+        "proxyPath": "$.data.productDeleteMedia.userErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productDeleteMedia-validation-branches.graphql",
           "variablesCapturePath": "$.scenarios[10].variables"
@@ -226,6 +291,15 @@
         }
       },
       {
+        "name": "delete-unknown-media-user-errors",
+        "capturePath": "$.scenarios[12].response.payload.data.productDeleteMedia.userErrors",
+        "proxyPath": "$.data.productDeleteMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDeleteMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[12].variables"
+        }
+      },
+      {
         "name": "delete-mixed-ids",
         "capturePath": "$.scenarios[13].response.payload.data.productDeleteMedia.deletedMediaIds",
         "proxyPath": "$.data.productDeleteMedia.deletedMediaIds",
@@ -259,8 +333,46 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-media-validation-downstream-read.graphql",
           "variables": {
-            "productId": "gid://shopify/Product/10170577518898"
+            "productId": {
+              "fromCapturePath": "$.scenarios[13].variables.productId"
+            }
           }
+        }
+      },
+      {
+        "name": "reorder-unknown-product-user-errors",
+        "capturePath": "$.scenarios[14].response.payload.data.productReorderMedia.userErrors",
+        "proxyPath": "$.data.productReorderMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[14].variables"
+        }
+      },
+      {
+        "name": "reorder-unknown-product-media-user-errors",
+        "capturePath": "$.scenarios[14].response.payload.data.productReorderMedia.mediaUserErrors",
+        "proxyPath": "$.data.productReorderMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[14].variables"
+        }
+      },
+      {
+        "name": "reorder-unknown-media-user-errors",
+        "capturePath": "$.scenarios[15].response.payload.data.productReorderMedia.userErrors",
+        "proxyPath": "$.data.productReorderMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[15].variables"
+        }
+      },
+      {
+        "name": "reorder-unknown-media-media-user-errors",
+        "capturePath": "$.scenarios[15].response.payload.data.productReorderMedia.mediaUserErrors",
+        "proxyPath": "$.data.productReorderMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[15].variables"
         }
       },
       {
@@ -287,8 +399,17 @@
           "documentPath": "config/parity-requests/products/productCreateMedia-validation-branches.graphql",
           "variablesCapturePath": "$.scenarios[5].variables"
         }
+      },
+      {
+        "name": "create-mixed-user-errors",
+        "capturePath": "$.scenarios[5].response.payload.data.productCreateMedia.userErrors",
+        "proxyPath": "$.data.productCreateMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreateMedia-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[5].variables"
+        }
       }
     ]
   },
-  "notes": "Executable multi-step validation fixture covering missing/unknown product ids, empty media/id inputs, invalid image source, invalid mediaContentType variable coercion, unknown media ids, and mixed valid/invalid batches. The parity runner seeds the captured product plus one ready seed media item, stages the mixed create branch locally, then compares rejected update/delete no-write downstream media reads against the captured fixture."
+  "notes": "Executable multi-step validation fixture covering missing/unknown product ids, empty media/id inputs, invalid image source, invalid mediaContentType variable coercion, unknown media ids, product media reorder validation, and mixed valid/invalid batches. The parity runner hydrates the captured product plus one ready seed media item, stages the mixed create branch locally, then compares rejected update/delete no-write downstream media reads and strict typed userErrors/mediaUserErrors arrays against the captured fixture."
 }

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "delivery-profile-default-update",
+  "operationNames": ["deliveryProfileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-log-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-default-update.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-default-update.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence that a name-input deliveryProfileUpdate against the shop default profile succeeds. The public payload preserves the default display name while incrementing version and returning empty userErrors. The proxy hydrates the existing default profile through the recorded read cassette, stages the accepted update locally, and compares the selected public profile payload plus userErrors strictly.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "default-profile-update-data",
+        "capturePath": "$.mutation.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "default-profile-update-log",
+        "capturePath": "$.expectedProxyLog",
+        "proxyLogPath": "$",
+        "selectedPaths": [
+          "$.entries[0].interpreted.primaryRootField",
+          "$.entries[0].stagedResourceIds",
+          "$.entries[0].status"
+        ]
+      }
+    ]
+  }
+}

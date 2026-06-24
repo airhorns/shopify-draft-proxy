@@ -1,0 +1,575 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-24T06:23:46.891Z",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "productIds": ["gid://shopify/Product/9801098789170", "gid://shopify/Product/9801098821938"]
+  },
+  "upstreamCalls": [],
+  "cleanup": [],
+  "cases": {
+    "omitted": {
+      "query": "mutation DiscountStartsAtRequiredValidation(\n  $basicCode: DiscountCodeBasicInput!\n  $bxgyCode: DiscountCodeBxgyInput!\n  $freeShippingCode: DiscountCodeFreeShippingInput!\n  $automaticBasic: DiscountAutomaticBasicInput!\n  $automaticBxgy: DiscountAutomaticBxgyInput!\n  $automaticFreeShipping: DiscountAutomaticFreeShippingInput!\n) {\n  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $automaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "basicCode": {
+          "title": "StartsAt required code basic 1782282226374OMITTED",
+          "code": "STARTSATBASIC1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "bxgyCode": {
+          "title": "StartsAt required code BXGY 1782282226374OMITTED",
+          "code": "STARTSATBXGY1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098789170"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098821938"]
+              }
+            }
+          }
+        },
+        "freeShippingCode": {
+          "title": "StartsAt required code free shipping 1782282226374OMITTED",
+          "code": "STARTSATSHIP1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          }
+        },
+        "automaticBasic": {
+          "title": "StartsAt required automatic basic 1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "automaticBxgy": {
+          "title": "StartsAt required automatic BXGY 1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098789170"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098821938"]
+              }
+            }
+          }
+        },
+        "automaticFreeShipping": {
+          "title": "StartsAt required automatic free shipping 1782282226374OMITTED",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "basicCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "bxgyCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "freeShippingCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticBasic": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBasicDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticBxgy": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticFreeShipping": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingAutomaticDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 60,
+            "actualQueryCost": 60,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1940,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "explicitNull": {
+      "query": "mutation DiscountStartsAtRequiredValidation(\n  $basicCode: DiscountCodeBasicInput!\n  $bxgyCode: DiscountCodeBxgyInput!\n  $freeShippingCode: DiscountCodeFreeShippingInput!\n  $automaticBasic: DiscountAutomaticBasicInput!\n  $automaticBxgy: DiscountAutomaticBxgyInput!\n  $automaticFreeShipping: DiscountAutomaticFreeShippingInput!\n) {\n  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $automaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "basicCode": {
+          "title": "StartsAt required code basic 1782282226375NULL",
+          "code": "STARTSATBASIC1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "startsAt": null
+        },
+        "bxgyCode": {
+          "title": "StartsAt required code BXGY 1782282226375NULL",
+          "code": "STARTSATBXGY1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098789170"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098821938"]
+              }
+            }
+          },
+          "startsAt": null
+        },
+        "freeShippingCode": {
+          "title": "StartsAt required code free shipping 1782282226375NULL",
+          "code": "STARTSATSHIP1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          },
+          "startsAt": null
+        },
+        "automaticBasic": {
+          "title": "StartsAt required automatic basic 1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "startsAt": null
+        },
+        "automaticBxgy": {
+          "title": "StartsAt required automatic BXGY 1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098789170"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/9801098821938"]
+              }
+            }
+          },
+          "startsAt": null
+        },
+        "automaticFreeShipping": {
+          "title": "StartsAt required automatic free shipping 1782282226375NULL",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          },
+          "startsAt": null
+        }
+      },
+      "response": {
+        "data": {
+          "basicCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "bxgyCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "freeShippingCode": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingCodeDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticBasic": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBasicDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticBxgy": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticFreeShipping": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingAutomaticDiscount", "startsAt"],
+                "message": "Starts at can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 60,
+            "actualQueryCost": 60,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1905,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

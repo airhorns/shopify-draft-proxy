@@ -89,10 +89,6 @@ function firstFulfillmentOrder(order: JsonRecord): JsonRecord {
   return readNodes(order['fulfillmentOrders'])[0] ?? {};
 }
 
-function firstFulfillmentLineItem(order: JsonRecord): JsonRecord {
-  return readNodes(readRecord(readArray(order['fulfillments'])[0])?.['fulfillmentLineItems'])[0] ?? {};
-}
-
 function returnPayload(captureResult: GraphqlCapture, rootName: string): JsonRecord {
   return readRecord(readRecord(captureResult.response.payload as JsonRecord)['data'])?.[rootName] as JsonRecord;
 }
@@ -286,11 +282,23 @@ const orderVariables = {
     lineItems: [
       {
         variantId: 'gid://shopify/ProductVariant/48540157378793',
-        title: `HAR-442 return item ${stamp}`,
-        quantity: 2,
+        title: `HAR-442 return variant item ${stamp}`,
+        quantity: 3,
         priceSet: {
           shopMoney: {
             amount: '20.00',
+            currencyCode: 'USD',
+          },
+        },
+        requiresShipping: true,
+        taxable: true,
+      },
+      {
+        title: `HAR-442 return custom item ${stamp}`,
+        quantity: 4,
+        priceSet: {
+          shopMoney: {
+            amount: '12.50',
             currencyCode: 'USD',
           },
         },
@@ -315,10 +323,19 @@ const createdOrder = readRecord(returnPayload(orderCreate, 'orderCreate')['order
 const orderId = requireString(createdOrder['id'], 'created order id');
 const fulfillmentOrder = firstFulfillmentOrder(createdOrder);
 const fulfillmentOrderId = requireString(fulfillmentOrder['id'], 'created fulfillment order id');
-const fulfillmentOrderLineItem = readNodes(fulfillmentOrder['lineItems'])[0] ?? {};
+const fulfillmentOrderLineItems = readNodes(fulfillmentOrder['lineItems']);
+if (fulfillmentOrderLineItems.length < 2) {
+  throw new Error(
+    `Expected at least two fulfillment order line items: ${JSON.stringify(fulfillmentOrder['lineItems'])}`,
+  );
+}
 const fulfillmentOrderLineItemId = requireString(
-  fulfillmentOrderLineItem['id'],
-  'created fulfillment order line item id',
+  fulfillmentOrderLineItems[0]?.['id'],
+  'first fulfillment order line item id',
+);
+const secondFulfillmentOrderLineItemId = requireString(
+  fulfillmentOrderLineItems[1]?.['id'],
+  'second fulfillment order line item id',
 );
 
 const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
@@ -335,7 +352,11 @@ const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
         fulfillmentOrderLineItems: [
           {
             id: fulfillmentOrderLineItemId,
-            quantity: 2,
+            quantity: 3,
+          },
+          {
+            id: secondFulfillmentOrderLineItemId,
+            quantity: 4,
           },
         ],
       },
@@ -347,8 +368,20 @@ requireEmptyUserErrors(fulfillmentCreate, 'fulfillmentCreate');
 
 const orderReadAfterFulfillment = await capture(orderReadQuery, { id: orderId });
 const orderAfterFulfillment = readRecord(readRecord(orderReadAfterFulfillment.response.payload)['data'])?.['order'];
-const fulfillmentLineItem = firstFulfillmentLineItem(readRecord(orderAfterFulfillment) ?? {});
-const fulfillmentLineItemId = requireString(fulfillmentLineItem['id'], 'fulfilled fulfillment line item id');
+const fulfillmentLineItems = readNodes(
+  readRecord(readArray(readRecord(orderAfterFulfillment)?.['fulfillments'])[0])?.['fulfillmentLineItems'],
+);
+if (fulfillmentLineItems.length < 2) {
+  throw new Error(`Expected at least two fulfilled fulfillment line items: ${JSON.stringify(orderAfterFulfillment)}`);
+}
+const fulfillmentLineItemId = requireString(
+  fulfillmentLineItems[0]?.['id'],
+  'first fulfilled fulfillment line item id',
+);
+const secondFulfillmentLineItemId = requireString(
+  fulfillmentLineItems[1]?.['id'],
+  'second fulfilled fulfillment line item id',
+);
 
 // Record the proxy's cold-miss order hydrate (byte-identical document) against the
 // freshly fulfilled order — before any return exists — so replay forwards+observes
@@ -367,6 +400,11 @@ const returnRequest = await capture(returnRequestMutation, {
         quantity: 1,
         returnReason: 'OTHER',
       },
+      {
+        fulfillmentLineItemId: secondFulfillmentLineItemId,
+        quantity: 1,
+        returnReason: 'OTHER',
+      },
     ],
   },
 });
@@ -374,8 +412,12 @@ requireEmptyUserErrors(returnRequest, 'returnRequest');
 
 const requestedReturn = readRecord(returnPayload(returnRequest, 'returnRequest')['return']) ?? {};
 const returnId = requireString(requestedReturn['id'], 'requested return id');
-const returnLineItem = readNodes(requestedReturn['returnLineItems'])[0] ?? {};
-const returnLineItemId = requireString(returnLineItem['id'], 'return line item id');
+const returnLineItems = readNodes(requestedReturn['returnLineItems']);
+if (returnLineItems.length < 2) {
+  throw new Error(`Expected at least two return line items: ${JSON.stringify(requestedReturn['returnLineItems'])}`);
+}
+const returnLineItemId = requireString(returnLineItems[0]?.['id'], 'first return line item id');
+const secondReturnLineItemId = requireString(returnLineItems[1]?.['id'], 'second return line item id');
 
 const returnApproveRequest = await capture(returnApproveRequestMutation, {
   input: {
@@ -387,10 +429,16 @@ requireEmptyUserErrors(returnApproveRequest, 'returnApproveRequest');
 const approvedReturn = readRecord(returnPayload(returnApproveRequest, 'returnApproveRequest')['return']) ?? {};
 const reverseFulfillmentOrder = readNodes(approvedReturn['reverseFulfillmentOrders'])[0] ?? {};
 const reverseFulfillmentOrderId = requireString(reverseFulfillmentOrder['id'], 'reverse fulfillment order id');
-const reverseFulfillmentOrderLineItem = readNodes(reverseFulfillmentOrder['lineItems'])[0] ?? {};
+const reverseFulfillmentOrderLineItems = readNodes(reverseFulfillmentOrder['lineItems']);
+if (reverseFulfillmentOrderLineItems.length < 2) {
+  throw new Error(
+    `Expected at least two reverse fulfillment order line items: ${JSON.stringify(reverseFulfillmentOrder)}`,
+  );
+}
+const reverseFulfillmentOrderLineItem = reverseFulfillmentOrderLineItems[0] ?? {};
 const reverseFulfillmentOrderLineItemId = requireString(
   reverseFulfillmentOrderLineItem['id'],
-  'reverse fulfillment order line item id',
+  'first reverse fulfillment order line item id',
 );
 
 const trackingInput = {
@@ -435,6 +483,13 @@ const reverseFulfillmentDispose = await capture(reverseFulfillmentDisposeMutatio
 });
 requireEmptyUserErrors(reverseFulfillmentDispose, 'reverseFulfillmentOrderDispose');
 
+const downstreamRead = await capture(downstreamReadQuery, {
+  returnId,
+  orderId,
+  reverseDeliveryId,
+  reverseFulfillmentOrderId,
+});
+
 const returnProcess = await capture(returnProcessMutation, {
   input: {
     returnId,
@@ -443,18 +498,83 @@ const returnProcess = await capture(returnProcessMutation, {
         id: returnLineItemId,
         quantity: 1,
       },
+      {
+        id: secondReturnLineItemId,
+        quantity: 1,
+      },
     ],
     notifyCustomer: true,
   },
 });
 requireEmptyUserErrors(returnProcess, 'returnProcess');
 
-const downstreamRead = await capture(downstreamReadQuery, {
-  returnId,
-  orderId,
-  reverseDeliveryId,
-  reverseFulfillmentOrderId,
+const explicitReturnRequest = await capture(returnRequestMutation, {
+  input: {
+    orderId,
+    returnLineItems: [
+      {
+        fulfillmentLineItemId,
+        quantity: 2,
+        returnReason: 'OTHER',
+      },
+      {
+        fulfillmentLineItemId: secondFulfillmentLineItemId,
+        quantity: 3,
+        returnReason: 'OTHER',
+      },
+    ],
+  },
 });
+requireEmptyUserErrors(explicitReturnRequest, 'returnRequest');
+
+const explicitRequestedReturn = readRecord(returnPayload(explicitReturnRequest, 'returnRequest')['return']) ?? {};
+const explicitReturnId = requireString(explicitRequestedReturn['id'], 'explicit requested return id');
+
+const explicitReturnApproveRequest = await capture(returnApproveRequestMutation, {
+  input: {
+    id: explicitReturnId,
+  },
+});
+requireEmptyUserErrors(explicitReturnApproveRequest, 'returnApproveRequest');
+
+const explicitApprovedReturn =
+  readRecord(returnPayload(explicitReturnApproveRequest, 'returnApproveRequest')['return']) ?? {};
+const explicitReverseFulfillmentOrder = readNodes(explicitApprovedReturn['reverseFulfillmentOrders'])[0] ?? {};
+const explicitReverseFulfillmentOrderId = requireString(
+  explicitReverseFulfillmentOrder['id'],
+  'explicit reverse fulfillment order id',
+);
+const explicitReverseFulfillmentOrderLineItems = readNodes(explicitReverseFulfillmentOrder['lineItems']);
+if (explicitReverseFulfillmentOrderLineItems.length < 2) {
+  throw new Error(
+    `Expected at least two explicit reverse fulfillment order line items: ${JSON.stringify(explicitReverseFulfillmentOrder)}`,
+  );
+}
+const explicitFirstReverseFulfillmentOrderLineItemId = requireString(
+  explicitReverseFulfillmentOrderLineItems[0]?.['id'],
+  'explicit first reverse fulfillment order line item id',
+);
+const explicitSecondReverseFulfillmentOrderLineItemId = requireString(
+  explicitReverseFulfillmentOrderLineItems[1]?.['id'],
+  'explicit second reverse fulfillment order line item id',
+);
+
+const reverseDeliveryExplicitCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId: explicitReverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId: explicitSecondReverseFulfillmentOrderLineItemId,
+      quantity: 3,
+    },
+    {
+      reverseFulfillmentOrderLineItemId: explicitFirstReverseFulfillmentOrderLineItemId,
+      quantity: 2,
+    },
+  ],
+  trackingInput,
+  labelInput,
+});
+requireEmptyUserErrors(reverseDeliveryExplicitCreate, 'reverseDeliveryCreateWithShipping');
 
 const cleanup = await capture(orderCancelMutation, {
   orderId,
@@ -469,7 +589,7 @@ await writeJson(fixturePath, {
   storeDomain,
   source: 'live-shopify-admin-graphql',
   notes:
-    'HAR-442 live return/reverse-logistics capture. The replay request files are the same GraphQL documents used for return request approval, empty reverseDeliveryLineItems creation, fileUrl label input, shipping update, disposal, processing, and downstream reads.',
+    'HAR-442 live return/reverse-logistics capture. The replay request files are the same GraphQL documents used for return request approval, explicit multi-line and empty reverseDeliveryLineItems creation, fileUrl label input, shipping update, disposal, processing, and downstream reads.',
   locations,
   setup: {
     orderCreate,
@@ -486,8 +606,11 @@ await writeJson(fixturePath, {
   reverseDeliveryCreate,
   reverseDeliveryUpdate,
   reverseFulfillmentDispose,
-  returnProcess,
   downstreamRead,
+  returnProcess,
+  explicitReturnRequest,
+  explicitReturnApproveRequest,
+  reverseDeliveryExplicitCreate,
   cleanup,
   upstreamCalls: [
     {
