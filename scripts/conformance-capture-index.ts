@@ -1580,6 +1580,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-required-args',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-required-args-conformance.ts',
+    purpose:
+      'stagedUploadsCreate top-level schema coercion when required StagedUploadInput filename or mimeType is omitted.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}staged_uploads_create_required_args.json`,
+      'config/parity-specs/media/staged_uploads_create_required_args.json',
+      'config/parity-requests/media/staged_uploads_create_required_args_missing_filename.graphql',
+      'config/parity-requests/media/staged_uploads_create_required_args_missing_mime_type.graphql',
+    ],
+    cleanupBehavior: 'Requests validation-only staged upload metadata and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-user-errors-shape',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-user-errors-shape-conformance.ts',

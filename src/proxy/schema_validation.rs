@@ -1248,6 +1248,15 @@ fn validate_argument_value(
                 let path = vec![argument_name.to_string(), index.to_string()];
                 match item {
                     RawArgumentValue::Object(fields) => {
+                        let item_location = inline_argument_list_item_object_location(
+                            context.query,
+                            field,
+                            argument_name,
+                            index,
+                        )
+                        .or_else(|| {
+                            inline_argument_value_location(context.query, field, argument_name)
+                        });
                         errors.extend(validate_raw_input_object(
                             &type_ref.named_type,
                             input_object,
@@ -1255,7 +1264,7 @@ fn validate_argument_value(
                             &path,
                             schema,
                             context,
-                            inline_argument_value_location(context.query, field, argument_name),
+                            item_location,
                         ));
                     }
                     RawArgumentValue::Null if type_ref_has_non_null_list_items(type_ref) => errors
@@ -2064,6 +2073,69 @@ fn inline_argument_value_location(
     source_location_for_byte_offset(query, value_offset)
 }
 
+fn inline_argument_list_item_object_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+    target_index: usize,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+    if query.as_bytes().get(value_offset) != Some(&b'[') {
+        return None;
+    }
+
+    let bytes = query.as_bytes();
+    let mut index = value_offset;
+    let mut list_depth = 0i32;
+    let mut object_depth = 0i32;
+    let mut item_index = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'[' => list_depth += 1,
+            b']' => {
+                list_depth -= 1;
+                if list_depth == 0 {
+                    return None;
+                }
+            }
+            b'{' if list_depth == 1 && object_depth == 0 => {
+                if item_index == target_index {
+                    return source_location_for_byte_offset(query, index);
+                }
+                item_index += 1;
+                object_depth += 1;
+            }
+            b'{' => object_depth += 1,
+            b'}' if object_depth > 0 => object_depth -= 1,
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
 /// Locates the *value* of an input-object field nested at `target_depth` (the column of the
 /// first non-whitespace character after its `name:`). Used to anchor a `missingRequiredInput
 /// ObjectAttribute` error inside a nested input object at that object literal's opening token
@@ -2287,7 +2359,12 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
         Value::String(context.operation_path.to_string()),
         Value::String(context.response_key.to_string()),
     ];
-    segments.extend(path.iter().cloned().map(Value::String));
+    segments.extend(path.iter().map(|segment| {
+        segment
+            .parse::<u64>()
+            .map(Value::from)
+            .unwrap_or_else(|_| Value::String(segment.clone()))
+    }));
     segments.push(Value::String(argument_name.to_string()));
     Value::Array(segments)
 }
@@ -2333,9 +2410,15 @@ fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema) {
     {
         schema.mutation_fields.insert(name, arguments);
     }
+    if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "stagedUploadsCreate") {
+        schema.mutation_fields.insert(name, arguments);
+    }
     if let Some((name, fields)) =
         captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
     {
+        schema.input_objects.insert(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "StagedUploadInput") {
         schema.input_objects.insert(name, fields);
     }
 }

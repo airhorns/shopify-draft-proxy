@@ -58,6 +58,11 @@ Local staged mutations:
   Captured 2026-04 IMAGE and FILE targets with no `httpMethod` therefore use
   the two-field `content_type`, `acl` parameter shape, and the proxy applies
   that default instead of assuming POST.
+- `StagedUploadInput.resource`, `filename`, and `mimeType` are required input
+  fields. Omitting `filename` or `mimeType` fails Admin GraphQL input-object
+  coercion before the local resolver stages anything, returning top-level
+  `missingRequiredInputObjectAttribute` errors with no `stagedTargets` payload
+  and no mutation log entry.
 - `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
   conformance app receives top-level `ACCESS_DENIED` for that resource. The
   local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
@@ -229,6 +234,10 @@ Local staged mutations:
   `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
   payload captures cover IMAGE, FILE, VIDEO, and MODEL_3D
   target metadata while preserving the no-upload/no-storage runtime boundary.
+- `config/parity-specs/media/staged_uploads_create_required_args.json` and
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/staged_uploads_create_required_args.json`
+  cover top-level `stagedUploadsCreate` schema coercion for omitted required
+  `filename` and `mimeType` fields.
 - Local executable coverage for `fileAcknowledgeUpdateFailed` covers
   acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`
