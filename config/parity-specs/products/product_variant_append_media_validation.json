@@ -126,7 +126,15 @@
         "name": "create-base-external-video-media",
         "capturePath": "$.operations.createBaseExternalVideoMedia.response.data.productCreateMedia",
         "proxyPath": "$.data.productCreateMedia",
-        "selectedPaths": ["$.mediaUserErrors"],
+        "selectedPaths": [
+          "$.media[0].alt",
+          "$.media[0].mediaContentType",
+          "$.media[0].status",
+          "$.mediaUserErrors",
+          "$.product.media.nodes[2].alt",
+          "$.product.media.nodes[2].mediaContentType",
+          "$.product.media.nodes[2].status"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create-media.graphql",
           "apiVersion": "2026-04",
