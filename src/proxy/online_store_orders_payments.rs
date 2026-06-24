@@ -1061,14 +1061,6 @@ fn order_mutation_timestamp(ordinal: u64) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", ordinal % 60)
 }
 
-fn resolved_nullable_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Value {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        Some(ResolvedValue::Null) => Value::Null,
-        _ => Value::Null,
-    }
-}
-
 fn order_update_has_mutable_fields(input: &BTreeMap<String, ResolvedValue>) -> bool {
     [
         "note",
@@ -2328,7 +2320,7 @@ fn order_connection(nodes: Vec<Value>) -> Value {
     })
 }
 
-fn data_response(response_key: &str, value: Value) -> Value {
+pub(in crate::proxy) fn data_response(response_key: &str, value: Value) -> Value {
     let mut data = serde_json::Map::new();
     data.insert(response_key.to_string(), value);
     json!({ "data": Value::Object(data) })
