@@ -257,6 +257,8 @@ struct BaseState {
     localization_product_ids: BTreeSet<String>,
 }
 
+type MetafieldDefinitionKey = (String, String, String);
+
 #[derive(Clone)]
 struct StagedState {
     products: StagedRecords<ProductRecord>,
@@ -393,7 +395,7 @@ struct StagedState {
     product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
-    metafield_definitions: BTreeMap<(String, String), Value>,
+    metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
     online_store_integrations: BTreeMap<String, Value>,

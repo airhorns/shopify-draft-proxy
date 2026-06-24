@@ -404,7 +404,7 @@ pub(in crate::proxy) fn product_publication_field_json(
             let publication_id = selection
                 .arguments
                 .get("publicationId")
-                .and_then(resolved_as_string)
+                .and_then(resolved_value_string)
                 .unwrap_or_default();
             Some(Value::Bool(product_is_published_on_publication(
                 product,
@@ -511,10 +511,15 @@ impl DraftProxy {
         for (index, item) in media_inputs.iter().enumerate() {
             let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
             if !media_source_is_valid(&original_source) {
-                source_errors.push(json!({
-                    "field": ["media", index.to_string(), "originalSource"],
-                    "message": "Image URL is invalid"
-                }));
+                source_errors.push(user_error_omit_code(
+                    vec![
+                        "media".to_string(),
+                        index.to_string(),
+                        "originalSource".to_string(),
+                    ],
+                    "Image URL is invalid",
+                    Some("INVALID"),
+                ));
                 continue;
             }
             let media_content_type = resolved_string_field(item, "mediaContentType")
@@ -705,25 +710,16 @@ impl DraftProxy {
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "id")?;
         let mut moves = resolved_object_list_field(arguments, "moves");
-        if moves
-            .iter()
-            .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .any(|id| id.ends_with("/missing"))
-        {
-            return Some(product_media_user_errors_payload(
-                &["moves", "0", "id"],
-                "Media does not exist",
-            ));
-        }
 
         // Reorder operates on media that already exists on the product. If the
         // product has not been staged locally yet, hydrate it from upstream so
         // existing media (and their alt text) are observed rather than guessed.
-        if self.store.product_staged_or_base(&product_id).is_none() {
-            self.hydrate_product_nodes_for_observation_with_request(
-                request,
-                vec![product_id.clone()],
-            );
+        if !self.ensure_product_for_media(request, &product_id) {
+            return Some(product_media_user_errors_payload(
+                ["id"],
+                "Product does not exist",
+                "PRODUCT_DOES_NOT_EXIST",
+            ));
         }
 
         moves.sort_by_key(|media_move| {
@@ -857,8 +853,12 @@ fn product_media_ready_url() -> &'static str {
     "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
 }
 
-fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
-    let errors = json!([user_error_omit_code(field, message, None)]);
+fn product_media_user_errors_payload(
+    field: impl Into<crate::proxy::schema_validation::UserErrorField>,
+    message: &str,
+    code: &str,
+) -> Value {
+    let errors = json!([user_error_omit_code(field, message, Some(code))]);
     json!({
         "userErrors": errors.clone(),
         "mediaUserErrors": errors
@@ -879,11 +879,19 @@ fn media_nodes_contain(media: &[Value], id: &str) -> bool {
 }
 
 fn product_does_not_exist_error(field: &str) -> Value {
-    user_error_omit_code([field], "Product does not exist", None)
+    user_error_omit_code(
+        [field],
+        "Product does not exist",
+        Some("PRODUCT_DOES_NOT_EXIST"),
+    )
 }
 
 fn media_missing_error(field: &str, id: &str) -> Value {
-    user_error_omit_code([field], &format!("Media id {id} does not exist"), None)
+    user_error_omit_code(
+        [field],
+        &format!("Media id {id} does not exist"),
+        Some("MEDIA_DOES_NOT_EXIST"),
+    )
 }
 
 pub(in crate::proxy) fn gift_card_payload_json(

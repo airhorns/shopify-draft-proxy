@@ -32,6 +32,9 @@ The implemented mutation roots are:
 - `fulfillmentServiceUpdate`
 - `locationLocalPickupDisable`
 - `locationLocalPickupEnable`
+- `deliveryProfileCreate`
+- `deliveryProfileRemove`
+- `deliveryProfileUpdate`
 - `shippingPackageDelete`
 - `shippingPackageMakeDefault`
 - `shippingPackageUpdate`
@@ -74,9 +77,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `deliveryProfileCreate`
-- `deliveryProfileRemove`
-- `deliveryProfileUpdate`
 - `deliveryCustomizationActivation`
 - `deliveryCustomizationCreate`
 - `deliveryCustomizationDelete`
@@ -110,6 +110,14 @@ The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `fulfillmentServiceCreate`; those arguments return top-level
 `argumentNotAccepted` GraphQL errors before resolver execution and do not stage
 or log a service mutation.
+
+Reverse-logistics shipping slices stage `reverseDeliveryCreateWithShipping`
+from the return domain's reverse fulfillment order state. Explicit
+`reverseDeliveryLineItems` inputs preserve one staged delivery line per input
+with the requested quantity and line item; empty inputs expand to all reverse
+fulfillment order lines at their total quantities. The recorded order/return
+parity fixture uses one two-line return for empty expansion and a second
+two-line return for explicit multi-line delivery creation.
 
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
@@ -151,8 +159,15 @@ fulfillment records and are not a general fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
-custom-profile write slices for create/update/remove, validation, variant
-dissociation, async removal payloads, and downstream null reads after removal.
+write slices for create/update/remove, validation, variant dissociation, async
+removal payloads, and downstream null reads after removal. Custom profiles are
+fully staged from create/update inputs covered by the delivery-profile parity
+requests. In LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing
+default profile and stage proxy-modelable updates without writing to Shopify at
+runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name
+input with empty `userErrors` while preserving the public default display name
+and incrementing `version`; unsupported side effects such as rate recalculation
+remain outside this slice.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`

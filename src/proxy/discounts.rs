@@ -1958,6 +1958,13 @@ fn discount_input_user_errors(
             )),
         }
     }
+    if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
+        errors.push(discount_user_error(
+            vec![input_arg, "startsAt"],
+            "Starts at can't be blank",
+            "BLANK",
+        ));
+    }
     if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
         errors.push(error);
     }
@@ -5529,16 +5536,6 @@ fn cart_transform_field_token_location(query: &str, field_name: &str) -> Option<
 
 fn is_cart_transform_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
-pub(in crate::proxy) fn resolved_enum_arg(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<String> {
-    match field.arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn functions_owner_validation_function() -> Value {

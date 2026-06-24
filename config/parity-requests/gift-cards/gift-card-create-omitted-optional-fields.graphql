@@ -1,0 +1,25 @@
+mutation GiftCardCreateOmittedOptionalFields($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      note
+      expiresOn
+      customer {
+        id
+      }
+      templateSuffix
+      recipientAttributes {
+        message
+        preferredName
+        sendNotificationAt
+        recipient {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

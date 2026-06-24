@@ -1136,24 +1136,16 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let mut products = self.collection_products(&collection_id);
-        if requested_product_ids
+        let mut product_ids = products
             .iter()
-            .any(|product_id| products.iter().any(|product| product.id == *product_id))
-        {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                root_field,
-                None,
-                None,
-                vec![collection_user_error(
-                    ["productIds"],
-                    "Product is already included in this collection",
-                )],
-            ));
-        }
+            .map(|product| product.id.clone())
+            .collect::<BTreeSet<_>>();
         for product_id in requested_product_ids {
+            if product_ids.contains(&product_id) {
+                continue;
+            }
             if let Some(product) = self.store.product_by_id(&product_id).cloned() {
+                product_ids.insert(product_id);
                 products.push(product);
             }
         }

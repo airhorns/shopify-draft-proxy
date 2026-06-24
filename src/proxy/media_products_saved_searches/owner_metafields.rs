@@ -72,10 +72,11 @@ impl DraftProxy {
                     self.store
                         .staged
                         .metafield_definitions
-                        .get(&(namespace.clone(), key.clone()))
-                        .filter(|definition| {
-                            definition["ownerType"].as_str() == Some(owner_type_from_gid(&owner_id))
-                        })
+                        .get(&metafield_definition_store_key(
+                            owner_type_from_gid(&owner_id),
+                            &namespace,
+                            &key,
+                        ))
                         .and_then(|definition| definition["type"]["name"].as_str())
                         .map(str::to_string)
                 })

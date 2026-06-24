@@ -1,0 +1,8 @@
+query GraphqlBaseValidationUnknownProductField {
+  products(first: 1) {
+    nodes {
+      id
+      definitelyNotAProductField
+    }
+  }
+}
