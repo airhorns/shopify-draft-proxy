@@ -3,6 +3,7 @@ mutation GiftCardCreditPayloadShape($id: ID!, $input: GiftCardCreditInput!) {
     giftCardCreditTransaction {
       id
       __typename
+      note
       amount {
         amount
         currencyCode

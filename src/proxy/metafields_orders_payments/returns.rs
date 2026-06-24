@@ -956,7 +956,7 @@ impl DraftProxy {
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .cloned()
             .unwrap_or_default();
-        let input_lines = list_object_arg(&field.arguments, "reverseDeliveryLineItems");
+        let input_lines = list_object_field(&field.arguments, "reverseDeliveryLineItems");
         let delivery_line_sources = if input_lines.is_empty() {
             rfo_lines
                 .iter()
