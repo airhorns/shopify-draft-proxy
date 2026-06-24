@@ -1,0 +1,33 @@
+mutation DraftOrderVariantCustomOnlyFieldsCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      lineItems(first: 5) {
+        nodes {
+          title
+          name
+          sku
+          quantity
+          custom
+          requiresShipping
+          taxable
+          variant {
+            id
+            title
+            sku
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
