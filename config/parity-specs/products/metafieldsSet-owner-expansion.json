@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured live owner expansion evidence for one product-variant-owned metafield and one collection-owned metafield. The comparison covers the shared `metafieldsSet` mutation payload plus immediate downstream `product.variants.metafield(s)`, `productVariant.metafield(s)`, and `collection.metafield(s)` reads.",
+  "notes": "Captured live owner expansion evidence for one product-variant-owned metafield and one collection-owned metafield. The comparison covers the shared `metafieldsSet` mutation payload plus immediate downstream `product.variants.metafield(s)`, `productVariant.metafield(s)`, and `collection.metafield(s)` reads. Shopify `compareDigest` values are opaque CAS tokens; local staged digests must be non-empty and internally consistent, but do not byte-match Shopify's opaque token.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -46,39 +46,44 @@
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
       },
       {
-        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "path": "$.metafieldsSet.metafields[0].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[1].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
         "path": "$.product.variants.nodes[0].care.compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
-        "path": "$.product.variants.nodes[0].metafields.nodes[*].compareDigest",
+        "path": "$.product.variants.nodes[0].metafields.nodes[0].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
         "path": "$.productVariant.care.compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
-        "path": "$.productVariant.metafields.nodes[*].compareDigest",
+        "path": "$.productVariant.metafields.nodes[0].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
         "path": "$.collection.season.compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
-        "path": "$.collection.metafields.nodes[*].compareDigest",
+        "path": "$.collection.metafields.nodes[0].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged owner metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       }
     ],
     "targets": [
