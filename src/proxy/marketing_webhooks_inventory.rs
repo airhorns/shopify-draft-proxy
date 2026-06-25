@@ -845,32 +845,12 @@ impl DraftProxy {
         let created_at = existing
             .as_ref()
             .and_then(|record| record["createdAt"].as_str())
-            .unwrap_or("2024-01-01T00:00:00.000Z");
-        let webhook_mutation_count = self
-            .log_entries
-            .iter()
-            .filter(|entry| {
-                entry
-                    .get("interpreted")
-                    .and_then(|interpreted| interpreted.get("primaryRootField"))
-                    .and_then(Value::as_str)
-                    .is_some_and(|name| {
-                        matches!(
-                            name,
-                            "webhookSubscriptionCreate"
-                                | "webhookSubscriptionUpdate"
-                                | "pubSubWebhookSubscriptionCreate"
-                                | "pubSubWebhookSubscriptionUpdate"
-                                | "eventBridgeWebhookSubscriptionCreate"
-                                | "eventBridgeWebhookSubscriptionUpdate"
-                        )
-                    })
-            })
-            .count();
+            .map(str::to_string)
+            .unwrap_or_else(|| self.next_product_timestamp());
         let updated_at = if existing.is_some() {
-            format!("2024-01-01T00:00:{:02}.000Z", webhook_mutation_count + 1)
+            self.next_product_timestamp()
         } else {
-            created_at.to_string()
+            created_at.clone()
         };
         let api_version = existing
             .as_ref()
@@ -1002,6 +982,7 @@ impl DraftProxy {
                             .headers
                             .get("x-shopify-draft-proxy-api-client-id")
                             .cloned(),
+                        &self.next_product_timestamp(),
                     );
                     record["isExternal"] = json!(false);
                     record["inMainWorkflowVersion"] = json!(true);
@@ -1259,6 +1240,7 @@ impl DraftProxy {
                 .headers
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
+            &self.next_product_timestamp(),
         );
         self.store
             .staged

@@ -600,7 +600,10 @@ fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<V
     }
 }
 
-fn validation_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+fn validation_metafields_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    timestamp: &str,
+) -> Vec<Value> {
     match input.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
@@ -610,7 +613,7 @@ fn validation_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> 
                     "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                     "type": resolved_string_field(metafield, "type").unwrap_or_default(),
                     "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": timestamp
                 })),
                 _ => None,
             })
@@ -749,15 +752,14 @@ fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &st
 pub(in crate::proxy) fn cart_transform_metafields_from_field(
     field: &RootFieldSelection,
     ids: Vec<String>,
+    timestamp: &str,
 ) -> Vec<Value> {
     match field.arguments.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
             .enumerate()
             .filter_map(|(index, value)| match value {
-                ResolvedValue::Object(metafield) => {
-                    let now = "2026-05-07T17:20:12Z";
-                    Some(json!({
+                ResolvedValue::Object(metafield) => Some(json!({
                         "id": match index {
                             0 => "gid://shopify/Metafield/43125986558258".to_string(),
                             1 => "gid://shopify/Metafield/43125986591026".to_string(),
@@ -776,10 +778,9 @@ pub(in crate::proxy) fn cart_transform_metafields_from_field(
                             _ => format!("proxy-digest-{}", index + 1),
                         },
                         "ownerType": "CARTTRANSFORM",
-                        "createdAt": now,
-                        "updatedAt": now
-                    }))
-                }
+                        "createdAt": timestamp,
+                        "updatedAt": timestamp
+                    })),
                 _ => None,
             })
             .collect(),
@@ -924,29 +925,27 @@ fn fulfillment_constraint_rule_function_resolution_payload(
 fn fulfillment_constraint_rule_metafields_from_field(
     field: &RootFieldSelection,
     ids: Vec<String>,
+    timestamp: &str,
 ) -> Vec<Value> {
     match field.arguments.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
             .enumerate()
             .filter_map(|(index, value)| match value {
-                ResolvedValue::Object(metafield) => {
-                    let now = "2026-05-07T17:20:12Z";
-                    Some(json!({
-                        "id": ids
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
-                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
-                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
-                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
-                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                        "compareDigest": format!("proxy-fulfillment-constraint-digest-{}", index + 1),
-                        "ownerType": "FULFILLMENTCONSTRAINTRULE",
-                        "createdAt": now,
-                        "updatedAt": now
-                    }))
-                }
+                ResolvedValue::Object(metafield) => Some(json!({
+                    "id": ids
+                        .get(index)
+                        .cloned()
+                        .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
+                    "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
+                    "key": resolved_string_field(metafield, "key").unwrap_or_default(),
+                    "type": resolved_string_field(metafield, "type").unwrap_or_default(),
+                    "value": resolved_string_field(metafield, "value").unwrap_or_default(),
+                    "compareDigest": format!("proxy-fulfillment-constraint-digest-{}", index + 1),
+                    "ownerType": "FULFILLMENTCONSTRAINTRULE",
+                    "createdAt": timestamp,
+                    "updatedAt": timestamp
+                })),
                 _ => None,
             })
             .collect(),
@@ -1346,7 +1345,8 @@ impl DraftProxy {
                 self.store.staged.function_validation_order.len() + 2
             )
         };
-        let metafields = validation_metafields_from_input(input);
+        let timestamp = self.next_product_timestamp();
+        let metafields = validation_metafields_from_input(input, &timestamp);
         let validation = json!({
             "id": id,
             "title": selected_title(input, &function),
@@ -1355,8 +1355,8 @@ impl DraftProxy {
             "blockOnFailure": resolved_bool_field(input, "blockOnFailure").unwrap_or(false),
             "functionId": function["id"].clone(),
             "functionHandle": function["handle"].clone(),
-            "createdAt": "2024-01-01T00:00:01.000Z",
-            "updatedAt": "2024-01-01T00:00:01.000Z",
+            "createdAt": timestamp.clone(),
+            "updatedAt": timestamp,
             "shopifyFunction": function,
             "metafields": validation_metafield_connection(metafields)
         });
@@ -1409,8 +1409,12 @@ impl DraftProxy {
         validation["enabled"] = json!(next_enable);
         validation["blockOnFailure"] =
             json!(resolved_bool_field(input, "blockOnFailure").unwrap_or(false));
-        validation["updatedAt"] = json!("2024-01-01T00:00:05.000Z");
-        upsert_validation_metafields(&mut validation, validation_metafields_from_input(input));
+        let timestamp = self.next_product_timestamp();
+        validation["updatedAt"] = json!(timestamp.clone());
+        upsert_validation_metafields(
+            &mut validation,
+            validation_metafields_from_input(input, &timestamp),
+        );
         self.stage_function_validation(validation.clone());
         json!({ "validation": validation, "userErrors": [] })
     }
@@ -1500,7 +1504,8 @@ impl DraftProxy {
                 .collect(),
             _ => Vec::new(),
         };
-        let metafields = cart_transform_metafields_from_field(field, metafield_ids);
+        let timestamp = self.next_product_timestamp();
+        let metafields = cart_transform_metafields_from_field(field, metafield_ids, &timestamp);
         let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
         let mut cart_transform = json!({
             "id": id,
@@ -1600,7 +1605,9 @@ impl DraftProxy {
                 .collect(),
             _ => Vec::new(),
         };
-        let metafields = fulfillment_constraint_rule_metafields_from_field(field, metafield_ids);
+        let timestamp = self.next_product_timestamp();
+        let metafields =
+            fulfillment_constraint_rule_metafields_from_field(field, metafield_ids, &timestamp);
         let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
         let mut rule = json!({
             "id": id,
@@ -1709,7 +1716,7 @@ impl DraftProxy {
                 "id": "gid://shopify/TaxAppConfiguration/local",
                 "ready": ready,
                 "state": if ready { "READY" } else { "NOT_READY" },
-                "updatedAt": "2024-01-01T00:00:03.000Z"
+                "updatedAt": self.next_product_timestamp()
             },
             "userErrors": []
         })

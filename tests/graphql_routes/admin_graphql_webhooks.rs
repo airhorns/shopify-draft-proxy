@@ -633,6 +633,7 @@ mutation {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(created_at, "2024-01-01T00:00:01.000Z");
     assert_eq!(
         create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
         json!({
@@ -729,6 +730,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(omitted_update_updated_at, "2024-01-01T00:00:02.000Z");
     assert_eq!(
         update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
@@ -766,6 +768,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(empty_filter_updated_at, "2024-01-01T00:00:03.000Z");
     assert_eq!(
         update_empty_filter.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({

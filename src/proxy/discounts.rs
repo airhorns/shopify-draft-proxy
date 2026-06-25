@@ -3590,6 +3590,7 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
 }
 
 pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
+    let timestamp = default_product_timestamp();
     json!({
         "__typename": "GiftCard",
         "id": id,
@@ -3602,8 +3603,8 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
         "expiresOn": "2027-04-26",
         "note": "HAR-310 conformance gift card",
         "templateSuffix": null,
-        "createdAt": "2026-04-29T09:31:02Z",
-        "updatedAt": "2026-04-29T09:31:02Z",
+        "createdAt": timestamp.clone(),
+        "updatedAt": timestamp,
         "initialValue": money_value("5.0", "CAD"),
         "balance": money_value("5.0", "CAD"),
         "customer": { "id": "gid://shopify/Customer/10552623464754" },

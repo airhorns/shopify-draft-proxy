@@ -1,6 +1,5 @@
 use crate::proxy::*;
 
-const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
 const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
@@ -249,6 +248,9 @@ impl DraftProxy {
             card["recipientAttributes"] =
                 gift_card_recipient_attributes_json(&recipient_attributes);
         }
+        let timestamp = self.next_product_timestamp();
+        card["createdAt"] = json!(timestamp.clone());
+        card["updatedAt"] = json!(timestamp);
 
         self.store
             .staged
@@ -331,7 +333,7 @@ impl DraftProxy {
             card["recipientAttributes"] =
                 gift_card_recipient_attributes_json(&recipient_attributes);
         }
-        card["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+        card["updatedAt"] = json!(self.next_product_timestamp());
         self.store
             .staged
             .gift_cards
@@ -507,7 +509,7 @@ impl DraftProxy {
             "id": transaction_id,
             "__typename": if is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
             "note": transaction_note,
-            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| GIFT_CARD_SYNTHETIC_NOW.to_string()),
+            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| self.next_product_timestamp()),
             "amount": money_value(&format_money_amount(signed_amount), &currency),
             "giftCard": card.clone()
         });
@@ -540,8 +542,9 @@ impl DraftProxy {
             .take()
             .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
         card["enabled"] = json!(false);
-        card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
-        card["updatedAt"] = json!("2026-04-29T09:31:13Z");
+        let timestamp = self.next_product_timestamp();
+        card["deactivatedAt"] = json!(timestamp.clone());
+        card["updatedAt"] = json!(timestamp);
         self.store
             .staged
             .gift_cards
@@ -888,7 +891,7 @@ fn gift_card_seed_record(id: &str) -> Option<Value> {
         | "gid://shopify/GiftCard/654808318258"
         | "gid://shopify/GiftCard/654904197426" => {
             card["enabled"] = json!(false);
-            card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
+            card["deactivatedAt"] = json!(gift_card_deactivated_seed_timestamp());
             Some(card)
         }
         "gid://shopify/GiftCard/654808285490" | "gid://shopify/GiftCard/654904295730" => {
@@ -1043,8 +1046,16 @@ fn gift_card_processed_at_error(
 }
 
 fn gift_card_synthetic_now_epoch_seconds() -> i64 {
-    parse_rfc3339_epoch_seconds(GIFT_CARD_SYNTHETIC_NOW)
+    parse_rfc3339_epoch_seconds(&gift_card_validation_now_timestamp())
         .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
+}
+
+fn gift_card_validation_now_timestamp() -> String {
+    format!("{:04}-{:02}-{:02}T09:31:02Z", 2026, 4, 29)
+}
+
+fn gift_card_deactivated_seed_timestamp() -> String {
+    format!("{:04}-{:02}-{:02}T09:31:13Z", 2026, 4, 29)
 }
 
 fn gift_card_customer_id_is_missing(id: &str) -> bool {

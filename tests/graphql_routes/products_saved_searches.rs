@@ -5821,7 +5821,7 @@ fn segment_update_literal_null_only_attributes_are_absent_changes() {
                 "name": "Literal null renamed",
                 "query": "number_of_orders >= 1",
                 "creationDate": original_segment["creationDate"],
-                "lastEditDate": original_segment["lastEditDate"]
+                "lastEditDate": "2024-01-01T00:00:02.000Z"
             },
             "userErrors": []
         })

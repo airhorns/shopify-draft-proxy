@@ -353,7 +353,7 @@ impl DraftProxy {
                     file["url"] = json!(source);
                 }
             }
-            file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
+            file["updatedAt"] = json!(self.next_product_timestamp());
             self.store
                 .staged
                 .media_files
@@ -1488,14 +1488,14 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     let created_at = node
         .get("createdAt")
         .and_then(Value::as_str)
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let updated_at = node
         .get("updatedAt")
         .and_then(Value::as_str)
         .or_else(|| node.get("createdAt").and_then(Value::as_str))
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let file_status = node
         .get("fileStatus")
         .and_then(Value::as_str)
