@@ -554,7 +554,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!(["gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"]),
     );
 
-    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/3634391580978\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
+    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
     let mut update_proxy = snapshot_proxy();
     let update = update_proxy.process_request(graphql_request(
         &json!({ "query": update_query }).to_string(),
@@ -570,10 +570,10 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchUpdate",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 
-    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/3634391580978\" }) { deletedSavedSearchId userErrors { field message } } }";
+    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\" }) { deletedSavedSearchId userErrors { field message } } }";
     let mut delete_proxy = snapshot_proxy();
     let delete = delete_proxy.process_request(graphql_request(
         &json!({ "query": delete_query }).to_string(),
@@ -581,7 +581,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
     assert_eq!(delete.status, 200);
     assert_eq!(
         delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
-        json!("gid://shopify/SavedSearch/3634391580978")
+        json!("gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic")
     );
     assert_single_local_staged_log(
         &delete_proxy,
@@ -589,7 +589,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchDelete",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 }
 

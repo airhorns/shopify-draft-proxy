@@ -989,13 +989,13 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(&query, &variables)
+                "data": self.saved_search_overlay_read_fields(request, &query, &variables)
             })),
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
                 }
-                let outcome = self.saved_search_mutation_fields(&query, &variables);
+                let outcome = self.saved_search_mutation_fields(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
