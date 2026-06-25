@@ -7958,7 +7958,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-capture-validation-conformance.ts',
     purpose:
-      'orderCapture multi-currency currency validation, missing parent transaction, invalid amount, over-capture, public manual-gateway finalCapture rejection, and follow-up capture behavior.',
+      'orderCapture multi-currency currency validation, single-currency omitted-currency and zero-amount behavior, missing parent transaction, invalid amount, over-capture, public manual-gateway finalCapture rejection, and follow-up capture behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-capture-validation.json`,
@@ -7967,7 +7967,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/payments/order-capture-validation-order-create.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable multi-currency authorization order, records validation and capture branches, then cancels the order during cleanup.',
+      'Creates one disposable multi-currency authorization order and two disposable single-currency authorization orders, records validation and capture branches, then cancels the orders during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

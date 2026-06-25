@@ -5497,6 +5497,129 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_capture_accepts_omitted_currency_for_single_currency_order() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "single currency omitted capture",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": parent_transaction_id,
+                "amount": "10.00"
+            }
+        }),
+    ));
+
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["kind"],
+        json!("CAPTURE")
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["amountSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+}
+
+#[test]
+fn order_capture_zero_amount_uses_captured_public_error_without_code() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "12.50", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "single currency zero amount capture",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.50", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let capture = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ZeroAmountCapture($input: OrderCaptureInput!) {
+          orderCapture(input: $input) {
+            transaction { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": create.body["data"]["orderCreate"]["order"]["id"].clone(),
+                "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(),
+                "amount": "0.00"
+            }
+        }),
+    ));
+
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Amount must be greater than zero for capture transactions"
+        }])
+    );
+}
+
+#[test]
 fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
     let mut proxy = snapshot_proxy();
 

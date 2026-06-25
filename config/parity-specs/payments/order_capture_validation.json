@@ -73,6 +73,98 @@
         }
       },
       {
+        "name": "single-currency-authorization-order",
+        "capturePath": "$.operations.createSingleCurrencyAuthorizationOrder.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.presentmentCurrencyCode",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].amountSet.shopMoney.currencyCode",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-create.graphql",
+          "variablesCapturePath": "$.operations.createSingleCurrencyAuthorizationOrder.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "single-currency-omitted-currency-capture",
+        "capturePath": "$.operations.singleCurrencyOmittedCurrency.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.amountSet.shopMoney.amount",
+          "$.transaction.amountSet.shopMoney.currencyCode",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "single-currency-authorization-order",
+                "path": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromProxyResponse": "single-currency-authorization-order",
+                "path": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "5.00"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "single-currency-zero-amount-order",
+        "capturePath": "$.operations.createSingleCurrencyZeroAmountOrder.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.presentmentCurrencyCode",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].amountSet.shopMoney.currencyCode",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-create.graphql",
+          "variablesCapturePath": "$.operations.createSingleCurrencyZeroAmountOrder.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "single-currency-zero-amount-capture",
+        "capturePath": "$.operations.singleCurrencyZeroAmount.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.amountSet.shopMoney.amount",
+          "$.transaction.amountSet.shopMoney.currencyCode",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "single-currency-zero-amount-order",
+                "path": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromProxyResponse": "single-currency-zero-amount-order",
+                "path": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "0.00"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "parent-transaction-not-found-validation",
         "capturePath": "$.operations.parentNotFound.response.data.orderCapture",
         "proxyPath": "$.data.orderCapture",
@@ -151,5 +243,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 public Admin API capture for orderCapture validation against a disposable multi-currency authorization order. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy's local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available."
+  "notes": "Live 2026-04 public Admin API capture for orderCapture validation against disposable multi-currency and single-currency authorization orders. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available. The single-currency branches prove omitted currency succeeds and zero-amount behavior is replayed from Shopify evidence rather than local invented validation."
 }
