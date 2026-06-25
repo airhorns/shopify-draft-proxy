@@ -4519,6 +4519,135 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
 }
 
 #[test]
+fn fulfillment_service_requires_shipping_method_uses_shopify_default_on_omission() {
+    let mut proxy = snapshot_proxy();
+    let create_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOmitted($name: String!) {
+          fulfillmentServiceCreate(name: $name) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS omitted default" }),
+    ));
+    let omitted_service_id = create_omitted.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create_omitted.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let read_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOmitted($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": omitted_service_id }),
+    ));
+    assert_eq!(
+        read_omitted.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let create_explicit_false = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExplicitFalse($name: String!) {
+          fulfillmentServiceCreate(name: $name, requiresShippingMethod: false) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS explicit false" }),
+    ));
+    let false_service_id = create_explicit_false.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create_explicit_false.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(false)
+    );
+
+    let update_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOmitted($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": false_service_id, "name": "Hermes FS omitted update" }),
+    ));
+    assert_eq!(
+        update_omitted.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let read_after_omitted_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterOmittedUpdate($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": false_service_id }),
+    ));
+    assert_eq!(
+        read_after_omitted_update.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let update_explicit_false = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateExplicitFalse($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name, requiresShippingMethod: false) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": false_service_id, "name": "Hermes FS explicit false update" }),
+    ));
+    assert_eq!(
+        update_explicit_false.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(false)
+    );
+
+    let read_after_explicit_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterExplicitUpdate($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": false_service_id }),
+    ));
+    assert_eq!(
+        read_after_explicit_update.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(false)
+    );
+}
+
+#[test]
 fn fulfillment_service_create_rejects_removed_public_schema_arguments_before_staging() {
     for removed_argument in [
         "permitsSkuSharing",
