@@ -2784,7 +2784,11 @@ fn product_status_input_field_validation_error(
             if product_status_allowed(&status, request) {
                 return None;
             }
-            let location = root_argument_value_location(query, field, context.argument_name);
+            let location = crate::proxy::schema_validation::inline_argument_value_location(
+                query,
+                field,
+                context.argument_name,
+            );
             Some(invalid_product_status_literal_error(
                 query,
                 field,
@@ -2867,22 +2871,6 @@ fn invalid_product_status_literal_error(
             }
         }]
     }))
-}
-
-fn root_argument_value_location(
-    query: &str,
-    field: &RootFieldSelection,
-    argument_name: &str,
-) -> Option<SourceLocation> {
-    let start = byte_offset_for_location(query, field.location)?;
-    let haystack = &query[start..];
-    let argument_start = haystack.find(argument_name)?;
-    let after_name = start + argument_start + argument_name.len();
-    let after_colon = query[after_name..].find(':')? + after_name + 1;
-    let value_offset = query[after_colon..]
-        .char_indices()
-        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-    source_location_for_byte_offset(query, value_offset)
 }
 
 fn invalid_product_status_variable_error(
