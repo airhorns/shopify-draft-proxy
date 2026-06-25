@@ -9438,6 +9438,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-storage-byte-limit',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-storage-byte-limit-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation storage byte-limit validation for exactly 65,536 escaped UTF-8 bytes.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-storage-byte-limit.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-storage-byte-limit.json',
+      'config/parity-requests/bulk-operations/bulk-operation-storage-byte-limit-query.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-storage-byte-limit-mutation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture. It creates a staged upload target and uploads a tiny JSONL file for the mutation argument, but oversized validation prevents bulk job creation and catalog mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-user-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-user-errors-conformance.ts',
