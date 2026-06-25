@@ -77,18 +77,6 @@ impl DraftProxy {
         }
     }
 
-    pub fn get_config_snapshot(&self) -> Value {
-        self.config_snapshot()
-    }
-
-    pub fn get_log_snapshot(&self) -> Value {
-        json!({ "entries": self.log_entries })
-    }
-
-    pub fn get_state_snapshot(&self) -> Value {
-        self.state_snapshot()
-    }
-
     pub(in crate::proxy) fn config_snapshot(&self) -> Value {
         let unsupported_mode = self
             .config

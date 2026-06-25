@@ -3887,17 +3887,13 @@ pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelect
             | "disputeEvidence"
             | "shopPayPaymentRequestReceipt" => Value::Null,
             "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
-                selected_json(&empty_nodes_edges_connection(), &field.selection)
+                selected_empty_connection_json(&field.selection)
             }
             _ => Value::Null,
         };
         data.insert(field.response_key.clone(), value);
     }
     Value::Object(data)
-}
-
-pub(in crate::proxy) fn empty_nodes_edges_connection() -> Value {
-    connection_json_with_empty_edges(Vec::new())
 }
 
 pub(in crate::proxy) fn discount_bxgy_variable_error(

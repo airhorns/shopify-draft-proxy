@@ -996,17 +996,6 @@ impl DraftProxy {
         }
     }
 
-    /// Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
-    /// id. The local-runtime conformance fixtures compare these ids strictly and
-    /// expect the plain form, while every live-hybrid scenario that surfaces a
-    /// fabricated customer id matches it with the lenient `shopify-gid:Customer`
-    /// matcher (which accepts any `gid://shopify/Customer/...`). Read routing keys
-    /// on `staged.customers.contains_key(id)`, so the proxy stays internally
-    /// consistent without needing the `?shopify-draft-proxy=synthetic` marker.
-    fn next_customer_gid(&mut self, _normalized: &NormalizedCustomerInput) -> String {
-        self.next_synthetic_gid("Customer")
-    }
-
     fn customer_create_payload(
         &mut self,
         request: &Request,
@@ -1056,7 +1045,10 @@ impl DraftProxy {
             );
         }
 
-        let id = self.next_customer_gid(&normalized);
+        // Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
+        // id. Local-runtime fixtures compare these ids strictly, while live-hybrid
+        // scenarios use the lenient `shopify-gid:Customer` matcher.
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let verified_email_default = customer_create_verified_email_default(request, &normalized);
         let mut customer =
@@ -1743,7 +1735,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let id = self.next_customer_gid(&normalized);
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let customer = customer_record_from_parts(&id, None, &normalized, &timestamp, true);
         self.store
@@ -5154,15 +5146,11 @@ fn normalize_merged_customer_defaults(customer: &mut Value) {
         customer["lastOrder"] = Value::Null;
     }
     if customer["addressesV2"].is_null() {
-        customer["addressesV2"] = empty_nodes_connection();
+        customer["addressesV2"] = nodes_connection(Vec::new());
     }
     if customer["metafields"].is_null() {
-        customer["metafields"] = empty_nodes_connection();
+        customer["metafields"] = nodes_connection(Vec::new());
     }
-}
-
-fn empty_nodes_connection() -> Value {
-    nodes_connection(Vec::new())
 }
 
 /// Basic email format validation matching Shopify's rules:

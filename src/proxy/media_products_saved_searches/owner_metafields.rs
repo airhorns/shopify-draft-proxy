@@ -1262,7 +1262,7 @@ fn owner_metafield_record(
     }: OwnerMetafieldRecordArgs<'_>,
 ) -> Value {
     let normalized_value = normalize_metafield_value_string(metafield_type, value);
-    let timestamp = owner_metafield_timestamp(index as u64);
+    let timestamp = product_mutation_timestamp(index as u64);
     let created_at = existing
         .and_then(|metafield| metafield.get("createdAt"))
         .and_then(Value::as_str)
@@ -1459,10 +1459,6 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
         media_ids: variant_media_ids_from_json(value),
         extra_fields: BTreeMap::new(),
     })
-}
-
-fn owner_metafield_timestamp(ordinal: u64) -> String {
-    product_mutation_timestamp(ordinal)
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {

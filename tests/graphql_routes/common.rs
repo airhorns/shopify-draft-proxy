@@ -54,6 +54,21 @@ pub(super) fn request_with_body(method: &str, path: &str, body: &str) -> Request
     }
 }
 
+pub(super) fn log_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/log")
+}
+
+pub(super) fn state_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/state")
+}
+
+fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
+    let mut proxy = proxy.clone();
+    let response = proxy.process_request(request_with_body("GET", path, ""));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
 pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     graphql_request(
         "POST",

@@ -147,7 +147,7 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
         json!({ "count": 1, "precision": "EXACT" })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["rawBody"]
+        log_snapshot(&proxy)["entries"][0]["rawBody"]
             .as_str()
             .unwrap()
             .contains("mutation CreateDiscount"),
@@ -1314,7 +1314,7 @@ fn discount_basic_non_numeric_decimal_variable_fails_before_resolver_execution()
             "message": "invalid decimal 'abc'"
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -2364,7 +2364,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!("FULFILLMENTCONSTRAINTRULE")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["rootFields"],
@@ -2479,13 +2479,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!([])
     );
     assert_eq!(*upstream_hits.lock().unwrap(), 0);
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 }
 
 #[test]
@@ -4100,7 +4094,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 2);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
@@ -4622,7 +4616,7 @@ fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notification
             "recipientNotification": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4664,7 +4658,7 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
             }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4702,7 +4696,7 @@ fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_ca
             "trialBeforeNoContact": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4748,7 +4742,7 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
             "recipientNotification": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5496,7 +5490,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         })
     );
 
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -6110,7 +6104,7 @@ fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
             "notificationRecipientError": { "giftCard": null, "userErrors": base_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -6149,7 +6143,7 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],

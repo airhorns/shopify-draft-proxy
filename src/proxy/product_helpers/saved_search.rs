@@ -9,7 +9,13 @@ pub(in crate::proxy) fn saved_search_connection_json(
     selected_typed_connection(
         records,
         root_selection,
-        saved_search_read_json,
+        |record, selections| {
+            saved_search_json_with_query(
+                record,
+                selections,
+                &saved_search_read_query(&record.query),
+            )
+        },
         saved_search_cursor,
         |page_info_selection| {
             saved_search_page_info_json(
@@ -20,20 +26,6 @@ pub(in crate::proxy) fn saved_search_connection_json(
             )
         },
     )
-}
-
-pub(in crate::proxy) fn saved_search_read_json(
-    record: &SavedSearchRecord,
-    selections: &[SelectedField],
-) -> Value {
-    saved_search_json_with_query(record, selections, &saved_search_read_query(&record.query))
-}
-
-pub(in crate::proxy) fn saved_search_json(
-    record: &SavedSearchRecord,
-    selections: &[SelectedField],
-) -> Value {
-    saved_search_json_with_query(record, selections, &record.query)
 }
 
 pub(in crate::proxy) fn saved_search_json_with_query(
@@ -142,7 +134,9 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
             "savedSearch" => Some(match record {
-                Some(record) => saved_search_json(record, saved_search_selections),
+                Some(record) => {
+                    saved_search_json_with_query(record, saved_search_selections, &record.query)
+                }
                 None => Value::Null,
             }),
             "userErrors" => Some(selected_user_errors(

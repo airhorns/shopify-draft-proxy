@@ -846,7 +846,7 @@ impl DraftProxy {
             );
         };
 
-        let errors = b2b_company_location_create_validation_errors(&input);
+        let errors = b2b_location_input_errors(&input, &["input"]);
         if !errors.is_empty() {
             return (
                 b2b_company_location_payload(None, errors),
@@ -3478,12 +3478,6 @@ impl DraftProxy {
                     && assignment["companyLocationId"].as_str() == Some(location_id)
             })
     }
-}
-
-fn b2b_company_location_create_validation_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Vec<Value> {
-    b2b_location_input_errors(input, &["input"])
 }
 
 /// Validation shared by companyLocationCreate (prefix `["input"]`) and the nested

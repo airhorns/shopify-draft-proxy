@@ -1429,7 +1429,7 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
         json!("INVALID_REASON")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["interpreted"]["operationName"],
         json!("inventoryAdjustQuantities")
@@ -1530,7 +1530,7 @@ fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() 
         json!({"id": unknown_inventory_item_id}),
     ));
     assert_eq!(read.body["data"]["inventoryItem"], Value::Null);
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -1641,7 +1641,7 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     assert!(!levels
         .iter()
         .any(|level| level["location"]["id"] == json!(unknown_location_id)));
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -1819,7 +1819,7 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let log_entries = log["entries"].as_array().unwrap();
     let set_on_hand_log = log_entries
         .iter()
@@ -2033,7 +2033,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         invalid_reason.body["data"]["inventorySetOnHandQuantities"]["userErrors"][0]["code"],
         json!("INVALID_REASON")
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 fn inventory_activation_base_product() -> ProductRecord {
@@ -2827,7 +2827,7 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
         })
     );
 
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -2856,7 +2856,7 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
         response.body["errors"][0]["message"],
         json!("InventoryChangeInput must include the following argument: changeFromQuantity.")
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -2942,7 +2942,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
             {"name": "on_hand", "quantity": 3}
         ])
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][1]["interpreted"]["operationName"],
         json!("orderCreate")
@@ -3145,7 +3145,7 @@ fn transfer_level_quantities(
 /// before exercising the transfer itself. A wrongly-logged `inventoryTransfer*`
 /// operation still surfaces (the prefix match keeps the regression coverage).
 fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
-    proxy.get_log_snapshot()["entries"]
+    log_snapshot(proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -3524,7 +3524,7 @@ fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthro
     );
     assert_eq!(forwarded.lock().unwrap().len(), 0);
 
-    let roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+    let roots: Vec<Value> = log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -3937,7 +3937,7 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -3966,13 +3966,7 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
     let long_application_id = "a".repeat(101);
     let long_app_clip_application_id = "c".repeat(256);
@@ -4024,13 +4018,7 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -7808,7 +7796,7 @@ fn media_staged_uploads_create_missing_required_filename_or_mime_type_coerces_be
             }
         ])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let variable_missing_mime_type = proxy.process_request(json_graphql_request(
         r#"
@@ -7838,7 +7826,7 @@ fn media_staged_uploads_create_missing_required_filename_or_mime_type_coerces_be
         "{:?}",
         variable_missing_mime_type.body["errors"][0]
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let fully_specified = proxy.process_request(json_graphql_request(
         r#"

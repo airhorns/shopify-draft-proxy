@@ -1341,7 +1341,7 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["interpreted"]["capability"],
+        log_snapshot(&proxy)["entries"][0]["interpreted"]["capability"],
         json!({
             "operationName": "productVariantsBulkCreate",
             "domain": "products",
@@ -1398,7 +1398,7 @@ fn product_variants_bulk_create_rejects_inventory_quantity_caps_atomically() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read = proxy.process_request(json_graphql_request(
         read_query,
         json!({ "productId": product_id }),
@@ -1433,7 +1433,7 @@ fn product_variants_bulk_create_rejects_inventory_quantity_caps_atomically() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read = proxy.process_request(json_graphql_request(
         read_query,
         json!({ "productId": product_id }),
@@ -1706,7 +1706,7 @@ fn product_variants_bulk_create_rejects_option_conflicts_and_duplicate_tuples_at
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"],
+        log_snapshot(&proxy)["entries"],
         json!([]),
         "schema-level options rejection should not stage a mutation log entry"
     );
@@ -1812,7 +1812,7 @@ fn product_variants_bulk_create_rejects_option_conflicts_and_duplicate_tuples_at
             "{label}"
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"],
+            log_snapshot(&proxy)["entries"],
             json!([]),
             "{label}: rejected create should not stage a mutation log entry"
         );
@@ -1957,10 +1957,7 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
     let red_id = red["id"].as_str().unwrap().to_string();
     let blue_id = blue["id"].as_str().unwrap().to_string();
 
-    let log_entries_before_empty_update = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_entries_before_empty_update = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let empty_update = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkVariantEmptyUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -1990,10 +1987,7 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_entries_before_empty_update,
         "empty update should be a no-op response without a staged mutation log entry"
     );
@@ -2202,7 +2196,7 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
             json!({ "errors": [{ "message": format!("No mutation dispatcher implemented for root field: {root}") }] })
         );
     }
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -2787,7 +2781,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     assert!(
         entries
@@ -3279,7 +3273,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -3327,7 +3321,7 @@ fn product_reorder_media_without_store_backed_handler_fails_closed() {
         Value::Null,
         "unobserved product reads should not replay a baked reorder-media fixture"
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -3410,7 +3404,7 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
         Value::Null,
         "unobserved product reads should not replay a baked delete-media fixture"
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -3473,7 +3467,7 @@ fn product_update_media_without_store_backed_handler_fails_closed() {
         Value::Null,
         "unobserved product reads should not replay a baked update-media fixture"
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -5545,7 +5539,7 @@ fn segment_delete_stages_local_removal_and_keeps_raw_mutation_for_commit() {
         json!({ "count": 1, "precision": "EXACT" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 3);
     assert_eq!(
         log["entries"][2]["interpreted"]["primaryRootField"],
@@ -5607,7 +5601,7 @@ fn segment_delete_matches_shopify_validation_shapes() {
         json!("RESOURCE_NOT_FOUND")
     );
     assert_eq!(wrong_type.body["data"]["segmentDelete"], Value::Null);
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5637,7 +5631,7 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
             ]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let long_name = proxy.process_request(json_graphql_request(
         create_query,
@@ -5739,13 +5733,7 @@ fn segment_update_literal_null_only_attributes_are_absent_changes() {
     ));
     let original_segment = created.body["data"]["segmentCreate"]["segment"].clone();
     let segment_id = original_segment["id"].as_str().unwrap().to_string();
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
     for update_query in [
         r#"
@@ -5793,10 +5781,7 @@ fn segment_update_literal_null_only_attributes_are_absent_changes() {
             "null-only update must not mutate the staged segment"
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"]
-                .as_array()
-                .unwrap()
-                .len(),
+            log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
             1,
             "null-only update must not append a staged mutation log entry"
         );
@@ -5826,13 +5811,7 @@ fn segment_update_literal_null_only_attributes_are_absent_changes() {
             "userErrors": []
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 }
 
 #[test]
@@ -5875,10 +5854,7 @@ fn segment_create_rejects_at_limit_with_shopify_message() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         6000
     );
 }
@@ -7418,7 +7394,7 @@ fn product_create_rejects_invalid_status_literals_and_variables_without_staging(
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let read_back = proxy.process_request(graphql_request(
         "POST",
@@ -7505,7 +7481,7 @@ fn product_change_status_rejects_invalid_status_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let read_back = proxy.process_request(graphql_request(
         "POST",
@@ -7591,7 +7567,7 @@ fn registry_classification_without_matching_root_field_fails_closed() {
         response.body,
         json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productVariantCreate" }] })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -7642,7 +7618,7 @@ fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
 
     assert_eq!(response.status, 200);
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["interpreted"]["capability"],
+        log_snapshot(&proxy)["entries"][0]["interpreted"]["capability"],
         json!({
             "operationName": "productVariantCreate",
             "domain": "products",
@@ -7956,7 +7932,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     );
     assert!(upstream_calls.lock().unwrap().is_empty());
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     for root in [
         "collectionCreate",
@@ -8005,7 +7981,7 @@ fn collection_delete_payload_includes_shop_on_user_error() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -8044,9 +8020,9 @@ fn collection_create_rejects_client_supplied_id_without_staging() {
             }
         })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["collections"],
+        state_snapshot(&proxy)["stagedState"]["collections"],
         json!({})
     );
 
@@ -8076,7 +8052,7 @@ fn collection_create_rejects_client_supplied_id_without_staging() {
         .expect("accepted collection has id")
         .to_string();
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["stagedResourceIds"],
+        log_snapshot(&proxy)["entries"][0]["stagedResourceIds"],
         json!([collection_id])
     );
 }
@@ -8115,7 +8091,7 @@ fn collection_update_missing_id_returns_top_level_bad_request_without_user_error
         .body
         .pointer("/data/collectionUpdate/userErrors")
         .is_none());
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let unknown_id = proxy.process_request(json_graphql_request(
         r#"
@@ -8145,7 +8121,7 @@ fn collection_update_missing_id_returns_top_level_bad_request_without_user_error
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -8339,11 +8315,8 @@ fn collection_validations_and_reorder_are_store_backed() {
         non_manual_add.body["data"]["collectionAddProductsV2"]["userErrors"],
         json!([])
     );
-    let state_before_rejected_reorder = proxy.get_state_snapshot();
-    let log_len_before_rejected_reorder = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let state_before_rejected_reorder = state_snapshot(&proxy);
+    let log_len_before_rejected_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let non_manual_reorder = proxy.process_request(json_graphql_request(
         r#"
         mutation NonManualReorder($id: ID!, $moves: [MoveInput!]!) {
@@ -8368,12 +8341,9 @@ fn collection_validations_and_reorder_are_store_backed() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before_rejected_reorder);
+    assert_eq!(state_snapshot(&proxy), state_before_rejected_reorder);
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_before_rejected_reorder
     );
 
@@ -8496,11 +8466,8 @@ fn collection_update_rejects_custom_rule_set_without_staging() {
         .as_str()
         .unwrap()
         .to_string();
-    let state_after_create = proxy.get_state_snapshot();
-    let log_len_after_create = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let state_after_create = state_snapshot(&proxy);
+    let log_len_after_create = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let update = proxy.process_request(json_graphql_request(
         r#"
@@ -8534,12 +8501,9 @@ fn collection_update_rejects_custom_rule_set_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+    assert_eq!(state_snapshot(&proxy), state_after_create);
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_after_create
     );
 }
@@ -8575,7 +8539,7 @@ fn collection_update_rejects_empty_rule_set_rules() {
         .as_str()
         .unwrap()
         .to_string();
-    let state_after_create = proxy.get_state_snapshot();
+    let state_after_create = state_snapshot(&proxy);
 
     let update = proxy.process_request(json_graphql_request(
         r#"
@@ -8609,7 +8573,7 @@ fn collection_update_rejects_empty_rule_set_rules() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_after_create);
+    assert_eq!(state_snapshot(&proxy), state_after_create);
 }
 
 #[test]

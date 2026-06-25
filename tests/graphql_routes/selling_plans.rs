@@ -334,7 +334,7 @@ fn selling_plan_group_create_rejects_active_model_validation_without_staging() {
         );
         assert_eq!(selling_plan_group_nodes(&mut proxy), json!([]), "{label}");
 
-        let log = proxy.get_log_snapshot();
+        let log = log_snapshot(&proxy);
         assert_eq!(log["entries"][0]["status"], json!("failed"), "{label}");
         assert_eq!(log["entries"][0]["stagedResourceIds"], json!([]), "{label}");
     }

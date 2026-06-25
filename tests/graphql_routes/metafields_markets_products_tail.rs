@@ -2,7 +2,7 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
     assert!(
         staged_markets.is_null()
@@ -14,7 +14,7 @@ fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
 }
 
 fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_web_presences = &state["stagedState"]["webPresences"];
     assert!(
         staged_web_presences.is_null()
@@ -26,7 +26,7 @@ fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy
 }
 
 fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_catalogs = &state["stagedState"]["catalogs"];
     assert!(
         staged_catalogs.is_null()
@@ -1715,8 +1715,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         unsupported.body["data"]["marketCreate"]["userErrors"][0],
         json!({"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "CU is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"})
     );
-    assert!(!region_proxy
-        .get_state_snapshot()
+    assert!(!state_snapshot(&region_proxy)
         .to_string()
         .contains("Unsupported"));
 
@@ -1758,7 +1757,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
     );
     assert_eq!(
-        duplicate_name_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&duplicate_name_proxy)["entries"]
             .as_array()
             .unwrap()
             .len(),
@@ -1921,7 +1920,7 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 4);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
@@ -1961,7 +1960,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(kp_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&kp_proxy)["entries"], json!([]));
     assert_no_staged_markets(&kp_proxy);
     let kp_read = kp_proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(kp_read.body["data"]["markets"]["nodes"], json!([]));
@@ -1978,7 +1977,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(mixed_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&mixed_proxy)["entries"], json!([]));
     assert_no_staged_markets(&mixed_proxy);
 
     let mut conditions_proxy = snapshot_proxy();
@@ -1993,7 +1992,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(conditions_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&conditions_proxy)["entries"], json!([]));
     assert_no_staged_markets(&conditions_proxy);
 
     let mut supported_proxy = snapshot_proxy();
@@ -2024,7 +2023,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
         2
     );
     assert_eq!(
-        supported_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&supported_proxy)["entries"]
             .as_array()
             .expect("supported mutation log entries")
             .len(),
@@ -2035,8 +2034,8 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
 #[test]
 fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
     let mut proxy = snapshot_proxy();
-    let state_before = proxy.get_state_snapshot();
-    let log_before = proxy.get_log_snapshot();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -2072,8 +2071,8 @@ fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
     assert_no_staged_catalogs(&proxy);
 }
 
@@ -2789,10 +2788,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log_len_before_delete = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_delete = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let unknown = proxy.process_request(json_graphql_request(
         market_delete_query,
         json!({"id": "gid://shopify/Market/9999999"}),
@@ -2802,10 +2798,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!({"deletedId": null, "userErrors": [{"__typename": "MarketUserError", "field": ["id"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}]})
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_before_delete,
         "unknown marketDelete should not stage a commit replay entry"
     );
@@ -2847,7 +2840,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let delete_entry = log["entries"].as_array().unwrap().last().unwrap();
     assert_eq!(
         delete_entry["interpreted"]["rootFields"],
@@ -3194,7 +3187,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
             "path": ["priceListCreate"]
         })
     );
-    assert_eq!(wrong_type_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&wrong_type_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     proxy.process_request(json_graphql_request(
@@ -5730,7 +5723,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         json!("ACTIVE")
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),
@@ -5800,7 +5793,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),
