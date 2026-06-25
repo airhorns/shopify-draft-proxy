@@ -1,14 +1,14 @@
 {
-  "capturedAt": "2026-05-05T15:53:56.915Z",
+  "capturedAt": "2026-06-25T03:27:13.038Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "summary": "HAR-685 metaobjectCreate/metaobjectUpdate field value validation matrix for scalar, measurement, reference, rating, URL/color/date/time, text max, and list field types.",
   "seed": {
-    "runId": "1777996425390",
-    "targetType": "codex_har685_validation_target_1777996425390",
-    "matrixType": "codex_har685_validation_1777996425390",
-    "matrixHandle": "codex-har685-validation-1777996425390",
-    "definitionId": "gid://shopify/MetaobjectDefinition/17863213362"
+    "runId": "1782358020027",
+    "targetType": "codex_har685_validation_target_1782358020027",
+    "matrixType": "codex_har685_validation_1782358020027",
+    "matrixHandle": "codex-har685-validation-1782358020027",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19324305714"
   },
   "coveredTypes": [
     {
@@ -68,6 +68,21 @@
       "type": "url"
     },
     {
+      "name": "money-invalid",
+      "key": "money",
+      "type": "money"
+    },
+    {
+      "name": "link-invalid",
+      "key": "link",
+      "type": "link"
+    },
+    {
+      "name": "power-invalid",
+      "key": "power",
+      "type": "power"
+    },
+    {
       "name": "product-reference-invalid",
       "key": "product_reference",
       "type": "product_reference"
@@ -93,9 +108,19 @@
       "type": "company_reference"
     },
     {
+      "name": "file-reference-invalid",
+      "key": "file_reference",
+      "type": "file_reference"
+    },
+    {
       "name": "metaobject-reference-invalid",
       "key": "metaobject_reference",
       "type": "metaobject_reference"
+    },
+    {
+      "name": "mixed-reference-invalid",
+      "key": "mixed_reference",
+      "type": "mixed_reference"
     },
     {
       "name": "single-line-text-max",
@@ -189,8 +214,8 @@
       "query": "fragment MetaobjectFieldValidationMatrixDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n  createdAt\n  updatedAt\n}\n\nmutation MetaobjectFieldValidationMatrixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectFieldValidationMatrixDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "codex_har685_validation_target_1777996425390",
-          "name": "HAR-685 Field Validation Target 1777996425390",
+          "type": "codex_har685_validation_target_1782358020027",
+          "name": "HAR-685 Field Validation Target 1782358020027",
           "displayNameKey": "title",
           "fieldDefinitions": [
             {
@@ -208,9 +233,9 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17863180594",
-            "type": "codex_har685_validation_target_1777996425390",
-            "name": "HAR-685 Field Validation Target 1777996425390",
+            "id": "gid://shopify/MetaobjectDefinition/19324272946",
+            "type": "codex_har685_validation_target_1782358020027",
+            "name": "HAR-685 Field Validation Target 1782358020027",
             "description": null,
             "displayNameKey": "title",
             "access": {
@@ -247,8 +272,8 @@
             "hasThumbnailField": false,
             "metaobjectsCount": 0,
             "standardTemplate": null,
-            "createdAt": "2026-05-05T15:53:45Z",
-            "updatedAt": "2026-05-05T15:53:45Z"
+            "createdAt": "2026-06-25T03:27:00Z",
+            "updatedAt": "2026-06-25T03:27:00Z"
           },
           "userErrors": []
         }
@@ -272,8 +297,8 @@
       "query": "fragment MetaobjectFieldValidationMatrixDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n  createdAt\n  updatedAt\n}\n\nmutation MetaobjectFieldValidationMatrixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectFieldValidationMatrixDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "codex_har685_validation_1777996425390",
-          "name": "HAR-685 Field Validation 1777996425390",
+          "type": "codex_har685_validation_1782358020027",
+          "name": "HAR-685 Field Validation 1782358020027",
           "displayNameKey": "title",
           "fieldDefinitions": [
             {
@@ -365,6 +390,24 @@
               "required": false
             },
             {
+              "key": "money",
+              "name": "money",
+              "type": "money",
+              "required": false
+            },
+            {
+              "key": "link",
+              "name": "link",
+              "type": "link",
+              "required": false
+            },
+            {
+              "key": "power",
+              "name": "power",
+              "type": "power",
+              "required": false
+            },
+            {
               "key": "product_reference",
               "name": "product_reference",
               "type": "product_reference",
@@ -395,6 +438,12 @@
               "required": false
             },
             {
+              "key": "file_reference",
+              "name": "file_reference",
+              "type": "file_reference",
+              "required": false
+            },
+            {
               "key": "metaobject_reference",
               "name": "metaobject_reference",
               "type": "metaobject_reference",
@@ -402,7 +451,19 @@
               "validations": [
                 {
                   "name": "metaobject_definition_id",
-                  "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                  "value": "gid://shopify/MetaobjectDefinition/19324272946"
+                }
+              ]
+            },
+            {
+              "key": "mixed_reference",
+              "name": "mixed_reference",
+              "type": "mixed_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_ids",
+                  "value": "[\"gid://shopify/MetaobjectDefinition/19324272946\"]"
                 }
               ]
             },
@@ -526,7 +587,7 @@
               "validations": [
                 {
                   "name": "metaobject_definition_id",
-                  "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                  "value": "gid://shopify/MetaobjectDefinition/19324272946"
                 }
               ]
             }
@@ -539,9 +600,9 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17863213362",
-            "type": "codex_har685_validation_1777996425390",
-            "name": "HAR-685 Field Validation 1777996425390",
+            "id": "gid://shopify/MetaobjectDefinition/19324305714",
+            "type": "codex_har685_validation_1782358020027",
+            "name": "HAR-685 Field Validation 1782358020027",
             "description": null,
             "displayNameKey": "title",
             "access": {
@@ -710,6 +771,39 @@
                 "validations": []
               },
               {
+                "key": "money",
+                "name": "money",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "money",
+                  "category": "MONEY"
+                },
+                "validations": []
+              },
+              {
+                "key": "link",
+                "name": "link",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "link",
+                  "category": "LINK"
+                },
+                "validations": []
+              },
+              {
+                "key": "power",
+                "name": "power",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "power",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
                 "key": "product_reference",
                 "name": "product_reference",
                 "description": null,
@@ -765,6 +859,17 @@
                 "validations": []
               },
               {
+                "key": "file_reference",
+                "name": "file_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "file_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
                 "key": "metaobject_reference",
                 "name": "metaobject_reference",
                 "description": null,
@@ -776,7 +881,23 @@
                 "validations": [
                   {
                     "name": "metaobject_definition_id",
-                    "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                    "value": "gid://shopify/MetaobjectDefinition/19324272946"
+                  }
+                ]
+              },
+              {
+                "key": "mixed_reference",
+                "name": "mixed_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "mixed_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "metaobject_definition_ids",
+                    "value": "[\"gid://shopify/MetaobjectDefinition/19324272946\"]"
                   }
                 ]
               },
@@ -982,7 +1103,7 @@
                 "validations": [
                   {
                     "name": "metaobject_definition_id",
-                    "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                    "value": "gid://shopify/MetaobjectDefinition/19324272946"
                   }
                 ]
               }
@@ -990,8 +1111,8 @@
             "hasThumbnailField": true,
             "metaobjectsCount": 0,
             "standardTemplate": null,
-            "createdAt": "2026-05-05T15:53:45Z",
-            "updatedAt": "2026-05-05T15:53:45Z"
+            "createdAt": "2026-06-25T03:27:00Z",
+            "updatedAt": "2026-06-25T03:27:00Z"
           },
           "userErrors": []
         }
@@ -1002,7 +1123,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -1015,12 +1136,12 @@
       "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "metaobject": {
-          "type": "codex_har685_validation_1777996425390",
-          "handle": "codex-har685-validation-1777996425390",
+          "type": "codex_har685_validation_1782358020027",
+          "handle": "codex-har685-validation-1782358020027",
           "fields": [
             {
               "key": "title",
-              "value": "HAR-685 1777996425390"
+              "value": "HAR-685 1782358020027"
             }
           ]
         }
@@ -1031,17 +1152,17 @@
       "data": {
         "metaobjectCreate": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/188098806066",
-            "handle": "codex-har685-validation-1777996425390",
-            "type": "codex_har685_validation_1777996425390",
-            "displayName": "HAR-685 1777996425390",
-            "updatedAt": "2026-05-05T15:53:46Z",
+            "id": "gid://shopify/Metaobject/202117939506",
+            "handle": "codex-har685-validation-1782358020027",
+            "type": "codex_har685_validation_1782358020027",
+            "displayName": "HAR-685 1782358020027",
+            "updatedAt": "2026-06-25T03:27:01Z",
             "fields": [
               {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "HAR-685 1777996425390",
-                "jsonValue": "HAR-685 1777996425390"
+                "value": "HAR-685 1782358020027",
+                "jsonValue": "HAR-685 1782358020027"
               },
               {
                 "key": "number_integer",
@@ -1110,6 +1231,24 @@
                 "jsonValue": null
               },
               {
+                "key": "money",
+                "type": "money",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "link",
+                "type": "link",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "power",
+                "type": "power",
+                "value": null,
+                "jsonValue": null
+              },
+              {
                 "key": "product_reference",
                 "type": "product_reference",
                 "value": null,
@@ -1140,8 +1279,20 @@
                 "jsonValue": null
               },
               {
+                "key": "file_reference",
+                "type": "file_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
                 "key": "metaobject_reference",
                 "type": "metaobject_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "mixed_reference",
+                "type": "mixed_reference",
                 "value": null,
                 "jsonValue": null
               },
@@ -1272,8 +1423,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-number-integer-max",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-number-integer-max",
             "fields": [
               {
                 "key": "number_integer",
@@ -1318,8 +1469,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-number-decimal-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-number-decimal-invalid",
             "fields": [
               {
                 "key": "number_decimal",
@@ -1351,7 +1502,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1992,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -1364,8 +1515,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-boolean-coercion",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-boolean-coercion",
             "fields": [
               {
                 "key": "boolean",
@@ -1380,11 +1531,11 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188098904370",
-              "handle": "codex-har685-validation-1777996425390-boolean-coercion",
-              "type": "codex_har685_validation_1777996425390",
-              "displayName": "Codex Har685 Validation 1777996425390 Boolean Coercion",
-              "updatedAt": "2026-05-05T15:53:47Z",
+              "id": "gid://shopify/Metaobject/202118037810",
+              "handle": "codex-har685-validation-1782358020027-boolean-coercion",
+              "type": "codex_har685_validation_1782358020027",
+              "displayName": "Codex Har685 Validation 1782358020027 Boolean Coercion",
+              "updatedAt": "2026-06-25T03:27:02Z",
               "fields": [
                 {
                   "key": "title",
@@ -1459,6 +1610,24 @@
                   "jsonValue": null
                 },
                 {
+                  "key": "money",
+                  "type": "money",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "link",
+                  "type": "link",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "power",
+                  "type": "power",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
                   "key": "product_reference",
                   "type": "product_reference",
                   "value": null,
@@ -1489,8 +1658,20 @@
                   "jsonValue": null
                 },
                 {
+                  "key": "file_reference",
+                  "type": "file_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
                   "key": "metaobject_reference",
                   "type": "metaobject_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "mixed_reference",
+                  "type": "mixed_reference",
                   "value": null,
                   "jsonValue": null
                 },
@@ -1607,7 +1788,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -1620,8 +1801,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-date-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-date-invalid",
             "fields": [
               {
                 "key": "date",
@@ -1666,8 +1847,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-date-time-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-date-time-invalid",
             "fields": [
               {
                 "key": "date_time",
@@ -1712,8 +1893,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-dimension-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-dimension-invalid",
             "fields": [
               {
                 "key": "dimension",
@@ -1758,8 +1939,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-volume-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-volume-invalid",
             "fields": [
               {
                 "key": "volume",
@@ -1804,8 +1985,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-weight-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-weight-invalid",
             "fields": [
               {
                 "key": "weight",
@@ -1850,8 +2031,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-rating-scale-max",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-rating-scale-max",
             "fields": [
               {
                 "key": "rating",
@@ -1896,8 +2077,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-color-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-color-invalid",
             "fields": [
               {
                 "key": "color",
@@ -1942,8 +2123,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-url-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-url-invalid",
             "fields": [
               {
                 "key": "url",
@@ -1982,14 +2163,152 @@
         }
       }
     },
+    "money-invalid": {
+      "name": "create-money-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-money-invalid",
+            "fields": [
+              {
+                "key": "money",
+                "value": "not-money"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+                "code": "INVALID_VALUE",
+                "elementKey": "money",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "link-invalid": {
+      "name": "create-link-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-link-invalid",
+            "fields": [
+              {
+                "key": "link",
+                "value": "{\"text\":\"Docs\",\"url\":\"ftp://nope\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be one of the following URL schemes: http, https, mailto, sms, tel.",
+                "code": "INVALID_VALUE",
+                "elementKey": "link",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "power-invalid": {
+      "name": "create-power-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-power-invalid",
+            "fields": [
+              {
+                "key": "power",
+                "value": "10"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+                "code": "INVALID_VALUE",
+                "elementKey": "power",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "product-reference-invalid": {
       "name": "create-product-reference-invalid",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-product-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-product-reference-invalid",
             "fields": [
               {
                 "key": "product_reference",
@@ -2034,8 +2353,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-variant-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-variant-reference-invalid",
             "fields": [
               {
                 "key": "variant_reference",
@@ -2080,8 +2399,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-collection-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-collection-reference-invalid",
             "fields": [
               {
                 "key": "collection_reference",
@@ -2126,8 +2445,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-customer-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-customer-reference-invalid",
             "fields": [
               {
                 "key": "customer_reference",
@@ -2172,8 +2491,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-company-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-company-reference-invalid",
             "fields": [
               {
                 "key": "company_reference",
@@ -2212,14 +2531,60 @@
         }
       }
     },
+    "file-reference-invalid": {
+      "name": "create-file-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-file-reference-invalid",
+            "fields": [
+              {
+                "key": "file_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a file reference string.",
+                "code": "INVALID_VALUE",
+                "elementKey": "file_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "metaobject-reference-invalid": {
       "name": "create-metaobject-reference-invalid",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-metaobject-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-metaobject-reference-invalid",
             "fields": [
               {
                 "key": "metaobject_reference",
@@ -2258,14 +2623,60 @@
         }
       }
     },
+    "mixed-reference-invalid": {
+      "name": "create-mixed-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-mixed-reference-invalid",
+            "fields": [
+              {
+                "key": "mixed_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must belong to one of the specified metaobject definitions.",
+                "code": "INVALID_VALUE",
+                "elementKey": "mixed_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "single-line-text-max": {
       "name": "create-single-line-text-max",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-single-line-text-max",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-single-line-text-max",
             "fields": [
               {
                 "key": "single_line_text_field",
@@ -2310,8 +2721,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-number-integer-max",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-number-integer-max",
             "fields": [
               {
                 "key": "list_number_integer",
@@ -2356,8 +2767,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-number-decimal-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-number-decimal-invalid",
             "fields": [
               {
                 "key": "list_number_decimal",
@@ -2402,8 +2813,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-date-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-date-invalid",
             "fields": [
               {
                 "key": "list_date",
@@ -2448,8 +2859,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-date-time-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-date-time-invalid",
             "fields": [
               {
                 "key": "list_date_time",
@@ -2494,8 +2905,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-dimension-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-dimension-invalid",
             "fields": [
               {
                 "key": "list_dimension",
@@ -2540,8 +2951,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-volume-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-volume-invalid",
             "fields": [
               {
                 "key": "list_volume",
@@ -2586,8 +2997,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-weight-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-weight-invalid",
             "fields": [
               {
                 "key": "list_weight",
@@ -2632,8 +3043,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-rating-scale-max",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-rating-scale-max",
             "fields": [
               {
                 "key": "list_rating",
@@ -2678,8 +3089,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-color-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-color-invalid",
             "fields": [
               {
                 "key": "list_color",
@@ -2724,8 +3135,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-url-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-url-invalid",
             "fields": [
               {
                 "key": "list_url",
@@ -2770,8 +3181,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-product-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-product-reference-invalid",
             "fields": [
               {
                 "key": "list_product_reference",
@@ -2816,8 +3227,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-variant-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-variant-reference-invalid",
             "fields": [
               {
                 "key": "list_variant_reference",
@@ -2862,8 +3273,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-collection-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-collection-reference-invalid",
             "fields": [
               {
                 "key": "list_collection_reference",
@@ -2908,8 +3319,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-customer-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-customer-reference-invalid",
             "fields": [
               {
                 "key": "list_customer_reference",
@@ -2954,8 +3365,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-company-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-company-reference-invalid",
             "fields": [
               {
                 "key": "list_company_reference",
@@ -3000,8 +3411,8 @@
         "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har685_validation_1777996425390",
-            "handle": "codex-har685-validation-1777996425390-list-metaobject-reference-invalid",
+            "type": "codex_har685_validation_1782358020027",
+            "handle": "codex-har685-validation-1782358020027-list-metaobject-reference-invalid",
             "fields": [
               {
                 "key": "list_metaobject_reference",
@@ -3047,7 +3458,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3092,7 +3503,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3125,7 +3536,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -3137,7 +3548,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3182,7 +3593,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3227,7 +3638,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3272,7 +3683,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3317,7 +3728,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3362,7 +3773,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3407,7 +3818,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3452,7 +3863,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3497,7 +3908,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3537,12 +3948,147 @@
         }
       }
     },
+    "money-invalid": {
+      "name": "update-money-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202117939506",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "money",
+                "value": "not-money"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+                "code": "INVALID_VALUE",
+                "elementKey": "money",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "link-invalid": {
+      "name": "update-link-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202117939506",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "link",
+                "value": "{\"text\":\"Docs\",\"url\":\"ftp://nope\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be one of the following URL schemes: http, https, mailto, sms, tel.",
+                "code": "INVALID_VALUE",
+                "elementKey": "link",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "power-invalid": {
+      "name": "update-power-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202117939506",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "power",
+                "value": "10"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+                "code": "INVALID_VALUE",
+                "elementKey": "power",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "product-reference-invalid": {
       "name": "update-product-reference-invalid",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3587,7 +4133,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3632,7 +4178,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3677,7 +4223,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3722,7 +4268,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3762,12 +4308,57 @@
         }
       }
     },
+    "file-reference-invalid": {
+      "name": "update-file-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202117939506",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "file_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a file reference string.",
+                "code": "INVALID_VALUE",
+                "elementKey": "file_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "metaobject-reference-invalid": {
       "name": "update-metaobject-reference-invalid",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3807,12 +4398,57 @@
         }
       }
     },
+    "mixed-reference-invalid": {
+      "name": "update-mixed-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202117939506",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "mixed_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must belong to one of the specified metaobject definitions.",
+                "code": "INVALID_VALUE",
+                "elementKey": "mixed_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "single-line-text-max": {
       "name": "update-single-line-text-max",
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3857,7 +4493,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3902,7 +4538,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3947,7 +4583,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -3992,7 +4628,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4037,7 +4673,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4082,7 +4718,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4127,7 +4763,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4172,7 +4808,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4217,7 +4853,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4262,7 +4898,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4307,7 +4943,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4352,7 +4988,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4397,7 +5033,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4442,7 +5078,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4487,7 +5123,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4532,7 +5168,7 @@
       "request": {
         "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066",
+          "id": "gid://shopify/Metaobject/202117939506",
           "metaobject": {
             "fields": [
               {
@@ -4579,14 +5215,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098806066"
+          "id": "gid://shopify/Metaobject/202117939506"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188098806066",
+            "deletedId": "gid://shopify/Metaobject/202117939506",
             "userErrors": []
           }
         },
@@ -4608,14 +5244,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188098904370"
+          "id": "gid://shopify/Metaobject/202118037810"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188098904370",
+            "deletedId": "gid://shopify/Metaobject/202118037810",
             "userErrors": []
           }
         },
@@ -4637,14 +5273,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17863213362"
+          "id": "gid://shopify/MetaobjectDefinition/19324305714"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17863213362",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324305714",
             "userErrors": []
           }
         },
@@ -4666,14 +5302,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17863180594"
+          "id": "gid://shopify/MetaobjectDefinition/19324272946"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17863180594",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324272946",
             "userErrors": []
           }
         },
@@ -4695,9 +5331,9 @@
     {
       "operationName": "MetaobjectDefinitionHydrateByType",
       "variables": {
-        "type": "codex_har685_validation_1777996425390"
+        "type": "codex_har685_validation_1782358020027"
       },
-      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
+      "query": "sha:hand-synthesized-from-capture",
       "response": {
         "status": 200,
         "body": {

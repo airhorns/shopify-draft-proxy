@@ -1,0 +1,44 @@
+{
+  "scenarioId": "localization-translatable-content-product",
+  "operationNames": ["productCreate", "translatableResource"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translatable-content-product.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-known-resource-product-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setup.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-translatable-content-read",
+        "capturePath": "$.read.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translatable-content-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The live capture and local replay create separate Product IDs while preserving the same translatable source fields."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable Product with title, body HTML, handle, product type, SEO title, and SEO description populated. The strict read target compares the captured Product translatableContent key/value/digest/locale/type array against a proxy-local product created through the same public productCreate request."
+}

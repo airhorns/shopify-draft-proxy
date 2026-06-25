@@ -1,0 +1,11 @@
+query FunctionOutputFieldValidationNodeInvalidRead($id: ID!) {
+  node(id: $id) {
+    ... on Validation {
+      functionId
+      functionHandle
+      createdAt
+      updatedAt
+      enable
+    }
+  }
+}

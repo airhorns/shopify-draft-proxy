@@ -8,44 +8,20 @@ mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $opti
       capturable
       totalCapturable
       totalCapturableSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
       }
       totalOutstandingSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
       }
       totalReceivedSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
       }
       netPaymentSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
       }
       paymentGatewayNames
       transactions {
@@ -54,14 +30,8 @@ mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $opti
         status
         gateway
         amountSet {
-          shopMoney {
-            amount
-            currencyCode
-          }
-          presentmentMoney {
-            amount
-            currencyCode
-          }
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
         }
         parentTransaction {
           id

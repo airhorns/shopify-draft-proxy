@@ -20,6 +20,22 @@ impl B2bCompanyLocationDeleteBlocker {
     }
 }
 
+fn b2b_bulk_status<T>(staged_items: &[T], user_errors: &[Value]) -> &'static str {
+    if staged_items.is_empty() && !user_errors.is_empty() {
+        "failed"
+    } else {
+        "staged"
+    }
+}
+
+fn b2b_null_when_failed(status: &str, value: Value) -> Value {
+    if status == "failed" {
+        Value::Null
+    } else {
+        value
+    }
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
         &mut self,
@@ -48,18 +64,14 @@ impl DraftProxy {
                 return None;
             }
             let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(&field);
-            self.record_mutation_log_entry(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
                 "companyLocationTaxSettingsUpdate",
                 staged_ids,
+                status,
             );
-            if status == "failed" {
-                if let Some(entry) = self.log_entries.last_mut() {
-                    set_log_status(entry, status);
-                }
-            }
             data.insert(
                 field.response_key.clone(),
                 selected_json(&payload, &field.selection),
@@ -90,18 +102,14 @@ impl DraftProxy {
                 for field in fields {
                     let (payload, status, staged_ids) =
                         self.b2b_company_location_update_payload(&field);
-                    self.record_mutation_log_entry(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
                         &field.name,
                         staged_ids,
+                        status,
                     );
-                    if status == "failed" {
-                        if let Some(entry) = self.log_entries.last_mut() {
-                            set_log_status(entry, status);
-                        }
-                    }
                     data.insert(
                         field.response_key.clone(),
                         selected_json(&payload, &field.selection),
@@ -301,18 +309,14 @@ impl DraftProxy {
                         }
                         _ => return None,
                     };
-                    self.record_mutation_log_entry(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
                         &field.name,
                         staged_ids,
+                        status,
                     );
-                    if status == "failed" {
-                        if let Some(entry) = self.log_entries.last_mut() {
-                            set_log_status(entry, status);
-                        }
-                    }
                     data.insert(
                         field.response_key.clone(),
                         self.b2b_payload_selected_json(&payload, &field.selection),
@@ -463,12 +467,14 @@ impl DraftProxy {
         }
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
-        self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
-        if status == "failed" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
+        self.record_mutation_log_with_status(
+            request,
+            query,
+            variables,
+            &field.name,
+            staged_ids,
+            status,
+        );
         let mut data = serde_json::Map::new();
         data.insert(
             field.response_key.clone(),
@@ -853,7 +859,7 @@ impl DraftProxy {
         // location, so it lives here (with store access) rather than in the
         // input-only helper.
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
-            let external_id_errors = b2b_location_external_id_errors(
+            let external_id_errors = b2b_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
                 &self.store.staged.b2b_locations.records,
@@ -953,7 +959,7 @@ impl DraftProxy {
         }
 
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
-            let errors = b2b_location_external_id_errors(
+            let errors = b2b_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
                 &self.store.staged.b2b_locations.records,
@@ -1160,6 +1166,20 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if input.is_empty() {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![json!({
+                        "field": Value::Null,
+                        "message": "Company contact create input is empty.",
+                        "code": "NO_INPUT"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         let errors = b2b_contact_create_input_errors(&input, &["input"]);
         if !errors.is_empty() {
             return (
@@ -1267,11 +1287,7 @@ impl DraftProxy {
                 ));
             }
         }
-        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&deleted_ids, &user_errors);
         (
             json!({
                 "deletedCompanyContactIds": deleted_ids,
@@ -1539,11 +1555,7 @@ impl DraftProxy {
             }
             assignments.push(self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id));
         }
-        let status = if assignments.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&assignments, &user_errors);
         let staged_ids = assignments
             .iter()
             .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
@@ -1628,11 +1640,7 @@ impl DraftProxy {
                 ));
             }
         }
-        let status = if revoked_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
                 "revokedRoleAssignmentIds": revoked_ids,
@@ -1745,11 +1753,7 @@ impl DraftProxy {
         for company_id in &deleted_ids {
             self.b2b_remove_company_graph(company_id);
         }
-        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&deleted_ids, &user_errors);
         (
             json!({
                 "deletedCompanyIds": deleted_ids,
@@ -1813,7 +1817,10 @@ impl DraftProxy {
         ids
     }
 
-    /// Removes a company and all of its staged locations from local state.
+    /// Removes a locally-staged company and all staged locations that point at it.
+    /// Keep this separate from `b2b_delete_company`: the passthrough cascade trusts the
+    /// removed company's explicit graph ids and also deletes contacts, while this local
+    /// path orphan-scans locations by company reference. Merge only with parity evidence.
     fn b2b_remove_company_graph(&mut self, company_id: &str) {
         let location_ids = self.b2b_company_location_ids(company_id);
         self.store.staged.b2b_companies.remove(company_id);
@@ -1893,11 +1900,7 @@ impl DraftProxy {
         for location_id in &deleted_ids {
             self.b2b_delete_company_location(location_id);
         }
-        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&deleted_ids, &user_errors);
         (
             json!({
                 "deletedCompanyLocationIds": deleted_ids,
@@ -2190,22 +2193,14 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.clone(), location);
-        let status = if assignments.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&assignments, &user_errors);
         let staged_ids = assignments
             .iter()
             .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
             .collect::<Vec<_>>();
         (
             json!({
-                "companyLocationStaffMemberAssignments": if assignments.is_empty() && !user_errors.is_empty() {
-                    Value::Null
-                } else {
-                    Value::Array(assignments)
-                },
+                "companyLocationStaffMemberAssignments": b2b_null_when_failed(status, Value::Array(assignments)),
                 "userErrors": user_errors
             }),
             status,
@@ -2247,18 +2242,10 @@ impl DraftProxy {
                 ));
             }
         }
-        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&deleted_ids, &user_errors);
         (
             json!({
-                "deletedCompanyLocationStaffMemberAssignmentIds": if deleted_ids.is_empty() && !user_errors.is_empty() {
-                    Value::Null
-                } else {
-                    json!(deleted_ids)
-                },
+                "deletedCompanyLocationStaffMemberAssignmentIds": b2b_null_when_failed(status, json!(deleted_ids)),
                 "userErrors": user_errors
             }),
             status,
@@ -2331,11 +2318,7 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.clone(), location);
-        let status = if assignments.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&assignments, &user_errors);
         let staged_ids = assignments
             .iter()
             .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
@@ -2380,23 +2363,11 @@ impl DraftProxy {
                 ));
             }
         }
-        let status = if revoked_ids.is_empty() && !user_errors.is_empty() {
-            "failed"
-        } else {
-            "staged"
-        };
+        let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
-                "revokedRoleAssignmentIds": if revoked_ids.is_empty() && !user_errors.is_empty() {
-                    Value::Null
-                } else {
-                    json!(revoked_ids)
-                },
-                "revokedCompanyContactRoleAssignmentIds": if revoked_ids.is_empty() && !user_errors.is_empty() {
-                    Value::Null
-                } else {
-                    json!(revoked_ids)
-                },
+                "revokedRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
+                "revokedCompanyContactRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
                 "userErrors": user_errors
             }),
             status,
@@ -3437,7 +3408,7 @@ impl DraftProxy {
         }
     }
 
-    /// Removes a company and its staged contacts and locations from local state.
+    /// Removes an upstream-confirmed company and the staged contacts/locations listed on it.
     fn b2b_delete_company(&mut self, company_id: &str) {
         if let Some(company) = self.store.staged.b2b_companies.remove(company_id) {
             for contact_id in b2b_json_id_list(&company, "contactIds") {
@@ -3903,7 +3874,8 @@ const B2B_UNITED_STATES_ZONES: &[(&str, &str)] = &[
 ];
 
 /// Validation for a CompanyContactInput supplied to companyCreate (nested under
-/// `["input","companyContact"]`). A malformed email surfaces as
+/// `["input","companyContact"]`). Missing email rejects the nested contact
+/// before the company tree is staged. A malformed email surfaces as
 /// "Email is invalid"/INVALID on the email field path; HTML markup in a name
 /// surfaces as a generic "Invalid input."/INVALID_INPUT on the parent input path,
 /// matching live Admin's BusinessCustomerUserError shape.
@@ -3912,6 +3884,12 @@ fn b2b_contact_input_errors(
     prefix: &[&str],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
+    if resolved_string_field(input, "email").is_none() {
+        errors.push(b2b_missing_contact_customer_reference_error(
+            prefix.to_vec(),
+        ));
+        return errors;
+    }
     if let Some(email) = resolved_string_field(input, "email") {
         if !is_valid_customer_email(&email) {
             let mut field = prefix.to_vec();
@@ -4075,8 +4053,8 @@ fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
 }
 
 /// Validates a `companyContactCreate` input: a title carrying HTML, a name that
-/// exceeds Shopify's 255-character limit, or an invalid email each produces a
-/// user error anchored at its own `input.<field>` path.
+/// exceeds Shopify's 255-character limit, a missing email, or an invalid email
+/// each produces a Shopify-shaped user error.
 fn b2b_contact_create_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
@@ -4109,6 +4087,12 @@ fn b2b_contact_create_input_errors(
             }
         }
     }
+    if resolved_string_field(input, "email").is_none() {
+        errors.push(b2b_missing_contact_customer_reference_error(
+            prefix.to_vec(),
+        ));
+        return errors;
+    }
     if let Some(email) = resolved_string_field(input, "email") {
         if !is_valid_customer_email(&email) {
             errors.push(user_error(
@@ -4121,48 +4105,46 @@ fn b2b_contact_create_input_errors(
     errors
 }
 
+fn b2b_missing_contact_customer_reference_error(field: Vec<&str>) -> Value {
+    b2b_company_user_error(
+        field,
+        "Either the attribute email or customer_id must be provided",
+        "INVALID",
+        None,
+    )
+}
+
 /// True when a staged order/draft-order record references the given company via
 /// its purchasing entity (directly, or through a draft order's nested completed
 /// order) — i.e. the company is still in use and cannot be deleted.
 fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
-    if let Some(entity) = record.get("purchasingEntity") {
-        if b2b_value_contains_company_id(entity, company_id) {
-            return true;
-        }
-    }
-    if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
-        if b2b_value_contains_company_id(entity, company_id) {
-            return true;
-        }
-    }
-    if let Some(order) = record.get("order") {
-        if order
-            .get("purchasingEntity")
-            .is_some_and(|entity| b2b_value_contains_company_id(entity, company_id))
-        {
-            return true;
-        }
-    }
-    false
+    b2b_record_references(record, company_id, b2b_value_contains_company_id)
 }
 
 /// True when a staged order/draft-order record references the given company
 /// location through its purchasing entity.
 fn b2b_record_references_company_location(record: &Value, location_id: &str) -> bool {
+    b2b_record_references(record, location_id, b2b_value_contains_company_location_id)
+}
+
+fn b2b_record_references<F>(record: &Value, id: &str, contains_id: F) -> bool
+where
+    F: Fn(&Value, &str) -> bool,
+{
     if let Some(entity) = record.get("purchasingEntity") {
-        if b2b_value_contains_company_location_id(entity, location_id) {
+        if contains_id(entity, id) {
             return true;
         }
     }
     if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
-        if b2b_value_contains_company_location_id(entity, location_id) {
+        if contains_id(entity, id) {
             return true;
         }
     }
     if let Some(order) = record.get("order") {
         if order
             .get("purchasingEntity")
-            .is_some_and(|entity| b2b_value_contains_company_location_id(entity, location_id))
+            .is_some_and(|entity| contains_id(entity, id))
         {
             return true;
         }

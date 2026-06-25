@@ -2,7 +2,7 @@ query ValidationsConnection {
   validations(first: 30) {
     nodes {
       id
-      enable
+      enabled
       metafields(first: 5) {
         nodes {
           namespace

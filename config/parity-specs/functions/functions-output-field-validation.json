@@ -1,0 +1,159 @@
+{
+  "scenarioId": "functions-output-field-validation",
+  "operationNames": ["validationCreate", "validation", "validations", "node", "fulfillmentConstraintRules"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-validation",
+    "output-field-allowlist",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "functions-output-field-validation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-output-field-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-output-field-validation-create.graphql",
+    "variablesCapturePath": "$.validationCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-valid-public-fields",
+        "capturePath": "$.validationCreate.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "Live Shopify and the local proxy allocate different Validation IDs for the disposable setup record."
+          },
+          {
+            "path": "$.validation.shopifyFunction.apiType",
+            "matcher": "exact-string:VALIDATION",
+            "reason": "Live Shopify returns the function target apiType string while the local catalog uses the Admin enum spelling."
+          }
+        ]
+      },
+      {
+        "name": "validation-invalid-output-fields",
+        "capturePath": "$.validationInvalidRead.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-validation-invalid-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validations-invalid-output-fields",
+        "capturePath": "$.validationsInvalidRead.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-validations-invalid-read.graphql",
+          "variables": {}
+        }
+      },
+      {
+        "name": "validation-valid-public-fields",
+        "capturePath": "$.validationValidRead.response.payload.data.validation",
+        "proxyPath": "$.data.validation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-validation-valid-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "Live Shopify and the local proxy allocate different Validation IDs for the disposable setup record."
+          },
+          {
+            "path": "$.shopifyFunction.apiType",
+            "matcher": "exact-string:VALIDATION",
+            "reason": "Live Shopify returns the function target apiType string while the local catalog uses the Admin enum spelling."
+          }
+        ]
+      },
+      {
+        "name": "validation-node-invalid-output-fields",
+        "capturePath": "$.validationNodeInvalidRead.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-validation-node-invalid-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-node-valid-public-fields",
+        "capturePath": "$.validationNodeValidRead.response.payload.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-validation-node-valid-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "Live Shopify and the local proxy allocate different Validation IDs for the disposable setup record."
+          },
+          {
+            "path": "$.shopifyFunction.apiType",
+            "matcher": "exact-string:VALIDATION",
+            "reason": "Live Shopify returns the function target apiType string while the local catalog uses the Admin enum spelling."
+          }
+        ]
+      },
+      {
+        "name": "fulfillment-constraint-rule-invalid-output-fields",
+        "capturePath": "$.fulfillmentConstraintRuleInvalidRead.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-fcr-invalid-read.graphql",
+          "variables": {}
+        }
+      },
+      {
+        "name": "fulfillment-constraint-rule-node-invalid-output-fields",
+        "capturePath": "$.fulfillmentConstraintRuleNodeInvalidRead.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-fcr-node-invalid-read.graphql",
+          "variables": {
+            "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+          }
+        }
+      },
+      {
+        "name": "fulfillment-constraint-rules-valid-empty-read",
+        "capturePath": "$.fulfillmentConstraintRulesValidEmptyRead.response.payload.data.fulfillmentConstraintRules",
+        "proxyPath": "$.data.fulfillmentConstraintRules",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-output-field-validation-fcr-valid-empty-read.graphql",
+          "variables": {}
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for public Validation and FulfillmentConstraintRule output field sets. Validation reads reject functionId, functionHandle, createdAt, updatedAt, and enable; FulfillmentConstraintRule reads reject functionId, functionHandle, and shopifyFunction. The fulfillment-constraint negative selections are resolver-independent and do not require a released fulfillment-constraint Function."
+}

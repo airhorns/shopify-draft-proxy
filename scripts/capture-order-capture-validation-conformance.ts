@@ -194,16 +194,69 @@ function assertMultiCurrency(step: CaptureStep): void {
   }
 }
 
+function assertSingleCurrency(step: CaptureStep): void {
+  const order = orderFromCreate(step);
+  const presentmentCurrencyCode = readString(order, 'presentmentCurrencyCode');
+  const shopCurrencyCode = readString(readRecord(readRecord(order, 'totalCapturableSet'), 'shopMoney'), 'currencyCode');
+  if (!presentmentCurrencyCode || !shopCurrencyCode || presentmentCurrencyCode !== shopCurrencyCode) {
+    throw new Error(`Expected single-currency orderCreate result: ${JSON.stringify(order, null, 2)}`);
+  }
+}
+
+function assertOrderCaptureSucceeded(step: CaptureStep, context: string): void {
+  const orderCapture = readRecord(step.response.data, 'orderCapture');
+  const errors = readArray(orderCapture, 'userErrors');
+  const transaction = readRecord(orderCapture, 'transaction');
+  if (!transaction || errors.length > 0) {
+    throw new Error(`${context} did not produce a capture transaction: ${JSON.stringify(step.response, null, 2)}`);
+  }
+}
+
+function isTemporaryUnavailableCapture(step: CaptureStep): boolean {
+  const orderCapture = readRecord(step.response.data, 'orderCapture');
+  const transaction = readRecord(orderCapture, 'transaction');
+  const errors = readArray(orderCapture, 'userErrors').map(asRecord);
+  return (
+    !transaction &&
+    errors.some((error) => {
+      const field = error?.['field'];
+      return (
+        Array.isArray(field) &&
+        field.length === 1 &&
+        field[0] === 'id' &&
+        error?.['message'] === 'Order is temporarily unavailable to be modified.'
+      );
+    })
+  );
+}
+
 function assertNoTopLevelErrors(result: ConformanceGraphqlResult<JsonRecord>, context: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
     throw new Error(`${context} failed: ${JSON.stringify(result.payload, null, 2)}`);
   }
 }
 
+async function sleep(milliseconds: number): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
 async function runCapture(query: string, variables: JsonRecord, context: string): Promise<CaptureStep> {
   const response = await runGraphqlRequest<JsonRecord>(query, variables);
   assertNoTopLevelErrors(response, context);
   return { query, variables, response: response.payload };
+}
+
+async function runOrderCapture(query: string, variables: JsonRecord, context: string): Promise<CaptureStep> {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const step = await runCapture(query, variables, context);
+    if (!isTemporaryUnavailableCapture(step) || attempt === 5) {
+      return step;
+    }
+    await sleep(attempt * 2_000);
+  }
+  throw new Error(`${context} retry loop exhausted unexpectedly`);
 }
 
 async function writeJson(filePath: string, payload: unknown): Promise<void> {
@@ -268,6 +321,40 @@ function authorizationOrderVariables(stamp: number): JsonRecord {
   };
 }
 
+function singleCurrencyAuthorizationOrderVariables(stamp: number, label: string): JsonRecord {
+  const priceSet = moneyBag('12.50', 'CAD', '12.50', 'CAD');
+  return {
+    order: {
+      email: `order-capture-${label}-${stamp}@example.com`,
+      note: `orderCapture ${label} live capture ${stamp}`,
+      tags: ['order-capture-validation', 'conformance', label],
+      test: true,
+      currency: 'CAD',
+      presentmentCurrency: 'CAD',
+      lineItems: [
+        {
+          title: `Order capture ${label} item ${stamp}`,
+          quantity: 1,
+          priceSet,
+          requiresShipping: false,
+          taxable: false,
+          sku: `order-capture-${label}-${stamp}`,
+        },
+      ],
+      transactions: [
+        {
+          kind: 'AUTHORIZATION',
+          status: 'SUCCESS',
+          gateway: 'manual',
+          test: true,
+          amountSet: priceSet,
+        },
+      ],
+    },
+    options: null,
+  };
+}
+
 function captureInput(
   orderId: string,
   parentTransactionId: string,
@@ -315,40 +402,73 @@ try {
   const authorizationId = authorizationIdFromCreate(createAuthorizationOrder);
   orderIds.push(orderId);
 
-  const currencyRequired = await runCapture(
+  const currencyRequired = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '5.00'),
     'orderCapture currency required',
   );
-  const currencyMismatch = await runCapture(
+  const currencyMismatch = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '5.00', { currency: 'CAD' }),
     'orderCapture currency mismatch',
   );
-  const parentNotFound = await runCapture(
+  const parentNotFound = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, 'gid://shopify/OrderTransaction/999999999999999999', '5.00', { currency: 'USD' }),
     'orderCapture parent not found',
   );
-  const invalidAmount = await runCapture(
+  const invalidAmount = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '0.00', { currency: 'USD' }),
     'orderCapture invalid amount',
   );
-  const overCapture = await runCapture(
+  const overCapture = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '99.99', { currency: 'USD' }),
     'orderCapture over capture',
   );
-  const finalCapture = await runCapture(
+  const finalCapture = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '5.00', { currency: 'USD', finalCapture: true }),
     'orderCapture final capture',
   );
-  const postFinalCapture = await runCapture(
+  const postFinalCapture = await runOrderCapture(
     orderCaptureDocument,
     captureInput(orderId, authorizationId, '1.00', { currency: 'USD' }),
     'orderCapture post-final capture',
+  );
+
+  const createSingleCurrencyAuthorizationOrder = await runCapture(
+    orderCreateDocument,
+    singleCurrencyAuthorizationOrderVariables(stamp, 'single-currency-omitted-currency'),
+    'single-currency authorization orderCreate for omitted currency',
+  );
+  assertSingleCurrency(createSingleCurrencyAuthorizationOrder);
+  const singleCurrencyOrderId = orderIdFromCreate(createSingleCurrencyAuthorizationOrder);
+  const singleCurrencyAuthorizationId = authorizationIdFromCreate(createSingleCurrencyAuthorizationOrder);
+  orderIds.push(singleCurrencyOrderId);
+
+  const singleCurrencyOmittedCurrency = await runOrderCapture(
+    orderCaptureDocument,
+    captureInput(singleCurrencyOrderId, singleCurrencyAuthorizationId, '5.00'),
+    'single-currency orderCapture omitted currency',
+  );
+  assertOrderCaptureSucceeded(singleCurrencyOmittedCurrency, 'single-currency orderCapture omitted currency');
+
+  const createSingleCurrencyZeroAmountOrder = await runCapture(
+    orderCreateDocument,
+    singleCurrencyAuthorizationOrderVariables(stamp, 'single-currency-zero-amount'),
+    'single-currency authorization orderCreate for zero amount',
+  );
+  assertSingleCurrency(createSingleCurrencyZeroAmountOrder);
+  const singleCurrencyZeroAmountOrderId = orderIdFromCreate(createSingleCurrencyZeroAmountOrder);
+  const singleCurrencyZeroAmountAuthorizationId = authorizationIdFromCreate(createSingleCurrencyZeroAmountOrder);
+  orderIds.push(singleCurrencyZeroAmountOrderId);
+
+  const singleCurrencyZeroAmount = await runOrderCapture(
+    orderCaptureDocument,
+    captureInput(singleCurrencyZeroAmountOrderId, singleCurrencyZeroAmountAuthorizationId, '0.00'),
+    'single-currency orderCapture zero amount',
   );
 
   for (const cleanupOrderId of [...orderIds].reverse()) {
@@ -371,6 +491,10 @@ try {
       overCapture,
       finalCapture,
       postFinalCapture,
+      createSingleCurrencyAuthorizationOrder,
+      singleCurrencyOmittedCurrency,
+      createSingleCurrencyZeroAmountOrder,
+      singleCurrencyZeroAmount,
     },
     cleanup,
     upstreamCalls: [],
@@ -438,6 +562,98 @@ try {
                 },
                 amount: '5.00',
                 currency: 'CAD',
+              },
+            },
+            apiVersion,
+          },
+        },
+        {
+          name: 'single-currency-authorization-order',
+          capturePath: '$.operations.createSingleCurrencyAuthorizationOrder.response.data.orderCreate',
+          proxyPath: '$.data.orderCreate',
+          selectedPaths: [
+            '$.order.presentmentCurrencyCode',
+            '$.order.transactions[0].kind',
+            '$.order.transactions[0].status',
+            '$.order.transactions[0].amountSet.shopMoney.currencyCode',
+            '$.userErrors',
+          ],
+          proxyRequest: {
+            documentPath: createRequestPath,
+            variablesCapturePath: '$.operations.createSingleCurrencyAuthorizationOrder.variables',
+            apiVersion,
+          },
+        },
+        {
+          name: 'single-currency-omitted-currency-capture',
+          capturePath: '$.operations.singleCurrencyOmittedCurrency.response.data.orderCapture',
+          proxyPath: '$.data.orderCapture',
+          selectedPaths: [
+            '$.transaction.kind',
+            '$.transaction.status',
+            '$.transaction.amountSet.shopMoney.amount',
+            '$.transaction.amountSet.shopMoney.currencyCode',
+            '$.userErrors',
+          ],
+          proxyRequest: {
+            documentPath: captureRequestPath,
+            variables: {
+              input: {
+                id: {
+                  fromProxyResponse: 'single-currency-authorization-order',
+                  path: '$.data.orderCreate.order.id',
+                },
+                parentTransactionId: {
+                  fromProxyResponse: 'single-currency-authorization-order',
+                  path: '$.data.orderCreate.order.transactions[0].id',
+                },
+                amount: '5.00',
+              },
+            },
+            apiVersion,
+          },
+        },
+        {
+          name: 'single-currency-zero-amount-order',
+          capturePath: '$.operations.createSingleCurrencyZeroAmountOrder.response.data.orderCreate',
+          proxyPath: '$.data.orderCreate',
+          selectedPaths: [
+            '$.order.presentmentCurrencyCode',
+            '$.order.transactions[0].kind',
+            '$.order.transactions[0].status',
+            '$.order.transactions[0].amountSet.shopMoney.currencyCode',
+            '$.userErrors',
+          ],
+          proxyRequest: {
+            documentPath: createRequestPath,
+            variablesCapturePath: '$.operations.createSingleCurrencyZeroAmountOrder.variables',
+            apiVersion,
+          },
+        },
+        {
+          name: 'single-currency-zero-amount-capture',
+          capturePath: '$.operations.singleCurrencyZeroAmount.response.data.orderCapture',
+          proxyPath: '$.data.orderCapture',
+          selectedPaths: [
+            '$.transaction.kind',
+            '$.transaction.status',
+            '$.transaction.amountSet.shopMoney.amount',
+            '$.transaction.amountSet.shopMoney.currencyCode',
+            '$.userErrors',
+          ],
+          proxyRequest: {
+            documentPath: captureRequestPath,
+            variables: {
+              input: {
+                id: {
+                  fromProxyResponse: 'single-currency-zero-amount-order',
+                  path: '$.data.orderCreate.order.id',
+                },
+                parentTransactionId: {
+                  fromProxyResponse: 'single-currency-zero-amount-order',
+                  path: '$.data.orderCreate.order.transactions[0].id',
+                },
+                amount: '0.00',
               },
             },
             apiVersion,
@@ -517,7 +733,7 @@ try {
       ],
     },
     notes:
-      'Live 2026-04 public Admin API capture for orderCapture validation against a disposable multi-currency authorization order. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available.',
+      'Live 2026-04 public Admin API capture for orderCapture validation against disposable multi-currency and single-currency authorization orders. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available. The single-currency branches prove omitted currency succeeds and zero-amount behavior is replayed from Shopify evidence rather than local invented validation.',
   });
 
   console.log(

@@ -3241,15 +3241,10 @@ fn discount_customer_gets_from_input(
         resolved_f64_path(input, &["customerGets", "value", "percentage"])
     {
         json!({ "__typename": "DiscountPercentage", "percentage": percentage })
-    } else if let Some(amount) = resolved_decimal_text_path(
-        input,
-        &["customerGets", "value", "discountAmount", "amount"],
-    ) {
-        json!({
-            "__typename": "DiscountAmount",
-            "amount": money_value(&amount, "CAD"),
-            "appliesOnEachItem": false
-        })
+    } else if let Some(amount) =
+        discount_amount_value_from_input(input, &["customerGets", "value", "discountAmount"])
+    {
+        amount
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 0.1 })
     };
@@ -3282,7 +3277,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
         ],
     ) {
         json!({ "__typename": "DiscountPercentage", "percentage": percentage })
-    } else if let Some(amount) = resolved_decimal_text_path(
+    } else if let Some(amount) = discount_amount_value_from_input(
         input,
         &[
             "customerGets",
@@ -3290,14 +3285,20 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
             "discountOnQuantity",
             "effect",
             "discountAmount",
+        ],
+    ) {
+        amount
+    } else if let Some(amount) = resolved_decimal_text_path(
+        input,
+        &[
+            "customerGets",
+            "value",
+            "discountOnQuantity",
+            "effect",
             "amount",
         ],
     ) {
-        json!({
-            "__typename": "DiscountAmount",
-            "amount": money_value(&amount, "CAD"),
-            "appliesOnEachItem": false
-        })
+        fixed_discount_amount_value(&amount, false)
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 1.0 })
     };
@@ -3306,6 +3307,41 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
         "quantity": { "quantity": quantity },
         "effect": effect
     })
+}
+
+fn discount_amount_value_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    base_path: &[&str],
+) -> Option<Value> {
+    let mut amount_path = base_path.to_vec();
+    amount_path.push("amount");
+    let amount = resolved_decimal_text_path(input, &amount_path)?;
+    Some(fixed_discount_amount_value(
+        &amount,
+        discount_amount_applies_on_each_item(input, base_path),
+    ))
+}
+
+fn fixed_discount_amount_value(amount: &str, applies_on_each_item: bool) -> Value {
+    json!({
+        "__typename": "DiscountAmount",
+        "amount": money_value(amount, "CAD"),
+        "appliesOnEachItem": applies_on_each_item
+    })
+}
+
+fn discount_amount_applies_on_each_item(
+    input: &BTreeMap<String, ResolvedValue>,
+    base_path: &[&str],
+) -> bool {
+    for field in ["appliesOnEachItem", "each", "useEach"] {
+        let mut path = base_path.to_vec();
+        path.push(field);
+        if let Some(value) = resolved_bool_path(input, &path) {
+            return value;
+        }
+    }
+    false
 }
 
 fn discount_items_from_input(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Value {
