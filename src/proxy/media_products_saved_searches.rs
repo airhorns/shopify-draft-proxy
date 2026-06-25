@@ -2674,7 +2674,7 @@ impl DraftProxy {
         let Some(mut product) = self
             .store
             .product_staged_or_base(id)
-            .or_else(|| known_product_change_status_seed(id))
+            .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
             let payload_selection = &field.selection;
             let error_selection =
@@ -2766,7 +2766,6 @@ impl DraftProxy {
         let Some(mut product) = self
             .store
             .product_staged_or_base(id)
-            .or_else(|| known_tags_product_seed(id, root_field))
             .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
             return MutationOutcome::response(json_error(
@@ -2776,8 +2775,7 @@ impl DraftProxy {
         };
 
         if !self.store.staged.product_search_tags.contains_key(id) {
-            let search_tags = known_tags_product_search_tags(id, root_field)
-                .unwrap_or_else(|| product.tags.iter().cloned().collect());
+            let search_tags = product.tags.iter().cloned().collect();
             self.store
                 .staged
                 .product_search_tags
@@ -3034,7 +3032,7 @@ impl DraftProxy {
         let mut product = local_product
             .or_else(|| self.hydrate_product_for_tags(&product_id, request))
             .unwrap_or_else(|| {
-                let timestamp = default_product_timestamp(&product_id);
+                let timestamp = default_product_timestamp();
                 ProductRecord {
                     id: product_id.clone(),
                     created_at: timestamp.clone(),

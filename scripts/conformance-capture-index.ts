@@ -1069,6 +1069,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'config/parity-specs/products/tagsAdd-parity-plan.json',
       'config/parity-specs/products/tags-normalization-parity.json',
       'config/parity-requests/products/tags-normalization-setup.graphql',
       'config/parity-requests/products/tagsAdd-case-variant.graphql',
