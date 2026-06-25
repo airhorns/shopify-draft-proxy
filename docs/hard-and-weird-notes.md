@@ -2743,6 +2743,7 @@ Captured mutation behavior:
 - HAR-287 expanded the 2026-04 validation matrix:
   - missing/null nested consent payloads, null `marketingState`, invalid enum values, unknown input fields such as SMS `consentCollectedFrom`, and malformed `consentUpdatedAt` values are GraphQL `INVALID_VARIABLE` failures before resolver execution
   - `NOT_SUBSCRIBED`, `REDACTED`, and email `INVALID` are enum values in schema exposure, but the resolver rejects them as input states with top-level `INVALID` errors
+  - for Partner-scoped requesters, `SUBSCRIBED` requires `marketingOptInLevel`; omitting the field returns `userErrors: [{ field: ["input", <consentKey>, "marketingOptInLevel"], message: "Marketing opt in level must exist", code: "MISSING_ARGUMENT" }]` without changing stored consent
   - `PENDING` requires `marketingOptInLevel: CONFIRMED_OPT_IN`; using `SINGLE_OPT_IN` returns a mutation `userErrors` entry at `["input", <consentKey>, "marketingOptInLevel"]` without changing stored consent
   - future `consentUpdatedAt` returns a mutation `userErrors` entry at `["input", <consentKey>, "consentUpdatedAt"]`; email returns the unchanged customer payload, while SMS returns `customer: null`
   - SMS consent update requires an existing default phone number and returns `field: ["input", "smsMarketingConsent"]`, message `A phone number is required to set the SMS consent state.`, code `INVALID` when absent

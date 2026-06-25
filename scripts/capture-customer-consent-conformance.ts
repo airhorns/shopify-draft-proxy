@@ -176,6 +176,8 @@ async function main() {
   const transitionPhoneNumber = `+1415666${String(stamp).slice(-4).padStart(4, '0')}`;
   const emailOnlyAddress = `hermes-consent-email-only-${stamp}@example.com`;
   const phoneOnlyNumber = `+1415777${String(stamp).slice(-4).padStart(4, '0')}`;
+  const missingLevelEmailAddress = `hermes-consent-missing-level-${stamp}@example.com`;
+  const missingLevelPhoneNumber = `+1415888${String(stamp).slice(-4).padStart(4, '0')}`;
   const createVariables = {
     input: {
       email: emailAddress,
@@ -246,6 +248,23 @@ async function main() {
   if (typeof phoneOnlyCustomerId !== 'string' || !phoneOnlyCustomerId) {
     throw new Error(
       `phone-only customerCreate did not return a customer id: ${JSON.stringify(phoneOnlyCreateResult.payload, null, 2)}`,
+    );
+  }
+
+  const missingLevelCreateResult = await runGraphql(createMutation, {
+    input: {
+      email: missingLevelEmailAddress,
+      firstName: 'Hermes',
+      lastName: 'ConsentMissingLevel',
+      phone: missingLevelPhoneNumber,
+      tags: ['parity', `consent-missing-level-${stamp}`],
+    },
+  });
+  assertNoTopLevelErrors(missingLevelCreateResult, 'customerCreate for consent missing-level matrix');
+  const missingLevelCustomerId = missingLevelCreateResult.payload?.data?.customerCreate?.customer?.id;
+  if (typeof missingLevelCustomerId !== 'string' || !missingLevelCustomerId) {
+    throw new Error(
+      `missing-level customerCreate did not return a customer id: ${JSON.stringify(missingLevelCreateResult.payload, null, 2)}`,
     );
   }
 
@@ -462,6 +481,14 @@ async function main() {
         },
       },
     }),
+    await runCaptureCase('subscribed missing opt-in level', emailConsentMutation, {
+      input: {
+        customerId: missingLevelCustomerId,
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+        },
+      },
+    }),
   ];
 
   const smsValidationMatrix = [
@@ -614,7 +641,17 @@ async function main() {
         },
       },
     }),
+    await runCaptureCase('subscribed missing opt-in level', smsConsentMutation, {
+      input: {
+        customerId: missingLevelCustomerId,
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+        },
+      },
+    }),
   ];
+  const emailMissingOptInLevelCase = emailValidationMatrix.at(-1);
+  const smsMissingOptInLevelCase = smsValidationMatrix.at(-1);
 
   const deleteResult = await runGraphql(deleteMutation, { input: { id: customerId } });
   assertNoTopLevelErrors(deleteResult, 'customerDelete cleanup for consent parity');
@@ -624,6 +661,8 @@ async function main() {
   assertNoTopLevelErrors(emailOnlyDeleteResult, 'customerDelete cleanup for consent email-only matrix');
   const phoneOnlyDeleteResult = await runGraphql(deleteMutation, { input: { id: phoneOnlyCustomerId } });
   assertNoTopLevelErrors(phoneOnlyDeleteResult, 'customerDelete cleanup for consent phone-only matrix');
+  const missingLevelDeleteResult = await runGraphql(deleteMutation, { input: { id: missingLevelCustomerId } });
+  assertNoTopLevelErrors(missingLevelDeleteResult, 'customerDelete cleanup for consent missing-level matrix');
 
   const emailCapture = {
     precondition: {
@@ -645,7 +684,9 @@ async function main() {
       matrixPreconditions: {
         transitionCustomer: transitionCreateResult.payload,
         phoneOnlyCustomer: phoneOnlyCreateResult.payload,
+        missingLevelCustomer: missingLevelCreateResult.payload,
       },
+      missingOptInLevel: emailMissingOptInLevelCase,
       matrix: emailValidationMatrix,
     },
     upstreamCalls: [
@@ -674,7 +715,9 @@ async function main() {
       matrixPreconditions: {
         transitionCustomer: transitionCreateResult.payload,
         emailOnlyCustomer: emailOnlyCreateResult.payload,
+        missingLevelCustomer: missingLevelCreateResult.payload,
       },
+      missingOptInLevel: smsMissingOptInLevelCase,
       matrix: smsValidationMatrix,
     },
     cleanup: {
@@ -682,6 +725,7 @@ async function main() {
       transitionCustomerResponse: transitionDeleteResult.payload,
       emailOnlyCustomerResponse: emailOnlyDeleteResult.payload,
       phoneOnlyCustomerResponse: phoneOnlyDeleteResult.payload,
+      missingLevelCustomerResponse: missingLevelDeleteResult.payload,
     },
     upstreamCalls: [
       hydrateUpstreamCall(customerId, smsHydratePayload),
