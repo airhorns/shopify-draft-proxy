@@ -1567,8 +1567,8 @@ impl DraftProxy {
                 "productVariantsBulkCreate",
                 None,
                 Some(Vec::new()),
-                vec![Self::bulk_user_error(
-                    &["productId"],
+                vec![user_error(
+                    ["productId"],
                     "Product does not exist",
                     Some("PRODUCT_DOES_NOT_EXIST"),
                 )],
@@ -1610,8 +1610,8 @@ impl DraftProxy {
             variants_input.len(),
         ) > 2048
         {
-            user_errors.push(Self::bulk_user_error(
-                &["variants"],
+            user_errors.push(user_error(
+                ["variants"],
                 "Product cannot have more than 2048 variants",
                 Some("TOO_MANY_VARIANTS"),
             ));
@@ -1733,8 +1733,8 @@ impl DraftProxy {
                 "productVariantsBulkUpdate",
                 None,
                 None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
+                vec![user_error(
+                    ["productId"],
                     "Product does not exist",
                     Some("PRODUCT_DOES_NOT_EXIST"),
                 )],
@@ -1756,32 +1756,32 @@ impl DraftProxy {
         for (index, input) in variants_input.iter().enumerate() {
             let prefix = ["variants".to_string(), index.to_string()];
             let Some(variant_id) = resolved_string_field(input, "id") else {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
+                user_errors.push(user_error(
+                    ["variants", &index.to_string(), "id"],
                     "Product variant is missing ID attribute",
                     Some("PRODUCT_VARIANT_ID_MISSING"),
                 ));
                 continue;
             };
             let Some(existing) = self.store.product_variant_by_id(&variant_id).cloned() else {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
+                user_errors.push(user_error(
+                    ["variants", &index.to_string(), "id"],
                     "Product variant does not exist",
                     Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
                 ));
                 continue;
             };
             if existing.product_id != product.id {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
+                user_errors.push(user_error(
+                    ["variants", &index.to_string(), "id"],
                     "Product variant does not exist",
                     Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
                 ));
                 continue;
             }
             if input.contains_key("inventoryQuantities") {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "inventoryQuantities"],
+                user_errors.push(user_error(
+                    ["variants", &index.to_string(), "inventoryQuantities"],
                     "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
                     Some("NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"),
                 ));
@@ -1866,8 +1866,8 @@ impl DraftProxy {
                 "productVariantsBulkDelete",
                 None,
                 None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
+                vec![user_error(
+                    ["productId"],
                     "Product does not exist",
                     Some("PRODUCT_DOES_NOT_EXIST"),
                 )],
@@ -1881,8 +1881,8 @@ impl DraftProxy {
                 .product_variant_by_id(variant_id)
                 .is_some_and(|variant| variant.product_id == product.id);
             if !belongs_to_product {
-                user_errors.push(Self::bulk_user_error(
-                    &["variantsIds", &index.to_string()],
+                user_errors.push(user_error(
+                    ["variantsIds", &index.to_string()],
                     "At least one variant does not belong to the product",
                     Some("AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"),
                 ));
@@ -1952,8 +1952,8 @@ impl DraftProxy {
                 "productVariantsBulkReorder",
                 None,
                 None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
+                vec![user_error(
+                    ["productId"],
                     "Product does not exist",
                     Some("PRODUCT_DOES_NOT_EXIST"),
                 )],
@@ -1965,8 +1965,8 @@ impl DraftProxy {
         let mut seen_variant_ids = BTreeSet::new();
         for (index, position) in positions.iter().enumerate() {
             let Some(variant_id) = resolved_string_field(position, "id") else {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions", &index.to_string(), "id"],
+                user_errors.push(user_error(
+                    ["positions", &index.to_string(), "id"],
                     "Product variant is missing ID attribute",
                     Some("MISSING_VARIANT"),
                 ));
@@ -1975,8 +1975,8 @@ impl DraftProxy {
             let position_value =
                 resolved_int_field(position, "position").unwrap_or((index + 1) as i64);
             if position_value < 1 {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions", &index.to_string(), "position"],
+                user_errors.push(user_error(
+                    ["positions", &index.to_string(), "position"],
                     "Position can not be zero or negative number",
                     Some("INVALID_POSITION"),
                 ));
@@ -1986,16 +1986,16 @@ impl DraftProxy {
                 .product_variant_by_id(&variant_id)
                 .is_none_or(|variant| variant.product_id != product.id)
             {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions", &index.to_string(), "id"],
+                user_errors.push(user_error(
+                    ["positions", &index.to_string(), "id"],
                     "Product variant does not exist",
                     Some("MISSING_VARIANT"),
                 ));
                 continue;
             }
             if !seen_variant_ids.insert(variant_id.clone()) {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions"],
+                user_errors.push(user_error(
+                    ["positions"],
                     "Product variant IDs must be unique",
                     Some("DUPLICATED_VARIANT_ID"),
                 ));
@@ -2240,25 +2240,16 @@ impl DraftProxy {
 
     fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
         ok_json(json!({
-            "errors": [{
-                "message": format!(
-                    "The input array size of {} is greater than the maximum allowed of 2048.",
-                    size
-                ),
-                "locations": [{
+            "errors": [max_input_size_exceeded_error(
+                [field.name.as_str(), "variants"],
+                size,
+                2048,
+                Some(json!([{
                     "line": field.location.line,
                     "column": field.location.column
-                }],
-                "path": [field.name, "variants"],
-                "extensions": {
-                    "code": "MAX_INPUT_SIZE_EXCEEDED"
-                }
-            }]
+                }]))
+            )]
         }))
-    }
-
-    fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-        user_error(field, message, code)
     }
 
     fn product_variant_bulk_inventory_quantities_limit_user_error(
@@ -2269,8 +2260,8 @@ impl DraftProxy {
             .map(|input| resolved_object_list_field(input, "inventoryQuantities").len())
             .sum();
         if quantity_count > PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT {
-            Some(Self::bulk_user_error(
-                &["variants"],
+            Some(user_error(
+                ["variants"],
                 "Inventory quantity input exceeds the limit of 50000. Consider using separate `inventorySetQuantities` mutations.",
                 Some("INVALID_INPUT"),
             ))
@@ -2291,8 +2282,8 @@ impl DraftProxy {
         let product_option_names = Self::product_option_names(product);
         for (option_index, option) in options.iter().enumerate() {
             if option.contains_key("optionId") && option.contains_key("optionName") {
-                errors.push(Self::bulk_user_error(
-                    &[
+                errors.push(user_error(
+                    [
                         "variants",
                         &index.to_string(),
                         "optionValues",
@@ -2304,8 +2295,8 @@ impl DraftProxy {
                 break;
             }
             if option.contains_key("id") && option.contains_key("name") {
-                errors.push(Self::bulk_user_error(
-                    &[
+                errors.push(user_error(
+                    [
                         "variants",
                         &index.to_string(),
                         "optionValues",
@@ -2320,8 +2311,8 @@ impl DraftProxy {
                 .or_else(|| resolved_string_field(option, "name"))
                 .unwrap_or_default();
             if !option_name.is_empty() && !names.insert(option_name.clone()) {
-                errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "optionValues"],
+                errors.push(user_error(
+                    ["variants", &index.to_string(), "optionValues"],
                     &format!("Duplicated option name '{}'", option_name),
                     Some("INVALID_INPUT"),
                 ));
@@ -2333,8 +2324,8 @@ impl DraftProxy {
                     && !product_option_names.is_empty()
                     && !product_option_names.contains(&option_name))
             {
-                errors.push(Self::bulk_user_error(
-                    &[
+                errors.push(user_error(
+                    [
                         "variants",
                         &index.to_string(),
                         "optionValues",
@@ -2353,8 +2344,8 @@ impl DraftProxy {
         if errors.is_empty() && !update {
             for option_name in product_option_names {
                 if !names.contains(&option_name) {
-                    errors.push(Self::bulk_user_error(
-                        &["variants", &index.to_string()],
+                    errors.push(user_error(
+                        ["variants", &index.to_string()],
                         &format!("You need to add option values for {}", option_name),
                         Some("NEED_TO_ADD_OPTION_VALUES"),
                     ));
@@ -2397,8 +2388,8 @@ impl DraftProxy {
                 continue;
             }
             if !seen.insert(tuple.clone()) {
-                return vec![Self::bulk_user_error(
-                    &["variants", &index.to_string()],
+                return vec![user_error(
+                    ["variants", &index.to_string()],
                     &format!(
                         "The variant '{}' already exists. Please change at least one option value.",
                         tuple.join(" / ")
@@ -2417,8 +2408,8 @@ impl DraftProxy {
     ) -> Vec<Value> {
         let inventory_quantities = resolved_object_list_field(input, "inventoryQuantities");
         if inventory_quantities.len() > self.product_variant_bulk_inventory_location_limit() {
-            return vec![Self::bulk_user_error(
-                &["variants", &index.to_string()],
+            return vec![user_error(
+                ["variants", &index.to_string()],
                 "Inventory locations cannot exceed the allowed resource limit",
                 Some("TOO_MANY_INVENTORY_LOCATIONS"),
             )];
@@ -2432,8 +2423,8 @@ impl DraftProxy {
             resolved_string_field(quantity, "locationId")
                 .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
         }) {
-            vec![Self::bulk_user_error(
-                &["variants", &index.to_string(), "inventoryQuantities"],
+            vec![user_error(
+                ["variants", &index.to_string(), "inventoryQuantities"],
                 &format!(
                     "Quantity for {} couldn't be set because the location was deleted.",
                     if variant_title.is_empty() {
