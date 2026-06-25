@@ -1,0 +1,21 @@
+mutation MetafieldDefinitionProtectedGuardsStandardEnable($ownerType: MetafieldOwnerType!, $id: ID!) {
+  standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id) {
+    createdDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      description
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

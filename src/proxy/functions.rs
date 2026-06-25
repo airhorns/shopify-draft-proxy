@@ -49,15 +49,35 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "validation" => resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.store.staged.function_validations.get(&id).cloned())
-                    .or_else(|| self.store.staged.function_validation.clone())
+                    .and_then(|id| {
+                        self.store
+                            .staged
+                            .function_validations
+                            .get(&id)
+                            .map(|record| validation_record_for_selection(record, &field.selection))
+                    })
+                    .or_else(|| {
+                        self.store
+                            .staged
+                            .function_validation
+                            .as_ref()
+                            .map(|record| validation_record_for_selection(record, &field.selection))
+                    })
                     .unwrap_or(Value::Null),
                 "validations" => local_function_connection_from_nodes(
                     self.store
                         .staged
                         .function_validation_order
                         .iter()
-                        .filter_map(|id| self.store.staged.function_validations.get(id).cloned())
+                        .filter_map(|id| {
+                            self.store
+                                .staged
+                                .function_validations
+                                .get(id)
+                                .map(|record| {
+                                    validation_record_for_selection(record, &field.selection)
+                                })
+                        })
                         .collect(),
                 ),
                 "cartTransforms" => local_function_connection_from_nodes(
@@ -76,26 +96,7 @@ impl DraftProxy {
                         })
                         .collect(),
                 ),
-                "fulfillmentConstraintRules" => Value::Array(
-                    self.store
-                        .staged
-                        .function_fulfillment_constraint_rule_order
-                        .iter()
-                        .filter_map(|id| {
-                            self.store
-                                .staged
-                                .function_fulfillment_constraint_rules
-                                .get(id)
-                                .map(|record| {
-                                    fulfillment_constraint_rule_record_for_selection(
-                                        record,
-                                        &field.selection,
-                                    )
-                                })
-                        })
-                        .map(|record| selected_json(&record, &field.selection))
-                        .collect(),
-                ),
+                "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(field),
                 "shopifyFunctions" => {
                     let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
                     let api_type = match api_type.as_str() {
@@ -113,6 +114,24 @@ impl DraftProxy {
                     }
                     None => local_cart_transform_function(),
                 },
+                "node" => {
+                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    self.local_node_value_by_id(&id, &field.selection)
+                        .unwrap_or(Value::Null)
+                }
+                "nodes" => Value::Array(
+                    field
+                        .arguments
+                        .get("ids")
+                        .map(resolved_string_list)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|id| {
+                            self.local_node_value_by_id(&id, &field.selection)
+                                .unwrap_or(Value::Null)
+                        })
+                        .collect(),
+                ),
                 _ => Value::Null,
             };
             if value.is_null() {
@@ -127,6 +146,37 @@ impl DraftProxy {
             }
         }
         Value::Object(data)
+    }
+
+    fn fulfillment_constraint_rules_read_value(&self, field: &RootFieldSelection) -> Value {
+        let records: Vec<Value> = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rule_order
+            .iter()
+            .filter_map(|id| {
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rules
+                    .get(id)
+                    .map(|record| {
+                        fulfillment_constraint_rule_record_for_selection(record, &field.selection)
+                    })
+            })
+            .collect();
+        if fulfillment_constraint_rules_uses_connection_selection(&field.selection) {
+            selected_json(
+                &local_function_connection_from_nodes(records),
+                &field.selection,
+            )
+        } else {
+            Value::Array(
+                records
+                    .iter()
+                    .map(|record| selected_json(record, &field.selection))
+                    .collect(),
+            )
+        }
     }
 
     fn function_catalog_read_nodes(&self, api_type: &str) -> Vec<Value> {
@@ -904,16 +954,327 @@ fn fulfillment_constraint_rule_metafields_from_field(
     }
 }
 
+const VALIDATION_OUTPUT_FIELDS: &[&str] = &[
+    "id",
+    "title",
+    "enabled",
+    "shopifyFunction",
+    "blockOnFailure",
+    "errorHistory",
+    "metafield",
+    "metafields",
+    "__typename",
+];
+
+pub(in crate::proxy) fn validation_record_for_selection(
+    record: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let mut public =
+        function_record_with_output_fields(record, "Validation", VALIDATION_OUTPUT_FIELDS);
+    if let Some(metafield_selection) =
+        selected_output_type_field(selection, "Validation", "metafield", true)
+    {
+        apply_metafield_for_selection(&mut public, metafield_selection);
+    }
+    public
+}
+
+const FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS: &[&str] = &[
+    "id",
+    "function",
+    "deliveryMethodTypes",
+    "metafield",
+    "metafields",
+    "__typename",
+];
+
 pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
     record: &Value,
     selection: &[SelectedField],
 ) -> Value {
-    let mut record = record.clone();
-    let Some(metafield_selection) = selection.iter().find(|field| field.name == "metafield") else {
-        return record;
-    };
-    apply_metafield_for_selection(&mut record, metafield_selection);
-    record
+    let mut public = function_record_with_output_fields(
+        record,
+        "FulfillmentConstraintRule",
+        FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+    );
+    if let Some(metafield_selection) =
+        selected_output_type_field(selection, "FulfillmentConstraintRule", "metafield", true)
+    {
+        apply_metafield_for_selection(&mut public, metafield_selection);
+    }
+    public
+}
+
+fn function_record_with_output_fields(
+    record: &Value,
+    type_name: &str,
+    output_fields: &[&str],
+) -> Value {
+    let mut public = serde_json::Map::new();
+    for field in output_fields {
+        if *field == "__typename" {
+            public.insert(field.to_string(), json!(type_name));
+        } else if let Some(value) = record.get(*field) {
+            public.insert(field.to_string(), value.clone());
+        }
+    }
+    Value::Object(public)
+}
+
+fn fulfillment_constraint_rules_uses_connection_selection(selection: &[SelectedField]) -> bool {
+    selection
+        .iter()
+        .any(|field| matches!(field.name.as_str(), "nodes" | "edges" | "pageInfo"))
+}
+
+fn selected_output_type_field<'a>(
+    selections: &'a [SelectedField],
+    type_name: &str,
+    field_name: &str,
+    include_direct: bool,
+) -> Option<&'a SelectedField> {
+    for selection in selections {
+        if include_direct
+            && selection.name == field_name
+            && selection_applies_to_output_type(selection, type_name)
+        {
+            return Some(selection);
+        }
+        match selection.name.as_str() {
+            "nodes" => {
+                if let Some(field) =
+                    selected_output_type_field(&selection.selection, type_name, field_name, true)
+                {
+                    return Some(field);
+                }
+            }
+            "edges" => {
+                for node in selection
+                    .selection
+                    .iter()
+                    .filter(|child| child.name == "node")
+                {
+                    if let Some(field) =
+                        selected_output_type_field(&node.selection, type_name, field_name, true)
+                    {
+                        return Some(field);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn selection_applies_to_output_type(selection: &SelectedField, type_name: &str) -> bool {
+    selection
+        .type_condition
+        .as_deref()
+        .is_none_or(|condition| condition == type_name)
+}
+
+pub(in crate::proxy) fn functions_output_selection_errors(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
+) -> Vec<Value> {
+    let operation_path = parsed_document(query, variables)
+        .map(|document| document.operation_path)
+        .unwrap_or_default();
+    let mut errors = Vec::new();
+    for field in fields {
+        match field.name.as_str() {
+            "validation" => push_output_selection_errors(
+                &mut errors,
+                &operation_path,
+                &field.response_key,
+                "Validation",
+                VALIDATION_OUTPUT_FIELDS,
+                &field.selection,
+                true,
+                false,
+            ),
+            "validations" => push_output_selection_errors(
+                &mut errors,
+                &operation_path,
+                &field.response_key,
+                "Validation",
+                VALIDATION_OUTPUT_FIELDS,
+                &field.selection,
+                false,
+                false,
+            ),
+            "fulfillmentConstraintRules" => push_output_selection_errors(
+                &mut errors,
+                &operation_path,
+                &field.response_key,
+                "FulfillmentConstraintRule",
+                FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+                &field.selection,
+                true,
+                false,
+            ),
+            "node" | "nodes" => {
+                push_output_selection_errors(
+                    &mut errors,
+                    &operation_path,
+                    &field.response_key,
+                    "Validation",
+                    VALIDATION_OUTPUT_FIELDS,
+                    &field.selection,
+                    true,
+                    true,
+                );
+                push_output_selection_errors(
+                    &mut errors,
+                    &operation_path,
+                    &field.response_key,
+                    "FulfillmentConstraintRule",
+                    FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+                    &field.selection,
+                    true,
+                    true,
+                );
+            }
+            _ => {}
+        }
+    }
+    errors
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_output_selection_errors(
+    errors: &mut Vec<Value>,
+    operation_path: &str,
+    response_key: &str,
+    type_name: &str,
+    output_fields: &[&str],
+    selections: &[SelectedField],
+    include_direct: bool,
+    require_type_condition: bool,
+) {
+    collect_output_selection_errors(
+        errors,
+        operation_path,
+        response_key,
+        type_name,
+        output_fields,
+        selections,
+        include_direct,
+        require_type_condition,
+        &[],
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_output_selection_errors(
+    errors: &mut Vec<Value>,
+    operation_path: &str,
+    response_key: &str,
+    type_name: &str,
+    output_fields: &[&str],
+    selections: &[SelectedField],
+    include_direct: bool,
+    require_type_condition: bool,
+    container_path: &[&str],
+) {
+    for selection in selections {
+        match selection.name.as_str() {
+            "nodes" => {
+                let mut next_path = container_path.to_vec();
+                next_path.push("nodes");
+                collect_output_selection_errors(
+                    errors,
+                    operation_path,
+                    response_key,
+                    type_name,
+                    output_fields,
+                    &selection.selection,
+                    true,
+                    require_type_condition,
+                    &next_path,
+                );
+            }
+            "edges" => {
+                for node in selection
+                    .selection
+                    .iter()
+                    .filter(|child| child.name == "node")
+                {
+                    let mut next_path = container_path.to_vec();
+                    next_path.push("edges");
+                    next_path.push("node");
+                    collect_output_selection_errors(
+                        errors,
+                        operation_path,
+                        response_key,
+                        type_name,
+                        output_fields,
+                        &node.selection,
+                        true,
+                        require_type_condition,
+                        &next_path,
+                    );
+                }
+            }
+            _ if include_direct
+                && selection_matches_validation_scope(
+                    selection,
+                    type_name,
+                    require_type_condition,
+                )
+                && !output_fields.contains(&selection.name.as_str()) =>
+            {
+                errors.push(function_output_undefined_field_error(
+                    operation_path,
+                    response_key,
+                    container_path,
+                    type_name,
+                    selection,
+                ));
+            }
+            _ => {}
+        }
+    }
+}
+
+fn selection_matches_validation_scope(
+    selection: &SelectedField,
+    type_name: &str,
+    require_type_condition: bool,
+) -> bool {
+    if require_type_condition {
+        selection.type_condition.as_deref() == Some(type_name)
+    } else {
+        selection_applies_to_output_type(selection, type_name)
+    }
+}
+
+fn function_output_undefined_field_error(
+    operation_path: &str,
+    response_key: &str,
+    container_path: &[&str],
+    type_name: &str,
+    selection: &SelectedField,
+) -> Value {
+    let mut path = vec![Value::from(operation_path), Value::from(response_key)];
+    path.extend(container_path.iter().map(|segment| Value::from(*segment)));
+    if let Some(type_condition) = selection.type_condition.as_deref() {
+        path.push(Value::from(format!("... on {type_condition}")));
+    }
+    path.push(Value::from(selection.name.clone()));
+    json!({
+        "message": format!("Field '{}' doesn't exist on type '{type_name}'", selection.name),
+        "locations": [{ "line": selection.location.line, "column": selection.location.column }],
+        "path": path,
+        "extensions": {
+            "code": "undefinedField",
+            "typeName": type_name,
+            "fieldName": selection.name
+        }
+    })
 }
 
 fn apply_metafield_for_selection(record: &mut Value, metafield_selection: &SelectedField) {

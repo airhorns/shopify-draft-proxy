@@ -366,7 +366,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("inventoryItemUpdate", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("inventoryAdjustQuantities", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("inventorySetQuantities", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
-        entry!("inventorySetOnHandQuantities", Mutation, Products, StageLocally, false, []),
+        entry!("inventorySetOnHandQuantities", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("inventoryMoveQuantities", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("inventoryActivate", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("inventoryDeactivate", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),

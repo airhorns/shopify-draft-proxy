@@ -1,0 +1,757 @@
+{
+  "capturedAt": "2026-06-25T11:47:57.444Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.",
+    "Setup creates one disposable customer and one active gift card; cleanup deactivates the setup gift card and deletes the setup customer.",
+    "The public giftCardUpdate userErrors type in the captured API exposes field/message only; replay expectations add local typed code values."
+  ],
+  "proxyVariables": {
+    "recipientValidation": {
+      "activeId": "gid://shopify/GiftCard/recipient-validation-active",
+      "recipientId": "gid://shopify/Customer/10853758566706",
+      "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "htmlPreferredName": "<b>Recipient</b>",
+      "htmlMessage": "<script>alert(1)</script>",
+      "futureSendAt": "2026-10-01T00:00:00Z",
+      "pastSendAt": "2026-04-28T09:31:02Z",
+      "validSendAt": "2026-07-01T00:00:00Z",
+      "missingRecipientId": "gid://shopify/Customer/999999999999"
+    }
+  },
+  "setup": [
+    {
+      "label": "recipientCustomerCreate",
+      "query": "#graphql\n      mutation GiftCardRecipientValidationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "email": "recipient-validation-1782388076191@example.com",
+          "firstName": "Recipient",
+          "lastName": "Validation",
+          "note": "Disposable gift-card recipient validation customer."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10853758566706",
+                "email": "recipient-validation-1782388076191@example.com"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "activeGiftCardCreate",
+      "query": "#graphql\n      mutation GiftCardRecipientValidationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            customer {\n              id\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "GCRVmqtfu9i7",
+          "note": "Disposable gift-card recipient validation card.",
+          "customerId": "gid://shopify/Customer/10853758566706"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661474607410",
+                "enabled": true,
+                "customer": {
+                  "id": "gid://shopify/Customer/10853758566706"
+                }
+              },
+              "giftCardCode": "gcrvmqtfu9i7",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "createMissingRecipientId": {
+      "label": "createMissingRecipientId",
+      "query": "#graphql\n  mutation GiftCardRecipientValidationCreateMissingId {\n    createMissingRecipientId: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { message: \"missing id\" } }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 57
+                }
+              ],
+              "path": [
+                "mutation GiftCardRecipientValidationCreateMissingId",
+                "createMissingRecipientId",
+                "input",
+                "recipientAttributes",
+                "id"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "GiftCardRecipientInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "updateMissingRecipientId": {
+      "label": "updateMissingRecipientId",
+      "query": "#graphql\n  mutation GiftCardRecipientValidationUpdateMissingId($activeId: ID!) {\n    updateMissingRecipientId: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { message: \"missing id\" } }\n    ) {\n      giftCard {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "activeId": "gid://shopify/GiftCard/661474607410"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 37
+                }
+              ],
+              "path": [
+                "mutation GiftCardRecipientValidationUpdateMissingId",
+                "updateMissingRecipientId",
+                "input",
+                "recipientAttributes",
+                "id"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "GiftCardRecipientInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "recipientValidation": {
+      "label": "recipientValidation",
+      "query": "#graphql\n  mutation GiftCardRecipientValidation(\n    $activeId: ID!\n    $recipientId: ID!\n    $tooLongPreferredName: String!\n    $tooLongMessage: String!\n    $htmlPreferredName: String!\n    $htmlMessage: String!\n    $futureSendAt: DateTime!\n    $pastSendAt: DateTime!\n    $validSendAt: DateTime!\n    $missingRecipientId: ID!\n  ) {\n    createUnknownRecipient: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $missingRecipientId } }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createBlankPreferredName: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, preferredName: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createBlankMessage: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, message: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createLongPreferredName: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createLongMessage: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, message: $tooLongMessage }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createHtmlPreferredName: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createHtmlMessage: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, message: $htmlMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createFutureSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createPastSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createValidSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    updateLongPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateUnknownRecipient: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $missingRecipientId } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          recipient {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateBlankPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateBlankMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateLongMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateHtmlPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateHtmlMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: $htmlMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updatePastSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateFutureSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateValidSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "activeId": "gid://shopify/GiftCard/661474607410",
+        "recipientId": "gid://shopify/Customer/10853758566706",
+        "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "htmlPreferredName": "<b>Recipient</b>",
+        "htmlMessage": "<script>alert(1)</script>",
+        "futureSendAt": "2026-10-01T00:00:00Z",
+        "pastSendAt": "2026-04-28T09:31:02Z",
+        "validSendAt": "2026-07-01T00:00:00Z",
+        "missingRecipientId": "gid://shopify/Customer/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "preferredName is too long (maximum is 255)",
+              "locations": [
+                {
+                  "line": 59,
+                  "column": 5
+                },
+                {
+                  "line": 62,
+                  "column": 50
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["createLongPreferredName"]
+            },
+            {
+              "message": "message is too long (maximum is 200)",
+              "locations": [
+                {
+                  "line": 78,
+                  "column": 5
+                },
+                {
+                  "line": 81,
+                  "column": 50
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["createLongMessage"]
+            },
+            {
+              "message": "preferredName is too long (maximum is 255)",
+              "locations": [
+                {
+                  "line": 189,
+                  "column": 5
+                },
+                {
+                  "line": 191,
+                  "column": 57
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["updateLongPreferredName"]
+            },
+            {
+              "message": "message is too long (maximum is 200)",
+              "locations": [
+                {
+                  "line": 251,
+                  "column": 5
+                },
+                {
+                  "line": 253,
+                  "column": 57
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["updateLongMessage"]
+            }
+          ],
+          "data": {
+            "createUnknownRecipient": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "id"],
+                  "code": "RECIPIENT_NOT_FOUND",
+                  "message": "Recipient could not be found"
+                }
+              ]
+            },
+            "createBlankPreferredName": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "preferredName"],
+                  "code": "INVALID",
+                  "message": "Preferred name can't be blank"
+                }
+              ]
+            },
+            "createBlankMessage": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "message"],
+                  "code": "INVALID",
+                  "message": "Message can't be blank"
+                }
+              ]
+            },
+            "createLongPreferredName": null,
+            "createLongMessage": null,
+            "createHtmlPreferredName": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "preferredName"],
+                  "code": "INVALID",
+                  "message": "Preferred name cannot contain HTML tags"
+                }
+              ]
+            },
+            "createHtmlMessage": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "message"],
+                  "code": "INVALID",
+                  "message": "Message cannot contain HTML tags"
+                }
+              ]
+            },
+            "createFutureSendAt": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                  "code": "INVALID",
+                  "message": "Send notification at must be within 90 days from now"
+                }
+              ]
+            },
+            "createPastSendAt": {
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                  "code": "INVALID",
+                  "message": "Send notification at must be within 90 days from now"
+                }
+              ]
+            },
+            "createValidSendAt": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661474640178",
+                "recipientAttributes": {
+                  "sendNotificationAt": "2026-07-01T00:00:00Z"
+                }
+              },
+              "giftCardCode": "53bbgbe9e3d565bc",
+              "userErrors": []
+            },
+            "updateLongPreferredName": null,
+            "updateUnknownRecipient": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "id"],
+                  "message": "Recipient could not be found"
+                }
+              ]
+            },
+            "updateBlankPreferredName": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "preferredName"],
+                  "message": "Preferred name can't be blank"
+                }
+              ]
+            },
+            "updateBlankMessage": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "message"],
+                  "message": "Message can't be blank"
+                }
+              ]
+            },
+            "updateLongMessage": null,
+            "updateHtmlPreferredName": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "preferredName"],
+                  "message": "Preferred name cannot contain HTML tags"
+                }
+              ]
+            },
+            "updateHtmlMessage": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "message"],
+                  "message": "Message cannot contain HTML tags"
+                }
+              ]
+            },
+            "updatePastSendAt": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                  "message": "Send notification at must be within 90 days from now"
+                }
+              ]
+            },
+            "updateFutureSendAt": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                  "message": "Send notification at must be within 90 days from now"
+                }
+              ]
+            },
+            "updateValidSendAt": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661474607410",
+                "recipientAttributes": {
+                  "sendNotificationAt": "2026-07-01T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 220,
+              "actualQueryCost": 202,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1798,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "createUnknownRecipient": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "id"],
+            "code": "RECIPIENT_NOT_FOUND",
+            "message": "Recipient could not be found"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createBlankPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "INVALID",
+            "message": "Preferred name can't be blank"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createBlankMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "INVALID",
+            "message": "Message can't be blank"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createLongPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "TOO_LONG",
+            "message": "preferredName is too long (maximum is 255)"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createLongMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "TOO_LONG",
+            "message": "message is too long (maximum is 200)"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createHtmlPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "INVALID",
+            "message": "Preferred name cannot contain HTML tags"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createHtmlMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "INVALID",
+            "message": "Message cannot contain HTML tags"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createFutureSendAt": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "sendNotificationAt"],
+            "code": "INVALID",
+            "message": "Send notification at must be within 90 days from now"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createPastSendAt": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "sendNotificationAt"],
+            "code": "INVALID",
+            "message": "Send notification at must be within 90 days from now"
+          }
+        ],
+        "giftCardCode": null
+      },
+      "createValidSendAt": {
+        "giftCard": {
+          "recipientAttributes": {
+            "sendNotificationAt": "2026-07-01T00:00:00Z"
+          }
+        },
+        "userErrors": []
+      },
+      "updateLongPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "TOO_LONG",
+            "message": "preferredName is too long (maximum is 255)"
+          }
+        ]
+      },
+      "updateUnknownRecipient": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "id"],
+            "code": "RECIPIENT_NOT_FOUND",
+            "message": "Recipient could not be found"
+          }
+        ]
+      },
+      "updateBlankPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "INVALID",
+            "message": "Preferred name can't be blank"
+          }
+        ]
+      },
+      "updateBlankMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "INVALID",
+            "message": "Message can't be blank"
+          }
+        ]
+      },
+      "updateLongMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "TOO_LONG",
+            "message": "message is too long (maximum is 200)"
+          }
+        ]
+      },
+      "updateHtmlPreferredName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "INVALID",
+            "message": "Preferred name cannot contain HTML tags"
+          }
+        ]
+      },
+      "updateHtmlMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "INVALID",
+            "message": "Message cannot contain HTML tags"
+          }
+        ]
+      },
+      "updatePastSendAt": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "sendNotificationAt"],
+            "code": "INVALID",
+            "message": "Send notification at must be within 90 days from now"
+          }
+        ]
+      },
+      "updateFutureSendAt": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "sendNotificationAt"],
+            "code": "INVALID",
+            "message": "Send notification at must be within 90 days from now"
+          }
+        ]
+      },
+      "updateValidSendAt": {
+        "giftCard": {
+          "recipientAttributes": {
+            "sendNotificationAt": "2026-07-01T00:00:00Z"
+          }
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/661474607410",
+      "query": "#graphql\n      mutation GiftCardRecipientValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/661474607410"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661474607410",
+                "enabled": false,
+                "deactivatedAt": "2026-06-25T11:47:57Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1830,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/661474640178",
+      "query": "#graphql\n      mutation GiftCardRecipientValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/661474640178"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/661474640178",
+                "enabled": false,
+                "deactivatedAt": "2026-06-25T11:47:57Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1832,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupCustomer:gid://shopify/Customer/10853758566706",
+      "query": "#graphql\n      mutation GiftCardRecipientValidationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10853758566706"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Customer can't be deleted because they are the recipient of an unsent scheduled gift card"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1834,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

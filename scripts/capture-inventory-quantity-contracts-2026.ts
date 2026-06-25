@@ -15,7 +15,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-quantity-contracts-2026-04.json');
-const expectedAvailableQuantity = 7;
+const expectedAvailableQuantity = 9;
 const downstreamInventoryPollDelayMs = 2_000;
 const downstreamInventoryPollAttempts = 15;
 const unknownInventoryItemId = 'gid://shopify/InventoryItem/999999999999';
@@ -45,6 +45,9 @@ const inputShapeQuery = `#graphql
       inputFields { name }
     }
     inventorySetQuantitiesInput: __type(name: "InventorySetQuantitiesInput") {
+      inputFields { name }
+    }
+    inventorySetOnHandQuantitiesInput: __type(name: "InventorySetOnHandQuantitiesInput") {
       inputFields { name }
     }
   }
@@ -124,6 +127,45 @@ const inventorySetValidationMutation = `#graphql
 const inventorySetMissingIdempotencyMutation = `#graphql
   mutation InventoryQuantityContractSetMissingIdempotency($input: InventorySetQuantitiesInput!) {
     inventorySetQuantities(input: $input) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+const inventorySetOnHandMutation = `#graphql
+  mutation InventoryQuantityContractSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+    inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup {
+        id
+        createdAt
+        reason
+        referenceDocumentUri
+        changes {
+          name
+          delta
+          quantityAfterChange
+          item { id }
+          location { id name }
+        }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+const inventorySetOnHandValidationMutation = `#graphql
+  mutation InventoryQuantityContractSetOnHandValidation($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+    inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message code }
+    }
+  }
+`;
+
+const inventorySetOnHandMissingIdempotencyMutation = `#graphql
+  mutation InventoryQuantityContractSetOnHandMissingIdempotency($input: InventorySetOnHandQuantitiesInput!) {
+    inventorySetOnHandQuantities(input: $input) {
       inventoryAdjustmentGroup { id }
       userErrors { field message }
     }
@@ -226,7 +268,6 @@ const hydrateNodesQuery = `#graphql
         inventoryLevels(first: 50) {
           nodes {
             id
-            isActive
             location { id name }
             quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
               name
@@ -474,6 +515,46 @@ try {
   };
   const inventoryAdjust = await runGraphqlAllowGraphqlErrors(inventoryAdjustMutation, adjustVariables);
 
+  const setOnHandVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: location.id,
+          quantity: expectedAvailableQuantity,
+          changeFromQuantity: 7,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-${runId}`,
+  };
+  const inventorySetOnHand = await runGraphqlAllowGraphqlErrors(inventorySetOnHandMutation, setOnHandVariables);
+
+  const missingSetOnHandIdempotency = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandMissingIdempotencyMutation,
+    setOnHandVariables,
+  );
+
+  const missingSetOnHandChangeFromQuantityVariables = {
+    input: {
+      reason: 'correction',
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: location.id,
+          quantity: expectedAvailableQuantity,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-missing-change-from-${runId}`,
+  };
+  const missingSetOnHandChangeFromQuantity = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandMutation,
+    missingSetOnHandChangeFromQuantityVariables,
+  );
+
   const missingAdjustIdempotency = await runGraphqlAllowGraphqlErrors(
     inventoryAdjustMissingIdempotencyMutation,
     adjustVariables,
@@ -537,6 +618,106 @@ try {
   const setUnknownLocation = await runGraphqlAllowGraphqlErrors(
     inventorySetValidationMutation,
     setUnknownLocationVariables,
+  );
+
+  const setOnHandUnknownInventoryItemVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand-unknown-item/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: unknownInventoryItemId,
+          locationId: location.id,
+          quantity: 3,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-unknown-item-${runId}`,
+  };
+  const setOnHandUnknownInventoryItem = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandValidationMutation,
+    setOnHandUnknownInventoryItemVariables,
+  );
+
+  const setOnHandUnknownLocationVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand-unknown-location/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: unknownLocationId,
+          quantity: 3,
+          changeFromQuantity: 0,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-unknown-location-${runId}`,
+  };
+  const setOnHandUnknownLocation = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandValidationMutation,
+    setOnHandUnknownLocationVariables,
+  );
+
+  const setOnHandNegativeQuantityVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand-negative/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: location.id,
+          quantity: -1,
+          changeFromQuantity: expectedAvailableQuantity,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-negative-${runId}`,
+  };
+  const setOnHandNegativeQuantity = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandValidationMutation,
+    setOnHandNegativeQuantityVariables,
+  );
+
+  const setOnHandTooHighQuantityVariables = {
+    input: {
+      reason: 'correction',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand-too-high/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: location.id,
+          quantity: 1_000_000_001,
+          changeFromQuantity: expectedAvailableQuantity,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-too-high-${runId}`,
+  };
+  const setOnHandTooHighQuantity = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandValidationMutation,
+    setOnHandTooHighQuantityVariables,
+  );
+
+  const setOnHandInvalidReasonVariables = {
+    input: {
+      reason: 'not_a_reason',
+      referenceDocumentUri: `logistics://inventory-quantity/set-on-hand-invalid-reason/${runId}`,
+      setQuantities: [
+        {
+          inventoryItemId: product.inventoryItemId,
+          locationId: location.id,
+          quantity: expectedAvailableQuantity,
+          changeFromQuantity: expectedAvailableQuantity,
+        },
+      ],
+    },
+    idempotencyKey: `inventory-set-on-hand-invalid-reason-${runId}`,
+  };
+  const setOnHandInvalidReason = await runGraphqlAllowGraphqlErrors(
+    inventorySetOnHandValidationMutation,
+    setOnHandInvalidReasonVariables,
   );
 
   const adjustUnknownInventoryItemVariables = {
@@ -674,6 +855,18 @@ try {
       variables: adjustVariables,
       response: inventoryAdjust,
     },
+    inventorySetOnHandQuantities: {
+      variables: setOnHandVariables,
+      response: inventorySetOnHand,
+    },
+    missingSetOnHandIdempotency: {
+      variables: setOnHandVariables,
+      response: missingSetOnHandIdempotency,
+    },
+    missingSetOnHandChangeFromQuantity: {
+      variables: missingSetOnHandChangeFromQuantityVariables,
+      response: missingSetOnHandChangeFromQuantity,
+    },
     missingAdjustIdempotency: {
       variables: adjustVariables,
       response: missingAdjustIdempotency,
@@ -694,6 +887,26 @@ try {
       setUnknownLocation: {
         variables: setUnknownLocationVariables,
         response: setUnknownLocation,
+      },
+      setOnHandUnknownInventoryItem: {
+        variables: setOnHandUnknownInventoryItemVariables,
+        response: setOnHandUnknownInventoryItem,
+      },
+      setOnHandUnknownLocation: {
+        variables: setOnHandUnknownLocationVariables,
+        response: setOnHandUnknownLocation,
+      },
+      setOnHandNegativeQuantity: {
+        variables: setOnHandNegativeQuantityVariables,
+        response: setOnHandNegativeQuantity,
+      },
+      setOnHandTooHighQuantity: {
+        variables: setOnHandTooHighQuantityVariables,
+        response: setOnHandTooHighQuantity,
+      },
+      setOnHandInvalidReason: {
+        variables: setOnHandInvalidReasonVariables,
+        response: setOnHandInvalidReason,
       },
       adjustUnknownInventoryItem: {
         variables: adjustUnknownInventoryItemVariables,

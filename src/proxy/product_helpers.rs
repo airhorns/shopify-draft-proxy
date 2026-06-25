@@ -522,10 +522,11 @@ impl DraftProxy {
             }));
         }
 
+        let mut product_media_nodes = self.product_known_media(&product_id);
+        product_media_nodes.extend(created.clone());
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
         }
-        let product_media_nodes = self.product_known_media(&product_id);
 
         Some(json!({
             "media": created.clone(),
@@ -716,7 +717,7 @@ impl DraftProxy {
     }
 
     fn stage_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
-        let timestamp = default_product_timestamp(product_id);
+        let timestamp = default_product_timestamp();
         let mut product = self
             .store
             .product_staged_or_base(product_id)
@@ -974,42 +975,8 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
     })
 }
 
-pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
-    if id != "gid://shopify/Product/10173064872242" {
-        return None;
-    }
-    let timestamp = default_product_timestamp(id);
-    Some(ProductRecord {
-        id: id.to_string(),
-        created_at: timestamp.clone(),
-        updated_at: timestamp,
-        title: "Hermes Product State Conformance 1777416213315".to_string(),
-        handle: "hermes-product-state-conformance-1777416213315".to_string(),
-        status: "DRAFT".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: vec![
-            "existing".to_string(),
-            "hermes-state-1777416213315".to_string(),
-        ],
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        total_inventory: 0,
-        tracks_inventory: false,
-        media: Vec::new(),
-        variants: Vec::new(),
-        collections: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    })
-}
-
-pub(in crate::proxy) fn default_product_timestamp(id: &str) -> String {
-    match id {
-        "gid://shopify/Product/10173064872242" => "2026-04-28T22:43:34Z".to_string(),
-        _ => "2024-01-01T00:00:00.000Z".to_string(),
-    }
+pub(in crate::proxy) fn default_product_timestamp() -> String {
+    "2024-01-01T00:00:00.000Z".to_string()
 }
 
 pub(in crate::proxy) fn product_mutation_timestamp(ordinal: u64) -> String {
@@ -1033,79 +1000,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.log_entries.len() as u64)
     }
-}
-
-pub(in crate::proxy) fn known_tags_product_seed(
-    id: &str,
-    root_field: &str,
-) -> Option<ProductRecord> {
-    let (title, handle, tags) = match (id, root_field) {
-        ("gid://shopify/Product/10173064872242", "tagsAdd") => (
-            "Hermes Product State Conformance 1777416213315",
-            "hermes-product-state-conformance-1777416213315",
-            vec!["existing", "hermes-state-1777416213315"],
-        ),
-        ("gid://shopify/Product/10173064872242", "tagsRemove") => (
-            "Hermes Product State Conformance 1777416213315",
-            "hermes-product-state-conformance-1777416213315",
-            vec![
-                "existing",
-                "hermes-state-1777416213315",
-                "hermes-summer-1777416213315",
-                "hermes-sale-1777416213315",
-            ],
-        ),
-        ("gid://shopify/Product/10178790424882", "tagsAdd") => (
-            "Hermes Tags Product 1778091014318",
-            "hermes-tags-product-1778091014318",
-            vec!["hermes-tags-base-1778091014318"],
-        ),
-        _ => return None,
-    };
-    let timestamp = default_product_timestamp(id);
-    Some(ProductRecord {
-        id: id.to_string(),
-        created_at: timestamp.clone(),
-        updated_at: timestamp,
-        title: title.to_string(),
-        handle: handle.to_string(),
-        status: "DRAFT".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: tags.into_iter().map(String::from).collect(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        total_inventory: 0,
-        tracks_inventory: false,
-        media: Vec::new(),
-        variants: Vec::new(),
-        collections: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    })
-}
-
-pub(in crate::proxy) fn known_tags_product_search_tags(
-    id: &str,
-    root_field: &str,
-) -> Option<BTreeSet<String>> {
-    let tags = match (id, root_field) {
-        ("gid://shopify/Product/10173064872242", "tagsAdd") => {
-            vec!["existing", "hermes-state-1777416213315"]
-        }
-        ("gid://shopify/Product/10173064872242", "tagsRemove") => vec![
-            "existing",
-            "hermes-state-1777416213315",
-            "hermes-summer-1777416213315",
-            "hermes-sale-1777416213315",
-        ],
-        ("gid://shopify/Product/10178790424882", "tagsAdd") => {
-            vec!["hermes-tags-base-1778091014318"]
-        }
-        _ => return None,
-    };
-    Some(tags.into_iter().map(String::from).collect())
 }
 
 pub(in crate::proxy) fn product_json(
@@ -1905,7 +1799,7 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
         .get("createdAt")
         .and_then(Value::as_str)
         .map(str::to_string)
-        .unwrap_or_else(|| default_product_timestamp(&id));
+        .unwrap_or_else(default_product_timestamp);
     let updated_at = value
         .get("updatedAt")
         .and_then(Value::as_str)

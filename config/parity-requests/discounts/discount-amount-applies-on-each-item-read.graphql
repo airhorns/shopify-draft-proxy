@@ -1,0 +1,23 @@
+query DiscountAmountAppliesOnEachItemRead($id: ID!) {
+  discountNode(id: $id) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        customerGets {
+          value {
+            __typename
+            ... on DiscountAmount {
+              amount {
+                amount
+                currencyCode
+              }
+              appliesOnEachItem
+            }
+          }
+        }
+      }
+    }
+  }
+}

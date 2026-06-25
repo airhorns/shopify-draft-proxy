@@ -1,0 +1,287 @@
+{
+  "scenarioId": "fulfillment-service-requires-shipping-method-default",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-24T02:41:20.933Z",
+  "token": "fs-rsm-default-mqrgvgsy",
+  "notes": [
+    "Captured against harry-test-heelo.myshopify.com using Admin GraphQL 2026-04.",
+    "fulfillmentServiceCreate omits requiresShippingMethod and records Shopify applying the public GraphQL default true.",
+    "A second fulfillment service is created with requiresShippingMethod false; fulfillmentServiceUpdate then omits the argument and records Shopify resetting it to true.",
+    "Both mutation payloads and downstream fulfillmentService(id:) reads are captured before cleanup."
+  ],
+  "createOmitted": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-omitted.graphql",
+    "variables": {
+      "name": "FS Requires Shipping Omitted fs-rsm-default-mqrgvgsy"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72052375858?id=true",
+              "handle": "fs-requires-shipping-omitted-fs-rsm-default-mqrgvgsy",
+              "serviceName": "FS Requires Shipping Omitted fs-rsm-default-mqrgvgsy",
+              "callbackUrl": null,
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": true,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113607213362",
+                "name": "FS Requires Shipping Omitted fs-rsm-default-mqrgvgsy",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreateOmitted": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-read.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72052375858?id=true"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentService": {
+            "id": "gid://shopify/FulfillmentService/72052375858?id=true",
+            "handle": "fs-requires-shipping-omitted-fs-rsm-default-mqrgvgsy",
+            "serviceName": "FS Requires Shipping Omitted fs-rsm-default-mqrgvgsy",
+            "callbackUrl": null,
+            "trackingSupport": false,
+            "inventoryManagement": false,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+              "id": "gid://shopify/Location/113607213362",
+              "name": "FS Requires Shipping Omitted fs-rsm-default-mqrgvgsy",
+              "isFulfillmentService": true,
+              "fulfillsOnlineOrders": true,
+              "shipsInventory": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setupExplicitFalse": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-false.graphql",
+    "variables": {
+      "name": "FS Requires Shipping False fs-rsm-default-mqrgvgsy"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72052408626?id=true",
+              "handle": "fs-requires-shipping-false-fs-rsm-default-mqrgvgsy",
+              "serviceName": "FS Requires Shipping False fs-rsm-default-mqrgvgsy",
+              "callbackUrl": null,
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113607246130",
+                "name": "FS Requires Shipping False fs-rsm-default-mqrgvgsy",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateOmittedAfterFalse": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-update-omitted.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72052408626?id=true",
+      "name": "FS Requires Shipping Omitted Update fs-rsm-default-mqrgvgsy"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72052408626?id=true",
+              "handle": "fs-requires-shipping-false-fs-rsm-default-mqrgvgsy",
+              "serviceName": "FS Requires Shipping Omitted Update fs-rsm-default-mqrgvgsy",
+              "callbackUrl": null,
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": true,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113607246130",
+                "name": "FS Requires Shipping Omitted Update fs-rsm-default-mqrgvgsy",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterUpdateOmitted": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-read.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72052408626?id=true"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentService": {
+            "id": "gid://shopify/FulfillmentService/72052408626?id=true",
+            "handle": "fs-requires-shipping-false-fs-rsm-default-mqrgvgsy",
+            "serviceName": "FS Requires Shipping Omitted Update fs-rsm-default-mqrgvgsy",
+            "callbackUrl": null,
+            "trackingSupport": false,
+            "inventoryManagement": false,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+              "id": "gid://shopify/Location/113607246130",
+              "name": "FS Requires Shipping Omitted Update fs-rsm-default-mqrgvgsy",
+              "isFulfillmentService": true,
+              "fulfillsOnlineOrders": true,
+              "shipsInventory": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-delete.graphql",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72052408626?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/72052408626",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-delete.graphql",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72052375858?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/72052375858",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

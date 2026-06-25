@@ -1,0 +1,476 @@
+{
+  "capturedAt": "2026-06-25T03:17:26.942Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "runId": "mqsxlpuk",
+    "requestingApiClientId": "347082227713",
+    "appNamespaceInput": "$app:protected_guards_mqsxlpuk",
+    "appNamespaceResolved": "app--347082227713--protected_guards_mqsxlpuk",
+    "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+    "standardCreatedByCapture": true
+  },
+  "standard": {
+    "beforeRead": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
+        "variables": {
+          "identifier": {
+            "ownerType": "PRODUCT",
+            "namespace": "descriptors",
+            "key": "subtitle"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinition": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "enable": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-standard-enable.graphql",
+        "variables": {
+          "ownerType": "PRODUCT",
+          "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220406186290",
+              "name": "Product subtitle",
+              "namespace": "descriptors",
+              "key": "subtitle",
+              "ownerType": "PRODUCT",
+              "description": "Used as a shorthand for a product name",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "70"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "immutableUpdate": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-standard-update.graphql",
+        "variables": {
+          "definition": {
+            "ownerType": "PRODUCT",
+            "namespace": "descriptors",
+            "key": "subtitle",
+            "name": "Renamed product subtitle mqsxlpuk",
+            "description": "Changed standard description mqsxlpuk",
+            "validations": [
+              {
+                "name": "max",
+                "value": "80"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "name"],
+                "message": "Name cannot be changed in a standard definition.",
+                "code": "INVALID_INPUT"
+              },
+              {
+                "field": ["definition", "description"],
+                "message": "Description cannot be changed in a standard definition.",
+                "code": "INVALID_INPUT"
+              },
+              {
+                "field": ["definition", "validations"],
+                "message": "Validations cannot be changed in a standard definition.",
+                "code": "INVALID_INPUT"
+              }
+            ],
+            "validationJob": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterRejectedUpdate": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
+        "variables": {
+          "identifier": {
+            "ownerType": "PRODUCT",
+            "namespace": "descriptors",
+            "key": "subtitle"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinition": {
+            "name": "Product subtitle",
+            "namespace": "descriptors",
+            "key": "subtitle",
+            "ownerType": "PRODUCT",
+            "description": "Used as a shorthand for a product name",
+            "validations": [
+              {
+                "name": "max",
+                "value": "70"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "appReserved": {
+    "productCreate": {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "Metafield definition protected guards mqsxlpuk"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220870140210",
+              "title": "Metafield definition protected guards mqsxlpuk"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "definitionCreate": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
+        "variables": {
+          "definition": {
+            "ownerType": "PRODUCT",
+            "namespace": "$app:protected_guards_mqsxlpuk",
+            "key": "config",
+            "name": "Protected config mqsxlpuk",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220406219058",
+              "name": "Protected config mqsxlpuk",
+              "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+              "key": "config",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": null,
+              "validations": [],
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metafieldsSet": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10220870140210",
+              "namespace": "$app:protected_guards_mqsxlpuk",
+              "key": "config",
+              "type": "single_line_text_field",
+              "value": "enabled"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/44484213080370",
+                "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+                "key": "config",
+                "type": "single_line_text_field",
+                "value": "enabled"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteNoFlag": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-no-flag.graphql",
+        "variables": {
+          "namespace": "$app:protected_guards_mqsxlpuk",
+          "key": "config"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.",
+                "code": "RESERVED_NAMESPACE_ORPHANED_METAFIELDS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterGuard": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
+        "variables": {
+          "identifier": {
+            "ownerType": "PRODUCT",
+            "namespace": "$app:protected_guards_mqsxlpuk",
+            "key": "config"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinition": {
+            "name": "Protected config mqsxlpuk",
+            "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+            "key": "config",
+            "ownerType": "PRODUCT",
+            "description": null,
+            "validations": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteWithFlag": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-with-flag.graphql",
+        "variables": {
+          "namespace": "$app:protected_guards_mqsxlpuk",
+          "key": "config",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+              "key": "config"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10220870140210"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10220870140210",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220406186290"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220406186290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
