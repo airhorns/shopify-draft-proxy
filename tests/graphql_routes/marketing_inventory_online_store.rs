@@ -5174,6 +5174,143 @@ fn metaobject_create_rejects_duplicate_field_keys() {
 }
 
 #[test]
+fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_definition = r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let field_definition = |key: String| {
+        json!({
+            "key": key,
+            "name": "Field",
+            "type": "single_line_text_field",
+            "required": false
+        })
+    };
+
+    let oversized_key = "a".repeat(65);
+    let oversized_create = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_length_create",
+            "name": "Field Key Length Create",
+            "fieldDefinitions": [field_definition(oversized_key.clone())]
+        }}),
+    ));
+    assert_eq!(
+        oversized_create.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "0"],
+                "message": "Key is too long (maximum is 64 characters)",
+                "code": "TOO_LONG",
+                "elementKey": oversized_key,
+                "elementIndex": null
+            }]
+        })
+    );
+    let rejected_create_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRejectedDefinition($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id }
+        }
+        "#,
+        json!({"type": "field_key_length_create"}),
+    ));
+    assert_eq!(
+        rejected_create_read.body["data"]["metaobjectDefinitionByType"],
+        Value::Null
+    );
+
+    let uppercase_create = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_case_create",
+            "name": "Field Key Case Create",
+            "fieldDefinitions": [field_definition("myField".to_string())]
+        }}),
+    ));
+    assert_eq!(
+        uppercase_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        uppercase_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"][0]["key"],
+        json!("myField")
+    );
+
+    let base_definition = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_update_rules",
+            "name": "Field Key Update Rules",
+            "fieldDefinitions": [field_definition("title".to_string())]
+        }}),
+    ));
+    assert_eq!(
+        base_definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = base_definition.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let oversized_update = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{"create": field_definition(oversized_key.clone())}]
+        }}),
+    ));
+    assert_eq!(
+        oversized_update.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "0", "create"],
+                "message": "Key is too long (maximum is 64 characters)",
+                "code": "TOO_LONG",
+                "elementKey": oversized_key,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let uppercase_update = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{"create": field_definition("Spec_2".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["fieldDefinitions"][1]["key"],
+        json!("Spec_2")
+    );
+}
+
+#[test]
 fn metaobject_definition_update_validates_field_create_keys_and_display_name_key() {
     let mut proxy = snapshot_proxy();
 

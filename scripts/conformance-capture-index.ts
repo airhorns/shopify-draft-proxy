@@ -3009,7 +3009,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-key-min-length-conformance.ts',
     purpose:
-      'Metaobject definition create/update fieldDefinitions key minimum-length validation for single-character keys, empty keys, and the two-character accepted boundary.',
+      'Metaobject definition create/update fieldDefinitions key length and character validation for single-character keys, empty keys, 2/64-character accepted boundaries, 65-character rejection, mixed-case acceptance, and invalid format errors.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinition-field-key-min-length.json`,

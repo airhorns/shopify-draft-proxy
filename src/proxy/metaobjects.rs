@@ -405,10 +405,14 @@ fn metaobject_definition_type_token_chars_valid(value: &str) -> bool {
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
+const MIN_FIELD_KEY_LENGTH: usize = 2;
+const MAX_FIELD_KEY_LENGTH: usize = 64;
+const FIELD_KEY_INVALID_MESSAGE: &str = "Key contains one or more invalid characters.";
+
 fn metaobject_definition_field_key_chars_valid(value: &str) -> bool {
     value
         .chars()
-        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
 fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
@@ -650,25 +654,35 @@ fn push_metaobject_field_key_errors(
         ));
         errors.push(metaobject_user_error(
             path.clone(),
-            "Key is too short (minimum is 2 characters)",
+            &format!("Key is too short (minimum is {MIN_FIELD_KEY_LENGTH} characters)"),
             "TOO_SHORT",
             json!(key),
             Value::Null,
         ));
         errors.push(metaobject_user_error(
             path,
-            "Key contains one or more invalid characters.",
+            FIELD_KEY_INVALID_MESSAGE,
             "INVALID",
             json!(key),
             Value::Null,
         ));
         return true;
     }
-    if key.chars().count() < 2 {
+    if key.chars().count() < MIN_FIELD_KEY_LENGTH {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
-            "Key is too short (minimum is 2 characters)",
+            &format!("Key is too short (minimum is {MIN_FIELD_KEY_LENGTH} characters)"),
             "TOO_SHORT",
+            json!(key),
+            Value::Null,
+        ));
+        return true;
+    }
+    if key.chars().count() > MAX_FIELD_KEY_LENGTH {
+        errors.push(metaobject_user_error(
+            validation_path.to_vec(),
+            &format!("Key is too long (maximum is {MAX_FIELD_KEY_LENGTH} characters)"),
+            "TOO_LONG",
             json!(key),
             Value::Null,
         ));
@@ -677,7 +691,7 @@ fn push_metaobject_field_key_errors(
     if !metaobject_definition_field_key_chars_valid(key) {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
-            "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
+            FIELD_KEY_INVALID_MESSAGE,
             "INVALID",
             json!(key),
             Value::Null,
@@ -847,7 +861,7 @@ fn metaobject_field_operation_validation(
         let index_string = index.to_string();
         if let Some(create) = resolved_object_field(operation, "create") {
             let key = resolved_string_field(&create, "key").unwrap_or_default();
-            // Presence/length/format validators anchor at the `create` object;
+            // Presence, length, and format validators anchor at the `create` object;
             // the already-taken validator anchors one level deeper at `create.key`.
             let index_path = ["definition", "fieldDefinitions", &index_string];
             let create_path = ["definition", "fieldDefinitions", &index_string, "create"];
