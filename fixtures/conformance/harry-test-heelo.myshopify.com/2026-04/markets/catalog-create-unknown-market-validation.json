@@ -1,0 +1,49 @@
+{
+  "capturedAt": "2026-06-25T02:45:52.982Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "catalogCreateUnknownMarket",
+      "query": "#graphql\nmutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Unknown Market Catalog",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/999999999999"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["input", "context", "marketIds", "0"],
+                  "message": "Market not found.",
+                  "code": "MARKET_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

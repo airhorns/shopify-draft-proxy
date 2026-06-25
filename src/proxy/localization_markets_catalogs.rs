@@ -1096,8 +1096,8 @@ impl DraftProxy {
                 return selected_json(
                     &catalog_payload_error(
                         vec!["input", "context", "marketIds", &index.to_string()],
-                        "Market does not exist",
-                        "INVALID",
+                        "Market not found.",
+                        "MARKET_NOT_FOUND",
                     ),
                     &field.selection,
                 );
