@@ -522,10 +522,11 @@ impl DraftProxy {
             }));
         }
 
+        let mut product_media_nodes = self.product_known_media(&product_id);
+        product_media_nodes.extend(created.clone());
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
         }
-        let product_media_nodes = self.product_known_media(&product_id);
 
         Some(json!({
             "media": created.clone(),
