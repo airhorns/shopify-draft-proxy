@@ -69,6 +69,23 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
     .collect()
 }
 
+fn customer_payment_method_remote_blank_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_field: &str,
+    output_field_path: [&str; 3],
+    message_field: &str,
+    code: &str,
+) -> Option<Value> {
+    let value = resolved_string_field(input, input_field).unwrap_or_default();
+    value.trim().is_empty().then(|| {
+        user_error(
+            output_field_path,
+            &format!("{message_field} can't be blank"),
+            Some(code),
+        )
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn customer_payment_method_local_data(
         &mut self,
@@ -500,9 +517,22 @@ impl DraftProxy {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
         let remote_reference =
             resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
+        let selected_gateway_count = [
+            "paypalPaymentMethod",
+            "stripePaymentMethod",
+            "braintreePaymentMethod",
+            "authorizeNetCustomerPaymentProfile",
+            "adyenPaymentMethod",
+        ]
+        .iter()
+        .filter(|gateway| remote_reference.contains_key(**gateway))
+        .count();
         let has_paypal = remote_reference.contains_key("paypalPaymentMethod");
         let has_stripe = remote_reference.contains_key("stripePaymentMethod");
-        if has_paypal && has_stripe {
+        let has_braintree = remote_reference.contains_key("braintreePaymentMethod");
+        let has_authorize_net = remote_reference.contains_key("authorizeNetCustomerPaymentProfile");
+        let has_adyen = remote_reference.contains_key("adyenPaymentMethod");
+        if selected_gateway_count != 1 {
             return (
                 self.customer_payment_method_payload(
                     &field.selection,
@@ -562,6 +592,116 @@ impl DraftProxy {
                             "customer_id can't be blank",
                             Some("STRIPE_CUSTOMER_ID_BLANK"),
                         )],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_braintree {
+            let braintree = resolved_object_field(&remote_reference, "braintreePaymentMethod")
+                .unwrap_or_default();
+            if let Some(error) = [
+                customer_payment_method_remote_blank_error(
+                    &braintree,
+                    "customerId",
+                    [
+                        "remote_reference",
+                        "braintree_payment_method",
+                        "customer_id",
+                    ],
+                    "customer_id",
+                    "INVALID",
+                ),
+                customer_payment_method_remote_blank_error(
+                    &braintree,
+                    "paymentMethodToken",
+                    [
+                        "remote_reference",
+                        "braintree_payment_method",
+                        "payment_method_token",
+                    ],
+                    "payment_method_token",
+                    "INVALID",
+                ),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_authorize_net {
+            let authorize_net =
+                resolved_object_field(&remote_reference, "authorizeNetCustomerPaymentProfile")
+                    .unwrap_or_default();
+            if let Some(error) = customer_payment_method_remote_blank_error(
+                &authorize_net,
+                "customerProfileId",
+                [
+                    "remote_reference",
+                    "authorize_net_customer_payment_profile",
+                    "customer_profile_id",
+                ],
+                "customer_profile_id",
+                "INVALID",
+            ) {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_adyen {
+            let adyen =
+                resolved_object_field(&remote_reference, "adyenPaymentMethod").unwrap_or_default();
+            if let Some(error) = [
+                customer_payment_method_remote_blank_error(
+                    &adyen,
+                    "shopperReference",
+                    [
+                        "remote_reference",
+                        "adyen_payment_method",
+                        "shopper_reference",
+                    ],
+                    "shopper_reference",
+                    "INVALID",
+                ),
+                customer_payment_method_remote_blank_error(
+                    &adyen,
+                    "storedPaymentMethodId",
+                    [
+                        "remote_reference",
+                        "adyen_payment_method",
+                        "stored_payment_method_id",
+                    ],
+                    "stored_payment_method_id",
+                    "INVALID",
+                ),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
                     ),
                     None,
                 );
