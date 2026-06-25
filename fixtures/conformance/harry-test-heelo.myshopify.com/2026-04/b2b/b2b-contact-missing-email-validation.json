@@ -1,0 +1,239 @@
+{
+  "scenarioId": "b2b-contact-missing-email-validation",
+  "capturedAt": "2026-06-25T02:22:53.387Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable B2B company, record standalone companyContactCreate missing-email rejection and unchanged contact readback, then record nested companyCreate companyContact missing-email rejection plus empty company search by name."
+  },
+  "setupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactMissingEmailCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            locale\n            isMainContact\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B contact missing email setup 1782354171964",
+            "externalId": "missing-email-setup-1782354171964"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5703270706",
+            "name": "B2B contact missing email setup 1782354171964",
+            "externalId": "missing-email-setup-1782354171964",
+            "contacts": {
+              "nodes": []
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8569979186",
+                  "name": "B2B contact missing email setup 1782354171964"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standaloneMissingEmailContactCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactMissingEmailContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n        }\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5703270706",
+        "input": {
+          "firstName": "Jane",
+          "lastName": "Doe"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input"],
+              "message": "Either the attribute email or customer_id must be provided",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterStandaloneRejection": {
+    "request": {
+      "query": "#graphql\n  query B2BContactMissingEmailCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5703270706"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5703270706",
+          "name": "B2B contact missing email setup 1782354171964",
+          "externalId": "missing-email-setup-1782354171964",
+          "contacts": {
+            "nodes": []
+          },
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8569979186",
+                "name": "B2B contact missing email setup 1782354171964"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nestedMissingEmailCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactMissingEmailCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            locale\n            isMainContact\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B nested contact missing email 1782354171964",
+            "externalId": "missing-email-nested-1782354171964"
+          },
+          "companyContact": {
+            "firstName": "Jane"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyContact"],
+              "message": "Either the attribute email or customer_id must be provided",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nestedReadAfterRejection": {
+    "request": {
+      "query": "#graphql\n  query B2BContactMissingEmailCompaniesSearch($companyQuery: String!) {\n    companies(first: 5, query: $companyQuery) {\n      nodes {\n        id\n        name\n        externalId\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "companyQuery": "name:\"B2B nested contact missing email 1782354171964\""
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companies": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete:gid://shopify/Company/5703270706": {
+      "request": {
+        "query": "#graphql\n  mutation B2BContactMissingEmailCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5703270706"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5703270706",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

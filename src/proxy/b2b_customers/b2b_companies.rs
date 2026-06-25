@@ -1160,6 +1160,20 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if input.is_empty() {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![json!({
+                        "field": Value::Null,
+                        "message": "Company contact create input is empty.",
+                        "code": "NO_INPUT"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         let errors = b2b_contact_create_input_errors(&input, &["input"]);
         if !errors.is_empty() {
             return (
@@ -3939,7 +3953,8 @@ const B2B_UNITED_STATES_ZONES: &[(&str, &str)] = &[
 ];
 
 /// Validation for a CompanyContactInput supplied to companyCreate (nested under
-/// `["input","companyContact"]`). A malformed email surfaces as
+/// `["input","companyContact"]`). Missing email rejects the nested contact
+/// before the company tree is staged. A malformed email surfaces as
 /// "Email is invalid"/INVALID on the email field path; HTML markup in a name
 /// surfaces as a generic "Invalid input."/INVALID_INPUT on the parent input path,
 /// matching live Admin's BusinessCustomerUserError shape.
@@ -3948,6 +3963,12 @@ fn b2b_contact_input_errors(
     prefix: &[&str],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
+    if resolved_string_field(input, "email").is_none() {
+        errors.push(b2b_missing_contact_customer_reference_error(
+            prefix.to_vec(),
+        ));
+        return errors;
+    }
     if let Some(email) = resolved_string_field(input, "email") {
         if !is_valid_customer_email(&email) {
             let mut field = prefix.to_vec();
@@ -4115,8 +4136,8 @@ fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
 }
 
 /// Validates a `companyContactCreate` input: a title carrying HTML, a name that
-/// exceeds Shopify's 255-character limit, or an invalid email each produces a
-/// user error anchored at its own `input.<field>` path.
+/// exceeds Shopify's 255-character limit, a missing email, or an invalid email
+/// each produces a Shopify-shaped user error.
 fn b2b_contact_create_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
@@ -4149,6 +4170,12 @@ fn b2b_contact_create_input_errors(
             }
         }
     }
+    if resolved_string_field(input, "email").is_none() {
+        errors.push(b2b_missing_contact_customer_reference_error(
+            prefix.to_vec(),
+        ));
+        return errors;
+    }
     if let Some(email) = resolved_string_field(input, "email") {
         if !is_valid_customer_email(&email) {
             errors.push(json!({
@@ -4159,6 +4186,15 @@ fn b2b_contact_create_input_errors(
         }
     }
     errors
+}
+
+fn b2b_missing_contact_customer_reference_error(field: Vec<&str>) -> Value {
+    b2b_company_user_error(
+        field,
+        "Either the attribute email or customer_id must be provided",
+        "INVALID",
+        None,
+    )
 }
 
 /// True when a staged order/draft-order record references the given company via

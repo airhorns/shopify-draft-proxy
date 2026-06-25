@@ -78,7 +78,12 @@ role setup when those input objects are present.
 `companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
 company-contact lifecycle and keep company `contactIds`, contact customer data,
 role assignments, and downstream contact reads in sync. Deleting or removing
-the current main contact clears the company's `mainContact`.
+the current main contact clears the company's `mainContact`. `companyContactCreate`
+requires an email-backed customer reference; omitting `input.email` returns
+`INVALID` at `["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies the same requirement at
+`["input", "companyContact"]` before staging any company, location, role, contact,
+or assignment rows.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from
@@ -148,6 +153,8 @@ the covered request shape, including `editableShippingAddress`,
 - Runtime coverage: `tests/graphql_routes/b2b.rs`
 - Company contact and main-contact lifecycle parity:
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
+- Contact missing-email validation parity:
+  `config/parity-specs/b2b/b2b-contact-missing-email-validation.json`
 - Address lifecycle parity: `config/parity-specs/b2b/b2b-location-address-management.json`
   and `config/parity-specs/b2b/location_assign_address_preserves_id.json`
 - Staff validation parity:
