@@ -1,0 +1,55 @@
+#graphql
+fragment BundledPriceListWebPresenceFields on MarketWebPresence {
+  id
+  subfolderSuffix
+  domain {
+    id
+    host
+    url
+    sslEnabled
+  }
+  rootUrls {
+    locale
+    url
+  }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
+}
+
+mutation BundledPriceListWebPresenceCreate(
+  $priceListInput: PriceListCreateInput!
+  $webPresenceInput: WebPresenceCreateInput!
+) {
+  priceListCreate(input: $priceListInput) {
+    priceList {
+      id
+      name
+      currency
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  webPresenceCreate(input: $webPresenceInput) {
+    webPresence {
+      ...BundledPriceListWebPresenceFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

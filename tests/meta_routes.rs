@@ -674,6 +674,19 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
 
     for (domain, root, query) in cases {
         let mut proxy = snapshot_proxy();
+        if root == "backupRegionUpdate" {
+            let setup = proxy.process_request(graphql_request(
+                &json!({
+                    "query": "mutation { marketCreate(input: { name: \"Canada\", enabled: true, regions: [{ countryCode: \"CA\" }] }) { market { id } userErrors { message } } }"
+                })
+                .to_string(),
+            ));
+            assert_eq!(
+                setup.body["data"]["marketCreate"]["userErrors"],
+                json!([]),
+                "backupRegionUpdate log enforcement setup should stage a covering market"
+            );
+        }
         let response =
             proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
         assert_eq!(

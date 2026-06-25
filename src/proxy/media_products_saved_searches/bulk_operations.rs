@@ -56,26 +56,7 @@ impl DraftProxy {
     }
 
     fn bulk_operation_products_result_jsonl(&self, field: &RootFieldSelection) -> String {
-        let mut products = self.store.products();
-        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
-            if query.contains("status:") {
-                products.clear();
-            } else if let Some(tag) = product_tag_query_value(query) {
-                products.retain(|product| {
-                    self.store
-                        .staged
-                        .product_search_tags
-                        .get(&product.id)
-                        .map(|tags| tags.contains(tag))
-                        .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
-                });
-            } else if query.trim_start().starts_with("sku:") {
-                products.retain(|product| {
-                    let variants = self.store.product_variants_for_product(&product.id);
-                    product_matches_sku_query(product, &variants, query)
-                });
-            }
-        }
+        let products = self.products_filtered_by_search_query(field.arguments.get("query"));
 
         let node_selection = edge_node_selection(&field.selection);
         let product_selection = bulk_jsonl_node_selection(&node_selection);

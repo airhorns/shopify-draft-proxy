@@ -872,8 +872,7 @@ impl Default for StagedState {
             function_fulfillment_constraint_rules: BTreeMap::new(),
             function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
-            backup_region: backup_region_country("CA")
-                .expect("default backup region country must be captured"),
+            backup_region: Value::Null,
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
 
