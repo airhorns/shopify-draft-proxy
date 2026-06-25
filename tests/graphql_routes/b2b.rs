@@ -155,6 +155,166 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
 }
 
 #[test]
+fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() {
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let mut fresh_proxy = snapshot_proxy();
+    let assign_and_remove = fresh_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsAssignAndRemove(
+          $locationId: ID!,
+          $assign: [TaxExemption!],
+          $remove: [TaxExemption!]
+        ) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $locationId,
+            exemptionsToAssign: $assign,
+            exemptionsToRemove: $remove
+          ) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
+            "remove": ["US_CA_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(assign_and_remove.status, 200);
+    assert_eq!(
+        assign_and_remove.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut staged_proxy = snapshot_proxy();
+    let initial = staged_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsInitial(
+          $locationId: ID!,
+          $taxRegistrationId: String,
+          $taxExempt: Boolean,
+          $assign: [TaxExemption!]
+        ) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $locationId,
+            taxRegistrationId: $taxRegistrationId,
+            taxExempt: $taxExempt,
+            exemptionsToAssign: $assign
+          ) {
+            companyLocation {
+              id
+              taxSettings {
+                taxRegistrationId
+                taxExempt
+                taxExemptions
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "taxRegistrationId": "REG-1",
+            "taxExempt": true,
+            "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+        }),
+    ));
+    assert_eq!(initial.status, 200);
+    assert_eq!(
+        initial.body["data"]["companyLocationTaxSettingsUpdate"]["companyLocation"]["taxSettings"],
+        json!({
+            "taxRegistrationId": "REG-1",
+            "taxExempt": true,
+            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+        })
+    );
+
+    let remove_absent = staged_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsRemoveAbsent(
+          $locationId: ID!,
+          $taxExempt: Boolean,
+          $remove: [TaxExemption!]
+        ) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $locationId,
+            taxExempt: $taxExempt,
+            exemptionsToRemove: $remove
+          ) {
+            companyLocation {
+              id
+              taxSettings {
+                taxRegistrationId
+                taxExempt
+                taxExemptions
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "remove": ["US_CA_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(remove_absent.status, 200);
+    assert_eq!(
+        remove_absent.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxRegistrationId": "REG-1",
+                    "taxExempt": true,
+                    "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_write = staged_proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BTaxSettingsReadAfterWrite($locationId: ID!) {
+          companyLocation(id: $locationId) {
+            id
+            taxSettings {
+              taxRegistrationId
+              taxExempt
+              taxExemptions
+            }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(read_after_write.status, 200);
+    assert_eq!(
+        read_after_write.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "taxSettings": {
+                "taxRegistrationId": "REG-1",
+                "taxExempt": true,
+                "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+            }
+        })
+    );
+}
+
+#[test]
 fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
     let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";

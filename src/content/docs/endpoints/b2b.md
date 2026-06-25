@@ -119,8 +119,14 @@ role at the target location returns indexed `LIMIT_REACHED` at
 stage and return in `roleAssignments`. Revoke returns indexed
 missing-assignment errors at `["rolesToRevoke", i]`.
 
-`companyLocationTaxSettingsUpdate` stages `taxExempt`, tax-exemption assignment
-and removal, nullable input validation, and unknown-location user errors.
+`companyLocationTaxSettingsUpdate` stages `taxExempt`, `taxRegistrationId`, and
+tax-exemption assignment/removal under `CompanyLocation.taxSettings`. Exemption
+updates apply against the current staged location set by removing
+`exemptionsToRemove` and then appending new `exemptionsToAssign` values without
+inventing defaults. Omitting `taxExempt` or `taxRegistrationId` preserves the
+current staged value; literal `taxExempt: null` and variable `taxExempt: null`
+return `INVALID_INPUT`, while an unbound optional `$taxExempt` variable is
+treated as omitted.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
 `checkoutToDraft`, `paymentTermsTemplate`, and `deposit`.
@@ -157,6 +163,8 @@ the covered request shape, including `editableShippingAddress`,
 - Contact/location-role parity:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
   `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`
+- Company-location tax-settings parity:
+  `config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
 - Bulk duplicate role-assignment parity:
   `config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json`
 - Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`
@@ -166,3 +174,4 @@ the covered request shape, including `editableShippingAddress`,
 
 - `corepack pnpm lint`
 - `corepack pnpm rust:test`
+- `corepack pnpm parity -- --spec config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
