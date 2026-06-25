@@ -1,0 +1,52 @@
+query ProductsCommonSearchFiltersRead($statusQuery: String!, $vendorTypeQuery: String!) {
+  statusCount: productsCount(query: $statusQuery) {
+    count
+    precision
+  }
+  statusProducts: products(first: 5, query: $statusQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  vendorTypeCount: productsCount(query: $vendorTypeQuery) {
+    count
+    precision
+  }
+  vendorTypeProducts: products(first: 5, query: $vendorTypeQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

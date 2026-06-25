@@ -123,6 +123,17 @@ fn user_error_code(code: Option<&str>) -> Value {
     code.map(Value::from).unwrap_or(Value::Null)
 }
 
+pub(in crate::proxy) const BLANK_USER_ERROR_CODE: &str = "BLANK";
+pub(in crate::proxy) const TOO_LONG_USER_ERROR_CODE: &str = "TOO_LONG";
+
+pub(in crate::proxy) fn blank_message(field_name: &str) -> String {
+    format!("{field_name} can't be blank")
+}
+
+pub(in crate::proxy) fn too_long_message(field_name: &str, maximum: usize) -> String {
+    format!("{field_name} is too long (maximum is {maximum} characters)")
+}
+
 pub(in crate::proxy) fn user_error(
     field: impl Into<UserErrorField>,
     message: &str,
@@ -142,8 +153,8 @@ pub(in crate::proxy) fn presence_user_error(
 ) -> Value {
     user_error(
         field,
-        &format!("{field_name} can't be blank"),
-        Some("BLANK"),
+        &blank_message(field_name),
+        Some(BLANK_USER_ERROR_CODE),
     )
 }
 
@@ -154,11 +165,39 @@ pub(in crate::proxy) fn length_user_error(
 ) -> Value {
     let (message, code) = match bound {
         LengthUserErrorBound::TooLong { maximum } => (
-            format!("{field_name} is too long (maximum is {maximum} characters)"),
-            "TOO_LONG",
+            too_long_message(field_name, maximum),
+            TOO_LONG_USER_ERROR_CODE,
         ),
     };
     user_error(field, &message, Some(code))
+}
+
+pub(in crate::proxy) fn max_input_size_exceeded_error(
+    path: impl Into<UserErrorField>,
+    size: usize,
+    maximum: usize,
+    locations: Option<Value>,
+) -> Value {
+    let mut error = json!({
+        "message": format!(
+            "The input array size of {size} is greater than the maximum allowed of {maximum}."
+        ),
+        "path": user_error_field(path),
+        "extensions": {
+            "code": "MAX_INPUT_SIZE_EXCEEDED",
+        },
+    });
+    if let Some(locations) = locations {
+        error["locations"] = locations;
+    }
+    error
+}
+
+pub(in crate::proxy) fn payload_error(root_key: &str, user_errors: Vec<Value>) -> Value {
+    json!({
+        root_key: Value::Null,
+        "userErrors": user_errors,
+    })
 }
 
 pub(in crate::proxy) fn user_error_with_code_value(
@@ -854,7 +893,7 @@ fn invalid_global_id_literal_error(
     })
 }
 
-fn invalid_variable_error_envelope(
+pub(in crate::proxy) fn invalid_variable_error_envelope(
     message: String,
     location: SourceLocation,
     value: Value,
@@ -3950,6 +3989,96 @@ mod tests {
                 None,
             ),
             Value::Object(expected_nullable),
+        );
+    }
+
+    #[test]
+    fn blank_and_too_long_message_helpers_match_user_error_shapes() {
+        assert_eq!(blank_message("Title"), "Title can't be blank");
+        assert_same_json_bytes(
+            presence_user_error(["input", "title"], "Title"),
+            json!({
+                "field": ["input", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK",
+            }),
+        );
+
+        assert_eq!(
+            too_long_message("Title", 255),
+            "Title is too long (maximum is 255 characters)"
+        );
+        assert_same_json_bytes(
+            length_user_error(
+                ["input", "title"],
+                "Title",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            ),
+            json!({
+                "field": ["input", "title"],
+                "message": "Title is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+            }),
+        );
+    }
+
+    #[test]
+    fn max_input_size_exceeded_error_matches_graphql_error_shape() {
+        assert_same_json_bytes(
+            max_input_size_exceeded_error(
+                ["productVariantsBulkCreate", "variants"],
+                2049,
+                2048,
+                Some(json!([{
+                    "line": 7,
+                    "column": 11,
+                }])),
+            ),
+            json!({
+                "message": "The input array size of 2049 is greater than the maximum allowed of 2048.",
+                "locations": [{
+                    "line": 7,
+                    "column": 11,
+                }],
+                "path": ["productVariantsBulkCreate", "variants"],
+                "extensions": {
+                    "code": "MAX_INPUT_SIZE_EXCEEDED",
+                },
+            }),
+        );
+        assert_same_json_bytes(
+            max_input_size_exceeded_error(["media"], 251, 250, None),
+            json!({
+                "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+                "path": ["media"],
+                "extensions": {
+                    "code": "MAX_INPUT_SIZE_EXCEEDED",
+                },
+            }),
+        );
+    }
+
+    #[test]
+    fn payload_error_matches_null_root_user_errors_shape() {
+        assert_same_json_bytes(
+            payload_error(
+                "catalog",
+                vec![user_error_typed(
+                    "CatalogUserError",
+                    ["input", "title"],
+                    "Title can't be blank",
+                    Some("BLANK"),
+                )],
+            ),
+            json!({
+                "catalog": Value::Null,
+                "userErrors": [{
+                    "__typename": "CatalogUserError",
+                    "field": ["input", "title"],
+                    "message": "Title can't be blank",
+                    "code": "BLANK",
+                }],
+            }),
         );
     }
 
