@@ -3579,6 +3579,145 @@ fn customer_marketing_consent_updates_stage_and_project_downstream_reads() {
 }
 
 #[test]
+fn customer_marketing_consent_subscribed_requires_opt_in_level() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateForConsentRequiredLevel($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+              defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "hermes-consent-required-level@example.com",
+                "firstName": "Hermes",
+                "lastName": "Consent",
+                "phone": "+14155556022"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let email_missing_level = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EmailSubscribedMissingOptInLevel($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "customerId": customer_id,
+                "emailMarketingConsent": {
+                    "marketingState": "SUBSCRIBED",
+                    "consentUpdatedAt": "2026-04-25T02:25:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        email_missing_level.body["data"]["customerEmailMarketingConsentUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "emailMarketingConsent", "marketingOptInLevel"],
+            "message": "Marketing opt in level must exist",
+            "code": "MISSING_ARGUMENT"
+        }])
+    );
+
+    let sms_missing_level = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmsSubscribedMissingOptInLevel($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "customerId": customer_id,
+                "smsMarketingConsent": {
+                    "marketingState": "SUBSCRIBED",
+                    "consentUpdatedAt": "2026-04-25T02:26:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        sms_missing_level.body["data"]["customerSmsMarketingConsentUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "smsMarketingConsent", "marketingOptInLevel"],
+            "message": "Marketing opt in level must exist",
+            "code": "MISSING_ARGUMENT"
+        }])
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsentRequiredLevelDownstream($id: ID!) {
+          customer(id: $id) {
+            defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+            emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }
+            smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["customer"]["defaultEmailAddress"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["defaultPhoneNumber"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null,
+            "marketingCollectedFrom": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["emailMarketingConsent"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["smsMarketingConsent"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null,
+            "consentCollectedFrom": Value::Null
+        })
+    );
+}
+
+#[test]
 fn customer_marketing_consent_resolver_errors_do_not_mutate_state() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
