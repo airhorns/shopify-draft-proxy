@@ -33,6 +33,27 @@ async function runGraphqlAllowErrors(query, variables = {}) {
   return payload;
 }
 
+const taggableProductHydrateQuery =
+  '\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}';
+
+async function captureProductHydrateUpstreamCall(productId) {
+  const variables = { ids: [productId] };
+  const { status, payload } = await runGraphqlRequest(taggableProductHydrateQuery, variables);
+  if (status < 200 || status >= 300 || payload.errors) {
+    throw new Error(`Product hydrate cassette capture failed: ${JSON.stringify({ status, payload }, null, 2)}`);
+  }
+
+  return {
+    operationName: 'ProductsHydrateNodes',
+    variables,
+    query: taggableProductHydrateQuery,
+    response: {
+      status,
+      body: payload,
+    },
+  };
+}
+
 const createMutation = `#graphql
   mutation ProductStateConformanceCreate($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -386,6 +407,7 @@ try {
   tagsAddVariables.id = createdProductId;
   tagsRemoveVariables.id = createdProductId;
 
+  const statusHydrateCall = await captureProductHydrateUpstreamCall(createdProductId);
   statusResponse = await runGraphql(changeStatusMutation, statusVariables);
   unknownStatusResponse = await runGraphql(changeStatusMutation, unknownStatusVariables);
   nullLiteralStatusResponse = await runGraphqlAllowErrors(changeStatusNullLiteralMutation);
@@ -395,6 +417,7 @@ try {
   };
   const postStatusRead = await runGraphql(postStatusReadQuery, postStatusReadVariables);
 
+  const tagsAddHydrateCall = await captureProductHydrateUpstreamCall(createdProductId);
   tagsAddResponse = await runGraphql(tagsAddMutation, tagsAddVariables);
   const tagsAddDownstreamReadVariables = {
     id: createdProductId,
@@ -404,6 +427,7 @@ try {
   await sleep(tagSearchIndexWaitMs);
   const postTagsAddDelayedRead = await runGraphql(postTagsAddReadQuery, tagsAddDownstreamReadVariables);
 
+  const tagsRemoveHydrateCall = await captureProductHydrateUpstreamCall(createdProductId);
   tagsRemoveResponse = await runGraphql(tagsRemoveMutation, tagsRemoveVariables);
   const tagsRemoveDownstreamReadVariables = {
     id: createdProductId,
@@ -455,6 +479,7 @@ try {
       },
       downstreamReadVariables: postStatusReadVariables,
       downstreamRead: postStatusRead,
+      upstreamCalls: [statusHydrateCall],
     },
     'tags-add-parity.json': {
       seedProduct: createResponse.data?.productCreate?.product ?? null,
@@ -469,6 +494,7 @@ try {
         variables: tagsAddDownstreamReadVariables,
         response: postTagsAddDelayedRead,
       },
+      upstreamCalls: [tagsAddHydrateCall],
     },
     'tags-remove-parity.json': {
       seedProduct: createResponse.data?.productCreate?.product ?? null,
@@ -478,6 +504,7 @@ try {
       },
       downstreamReadVariables: tagsRemoveDownstreamReadVariables,
       downstreamRead: postTagsRemoveRead,
+      upstreamCalls: [tagsRemoveHydrateCall],
     },
     'tags-normalization-parity.json': {
       tagNormalization,
