@@ -4540,9 +4540,40 @@ fn product_metafields_delete_stages_product_owned_readback() {
     );
 }
 
+fn product_state_test_product(
+    id: &str,
+    title: &str,
+    handle: &str,
+    tags: Vec<&str>,
+    updated_at: &str,
+) -> ProductRecord {
+    ProductRecord {
+        id: id.to_string(),
+        created_at: updated_at.to_string(),
+        updated_at: updated_at.to_string(),
+        title: title.to_string(),
+        handle: handle.to_string(),
+        status: "DRAFT".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: tags.into_iter().map(str::to_string).collect(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+        ..ProductRecord::default()
+    }
+}
+
 #[test]
 fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
+        "gid://shopify/Product/10173064872242",
+        "Hermes Product State Conformance 1777416213315",
+        "hermes-product-state-conformance-1777416213315",
+        vec!["existing", "hermes-state-1777416213315"],
+        "2026-04-28T22:43:34Z",
+    )]);
 
     let add = proxy.process_request(json_graphql_request(
         r#"
@@ -4594,7 +4625,18 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
         })
     );
 
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
+        "gid://shopify/Product/10173064872242",
+        "Hermes Product State Conformance 1777416213315",
+        "hermes-product-state-conformance-1777416213315",
+        vec![
+            "existing",
+            "hermes-state-1777416213315",
+            "hermes-summer-1777416213315",
+            "hermes-sale-1777416213315",
+        ],
+        "2026-04-28T22:43:34Z",
+    )]);
     let remove = proxy.process_request(json_graphql_request(
         r#"
         mutation TagsRemoveParityPlan($id: ID!, $tags: [String!]!) {
@@ -4650,7 +4692,13 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
         })
     );
 
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
+        "gid://shopify/Product/10178790424882",
+        "Hermes Tags Product 1778091014318",
+        "hermes-tags-product-1778091014318",
+        vec!["hermes-tags-base-1778091014318"],
+        "2024-01-01T00:00:00.000Z",
+    )]);
     let multi = proxy.process_request(json_graphql_request(
         r#"
         mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {
@@ -4694,6 +4742,170 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
             "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
         })
     );
+}
+
+#[test]
+fn product_state_mutations_hydrate_real_product_before_staging_captured_ids() {
+    fn proxy_with_product_hydration(
+        product_id: &'static str,
+        title: &'static str,
+        handle: &'static str,
+        status: &'static str,
+        tags: Vec<&'static str>,
+        updated_at: &'static str,
+    ) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+        let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_bodies = Arc::clone(&upstream_bodies);
+        let proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+            move |request| {
+                let body: Value =
+                    serde_json::from_str(&request.body).expect("upstream body parses");
+                captured_bodies.lock().unwrap().push(body.clone());
+                assert_eq!(
+                    body["variables"]["ids"],
+                    json!([product_id]),
+                    "product mutation hydrate should request the target id"
+                );
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": product_id,
+                                "legacyResourceId": "10173064872242",
+                                "title": title,
+                                "handle": handle,
+                                "status": status,
+                                "vendor": "Hydrated Vendor",
+                                "productType": "Hydrated Type",
+                                "tags": tags,
+                                "totalInventory": 3,
+                                "tracksInventory": true,
+                                "createdAt": "2026-06-01T00:00:00Z",
+                                "updatedAt": updated_at,
+                                "publishedAt": null,
+                                "descriptionHtml": "<p>Hydrated</p>",
+                                "onlineStorePreviewUrl": "https://example.test/products/hydrated",
+                                "templateSuffix": null,
+                                "seo": { "title": "Hydrated SEO", "description": "Hydrated description" },
+                                "resourcePublicationsV2": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                }
+            },
+        );
+        (proxy, upstream_bodies)
+    }
+
+    let product_id = "gid://shopify/Product/10173064872242";
+    let (mut status_proxy, status_hydrates) = proxy_with_product_hydration(
+        product_id,
+        "Hydrated Status Product",
+        "hydrated-status-product",
+        "ACTIVE",
+        vec!["real-base", "real-status"],
+        "2026-06-01T00:00:00Z",
+    );
+    let changed = status_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ChangeHydratedProductStatus($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id title status tags updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "status": "ARCHIVED" }),
+    ));
+    assert_eq!(changed.status, 200);
+    assert_eq!(
+        changed.body["data"]["productChangeStatus"],
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Hydrated Status Product",
+                "status": "ARCHIVED",
+                "tags": ["real-base", "real-status"],
+                "updatedAt": "2026-06-01T00:00:00Z"
+            },
+            "userErrors": []
+        })
+    );
+    let status_bodies = status_hydrates.lock().unwrap();
+    assert_eq!(status_bodies.len(), 1);
+    assert!(status_bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ProductsHydrateNodes")));
+
+    let add_id = "gid://shopify/Product/10178790424882";
+    let (mut add_proxy, add_hydrates) = proxy_with_product_hydration(
+        add_id,
+        "Hydrated Tags Add Product",
+        "hydrated-tags-add-product",
+        "DRAFT",
+        vec!["real-base"],
+        "2026-06-02T00:00:00Z",
+    );
+    let add = add_proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsAddHydratedProduct($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id title tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": add_id, "tags": ["real-added"] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["tagsAdd"],
+        json!({
+            "node": {
+                "id": add_id,
+                "title": "Hydrated Tags Add Product",
+                "tags": ["real-added", "real-base"]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(add_hydrates.lock().unwrap().len(), 1);
+
+    let (mut remove_proxy, remove_hydrates) = proxy_with_product_hydration(
+        product_id,
+        "Hydrated Tags Remove Product",
+        "hydrated-tags-remove-product",
+        "DRAFT",
+        vec!["real-base", "real-remove"],
+        "2026-06-03T00:00:00Z",
+    );
+    let remove = remove_proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsRemoveHydratedProduct($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id title tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "tags": ["real-remove"] }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["tagsRemove"],
+        json!({
+            "node": {
+                "id": product_id,
+                "title": "Hydrated Tags Remove Product",
+                "tags": ["real-base"]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(remove_hydrates.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -4940,7 +5152,13 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
 
 #[test]
 fn product_change_status_stages_archived_status_and_downstream_read_lag() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
+        "gid://shopify/Product/10173064872242",
+        "Hermes Product State Conformance 1777416213315",
+        "hermes-product-state-conformance-1777416213315",
+        vec!["existing", "hermes-state-1777416213315"],
+        "2026-04-28T22:43:34Z",
+    )]);
 
     let changed = proxy.process_request(json_graphql_request(
         r#"

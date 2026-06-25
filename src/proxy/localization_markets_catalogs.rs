@@ -3574,7 +3574,7 @@ impl DraftProxy {
         else {
             return;
         };
-        let timestamp = default_product_timestamp(resource_id);
+        let timestamp = default_product_timestamp();
         let mut product = self
             .store
             .product_staged_or_base(resource_id)
