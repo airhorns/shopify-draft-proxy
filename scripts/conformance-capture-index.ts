@@ -1978,6 +1978,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'product-metafields-set-non-cas',
+    scriptPath: 'scripts/capture-product-metafields-set-non-cas-conformance.mts',
+    purpose:
+      'Independent product-scoped metafieldsSet set/read, omitted namespace, and owner-expansion parity without selecting opaque compareDigest CAS tokens.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json',
+      'config/parity-specs/products/metafieldsSet-missing-namespace.json',
+      'config/parity-specs/products/metafieldsSet-owner-expansion.json',
+      'config/parity-specs/products/metafieldsSet-parity-plan.json',
+      'config/parity-requests/products/metafieldsSet-downstream-read-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-expansion-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-parity-plan-no-compare-digest.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product for each product-owned scenario plus one disposable collection for owner expansion; deletes all created owners after recording.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'metafields-generic-product-owner',
     scriptPath: 'scripts/capture-metafields-generic-product-owner-conformance.ts',
