@@ -950,11 +950,11 @@ impl DraftProxy {
             return (
                 b2b_company_location_payload(
                     None,
-                    vec![json!({
-                        "field": Value::Null,
-                        "message": "Company location update input is empty.",
-                        "code": "NO_INPUT"
-                    })],
+                    vec![user_error(
+                        Value::Null,
+                        "Company location update input is empty.",
+                        Some("NO_INPUT"),
+                    )],
                 ),
                 "failed",
                 Vec::new(),
@@ -1108,11 +1108,11 @@ impl DraftProxy {
             return (
                 b2b_company_contact_payload(
                     None,
-                    vec![json!({
-                        "field": Value::Null,
-                        "message": "Company contact update input is empty.",
-                        "code": "NO_INPUT"
-                    })],
+                    vec![user_error(
+                        Value::Null,
+                        "Company contact update input is empty.",
+                        Some("NO_INPUT"),
+                    )],
                 ),
                 "failed",
                 Vec::new(),
@@ -1253,11 +1253,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyContactId": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactId"],
-                        "message": "The company contact doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["companyContactId"], "The company contact doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1324,11 +1320,7 @@ impl DraftProxy {
             return (
                 json!({
                     "removedCompanyContactId": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactId"],
-                        "message": "The company contact doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["companyContactId"], "The company contact doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1369,11 +1361,11 @@ impl DraftProxy {
                 return (
                     b2b_company_payload(
                         None,
-                        vec![json!({
-                            "field": ["companyContactId"],
-                            "message": "The company contact does not belong to the company.",
-                            "code": "INVALID_INPUT"
-                        })],
+                        vec![user_error(
+                            ["companyContactId"],
+                            "The company contact does not belong to the company.",
+                            Some("INVALID_INPUT"),
+                        )],
                     ),
                     "failed",
                     Vec::new(),
@@ -1382,11 +1374,11 @@ impl DraftProxy {
             return (
                 b2b_company_payload(
                     None,
-                    vec![json!({
-                        "field": ["companyContactId"],
-                        "message": "The company contact doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    })],
+                    vec![user_error(
+                        ["companyContactId"],
+                        "The company contact doesn't exist.",
+                        Some("RESOURCE_NOT_FOUND"),
+                    )],
                 ),
                 "failed",
                 Vec::new(),
@@ -1475,11 +1467,7 @@ impl DraftProxy {
             return (
                 json!({
                     "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactRoleId"],
-                        "message": "The company contact role doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["companyContactRoleId"], "The company contact role doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1497,11 +1485,7 @@ impl DraftProxy {
             return (
                 json!({
                     "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "The company location doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["companyLocationId"], "The company location doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1514,11 +1498,7 @@ impl DraftProxy {
             return (
                 json!({
                     "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [{
-                        "field": Value::Null,
-                        "message": "Company contact has already been assigned a role in that company location.",
-                        "code": "LIMIT_REACHED"
-                    }]
+                    "userErrors": [user_error(Value::Null, "Company contact has already been assigned a role in that company location.", Some("LIMIT_REACHED"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1626,11 +1606,7 @@ impl DraftProxy {
                 json!({
                     "revokedCompanyContactRoleAssignmentId": Value::Null,
                     "companyContact": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyContactRoleAssignmentId"],
-                        "message": "The role assignment doesn't exist.",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["companyContactRoleAssignmentId"], "The role assignment doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1747,11 +1723,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyId": Value::Null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Failed to delete the company.",
-                        "code": "FAILED_TO_DELETE"
-                    }]
+                    "userErrors": [user_error(["id"], "Failed to delete the company.", Some("FAILED_TO_DELETE"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -1900,11 +1872,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyLocationId": Value::Null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "Failed to delete the company location.",
-                        "code": "FAILED_TO_DELETE"
-                    }]
+                    "userErrors": [user_error(["companyLocationId"], "Failed to delete the company location.", Some("FAILED_TO_DELETE"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -2044,11 +2012,7 @@ impl DraftProxy {
             return (
                 json!({
                     "addresses": Value::Null,
-                    "userErrors": [{
-                        "field": Value::Null,
-                        "message": "Invalid input.",
-                        "code": "INVALID_INPUT"
-                    }]
+                    "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
                 }),
                 "failed",
                 Vec::new(),
@@ -5079,7 +5043,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
             .store
@@ -5092,10 +5056,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Customer can’t be deleted because they have associated orders"
-                }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
             self.store.staged.customers.remove(&id);
@@ -5965,17 +5926,13 @@ impl DraftProxy {
             self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
         else {
             let user_error = if is_email {
-                json!({
-                    "field": ["input", "customerId"],
-                    "message": "Customer not found",
-                    "code": "INVALID"
-                })
+                user_error(
+                    ["input", "customerId"],
+                    "Customer not found",
+                    Some("INVALID"),
+                )
             } else {
-                json!({
-                    "field": Value::Null,
-                    "message": "Customer not found",
-                    "code": Value::Null
-                })
+                user_error(Value::Null, "Customer not found", None)
             };
             self.record_customer_consent_log(
                 request,
@@ -8399,11 +8356,7 @@ fn b2b_buyer_experience_configuration_json(input: &BTreeMap<String, ResolvedValu
 }
 
 fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) -> Value {
-    json!({
-        "field": [field, index.to_string()],
-        "message": message,
-        "code": code
-    })
+    user_error(json!([field, index.to_string()]), message, Some(code))
 }
 
 fn b2b_bulk_role_already_assigned_error(index: usize) -> Value {
@@ -8440,31 +8393,31 @@ fn b2b_contact_create_input_errors(
     };
     if let Some(title) = resolved_string_field(input, "title") {
         if b2b_contains_html_tags(&title) {
-            errors.push(json!({
-                "field": field_path("title"),
-                "message": "Title contains HTML tags",
-                "code": "CONTAINS_HTML_TAGS"
-            }));
+            errors.push(user_error(
+                json!(field_path("title")),
+                "Title contains HTML tags",
+                Some("CONTAINS_HTML_TAGS"),
+            ));
         }
     }
     for (name_field, label) in [("firstName", "First name"), ("lastName", "Last name")] {
         if let Some(value) = resolved_string_field(input, name_field) {
             if value.chars().count() > 255 {
-                errors.push(json!({
-                    "field": field_path(name_field),
-                    "message": format!("{label} is too long"),
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    json!(field_path(name_field)),
+                    &format!("{label} is too long"),
+                    Some("TOO_LONG"),
+                ));
             }
         }
     }
     if let Some(email) = resolved_string_field(input, "email") {
         if !is_valid_customer_email(&email) {
-            errors.push(json!({
-                "field": field_path("email"),
-                "message": "Email is invalid",
-                "code": "INVALID"
-            }));
+            errors.push(user_error(
+                json!(field_path("email")),
+                "Email is invalid",
+                Some("INVALID"),
+            ));
         }
     }
     errors
@@ -8811,10 +8764,11 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
 }
 
 fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
-    json!({
-        "field": [field],
-        "message": format!("To update {field}, please use the {mutation} Mutation instead")
-    })
+    user_error_omit_code(
+        json!([field]),
+        &format!("To update {field}, please use the {mutation} Mutation instead"),
+        None,
+    )
 }
 
 impl DraftProxy {

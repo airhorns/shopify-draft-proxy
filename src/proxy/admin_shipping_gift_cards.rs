@@ -373,19 +373,19 @@ impl DraftProxy {
         let (app, user_errors) = match requested_id.as_deref() {
             Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "App is not installed on this shop.",
-                    "code": "APP_NOT_INSTALLED"
-                })],
+                vec![user_error(
+                    ["id"],
+                    "App is not installed on this shop.",
+                    Some("APP_NOT_INSTALLED"),
+                )],
             ),
             Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "The app cannot be found.",
-                    "code": "APP_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["id"],
+                    "The app cannot be found.",
+                    Some("APP_NOT_FOUND"),
+                )],
             ),
             _ => {
                 self.store.staged.app_uninstalled = true;
@@ -432,27 +432,19 @@ impl DraftProxy {
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["name"], "Name can't be blank", None));
         }
         if !arguments.contains_key("returnUrl") {
-            user_errors.push(json!({
-                "field": ["returnUrl"],
-                "message": "Return url can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["returnUrl"], "Return url can't be blank", None));
         }
         if !arguments.contains_key("lineItems")
             || matches!(arguments.get("lineItems"), Some(ResolvedValue::List(items)) if items.is_empty())
         {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "At least one plan must be selected",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["lineItems"],
+                "At least one plan must be selected",
+                None,
+            ));
         }
         let trial_days = arguments
             .get("trialDays")
@@ -470,11 +462,11 @@ impl DraftProxy {
             .unwrap_or(false);
         let line_items = app_subscription_line_items_from_arguments(&arguments);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "All pricing plans must use the same currency.",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["lineItems"],
+                "All pricing plans must use the same currency.",
+                None,
+            ));
         }
         if !user_errors.is_empty() {
             return ok_json(json!({
@@ -536,10 +528,11 @@ impl DraftProxy {
         let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
             Some(record) if record["status"] == "CANCELLED" => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Cannot transition status via :cancel from :cancelled"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Cannot transition status via :cancel from :cancelled",
+                    None,
+                )],
             ),
             Some(record) => {
                 if let Value::Object(fields) = record {
@@ -557,10 +550,11 @@ impl DraftProxy {
             }
             None => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Couldn't find RecurringApplicationCharge"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Couldn't find RecurringApplicationCharge",
+                    None,
+                )],
             ),
         };
 
@@ -594,45 +588,42 @@ impl DraftProxy {
         let (subscription, user_errors) = if days <= 0 {
             (
                 Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be greater than 0",
-                    "code": null
-                })],
+                vec![user_error(["days"], "Days must be greater than 0", None)],
             )
         } else if days > 1000 {
             (
                 Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be less than or equal to 1000",
-                    "code": null
-                })],
+                vec![user_error(
+                    ["days"],
+                    "Days must be less than or equal to 1000",
+                    None,
+                )],
             )
         } else {
             match self.store.staged.app_subscriptions.get_mut(&id) {
                 None => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The app subscription wasn't found.",
-                        "code": "SUBSCRIPTION_NOT_FOUND"
-                    })],
+                    vec![user_error(
+                        ["id"],
+                        "The app subscription wasn't found.",
+                        Some("SUBSCRIPTION_NOT_FOUND"),
+                    )],
                 ),
                 Some(record) if record["status"] != "ACTIVE" => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended on inactive app subscriptions.",
-                        "code": "SUBSCRIPTION_NOT_ACTIVE"
-                    })],
+                    vec![user_error(
+                        ["id"],
+                        "The trial can't be extended on inactive app subscriptions.",
+                        Some("SUBSCRIPTION_NOT_ACTIVE"),
+                    )],
                 ),
                 Some(record) if !app_subscription_trial_is_active(record) => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended after expiration."
-                    })],
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "The trial can't be extended after expiration.",
+                        None,
+                    )],
                 ),
                 Some(record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
@@ -688,10 +679,11 @@ impl DraftProxy {
                             Value::Null,
                             &root.selection,
                             &subscription_selection,
-                            vec![json!({
-                                "field": ["cappedAmount"],
-                                "message": "Capped amount is required"
-                            })],
+                            vec![user_error_omit_code(
+                                ["cappedAmount"],
+                                "Capped amount is required",
+                                None,
+                            )],
                         ),
                     );
                     continue;
@@ -735,10 +727,11 @@ impl DraftProxy {
                     if pricing["__typename"] != "AppUsagePricing" {
                         (
                             Value::Null,
-                            vec![json!({
-                                "field": null,
-                                "message": "Only variable subscriptions can be updated."
-                            })],
+                            vec![user_error_omit_code(
+                                Value::Null,
+                                "Only variable subscriptions can be updated.",
+                                None,
+                            )],
                         )
                     } else {
                         let existing_currency = pricing["cappedAmount"]["currencyCode"]
@@ -753,18 +746,16 @@ impl DraftProxy {
                         if requested_currency != existing_currency {
                             (
                                 Value::Null,
-                                vec![json!({
-                                    "field": null,
-                                    "message": format!("Currency code must be {existing_currency}")
-                                })],
+                                vec![user_error_omit_code(
+                                    Value::Null,
+                                    &format!("Currency code must be {existing_currency}"),
+                                    None,
+                                )],
                             )
                         } else if requested_amount_number <= existing_amount {
                             (
                                 Value::Null,
-                                vec![json!({
-                                    "field": ["cappedAmount"],
-                                    "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit."
-                                })],
+                                vec![user_error_omit_code(["cappedAmount"], "Spending limit can only be increased. Please contact the app developer to decrease spending limit.", None)],
                             )
                         } else {
                             let subscription = if require_approval {
@@ -805,10 +796,7 @@ impl DraftProxy {
                 }
                 _ => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "Invalid id"
-                    })],
+                    vec![user_error_omit_code(["id"], "Invalid id", None)],
                 ),
             };
 
@@ -885,23 +873,19 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         let mut should_record_success = false;
         if idempotency_key.len() > 255 {
-            user_errors.push(json!({
-                "field": ["idempotencyKey"],
-                "message": "Idempotency key exceeds the maximum length.",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["idempotencyKey"],
+                "Idempotency key exceeds the maximum length.",
+                None,
+            ));
         } else if description.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["description"],
-                "message": "Description can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["description"],
+                "Description can't be blank",
+                None,
+            ));
         } else if shopify_gid_resource_type(&line_item_id) != Some("AppSubscriptionLineItem") {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
+            user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
         } else if let Some((subscription_id, line_item_index)) =
             self.find_staged_app_subscription_line_item(&line_item_id)
         {
@@ -945,10 +929,11 @@ impl DraftProxy {
             } else if currency != existing_currency
                 || current_balance + requested_amount > capped_amount
             {
-                user_errors.push(json!({
-                    "field": null,
-                    "message": "Total price exceeds balance remaining"
-                }));
+                user_errors.push(user_error_omit_code(
+                    Value::Null,
+                    "Total price exceeds balance remaining",
+                    None,
+                ));
             } else {
                 let new_balance = if current_balance == 0.0 {
                     amount.clone()
@@ -977,11 +962,7 @@ impl DraftProxy {
                 should_record_success = true;
             }
         } else {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
+            user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
         }
 
         if should_record_success {
@@ -1031,32 +1012,32 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         if scopes.is_empty() {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The access scope can't be empty.",
-                "code": "EMPTY_ACCESS_SCOPE"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The access scope can't be empty.",
+                Some("EMPTY_ACCESS_SCOPE"),
+            ));
         } else if expires_in <= 0 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The expires_in value must be greater than 0.",
-                "code": "NEGATIVE_EXPIRES_IN"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The expires_in value must be greater than 0.",
+                Some("NEGATIVE_EXPIRES_IN"),
+            ));
         } else if delegate_expires_after_parent(request, expires_in) {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The delegate token can't expire after the parent token.",
-                "code": "EXPIRES_AFTER_PARENT"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The delegate token can't expire after the parent token.",
+                Some("EXPIRES_AFTER_PARENT"),
+            ));
         } else if let Some(scope) = scopes
             .iter()
             .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
         {
-            user_errors.push(json!({
-                "field": null,
-                "message": format!("The access scope is invalid: {scope}"),
-                "code": "UNKNOWN_SCOPES"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                &format!("The access scope is invalid: {scope}"),
+                Some("UNKNOWN_SCOPES"),
+            ));
         }
 
         if !user_errors.is_empty() {
@@ -1213,28 +1194,28 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         if app_revoke_access_scopes_missing_source_app(request) {
-            user_errors.push(json!({
-                "field": ["id"],
-                "message": "No app found on the access token.",
-                "code": "MISSING_SOURCE_APP"
-            }));
+            user_errors.push(user_error(
+                ["id"],
+                "No app found on the access token.",
+                Some("MISSING_SOURCE_APP"),
+            ));
         } else {
             if scopes.iter().any(|scope| scope == "read_products") {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "Scopes that are declared as required cannot be revoked.",
-                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-                }));
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "Scopes that are declared as required cannot be revoked.",
+                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
+                ));
             }
             if scopes
                 .iter()
                 .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
             {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "The requested list of scopes to revoke includes invalid handles.",
-                    "code": "UNKNOWN_SCOPES"
-                }));
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "The requested list of scopes to revoke includes invalid handles.",
+                    Some("UNKNOWN_SCOPES"),
+                ));
             }
         }
 
@@ -1314,23 +1295,15 @@ impl DraftProxy {
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["name"], "Name can't be blank", None));
         } else if amount.parse::<f64>().unwrap_or(0.0) < 0.50 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "Validation failed: Price must be greater than or equal to 0.5",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "Validation failed: Price must be greater than or equal to 0.5",
+                None,
+            ));
         } else if currency_code != "USD" {
-            user_errors.push(json!({
-                "field": ["price"],
-                "message": "Currency code must be USD",
-                "code": null
-            }));
+            user_errors.push(user_error(["price"], "Currency code must be USD", None));
         }
 
         if !user_errors.is_empty() {
@@ -1526,10 +1499,11 @@ impl DraftProxy {
                 delivery_profile_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Profile could not be updated."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Profile could not be updated.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -1577,10 +1551,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Cannot delete the default profile."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Cannot delete the default profile.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -1591,10 +1566,11 @@ impl DraftProxy {
                     delivery_profile_remove_payload_json(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot delete the default profile."
-                        })],
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Cannot delete the default profile.",
+                            None,
+                        )],
                     ),
                     Vec::new(),
                 );
@@ -1603,10 +1579,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "The Delivery Profile cannot be found for the shop."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "The Delivery Profile cannot be found for the shop.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -2402,11 +2379,11 @@ impl DraftProxy {
             return location_errors;
         }
         if !local_pickup_time_is_standard(pickup_time) {
-            return vec![json!({
-                "field": ["localPickupSettings"],
-                "message": "Custom pickup time is not allowed for local pickup settings.",
-                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
-            })];
+            return vec![user_error(
+                ["localPickupSettings"],
+                "Custom pickup time is not allowed for local pickup settings.",
+                Some("CUSTOM_PICKUP_TIME_NOT_ALLOWED"),
+            )];
         }
         Vec::new()
     }
@@ -2419,18 +2396,18 @@ impl DraftProxy {
         if self.active_local_pickup_location(location_id).is_some() {
             return Vec::new();
         }
-        vec![json!({
-            "field": ["localPickupSettings"],
-            "message": format!(
+        vec![user_error_with_code_value(
+            ["localPickupSettings"],
+            &format!(
                 "Unable to find an active location for location ID {}",
                 resource_id_path_tail(location_id)
             ),
-            "code": if root_field == "locationLocalPickupEnable" {
+            json!(if root_field == "locationLocalPickupEnable" {
                 "ACTIVE_LOCATION_NOT_FOUND"
             } else {
                 "LOCATION_NOT_FOUND"
-            }
-        })]
+            }),
+        )]
     }
 
     pub(in crate::proxy) fn location_add(
@@ -2767,10 +2744,7 @@ impl DraftProxy {
                 .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
             let mut user_errors = Vec::new();
             if source_location.is_none() {
-                user_errors.push(json!({
-                    "field": ["id"],
-                    "message": "Location not found."
-                }));
+                user_errors.push(user_error_omit_code(["id"], "Location not found.", None));
             } else {
                 user_errors.extend(self.location_edit_user_errors(&location_id, &input));
             }
@@ -2915,50 +2889,50 @@ impl DraftProxy {
         let mut errors = Vec::new();
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Add a location name",
-                    "code": "BLANK"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Add a location name",
+                    Some("BLANK"),
+                ));
             } else if name.chars().count() > 100 {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Use a shorter location name (up to 100 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Use a shorter location name (up to 100 characters)",
+                    Some("TOO_LONG"),
+                ));
             } else if self.location_name_exists_except(&name, location_id) {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "You already have a location with this name",
-                    "code": "TAKEN"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "You already have a location with this name",
+                    Some("TAKEN"),
+                ));
             }
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "city")
                 .is_some_and(|city| city.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "city"],
-                    "message": "Use a shorter city name (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "city"],
+                    "Use a shorter city name (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -2967,16 +2941,16 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        // Shopify reports the metafield position as a 1-based
-                        // index in the error path (input index 0 → field "1").
-                        "field": ["input", "metafields", (index + 1).to_string(), "type"],
-                        "message": format!(
+                    // Shopify reports the metafield position as a 1-based
+                    // index in the error path (input index 0 -> field "1").
+                    errors.push(user_error(
+                        json!(["input", "metafields", (index + 1).to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
@@ -2985,11 +2959,7 @@ impl DraftProxy {
         if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
             && !self.has_other_online_order_fulfillment_location(location_id)
         {
-            errors.push(json!({
-                "field": ["input"],
-                "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
-                "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
-            }));
+            errors.push(user_error(["input"], "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT")));
         }
         errors
     }
@@ -3062,40 +3032,40 @@ impl DraftProxy {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
         if name.trim().is_empty() {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Add a location name",
-                "code": "BLANK"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Add a location name",
+                Some("BLANK"),
+            ));
         } else if name.chars().count() > 100 {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Use a shorter location name (up to 100 characters)",
-                "code": "TOO_LONG"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Use a shorter location name (up to 100 characters)",
+                Some("TOO_LONG"),
+            ));
         } else if self.location_name_exists(&name) {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "You already have a location with this name",
-                "code": "TAKEN"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "You already have a location with this name",
+                Some("TAKEN"),
+            ));
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -3104,23 +3074,23 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        "field": ["input", "metafields", index.to_string(), "type"],
-                        "message": format!(
+                    errors.push(user_error(
+                        json!(["input", "metafields", index.to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
         if self.location_limit_reached() {
-            errors.push(json!({
-                "field": ["input"],
-                "code": "INVALID",
-                "message": "You have reached the maximum number of locations (200)"
-            }));
+            errors.push(user_error(
+                ["input"],
+                "You have reached the maximum number of locations (200)",
+                Some("INVALID"),
+            ));
         }
         errors
     }
@@ -3186,22 +3156,18 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ONGOING_RELOCATION",
-                "message": "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later.", Some("HAS_ONGOING_RELOCATION"))];
         }
         if location
             .get("isFulfillmentService")
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_NOT_FOUND",
-                "message": "Location not found."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Location not found.",
+                Some("LOCATION_NOT_FOUND"),
+            )];
         }
         if self.location_limit_reached()
             || location
@@ -3209,18 +3175,14 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Your shop has reached its location limit.",
+                Some("LOCATION_LIMIT"),
+            )];
         }
         if self.location_has_non_unique_active_name(location) {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_NON_UNIQUE_NAME",
-                "message": "This location currently cannot be activated because there exists an active location with the same name."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated because there exists an active location with the same name.", Some("HAS_NON_UNIQUE_NAME"))];
         }
         Vec::new()
     }
@@ -3625,11 +3587,7 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match destination_location_id {
-            Some(destination_id) if destination_id == location_id => vec![json!({
-                "field": ["destinationLocationId"],
-                "code": "DESTINATION_LOCATION_IS_THE_SAME_LOCATION",
-                "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated."
-            })],
+            Some(destination_id) if destination_id == location_id => vec![user_error(["destinationLocationId"], "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.", Some("DESTINATION_LOCATION_IS_THE_SAME_LOCATION"))],
             Some(destination_id)
                 if destination_id.is_empty()
                     || self.location_deactivate_destination_is_inactive(destination_id) =>
@@ -3642,11 +3600,7 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(false) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR",
-                    "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.", Some("PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR"))]
             }
             None if source_location
                 .get("fulfillsOnlineOrders")
@@ -3654,22 +3608,14 @@ impl DraftProxy {
                 == Some(true)
                 && !self.has_other_online_order_fulfillment_location(location_id) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
-                    "message": "At least one location must fulfill online orders."
-                })]
+                vec![user_error(["locationId"], "At least one location must fulfill online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"))]
             }
             None if source_location
                 .get("hasActiveInventory")
                 .and_then(Value::as_bool)
                 .unwrap_or_else(|| self.location_has_inventory(location_id)) =>
             {
-                vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ACTIVE_INVENTORY_ERROR",
-                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated without specifying where to relocate inventory stocked at the location.", Some("HAS_ACTIVE_INVENTORY_ERROR"))]
             }
             None => Vec::new(),
         }
@@ -4095,11 +4041,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold"],
-                            "message": "Fulfillment hold is required.",
-                            "code": "INVALID"
-                        })]
+                        vec![user_error(["fulfillmentHold"], "Fulfillment hold is required.", Some("INVALID"))]
                     )
                 }
             }));
@@ -4121,11 +4063,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "must contain unique line item ids",
-                            "code": "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "must contain unique line item ids", Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"))]
                     )
                 }
             }));
@@ -4142,11 +4080,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"],
-                            "message": "You must select at least one item to place on partial hold.",
-                            "code": "GREATER_THAN_ZERO"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"], "You must select at least one item to place on partial hold.", Some("GREATER_THAN_ZERO"))]
                     )
                 }
             }));
@@ -4167,11 +4101,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "handle"],
-                            "message": "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                            "code": "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "handle"], "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.", Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"))]
                     )
                 }
             }));
@@ -4184,11 +4114,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                            "code": "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"
-                        })]
+                        vec![user_error(["id"], "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.", Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"))]
                     )
                 }
             }));
@@ -4201,11 +4127,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "The fulfillment order is not in a splittable state.",
-                            "code": "FULFILLMENT_ORDER_NOT_SPLITTABLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "The fulfillment order is not in a splittable state.", Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"))]
                     )
                 }
             }));
@@ -4406,11 +4328,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.", None)]
                     )
                 }
             }));
@@ -4582,11 +4500,7 @@ impl DraftProxy {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": field,
-                            "message": message,
-                            "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                        })]
+                        vec![user_error(json!(field), message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                     )
                 }
             }));
@@ -4659,11 +4573,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Fulfillment order is not in cancelable request state and can't be canceled.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Fulfillment order is not in cancelable request state and can't be canceled.", None)]
                     )
                 }
             }));
@@ -4675,11 +4585,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
-                            "code": null
-                        })]
+                        vec![user_error(["id"], "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.", None)]
                     )
                 }
             }));
@@ -4753,20 +4659,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             let deadline = resolved_string_field(&arguments, "fulfillmentDeadline")
@@ -4908,11 +4810,7 @@ impl DraftProxy {
                 response_key: fulfillment_orders_reroute_payload_json(
                     Vec::new(),
                     &payload_selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Fulfillment orders could not be rerouted locally.",
-                        "code": "NOT_IMPLEMENTED"
-                    })]
+                    vec![user_error(Value::Null, "Fulfillment orders could not be rerouted locally.", Some("NOT_IMPLEMENTED"))]
                 )
             }
         }))
@@ -5192,22 +5090,18 @@ impl DraftProxy {
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let new_location_id = resolved_string_field(&arguments, "newLocationId")
             .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
-        let (moved, original, errors) = if id
-            == "gid://shopify/FulfillmentOrder/move-assignment-submitted"
-        {
-            (
-                Value::Null,
-                Value::Null,
-                vec![json!({
-                    "field": null,
-                    "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                    "code": null
-                })],
-            )
-        } else {
-            let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
-            (order.clone(), order, vec![])
-        };
+        let (moved, original, errors) =
+            if id == "gid://shopify/FulfillmentOrder/move-assignment-submitted" {
+                let error = user_error(
+                    Value::Null,
+                    "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                    None,
+                );
+                (Value::Null, Value::Null, vec![error])
+            } else {
+                let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
+                (order.clone(), order, vec![])
+            };
         if errors.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -5248,11 +5142,7 @@ impl DraftProxy {
                 response_key: fulfillment_order_simple_payload_json(
                     Value::Null,
                     &payload_selection,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": message,
-                        "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                    })]
+                    vec![user_error(["id"], message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                 )
             }
         }))
@@ -5282,20 +5172,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             for id in &ids {
@@ -6386,10 +6272,7 @@ impl DraftProxy {
                     fulfillment_service_delete_payload(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": ["inventoryAction"],
-                            "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
-                        })],
+                        vec![user_error_omit_code(["inventoryAction"], "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.", None)],
                     ),
                     vec![],
                 );
@@ -6401,10 +6284,11 @@ impl DraftProxy {
                             fulfillment_service_delete_payload(
                                 Value::Null,
                                 &field.selection,
-                                vec![json!({
-                                    "field": Value::Null,
-                                    "message": "Invalid destination location."
-                                })],
+                                vec![user_error_omit_code(
+                                    Value::Null,
+                                    "Invalid destination location.",
+                                    None,
+                                )],
                             ),
                             vec![],
                         );
@@ -6756,7 +6640,7 @@ impl DraftProxy {
             .unwrap_or_else(|| (root_field.to_string(), BTreeMap::new()));
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return ok_json(
-                json!({ "data": { response_key: { "userErrors": [{ "field": ["id"], "message": "ID is required" }] } } }),
+                json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["id"], "ID is required", None)] } } }),
             );
         };
         let id = id.clone();
@@ -6775,7 +6659,7 @@ impl DraftProxy {
             "shippingPackageUpdate" => {
                 let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
                     return ok_json(
-                        json!({ "data": { response_key: { "userErrors": [{ "field": ["shippingPackage"], "message": "Shipping package input is required" }] } } }),
+                        json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
                 let mut package = self.effective_shipping_package(&id);
@@ -6783,11 +6667,7 @@ impl DraftProxy {
                     return ok_json(json!({
                         "data": {
                             response_key: {
-                                "userErrors": [{
-                                    "field": ["shippingPackage"],
-                                    "message": "Custom shipping box is not updatable",
-                                    "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
-                                }]
+                                "userErrors": [user_error(["shippingPackage"], "Custom shipping box is not updatable", Some("CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"))]
                             }
                         }
                     }));
@@ -7914,30 +7794,34 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
         let publication_id = resolved_string_field(publication, "publicationId");
         match publication_id.as_deref() {
             Some("") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "PublicationId cannot be empty",
+                    None,
+                ));
                 continue;
             }
             Some("gid://shopify/Publication/999999999999") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "Publication does not exist or is not publishable",
+                    None,
+                ));
                 continue;
             }
             Some(id) if !seen.insert(id.to_string()) => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "The same publication was specified more than once"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "The same publication was specified more than once",
+                    None,
+                ));
             }
             Some(_) => {}
-            None => user_errors.push(json!({
-                "field": ["input", field_index, "publicationId"],
-                "message": "PublicationId cannot be empty"
-            })),
+            None => user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publicationId"]),
+                "PublicationId cannot be empty",
+                None,
+            )),
         }
 
         if resolved_string_field(publication, "publishDate")
@@ -7945,10 +7829,11 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
             .map(publishable_publish_date_is_before_1970)
             .unwrap_or(false)
         {
-            user_errors.push(json!({
-                "field": ["input", field_index, "publishDate"],
-                "message": "Publish date must be a date after the year 1969"
-            }));
+            user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publishDate"]),
+                "Publish date must be a date after the year 1969",
+                None,
+            ));
         }
     }
     user_errors
@@ -8085,10 +7970,7 @@ impl DraftProxy {
                 &json!({
                     "signature": Value::Null,
                     "payload": Value::Null,
-                    "userErrors": [{
-                        "field": ["payload"],
-                        "message": "Payload must be valid JSON"
-                    }]
+                    "userErrors": [user_error_omit_code(["payload"], "Payload must be valid JSON", None)]
                 }),
                 &field.selection,
             );
@@ -8294,10 +8176,7 @@ fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value 
 fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &str) -> Value {
     selected_json(
         &json!({
-            "userErrors": [{
-                "field": [field_name],
-                "message": message
-            }]
+            "userErrors": [user_error_omit_code(json!([field_name]), message, None)]
         }),
         &field.selection,
     )
