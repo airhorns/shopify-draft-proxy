@@ -5,29 +5,6 @@ use sha2::{Digest, Sha256};
 mod customer_payment_methods;
 mod returns;
 
-pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
-    namespace: &str,
-    key: &str,
-) -> Option<Value> {
-    let metafield_type = match (namespace, key) {
-        ("custom", "boolean") => "boolean",
-        ("custom", "number_integer") => "number_integer",
-        ("custom", "json") => "json",
-        ("custom", "rich_text") | ("custom", "rich_text_field") => "rich_text_field",
-        ("custom", "rating") => "rating",
-        ("custom", "link") => "link",
-        ("custom", "money") => "money",
-        _ => return None,
-    };
-    Some(json!({
-        "namespace": namespace,
-        "key": key,
-        "type": metafield_type,
-        "value": "",
-        "compareDigest": metafield_compare_digest("")
-    }))
-}
-
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());

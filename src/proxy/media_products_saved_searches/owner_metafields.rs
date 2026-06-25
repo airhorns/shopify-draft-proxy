@@ -92,23 +92,16 @@ impl DraftProxy {
                 + metafields.len()
                 + 1;
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
-            let metafield = if let Some(mut record) =
-                custom_data_metafield_type_matrix_record(&namespace, &key)
-            {
-                record["owner"] = owner_reference_from_gid(&owner_id);
-                record
-            } else {
-                owner_metafield_record(OwnerMetafieldRecordArgs {
-                    owner_id: &owner_id,
-                    namespace: &namespace,
-                    key: &key,
-                    metafield_type: &metafield_type,
-                    value: &value,
-                    index,
-                    existing: existing.as_ref(),
-                    include_owner: true,
-                })
-            };
+            let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+                owner_id: &owner_id,
+                namespace: &namespace,
+                key: &key,
+                metafield_type: &metafield_type,
+                value: &value,
+                index,
+                existing: existing.as_ref(),
+                include_owner: true,
+            });
             self.store.staged.deleted_owner_metafields.remove(&(
                 owner_id.clone(),
                 namespace.clone(),

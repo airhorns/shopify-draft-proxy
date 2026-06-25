@@ -1,5 +1,12 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use sha2::{Digest, Sha256};
+
+fn sha256_hex(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
 
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     let state = proxy.get_state_snapshot();
@@ -645,6 +652,123 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
     assert_eq!(
         customer_read.body["data"]["customer"]["metafields"]["nodes"][0]["key"],
         json!("value")
+    );
+}
+
+#[test]
+fn metafields_set_preserves_custom_namespace_type_named_keys() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/1741";
+    let json_value = "{\"a\":1}";
+    let rating_value = "{\"scale_min\":\"1.0\",\"scale_max\":\"5.0\",\"value\":\"4.5\"}";
+    let money_value = "{\"amount\":\"12.34\",\"currency_code\":\"USD\"}";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomNamespaceTypedKeys($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+              namespace
+              key
+              type
+              value
+              jsonValue
+              compareDigest
+              createdAt
+              updatedAt
+              ownerType
+              owner { __typename ... on Product { id } }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "json", "type": "json", "value": json_value},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating", "type": "rating", "value": rating_value},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money", "type": "money", "value": money_value}
+        ]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    let metafields = set.body["data"]["metafieldsSet"]["metafields"]
+        .as_array()
+        .unwrap();
+    assert_eq!(metafields.len(), 3);
+    assert_eq!(metafields[0]["namespace"], json!("custom"));
+    assert_eq!(metafields[0]["key"], json!("json"));
+    assert_eq!(metafields[0]["type"], json!("json"));
+    assert_eq!(metafields[0]["value"], json!(json_value));
+    assert_eq!(metafields[0]["jsonValue"], json!({"a": 1}));
+    assert_eq!(
+        metafields[0]["compareDigest"],
+        json!(sha256_hex(json_value))
+    );
+    assert_eq!(metafields[0]["ownerType"], json!("PRODUCT"));
+    assert_eq!(metafields[0]["owner"]["id"], json!(owner_id));
+    assert!(
+        metafields[0]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/Metafield/")),
+        "expected a real metafield id, got {:?}",
+        metafields[0]["id"]
+    );
+    assert!(metafields[0]["createdAt"].is_string());
+    assert!(metafields[0]["updatedAt"].is_string());
+    assert_eq!(metafields[1]["value"], json!(rating_value));
+    assert_eq!(
+        metafields[1]["jsonValue"],
+        json!({"scale_min": "1.0", "scale_max": "5.0", "value": "4.5"})
+    );
+    assert_eq!(
+        metafields[1]["compareDigest"],
+        json!(sha256_hex(rating_value))
+    );
+    assert_eq!(metafields[2]["value"], json!(money_value));
+    assert_eq!(
+        metafields[2]["jsonValue"],
+        json!({"amount": "12.34", "currency_code": "USD"})
+    );
+    assert_eq!(
+        metafields[2]["compareDigest"],
+        json!(sha256_hex(money_value))
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomNamespaceTypedKeysRead($id: ID!) {
+          product(id: $id) {
+            jsonField: metafield(namespace: "custom", key: "json") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            ratingField: metafield(namespace: "custom", key: "rating") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            moneyField: metafield(namespace: "custom", key: "money") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["value"],
+        json!(json_value)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["jsonValue"],
+        json!({"a": 1})
+    );
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["compareDigest"],
+        json!(sha256_hex(json_value))
+    );
+    assert_eq!(
+        read.body["data"]["product"]["ratingField"]["jsonValue"],
+        json!({"scale_min": "1.0", "scale_max": "5.0", "value": "4.5"})
+    );
+    assert_eq!(
+        read.body["data"]["product"]["moneyField"]["jsonValue"],
+        json!({"amount": "12.34", "currency_code": "USD"})
     );
 }
 
