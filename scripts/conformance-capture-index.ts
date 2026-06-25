@@ -4178,20 +4178,41 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',
-    purpose: 'Catalog price-list/publication relation validation for unknown ids and one-catalog relation exclusivity.',
-    requiredAuthScopes: ['read_markets', 'write_markets'],
+    purpose:
+      'Catalog price-list/publication relation validation for unknown ids, one-catalog relation exclusivity, and freshly-created publication attachment.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_publications', 'write_publications'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}catalog-relation-validation.json`,
+      'config/parity-specs/markets/catalog-create-fresh-publication-relation.json',
       'config/parity-specs/markets/catalog-create-price-list-not-found.json',
       'config/parity-specs/markets/catalog-create-price-list-taken.json',
       'config/parity-specs/markets/catalog-update-publication-not-found.json',
+      'config/parity-requests/markets/catalog-create-publication-relation.graphql',
       'config/parity-requests/markets/catalog-relation-markets-read.graphql',
+      'config/parity-requests/markets/catalog-relation-publication-create.graphql',
       'config/parity-requests/markets/catalog-create-relation-validation.graphql',
       'config/parity-requests/markets/catalog-update-relation-validation.graphql',
       'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
     ],
     cleanupBehavior:
-      'Uses an existing market context, creates a disposable price list and setup catalogs, captures rejected relation validation branches, then deletes the disposable catalogs; attached price lists may already be removed by catalog cleanup.',
+      'Uses an existing market context, creates a disposable price list, publication, and setup catalogs, captures rejected and accepted relation branches, then deletes the disposable catalogs, price list, and publication when still present.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'bundled-price-list-web-presence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bundled-price-list-web-presence-conformance.mts',
+    purpose:
+      'Single-document priceListCreate plus webPresenceCreate payload parity for the bundled local-dispatch path.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bundled-price-list-web-presence.json`,
+      'config/parity-specs/markets/bundled-price-list-web-presence-create.json',
+      'config/parity-requests/markets/bundled-price-list-web-presence-create.graphql',
+    ],
+    cleanupBehavior:
+      'Reads baseline webPresences for the local preflight cassette, creates one disposable price list and subfolder web presence in a single GraphQL document, then deletes both resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
