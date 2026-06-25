@@ -1,0 +1,132 @@
+{
+  "scenarioId": "metafield-definition-protected-guards",
+  "operationNames": [
+    "standardMetafieldDefinitionEnable",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionCreate",
+    "metafieldsSet",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "validation-errors",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-protected-guards.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-standard-enable.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.standard.enable.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "standard-enable-setup",
+        "capturePath": "$.standard.enable.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "standard-template-immutable-update-userErrors",
+        "capturePath": "$.standard.immutableUpdate.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-standard-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.standard.immutableUpdate.request.variables"
+        }
+      },
+      {
+        "name": "standard-template-read-after-rejected-update",
+        "capturePath": "$.standard.readAfterRejectedUpdate.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.standard.readAfterRejectedUpdate.request.variables"
+        }
+      },
+      {
+        "name": "app-reserved-create-setup",
+        "capturePath": "$.appReserved.definitionCreate.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.appReserved.definitionCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "app-reserved-metafields-set-setup",
+        "capturePath": "$.appReserved.metafieldsSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.appReserved.metafieldsSet.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "app-reserved-delete-without-flag-userErrors",
+        "capturePath": "$.appReserved.deleteNoFlag.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-no-flag.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.appReserved.deleteNoFlag.request.variables"
+        }
+      },
+      {
+        "name": "app-reserved-read-after-guarded-delete",
+        "capturePath": "$.appReserved.readAfterGuard.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.appReserved.readAfterGuard.request.variables"
+        }
+      },
+      {
+        "name": "app-reserved-delete-with-flag-success",
+        "capturePath": "$.appReserved.deleteWithFlag.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-with-flag.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.appReserved.deleteWithFlag.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 evidence for two protected-definition guards. Standard-template product subtitle definitions reject edits to name, description, and validations with INVALID_INPUT while preserving the original definition. App-reserved namespaces created through `$app:<suffix>` reject metafieldDefinitionDelete without deleteAllAssociatedMetafields, return RESERVED_NAMESPACE_ORPHANED_METAFIELDS, retain the definition, and delete successfully when the flag is true."
+}

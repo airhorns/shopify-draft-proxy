@@ -4,6 +4,8 @@ const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 const PINNED_DEFINITION_LIMIT: usize = 20;
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
+const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
+    "Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.";
 
 fn pinned_definition_limit_message() -> String {
     format!("Limit of {PINNED_DEFINITION_LIMIT} pinned definitions.")
@@ -573,6 +575,15 @@ impl DraftProxy {
                 "validationJob": Value::Null
             });
         }
+        let standard_template_immutable_field_errors =
+            metafield_definition_standard_template_immutable_field_errors(input, &definition);
+        if !standard_template_immutable_field_errors.is_empty() {
+            return json!({
+                "updatedDefinition": Value::Null,
+                "userErrors": standard_template_immutable_field_errors,
+                "validationJob": Value::Null
+            });
+        }
         if let Some(name) = resolved_string_field(input, "name") {
             definition["name"] = json!(name);
         }
@@ -678,6 +689,7 @@ impl DraftProxy {
         };
         if !delete_all {
             let type_name = definition["type"]["name"].as_str().unwrap_or_default();
+            let namespace = definition["namespace"].as_str().unwrap_or_default();
             if type_name == "id" {
                 return json!({
                     "deletedDefinitionId": Value::Null,
@@ -699,6 +711,18 @@ impl DraftProxy {
                         Value::Null,
                         "Deleting a reference type metafield definition requires deletion of its associated metafields.",
                         "REFERENCE_TYPE_DELETION_ERROR"
+                    )]
+                });
+            }
+            if metafield_definition_delete_namespace_is_reserved(namespace) {
+                return json!({
+                    "deletedDefinitionId": Value::Null,
+                    "deletedDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "MetafieldDefinitionDeleteUserError",
+                        Value::Null,
+                        RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE,
+                        "RESERVED_NAMESPACE_ORPHANED_METAFIELDS"
                     )]
                 });
             }
@@ -1869,6 +1893,60 @@ fn metafield_definition_is_standard_template(definition: &Value) -> bool {
         .get(STANDARD_TEMPLATE_MARKER_FIELD)
         .and_then(Value::as_str)
         .is_some()
+}
+
+fn metafield_definition_standard_template_immutable_field_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    definition: &Value,
+) -> Vec<Value> {
+    if !metafield_definition_is_standard_template(definition) {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    if resolved_string_field(input, "name")
+        .is_some_and(|name| definition.get("name").and_then(Value::as_str) != Some(name.as_str()))
+    {
+        errors.push(metafield_definition_user_error(
+            "MetafieldDefinitionUpdateUserError",
+            json!(["definition", "name"]),
+            "Name cannot be changed in a standard definition.",
+            "INVALID_INPUT",
+        ));
+    }
+    if input.contains_key("description") {
+        let next_description = match input.get("description") {
+            Some(ResolvedValue::String(description)) => Some(description.as_str()),
+            _ => None,
+        };
+        if definition.get("description").and_then(Value::as_str) != next_description {
+            errors.push(metafield_definition_user_error(
+                "MetafieldDefinitionUpdateUserError",
+                json!(["definition", "description"]),
+                "Description cannot be changed in a standard definition.",
+                "INVALID_INPUT",
+            ));
+        }
+    }
+    if input.contains_key("options")
+        || (input.contains_key("validations")
+            && definition.get("validations") != Some(&metafield_definition_validations(input)))
+    {
+        errors.push(metafield_definition_user_error(
+            "MetafieldDefinitionUpdateUserError",
+            json!(["definition", "validations"]),
+            "Validations cannot be changed in a standard definition.",
+            "INVALID_INPUT",
+        ));
+    }
+    errors
+}
+
+fn metafield_definition_delete_namespace_is_reserved(namespace: &str) -> bool {
+    namespace.starts_with("app--")
+        || matches!(
+            namespace,
+            "shopify_standard" | "protected" | "shopify-l10n-fields"
+        )
 }
 
 fn public_metafield_definition_value(mut definition: Value) -> Value {

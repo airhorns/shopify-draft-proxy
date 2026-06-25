@@ -1,0 +1,14 @@
+mutation MetafieldDefinitionProtectedGuardsDeleteNoFlag($namespace: String!, $key: String!) {
+  metafieldDefinitionDelete(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {
+    deletedDefinition {
+      ownerType
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
