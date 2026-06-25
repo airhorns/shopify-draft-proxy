@@ -1421,23 +1421,7 @@ fn resolved_decimal_text_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Option<String> {
-    match input.get(key) {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}
-
-fn shopify_decimal_text(value: &str) -> String {
-    let Ok(parsed) = value.parse::<f64>() else {
-        return value.to_string();
-    };
-    let mut formatted = parsed.to_string();
-    if !formatted.contains('.') {
-        formatted.push_str(".0");
-    }
-    formatted
+    resolved_decimal_text(input.get(key))
 }
 
 fn json_number_value(value: &Value) -> Option<f64> {

@@ -839,21 +839,7 @@ pub(in crate::proxy) fn fixed_price_input_amount(
     let Some(ResolvedValue::Object(money)) = fields.get(money_field) else {
         return None;
     };
-    resolved_string_field(money, "amount").map(|amount| normalized_money_amount(&amount))
-}
-
-pub(in crate::proxy) fn normalized_money_amount(amount: &str) -> String {
-    if !amount.contains('.') {
-        return amount.to_string();
-    }
-    let mut normalized = amount.to_string();
-    while normalized.ends_with('0') {
-        normalized.pop();
-    }
-    if normalized.ends_with('.') {
-        normalized.push('0');
-    }
-    normalized
+    resolved_string_field(money, "amount").map(|amount| normalize_money_amount(&amount))
 }
 
 pub(in crate::proxy) fn market_status_enabled_mismatch(

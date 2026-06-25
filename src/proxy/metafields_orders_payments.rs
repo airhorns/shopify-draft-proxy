@@ -109,16 +109,6 @@ fn json_quote(value: &str) -> String {
     Value::String(value.to_string()).to_string()
 }
 
-/// Gleam `float.to_string` renders whole values with a trailing `.0`
-/// (`5.0`, not `5`); Rust's `{}` drops it. Mirror the Gleam behavior.
-fn float_to_string(value: f64) -> String {
-    if value.is_finite() && value.fract() == 0.0 {
-        format!("{}.0", value.trunc() as i64)
-    } else {
-        format!("{value}")
-    }
-}
-
 fn normalize_date_time_value(value: &str) -> String {
     if value.to_lowercase().ends_with('z') {
         format!("{}+00:00", &value[..value.len() - 1])
@@ -227,7 +217,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render via `float_to_string`. Mirrors Gleam
+/// floats render through Shopify's decimal text normalization. Mirrors Gleam
 /// `json_number_string_field`.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
@@ -235,14 +225,18 @@ fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) 
             if let Some(int_value) = number.as_i64() {
                 Some(format!("{int_value}.0"))
             } else {
-                number.as_f64().map(float_to_string)
+                number
+                    .as_f64()
+                    .map(|value| shopify_decimal_text(&value.to_string()))
             }
         }
         Some(Value::String(text)) => {
             if let Ok(int_value) = text.parse::<i64>() {
                 Some(format!("{int_value}.0"))
             } else {
-                text.parse::<f64>().ok().map(float_to_string)
+                text.parse::<f64>()
+                    .ok()
+                    .map(|value| shopify_decimal_text(&value.to_string()))
             }
         }
         _ => None,
@@ -389,7 +383,7 @@ fn list_decimal_json_item(item: &Value) -> Value {
             if let Some(int_value) = number.as_i64() {
                 Value::String(int_value.to_string())
             } else if let Some(float_value) = number.as_f64() {
-                Value::String(float_to_string(float_value))
+                Value::String(shopify_decimal_text(&float_value.to_string()))
             } else {
                 item.clone()
             }
@@ -2725,18 +2719,6 @@ fn money_bag_currency(money_set: &Value) -> String {
         .to_string()
 }
 
-fn money_bag_normalized_amount(amount: &str) -> String {
-    amount
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .to_string()
-        + if amount.contains('.') && amount.trim_end_matches('0').ends_with('.') {
-            ".0"
-        } else {
-            ""
-        }
-}
-
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
     let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
     format!("{total:.1}")
@@ -3134,7 +3116,7 @@ impl DraftProxy {
                         .first()
                         .and_then(|transaction| resolved_string_field(transaction, "amount"))
                         .unwrap_or_else(|| "5.00".to_string());
-                    let amount = money_bag_normalized_amount(&amount);
+                    let amount = normalize_money_amount(&amount);
                     let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
                     let currency = self
                         .store
@@ -3236,14 +3218,14 @@ impl DraftProxy {
         let presentment_money =
             resolved_object_field(&price_set, "presentmentMoney").unwrap_or_default();
         let shop_amount = resolved_string_field(&shop_money, "amount")
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| "0.0".to_string());
         let shop_currency =
             resolved_string_field(&shop_money, "currencyCode").unwrap_or_else(|| {
                 resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string())
             });
         let presentment_amount = resolved_string_field(&presentment_money, "amount")
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| shop_amount.clone());
         let presentment_currency = resolved_string_field(&presentment_money, "currencyCode")
             .unwrap_or_else(|| shop_currency.clone());
@@ -3252,14 +3234,14 @@ impl DraftProxy {
             .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
             .and_then(|tax_price| resolved_object_field(&tax_price, "shopMoney"))
             .and_then(|money| resolved_string_field(&money, "amount"))
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| "0.0".to_string());
         let presentment_tax_amount = resolved_object_list_field(&first_line, "taxLines")
             .first()
             .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
             .and_then(|tax_price| resolved_object_field(&tax_price, "presentmentMoney"))
             .and_then(|money| resolved_string_field(&money, "amount"))
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| tax_amount.clone());
         let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
         let presentment_total =
