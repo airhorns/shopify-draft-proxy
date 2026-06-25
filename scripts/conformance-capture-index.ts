@@ -3490,6 +3490,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql',
       'config/parity-requests/products/inventory-quantity-contracts-2026-set-unknown-id-validation.graphql',
+      'config/parity-requests/products/inventory-quantity-contracts-2026-set-on-hand.graphql',
+      'config/parity-requests/products/inventory-quantity-contracts-2026-set-on-hand-validation.graphql',
+      'config/parity-requests/products/inventory-quantity-contracts-2026-set-on-hand-missing-idempotency.graphql',
+      'config/parity-requests/products/inventory-quantity-contracts-2026-missing-set-on-hand-change-from.graphql',
       'config/parity-requests/products/inventory-quantity-contracts-2026-adjust-unknown-id-validation.graphql',
       'config/parity-requests/products/inventory-quantity-contracts-2026-move-unknown-id-validation.graphql',
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,

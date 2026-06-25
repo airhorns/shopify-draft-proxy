@@ -929,6 +929,7 @@ impl DraftProxy {
                         root_field,
                         "inventoryAdjustQuantities"
                             | "inventorySetQuantities"
+                            | "inventorySetOnHandQuantities"
                             | "inventoryMoveQuantities"
                             | "inventoryActivate"
                             | "inventoryDeactivate"

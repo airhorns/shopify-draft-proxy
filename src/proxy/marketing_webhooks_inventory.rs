@@ -1789,6 +1789,9 @@ impl DraftProxy {
             let outcome = match field.name.as_str() {
                 "inventoryAdjustQuantities" => self.inventory_adjust_quantities(request, field),
                 "inventorySetQuantities" => self.inventory_set_quantities(request, field),
+                "inventorySetOnHandQuantities" => {
+                    self.inventory_set_on_hand_quantities(request, field)
+                }
                 "inventoryMoveQuantities" => self.inventory_move_quantities(field),
                 "inventoryActivate" => self.inventory_activate(field),
                 "inventoryDeactivate" => self.inventory_deactivate(field),
@@ -2475,7 +2478,9 @@ impl DraftProxy {
             return;
         };
         variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
+        let product_id = variant.product_id.clone();
         self.store.stage_product_variant(variant);
+        self.sync_product_inventory_aggregates(&product_id);
     }
 
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
@@ -2687,6 +2692,117 @@ impl DraftProxy {
                 &field.selection,
             ),
             LogDraft::staged("inventorySetQuantities", "products", Vec::new()),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_set_on_hand_quantities(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        if inventory_requires_idempotency(request) && !inventory_field_has_idempotent(field) {
+            return MutationFieldOutcome::unlogged(inventory_idempotency_required_payload(
+                field,
+                "inventorySetOnHandQuantities",
+            ));
+        }
+
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let set_quantities = resolved_object_list_field(&input, "setQuantities");
+        if inventory_set_requires_change_from(request, field) {
+            if let Some(error_payload) = inventory_quantity_missing_change_from_payload(
+                field,
+                "inventorySetOnHandQuantities",
+                "InventorySetQuantityInput",
+                &set_quantities,
+                "quantity",
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
+        }
+        if let Some(error_payload) = inventory_invalid_reason_payload(field, &input) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            inventory_invalid_set_on_hand_quantities_payload(field, &set_quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            self.inventory_set_on_hand_quantities_existence_payload(field, &set_quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+
+        let reason =
+            resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
+        let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
+        let mut changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
+        for quantity in set_quantities {
+            let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
+            let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
+            let new_on_hand = resolved_int_field(&quantity, "quantity").unwrap_or(0);
+            let key = (item_id.clone(), location_id.clone());
+            let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+            let delta = {
+                let level = self
+                    .store
+                    .staged
+                    .inventory_levels
+                    .entry(key.clone())
+                    .or_default();
+                let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
+                let delta = new_on_hand - old_on_hand;
+                let old_available = level.get("available").copied().unwrap_or(0);
+                let available_after_change = old_available + delta;
+                level.insert("available".to_string(), available_after_change);
+                level.insert("on_hand".to_string(), new_on_hand);
+                level.entry("damaged".to_string()).or_insert(0);
+                delta
+            };
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key);
+            }
+            self.stamp_inventory_quantity(&item_id, &location_id, "available", &updated_at);
+            self.store.staged.inventory_quantity_updated_at.remove(&(
+                item_id.clone(),
+                location_id.clone(),
+                "on_hand".to_string(),
+            ));
+            self.sync_variant_available_quantity(&item_id, "available");
+            changes.push(inventory_set_on_hand_change_json(
+                &item_id,
+                "available",
+                delta,
+                &location_id,
+                &location_name,
+            ));
+            changes.push(inventory_set_on_hand_change_json(
+                &item_id,
+                "on_hand",
+                delta,
+                &location_id,
+                &location_name,
+            ));
+        }
+
+        MutationFieldOutcome::staged(
+            selected_json(
+                &json!({
+                    "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
+                        "reason": reason,
+                        "referenceDocumentUri": reference,
+                        "changes": changes
+                    },
+                    "userErrors": []
+                }),
+                &field.selection,
+            ),
+            LogDraft::staged("inventorySetOnHandQuantities", "products", Vec::new()),
         )
     }
 
@@ -2948,6 +3064,39 @@ impl DraftProxy {
                 errors.push(inventory_unknown_location_error(vec![
                     "input".to_string(),
                     "quantities".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_set_on_hand_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        set_quantities: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, quantity) in set_quantities.iter().enumerate() {
+            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
                     index.to_string(),
                     "locationId".to_string(),
                 ]));
@@ -6035,10 +6184,29 @@ fn inventory_adjust_requires_change_from(request: &Request) -> bool {
 
 fn inventory_set_requires_change_from(request: &Request, field: &RootFieldSelection) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
-        && field
-            .directives
-            .iter()
-            .any(|directive| directive == "idempotent")
+        && inventory_field_has_idempotent(field)
+}
+
+fn inventory_requires_idempotency(request: &Request) -> bool {
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
+}
+
+fn inventory_field_has_idempotent(field: &RootFieldSelection) -> bool {
+    field
+        .directives
+        .iter()
+        .any(|directive| directive == "idempotent")
+}
+
+fn inventory_idempotency_required_payload(field: &RootFieldSelection, root_field: &str) -> Value {
+    json!({
+        "__topLevelErrors": [{
+            "message": "The @idempotent directive is required for this mutation but was not provided.",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "BAD_REQUEST" },
+            "path": [root_field]
+        }]
+    })
 }
 
 fn empty_inventory_quantities() -> BTreeMap<String, i64> {
@@ -6471,6 +6639,36 @@ fn inventory_invalid_set_quantities_payload(
     Some(inventory_invalid_adjustment_payload(field, errors))
 }
 
+fn inventory_invalid_set_on_hand_quantities_payload(
+    field: &RootFieldSelection,
+    set_quantities: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    let mut errors = Vec::new();
+    for (index, quantity) in set_quantities.iter().enumerate() {
+        if resolved_int_field(quantity, "quantity").is_some_and(|value| value < 0) {
+            errors.push(json!({
+                "field": ["input", "setQuantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }));
+        }
+        if resolved_int_field(quantity, "quantity")
+            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
+        {
+            errors.push(json!({
+                "field": ["input", "setQuantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }));
+        }
+    }
+
+    if errors.is_empty() {
+        return None;
+    }
+    Some(inventory_invalid_adjustment_payload(field, errors))
+}
+
 fn inventory_invalid_adjustment_payload(
     field: &RootFieldSelection,
     user_errors: Vec<Value>,
@@ -6482,6 +6680,28 @@ fn inventory_invalid_adjustment_payload(
         }),
         &field.selection,
     )
+}
+
+fn inventory_set_on_hand_change_json(
+    item_id: &str,
+    name: &str,
+    delta: i64,
+    location_id: &str,
+    location_name: &str,
+) -> Value {
+    json!({
+        "name": name,
+        "delta": delta,
+        "quantityAfterChange": Value::Null,
+        "ledgerDocumentUri": Value::Null,
+        "item": {
+            "id": item_id
+        },
+        "location": {
+            "id": location_id,
+            "name": location_name
+        }
+    })
 }
 
 fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
