@@ -2424,7 +2424,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             "metafieldDelete",
             OperationType::Mutation,
             CapabilityDomain::Products,
-            false,
+            true,
             &[],
         ),
         registry_entry(
