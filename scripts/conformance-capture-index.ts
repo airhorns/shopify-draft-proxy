@@ -8693,6 +8693,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-approve-decline-state-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-approve-decline-state-preconditions-conformance.mts',
+    purpose:
+      'returnApproveRequest and returnDeclineRequest invalid-state userError shapes for OPEN and DECLINED returns, already-declined decline, and unknown Return IDs.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}returnApprove-decline-state-preconditions.json`,
+      'config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json',
+      'config/parity-requests/orders/return-approve-request-recorded.graphql',
+      'config/parity-requests/orders/return-decline-request-local-staging.graphql',
+      'config/parity-requests/orders/return-order-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills disposable orders, transitions returns to OPEN/DECLINED, records rejected approve/decline branches, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-update-snapshot-staging-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-update-snapshot-staging-local-runtime.ts',
