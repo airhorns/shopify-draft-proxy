@@ -34,15 +34,10 @@ pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
     (!resource_type.is_empty() && !resource_id.is_empty()).then_some(resource_type)
 }
 
-pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> &'static str {
-    match shopify_gid_resource_type(id) {
-        Some("ProductVariant") => "ProductVariant",
-        Some("Collection") => "Collection",
-        Some("Customer") => "Customer",
-        Some("Order") => "Order",
-        Some("Company") => "Company",
-        _ => "Product",
-    }
+pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> String {
+    shopify_gid_resource_type(id)
+        .unwrap_or("Product")
+        .to_string()
 }
 
 impl DraftProxy {
@@ -123,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_known_metafield_owner_gid_types_with_product_default() {
+    fn maps_metafield_owner_gid_types_without_collapsing_unknown_resource_types() {
         assert_eq!(
             metafield_owner_gid_resource_type("gid://shopify/ProductVariant/1"),
             "ProductVariant"
@@ -134,7 +129,7 @@ mod tests {
         );
         assert_eq!(
             metafield_owner_gid_resource_type("gid://shopify/Unknown/1"),
-            "Product"
+            "Unknown"
         );
         assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "Product");
     }

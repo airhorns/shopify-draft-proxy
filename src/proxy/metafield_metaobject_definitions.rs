@@ -2303,18 +2303,24 @@ fn metafield_definition_type(name: &str) -> Value {
 }
 
 fn metafield_definition_type_category(name: &str) -> &'static str {
-    if name == "id" {
-        "ID"
-    } else if name.ends_with("_reference") || name.contains("_reference") {
-        "REFERENCE"
-    } else if name.contains("number") || matches!(name, "rating" | "money") {
-        "NUMBER"
-    } else if matches!(name, "json" | "rich_text_field") {
-        "JSON"
-    } else if matches!(name, "boolean") {
-        "TRUE_FALSE"
-    } else {
-        "TEXT"
+    if let Some(inner) = name.strip_prefix("list.") {
+        return metafield_definition_type_category(inner);
+    }
+    match name {
+        "id" => "ID",
+        value if value.ends_with("_reference") || value.contains("_reference") => "REFERENCE",
+        "number_integer" | "number_decimal" | "integer" | "float" => "NUMBER",
+        "date" | "date_time" => "DATE_TIME",
+        "rating" => "RATING",
+        "money" => "MONEY",
+        "color" => "COLOR",
+        "link" => "LINK",
+        "url" => "URL",
+        "json" => "JSON",
+        "language" => "LANGUAGE",
+        "boolean" => "TRUE_FALSE",
+        value if is_measurement_metafield_type_name(value) => "MEASUREMENT",
+        _ => "TEXT",
     }
 }
 
