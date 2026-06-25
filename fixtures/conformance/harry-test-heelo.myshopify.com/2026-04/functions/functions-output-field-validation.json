@@ -1,0 +1,668 @@
+{
+  "scenarioId": "functions-output-field-validation",
+  "capturedAt": "2026-06-25T03:50:47.255Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Validation and FulfillmentConstraintRule output field introspection plus undefined-field reads for fabricated local-only fields.",
+  "validationFunctionHandle": "conformance-validation",
+  "schemaFields": {
+    "validation": [
+      "blockOnFailure",
+      "enabled",
+      "errorHistory",
+      "id",
+      "metafield",
+      "metafields",
+      "shopifyFunction",
+      "title"
+    ],
+    "fulfillmentConstraintRule": ["deliveryMethodTypes", "function", "id", "metafield", "metafields"]
+  },
+  "fieldSet": {
+    "query": "query FunctionOutputFieldSets {\n  validationType: __type(name: \"Validation\") {\n    fields {\n      name\n    }\n  }\n  fulfillmentConstraintRuleType: __type(name: \"FulfillmentConstraintRule\") {\n    fields {\n      name\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationType": {
+            "fields": [
+              {
+                "name": "blockOnFailure"
+              },
+              {
+                "name": "enabled"
+              },
+              {
+                "name": "errorHistory"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "metafield"
+              },
+              {
+                "name": "metafields"
+              },
+              {
+                "name": "shopifyFunction"
+              },
+              {
+                "name": "title"
+              }
+            ]
+          },
+          "fulfillmentConstraintRuleType": {
+            "fields": [
+              {
+                "name": "deliveryMethodTypes"
+              },
+              {
+                "name": "function"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "metafield"
+              },
+              {
+                "name": "metafields"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationCreate": {
+    "query": "mutation FunctionOutputFieldValidationCreate($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        handle\n        apiType\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "validation": {
+        "functionHandle": "conformance-validation",
+        "title": "Function output field validation",
+        "enable": true,
+        "blockOnFailure": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationCreate": {
+            "validation": {
+              "id": "gid://shopify/Validation/111706418",
+              "title": "Function output field validation",
+              "enabled": true,
+              "blockOnFailure": true,
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationInvalidRead": {
+    "query": "query FunctionOutputFieldValidationInvalidRead($id: ID!) {\n  validation(id: $id) {\n    functionId\n    functionHandle\n    createdAt\n    updatedAt\n    enable\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/111706418"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'functionId' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationInvalidRead", "validation", "functionId"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionId"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 5
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationInvalidRead", "validation", "functionHandle"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'createdAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 5
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationInvalidRead", "validation", "createdAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "createdAt"
+            }
+          },
+          {
+            "message": "Field 'updatedAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 6,
+                "column": 5
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationInvalidRead", "validation", "updatedAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "updatedAt"
+            }
+          },
+          {
+            "message": "Field 'enable' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 7,
+                "column": 5
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationInvalidRead", "validation", "enable"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "enable"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "validationsInvalidRead": {
+    "query": "query FunctionOutputFieldValidationsInvalidRead {\n  validations(first: 5) {\n    nodes {\n      functionId\n      functionHandle\n      createdAt\n      updatedAt\n      enable\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'functionId' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationsInvalidRead", "validations", "nodes", "functionId"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionId"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationsInvalidRead", "validations", "nodes", "functionHandle"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'createdAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 6,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationsInvalidRead", "validations", "nodes", "createdAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "createdAt"
+            }
+          },
+          {
+            "message": "Field 'updatedAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 7,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationsInvalidRead", "validations", "nodes", "updatedAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "updatedAt"
+            }
+          },
+          {
+            "message": "Field 'enable' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 8,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationsInvalidRead", "validations", "nodes", "enable"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "enable"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "validationValidRead": {
+    "query": "query FunctionOutputFieldValidationValidRead($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      handle\n      apiType\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/111706418"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validation": {
+            "id": "gid://shopify/Validation/111706418",
+            "title": "Function output field validation",
+            "enabled": true,
+            "blockOnFailure": true,
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationNodeInvalidRead": {
+    "query": "query FunctionOutputFieldValidationNodeInvalidRead($id: ID!) {\n  node(id: $id) {\n    ... on Validation {\n      functionId\n      functionHandle\n      createdAt\n      updatedAt\n      enable\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/111706418"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'functionId' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationNodeInvalidRead", "node", "... on Validation", "functionId"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionId"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 7
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldValidationNodeInvalidRead",
+              "node",
+              "... on Validation",
+              "functionHandle"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'createdAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 6,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationNodeInvalidRead", "node", "... on Validation", "createdAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "createdAt"
+            }
+          },
+          {
+            "message": "Field 'updatedAt' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 7,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationNodeInvalidRead", "node", "... on Validation", "updatedAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "updatedAt"
+            }
+          },
+          {
+            "message": "Field 'enable' doesn't exist on type 'Validation'",
+            "locations": [
+              {
+                "line": 8,
+                "column": 7
+              }
+            ],
+            "path": ["query FunctionOutputFieldValidationNodeInvalidRead", "node", "... on Validation", "enable"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "Validation",
+              "fieldName": "enable"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "validationNodeValidRead": {
+    "query": "query FunctionOutputFieldValidationNodeValidRead($id: ID!) {\n  node(id: $id) {\n    ... on Validation {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        handle\n        apiType\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/111706418"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/Validation/111706418",
+            "title": "Function output field validation",
+            "enabled": true,
+            "blockOnFailure": true,
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentConstraintRuleInvalidRead": {
+    "query": "query FunctionOutputFieldFulfillmentConstraintRuleInvalidRead {\n  fulfillmentConstraintRules {\n    functionId\n    functionHandle\n    shopifyFunction {\n      id\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'functionId' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleInvalidRead",
+              "fulfillmentConstraintRules",
+              "functionId"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "functionId"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 5
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleInvalidRead",
+              "fulfillmentConstraintRules",
+              "functionHandle"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'shopifyFunction' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 5
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleInvalidRead",
+              "fulfillmentConstraintRules",
+              "shopifyFunction"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "shopifyFunction"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "fulfillmentConstraintRuleNodeInvalidRead": {
+    "query": "query FunctionOutputFieldFulfillmentConstraintRuleNodeInvalidRead($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      functionId\n      functionHandle\n      shopifyFunction {\n        id\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'functionId' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleNodeInvalidRead",
+              "node",
+              "... on FulfillmentConstraintRule",
+              "functionId"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "functionId"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 7
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleNodeInvalidRead",
+              "node",
+              "... on FulfillmentConstraintRule",
+              "functionHandle"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'shopifyFunction' doesn't exist on type 'FulfillmentConstraintRule'",
+            "locations": [
+              {
+                "line": 6,
+                "column": 7
+              }
+            ],
+            "path": [
+              "query FunctionOutputFieldFulfillmentConstraintRuleNodeInvalidRead",
+              "node",
+              "... on FulfillmentConstraintRule",
+              "shopifyFunction"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "FulfillmentConstraintRule",
+              "fieldName": "shopifyFunction"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "fulfillmentConstraintRulesValidEmptyRead": {
+    "query": "query FunctionOutputFieldFulfillmentConstraintRulesValidEmptyRead {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      handle\n      apiType\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": []
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation FunctionOutputFieldValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/111706418"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationDelete": {
+            "deletedId": "gid://shopify/Validation/111706418",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": {
+    "validation": "Public Admin GraphQL 2026-04 does not expose Validation.functionId, functionHandle, createdAt, updatedAt, or enable; enabled is the public boolean output.",
+    "fulfillmentConstraintRule": "Public Admin GraphQL 2026-04 exposes FulfillmentConstraintRule.function, deliveryMethodTypes, id, and HasMetafields fields. Negative selection validation does not require a released fulfillment-constraint Function."
+  }
+}

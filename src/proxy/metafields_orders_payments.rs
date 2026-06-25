@@ -185,7 +185,7 @@ const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
     "weight",
 ];
 
-fn is_measurement_metafield_type_name(type_name: &str) -> bool {
+pub(in crate::proxy) fn is_measurement_metafield_type_name(type_name: &str) -> bool {
     !measurement_units_for_type(type_name).is_empty()
 }
 
@@ -1108,7 +1108,7 @@ fn is_shopify_date(value: &str) -> bool {
     (1..=days_in_month(year, month)).contains(&day)
 }
 
-fn is_shopify_metafield_url(value: &str) -> bool {
+pub(in crate::proxy) fn is_shopify_metafield_url(value: &str) -> bool {
     let lowered = value.to_ascii_lowercase();
     if lowered.starts_with("http://") || lowered.starts_with("https://") {
         return url::Url::parse(value)
@@ -1125,7 +1125,7 @@ fn is_shopify_metafield_url(value: &str) -> bool {
     false
 }
 
-fn is_shopify_money_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_money_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1144,7 +1144,7 @@ fn is_shopify_money_value(value: &Value) -> bool {
         && currency_code.chars().all(|ch| ch.is_ascii_uppercase())
 }
 
-fn is_shopify_link_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_link_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1161,7 +1161,10 @@ fn is_shopify_link_value(value: &Value) -> bool {
     !label.trim().is_empty() && is_shopify_metafield_url(url)
 }
 
-fn shopify_measurement_value_error(type_name: &str, value: &Value) -> Option<String> {
+pub(in crate::proxy) fn shopify_measurement_value_error(
+    type_name: &str,
+    value: &Value,
+) -> Option<String> {
     let Some(fields) = value.as_object() else {
         return Some("Value must contain unit and value.".to_string());
     };
@@ -1245,7 +1248,7 @@ fn json_f64_value_with_original(value: &Value) -> Option<(f64, String)> {
     }
 }
 
-fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
+pub(in crate::proxy) fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
     let normalized = measurement_unit_alias(unit);
     measurement_units_for_type(type_name).contains(&normalized.as_str())
 }
@@ -1270,7 +1273,7 @@ fn measurement_unit_alias(unit: &str) -> String {
     }
 }
 
-fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
+pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
     match type_name {
         "antenna_gain" => &["DECIBELS_ISOTROPIC"],
         "area" => &[
@@ -1956,11 +1959,16 @@ pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
     field: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": ["paymentCustomization", "metafields", index.to_string(), field],
-        "code": "INVALID_METAFIELDS",
-        "message": message
-    })
+    user_error(
+        json!([
+            "paymentCustomization",
+            "metafields",
+            index.to_string(),
+            field
+        ]),
+        message,
+        Some("INVALID_METAFIELDS"),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
@@ -2066,6 +2074,11 @@ pub(in crate::proxy) fn payment_terms_success_record(
     due_in_days: Option<i64>,
     schedules: Value,
 ) -> Value {
+    let terms_due = schedules.as_array().is_some_and(|nodes| {
+        nodes
+            .iter()
+            .any(|node| node.get("due").and_then(Value::as_bool).unwrap_or(false))
+    });
     // Shopify connection cursors are opaque, stable-per-node strings. We anchor
     // them to the first/last schedule node id so they round-trip and are always
     // non-empty for a populated connection (null for an empty schedule set).
@@ -2091,8 +2104,8 @@ pub(in crate::proxy) fn payment_terms_success_record(
         .unwrap_or((None, None));
     json!({
         "id": id,
-        "due": false,
-        "overdue": false,
+        "due": terms_due,
+        "overdue": terms_due,
         "dueInDays": due_in_days.map(|days| json!(days)).unwrap_or(Value::Null),
         "paymentTermsName": name,
         "paymentTermsType": terms_type,
@@ -2222,6 +2235,23 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
     }
 }
 
+fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) -> bool {
+    if completed_at.is_some() {
+        return false;
+    }
+    let Some(due_at) = due_at else {
+        return false;
+    };
+    let Some(due_at_epoch) = super::app_shipping_helpers::parse_rfc3339_epoch_seconds(due_at)
+    else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    due_at_epoch <= now.as_secs() as i64
+}
+
 /// Builds a materialized PaymentSchedule node from the owner money and the
 /// requested schedule. NET terms compute `dueAt` from `issuedAt` plus the
 /// template's due-day count when the input omits an explicit `dueAt`; FIXED
@@ -2242,13 +2272,14 @@ fn payment_schedule_node(
             _ => None,
         },
     };
+    let due = payment_schedule_due_state(due_at.as_deref(), None);
     let money = money_value(&normalize_money_amount(amount), currency);
     json!({
         "id": schedule_id,
         "issuedAt": issued_at.map(Value::String).unwrap_or(Value::Null),
         "dueAt": due_at.map(Value::String).unwrap_or(Value::Null),
         "completedAt": Value::Null,
-        "due": false,
+        "due": due,
         "amount": money.clone(),
         "balanceDue": money.clone(),
         "totalBalance": money
@@ -2683,11 +2714,7 @@ pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Opti
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     json!({
         "success": null,
-        "userErrors": [{
-            "field": null,
-            "message": message,
-            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-        }]
+        "userErrors": [user_error(Value::Null, message, Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"))]
     })
 }
 
@@ -2872,10 +2899,7 @@ impl DraftProxy {
                         let value = selected_json(
                             &json!({
                                 "abandonment": Value::Null,
-                                "userErrors": [{
-                                    "field": ["abandonmentId"],
-                                    "message": "abandonment_not_found"
-                                }]
+                                "userErrors": [user_error_omit_code(["abandonmentId"], "abandonment_not_found", None)]
                             }),
                             &field.selection,
                         );
@@ -2891,25 +2915,25 @@ impl DraftProxy {
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
-                            "message": "invalid",
-                            "code": "NOT_FOUND"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "marketingActivityId"],
+                            "invalid",
+                            Some("NOT_FOUND"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else if delivered_at.starts_with("2099-") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveredAt"],
-                            "message": "invalid",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveredAt"],
+                            "invalid",
+                            Some("INVALID"),
+                        ));
                         ("SENDING".to_string(), Value::Null)
                     } else if status == "SENDING" {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
-                            "message": "invalid_transition",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveryStatus"],
+                            "invalid_transition",
+                            Some("INVALID"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else {
                         (status, Value::String(delivered_at.clone()))
@@ -3141,10 +3165,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["id"],
-                                            "message": "The order does not exist."
-                                        }]
+                                        "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
                                     }),
                                     &field.selection
                                 )
@@ -3157,10 +3178,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["base"],
-                                            "message": "not_editable"
-                                        }]
+                                        "userErrors": [user_error_omit_code(["base"], "not_editable", None)]
                                     }),
                                     &field.selection
                                 )

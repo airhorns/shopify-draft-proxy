@@ -1,0 +1,218 @@
+{
+  "scenarioId": "payment-terms-due-state",
+  "operationNames": ["draftOrderCreate", "draftOrder", "paymentTermsCreate", "paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "derived-field-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-due-state.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-create.graphql",
+    "variablesCapturePath": "$.cases.pastCreate.setup.draftOrderCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "past-draft-setup",
+        "capturePath": "$.cases.pastCreate.setup.draftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "past-create-payload",
+        "capturePath": "$.cases.pastCreate.paymentTermsCreate.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-create.graphql",
+          "variables": {
+            "referenceId": { "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id" },
+            "attrs": { "fromCapturePath": "$.cases.pastCreate.paymentTermsCreate.variables.attrs" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          }
+        ]
+      },
+      {
+        "name": "past-read-after-create",
+        "capturePath": "$.cases.pastCreate.readAfterCreate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          }
+        ]
+      },
+      {
+        "name": "future-draft-setup",
+        "capturePath": "$.cases.futureUpdate.setup.draftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-create.graphql",
+          "variablesCapturePath": "$.cases.futureUpdate.setup.draftOrderCreate.variables"
+        },
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "future-create-payload",
+        "capturePath": "$.cases.futureUpdate.paymentTermsCreate.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromProxyResponse": "future-draft-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "attrs": { "fromCapturePath": "$.cases.futureUpdate.paymentTermsCreate.variables.attrs" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          }
+        ]
+      },
+      {
+        "name": "future-read-after-create",
+        "capturePath": "$.cases.futureUpdate.readAfterCreate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "future-draft-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          }
+        ]
+      },
+      {
+        "name": "past-update-payload",
+        "capturePath": "$.cases.futureUpdate.paymentTermsUpdatePast.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-update.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromProxyResponse": "future-create-payload",
+                "path": "$.data.paymentTermsCreate.paymentTerms.id"
+              },
+              "paymentTermsAttributes": {
+                "fromCapturePath": "$.cases.futureUpdate.paymentTermsUpdatePast.variables.input.paymentTermsAttributes"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy keep an independent payment terms ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-past-update",
+        "capturePath": "$.cases.futureUpdate.readAfterPastUpdate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "future-draft-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy keep an independent payment terms ID."
+          }
+        ]
+      },
+      {
+        "name": "future-update-payload",
+        "capturePath": "$.cases.futureUpdate.paymentTermsUpdateFuture.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-update.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromProxyResponse": "future-create-payload",
+                "path": "$.data.paymentTermsCreate.paymentTerms.id"
+              },
+              "paymentTermsAttributes": {
+                "fromCapturePath": "$.cases.futureUpdate.paymentTermsUpdateFuture.variables.input.paymentTermsAttributes"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy keep an independent payment terms ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-future-update",
+        "capturePath": "$.cases.futureUpdate.readAfterFutureUpdate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "future-draft-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy keep an independent payment terms ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Shopify capture proves paymentTermsCreate and paymentTermsUpdate compute PaymentSchedule.due from a non-completed schedule dueAt relative to capture time, and PaymentTerms.due/overdue roll up to true for past-due schedules and false for future-due schedules. Replay stages draft orders and payment terms through public GraphQL requests only."
+}

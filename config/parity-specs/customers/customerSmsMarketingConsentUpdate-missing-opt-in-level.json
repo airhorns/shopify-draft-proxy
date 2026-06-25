@@ -1,0 +1,123 @@
+{
+  "scenarioId": "customer-sms-marketing-consent-update-missing-opt-in-level",
+  "operationNames": ["customerCreate", "customerSmsMarketingConsentUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-sms-marketing-consent-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "ConsentMissingLevel",
+        "email": "hermes-consent-missing-level-parity@example.com",
+        "phone": "+14158880000"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict Partner-requester parity for customerSmsMarketingConsentUpdate when marketingState is SUBSCRIBED and marketingOptInLevel is omitted. The captured branch returns a MISSING_ARGUMENT userError at [\"input\",\"smsMarketingConsent\",\"marketingOptInLevel\"] and leaves downstream consent fields unchanged. The supplied-level control proves the normal SUBSCRIBED path still stages when marketingOptInLevel is present.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "sms-missing-level-setup-defaults",
+        "capturePath": "$.validation.matrixPreconditions.missingLevelCustomer.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.customer.defaultEmailAddress.marketingState",
+          "$.customerCreate.customer.defaultEmailAddress.marketingOptInLevel",
+          "$.customerCreate.customer.defaultEmailAddress.marketingUpdatedAt",
+          "$.customerCreate.customer.defaultPhoneNumber.marketingState",
+          "$.customerCreate.customer.defaultPhoneNumber.marketingOptInLevel",
+          "$.customerCreate.customer.defaultPhoneNumber.marketingUpdatedAt",
+          "$.customerCreate.customer.defaultPhoneNumber.marketingCollectedFrom",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "sms-subscribed-missing-opt-in-level-errors",
+        "capturePath": "$.validation.missingOptInLevel.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSmsMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "fromCapturePath": "$.validation.missingOptInLevel.variables.input.smsMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerSmsMarketingConsentUpdate.customer",
+          "$.customerSmsMarketingConsentUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "sms-missing-opt-in-level-downstream-unchanged",
+        "capturePath": "$.validation.matrixPreconditions.missingLevelCustomer.data.customerCreate.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-consent-downstream-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        },
+        "selectedPaths": [
+          "$.defaultEmailAddress.marketingState",
+          "$.defaultEmailAddress.marketingOptInLevel",
+          "$.defaultEmailAddress.marketingUpdatedAt",
+          "$.defaultPhoneNumber.marketingState",
+          "$.defaultPhoneNumber.marketingOptInLevel",
+          "$.defaultPhoneNumber.marketingUpdatedAt",
+          "$.defaultPhoneNumber.marketingCollectedFrom"
+        ]
+      },
+      {
+        "name": "sms-supplied-opt-in-level-control",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSmsMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "fromCapturePath": "$.mutation.variables.input.smsMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingState",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingOptInLevel",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingUpdatedAt",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingCollectedFrom",
+          "$.customerSmsMarketingConsentUpdate.userErrors"
+        ]
+      }
+    ]
+  }
+}

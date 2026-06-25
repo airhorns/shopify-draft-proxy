@@ -786,12 +786,12 @@ impl DraftProxy {
         let input = discount_input(field, input_arg);
         let existing_record = self.discount_record(&id).cloned();
         let user_errors = match existing_record.as_ref() {
-            None => vec![json!({
-                "field": ["id"],
-                "message": "Discount does not exist",
-                "code": Value::Null,
-                "extraInfo": Value::Null
-            })],
+            None => vec![user_error_with_extra_info(
+                ["id"],
+                "Discount does not exist",
+                None,
+                Value::Null,
+            )],
             Some(existing) => {
                 // A "bulk" code discount (one carrying more than one redeem code,
                 // typically populated via discountRedeemCodeBulkAdd) cannot have its
@@ -807,12 +807,12 @@ impl DraftProxy {
                     .map(|input| resolved_string_path(input, &["code"]).is_some())
                     .unwrap_or(false);
                 if is_bulk && changes_code {
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "Cannot update the code of a bulk discount.",
-                        "code": Value::Null,
-                        "extraInfo": Value::Null
-                    })]
+                    vec![user_error_with_extra_info(
+                        ["id"],
+                        "Cannot update the code of a bulk discount.",
+                        None,
+                        Value::Null,
+                    )]
                 } else {
                     let mut errors =
                         discount_input_user_errors(input.as_ref(), input_arg, typename, false);
@@ -997,11 +997,11 @@ impl DraftProxy {
                     return MutationFieldOutcome::unlogged(discount_payload_for_root(
                         &field.name,
                         Value::Null,
-                        vec![json!({
-                            "field": ["base"],
-                            "message": "Discount could not be activated.",
-                            "code": "INTERNAL_ERROR"
-                        })],
+                        vec![user_error(
+                            ["base"],
+                            "Discount could not be activated.",
+                            Some("INTERNAL_ERROR"),
+                        )],
                     ));
                 }
             }
@@ -1285,35 +1285,20 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["discountId"],
-                    "message": "Code discount does not exist.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["codes"],
-                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()),
-                    "code": "MAX_INPUT_SIZE_EXCEEDED",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["codes"],
-                    "message": "Codes can't be blank",
-                    "code": "BLANK",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1419,12 +1404,7 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["discountId"],
-                    "message": "Code discount does not exist.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
@@ -1450,12 +1430,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["search"],
-                    "message": "'Search' can't be blank.",
-                    "code": "BLANK",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1463,12 +1438,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["savedSearchId"],
-                    "message": "Invalid 'saved_search_id'.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
@@ -3271,15 +3241,10 @@ fn discount_customer_gets_from_input(
         resolved_f64_path(input, &["customerGets", "value", "percentage"])
     {
         json!({ "__typename": "DiscountPercentage", "percentage": percentage })
-    } else if let Some(amount) = resolved_decimal_text_path(
-        input,
-        &["customerGets", "value", "discountAmount", "amount"],
-    ) {
-        json!({
-            "__typename": "DiscountAmount",
-            "amount": money_value(&amount, "CAD"),
-            "appliesOnEachItem": false
-        })
+    } else if let Some(amount) =
+        discount_amount_value_from_input(input, &["customerGets", "value", "discountAmount"])
+    {
+        amount
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 0.1 })
     };
@@ -3312,7 +3277,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
         ],
     ) {
         json!({ "__typename": "DiscountPercentage", "percentage": percentage })
-    } else if let Some(amount) = resolved_decimal_text_path(
+    } else if let Some(amount) = discount_amount_value_from_input(
         input,
         &[
             "customerGets",
@@ -3320,14 +3285,20 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
             "discountOnQuantity",
             "effect",
             "discountAmount",
+        ],
+    ) {
+        amount
+    } else if let Some(amount) = resolved_decimal_text_path(
+        input,
+        &[
+            "customerGets",
+            "value",
+            "discountOnQuantity",
+            "effect",
             "amount",
         ],
     ) {
-        json!({
-            "__typename": "DiscountAmount",
-            "amount": money_value(&amount, "CAD"),
-            "appliesOnEachItem": false
-        })
+        fixed_discount_amount_value(&amount, false)
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 1.0 })
     };
@@ -3336,6 +3307,41 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
         "quantity": { "quantity": quantity },
         "effect": effect
     })
+}
+
+fn discount_amount_value_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    base_path: &[&str],
+) -> Option<Value> {
+    let mut amount_path = base_path.to_vec();
+    amount_path.push("amount");
+    let amount = resolved_decimal_text_path(input, &amount_path)?;
+    Some(fixed_discount_amount_value(
+        &amount,
+        discount_amount_applies_on_each_item(input, base_path),
+    ))
+}
+
+fn fixed_discount_amount_value(amount: &str, applies_on_each_item: bool) -> Value {
+    json!({
+        "__typename": "DiscountAmount",
+        "amount": money_value(amount, "CAD"),
+        "appliesOnEachItem": applies_on_each_item
+    })
+}
+
+fn discount_amount_applies_on_each_item(
+    input: &BTreeMap<String, ResolvedValue>,
+    base_path: &[&str],
+) -> bool {
+    for field in ["appliesOnEachItem", "each", "useEach"] {
+        let mut path = base_path.to_vec();
+        path.push(field);
+        if let Some(value) = resolved_bool_path(input, &path) {
+            return value;
+        }
+    }
+    false
 }
 
 fn discount_items_from_input(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Value {

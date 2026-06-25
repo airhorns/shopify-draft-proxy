@@ -336,6 +336,40 @@ fn remove_from_return_for_test(
         .clone()
 }
 
+fn approve_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation ApproveReturnRequestForErrorShape($input: ReturnApproveRequestInput!) {
+              returnApproveRequest(input: $input) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "input": { "id": return_id } }),
+        ))
+        .body["data"]["returnApproveRequest"]
+        .clone()
+}
+
+fn decline_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation DeclineReturnRequestForErrorShape($input: ReturnDeclineRequestInput!) {
+              returnDeclineRequest(input: $input) {
+                return { id status decline { reason note } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "input": { "id": return_id, "declineReason": "OTHER" } }),
+        ))
+        .body["data"]["returnDeclineRequest"]
+        .clone()
+}
+
 fn read_return_removal_state(proxy: &mut DraftProxy, return_id: Value, order_id: Value) -> Value {
     proxy
         .process_request(json_graphql_request(
@@ -1029,6 +1063,82 @@ fn remove_from_return_allows_requested_returns() {
     assert_eq!(
         read_after["order"]["returns"]["nodes"][0],
         removed["return"]
+    );
+}
+
+#[test]
+fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes() {
+    let mut proxy = snapshot_proxy();
+    let open_return = stage_open_return_for_removal(&mut proxy);
+
+    let rejected_approval =
+        approve_return_request_for_test(&mut proxy, open_return.return_id.clone());
+    assert_eq!(rejected_approval["return"], Value::Null);
+    assert_eq!(
+        rejected_approval["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+            "code": "INVALID_STATE"
+        }])
+    );
+
+    let rejected_decline = decline_return_request_for_test(&mut proxy, open_return.return_id);
+    assert_eq!(rejected_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+            "code": "INVALID_STATE"
+        }])
+    );
+
+    let requested_return = stage_requested_return_for_removal(&mut proxy);
+    let first_decline =
+        decline_return_request_for_test(&mut proxy, requested_return.return_id.clone());
+    assert_eq!(first_decline["userErrors"], json!([]));
+    assert_eq!(first_decline["return"]["status"], json!("DECLINED"));
+
+    let rejected_second_decline =
+        decline_return_request_for_test(&mut proxy, requested_return.return_id);
+    assert_eq!(rejected_second_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_second_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "The return is already declined.",
+            "code": "INVALID_STATE"
+        }])
+    );
+}
+
+#[test]
+fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
+    let mut proxy = snapshot_proxy();
+
+    let rejected_approval =
+        approve_return_request_for_test(&mut proxy, json!("gid://shopify/Return/999999999991"));
+    assert_eq!(rejected_approval["return"], Value::Null);
+    assert_eq!(
+        rejected_approval["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let rejected_decline =
+        decline_return_request_for_test(&mut proxy, json!("gid://shopify/Return/999999999992"));
+    assert_eq!(rejected_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return not found.",
+            "code": "NOT_FOUND"
+        }])
     );
 }
 
@@ -4487,6 +4597,192 @@ fn payment_terms_omitted_template_id_create_coerces_update_defaults() {
 }
 
 #[test]
+fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
+    let create_query = r#"
+        mutation PaymentTermsDueStateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation PaymentTermsDueStateUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query PaymentTermsDueStateDraftRead($id: ID!) {
+          draftOrder(id: $id) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+
+    let past_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+        "paymentSchedules": [{ "dueAt": "2020-01-01T00:00:00Z" }]
+    });
+    let future_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+        "paymentSchedules": [{ "dueAt": "2099-01-01T00:00:00Z" }]
+    });
+
+    let past_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/past-due",
+            "attrs": past_attrs.clone()
+        }),
+    ));
+    assert_eq!(past_create.status, 200);
+    assert_eq!(
+        past_create.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &past_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let past_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/DraftOrder/past-due" }),
+    ));
+    assert_eq!(past_read.status, 200);
+    assert_payment_terms_due_state(
+        &past_read.body["data"]["draftOrder"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let future_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/future-due",
+            "attrs": future_attrs.clone()
+        }),
+    ));
+    assert_eq!(future_create.status, 200);
+    assert_eq!(
+        future_create.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &future_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2099-01-01T00:00:00Z",
+    );
+    let payment_terms_id = future_create.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+        .as_str()
+        .expect("payment terms id")
+        .to_string();
+
+    let past_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": payment_terms_id,
+                "paymentTermsAttributes": past_attrs
+            }
+        }),
+    ));
+    assert_eq!(past_update.status, 200);
+    assert_eq!(
+        past_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &past_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let past_update_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/DraftOrder/future-due" }),
+    ));
+    assert_eq!(past_update_read.status, 200);
+    assert_payment_terms_due_state(
+        &past_update_read.body["data"]["draftOrder"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let terms_id_after_past_update = past_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]
+        ["id"]
+        .as_str()
+        .expect("payment terms id after past update")
+        .to_string();
+    let future_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": terms_id_after_past_update,
+                "paymentTermsAttributes": future_attrs
+            }
+        }),
+    ));
+    assert_eq!(future_update.status, 200);
+    assert_eq!(
+        future_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &future_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        false,
+        "2099-01-01T00:00:00Z",
+    );
+}
+
+fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_due_at: &str) {
+    assert_eq!(terms["due"], json!(expected_due));
+    assert_eq!(terms["overdue"], json!(expected_due));
+    let schedule = &terms["paymentSchedules"]["nodes"][0];
+    assert_eq!(schedule["dueAt"], json!(expected_due_at));
+    assert_eq!(schedule["completedAt"], Value::Null);
+    assert_eq!(schedule["due"], json!(expected_due));
+}
+
+#[test]
 fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
@@ -5383,6 +5679,129 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
     assert_eq!(
         read_after_void.body["data"]["order"]["displayFinancialStatus"],
         json!("VOIDED")
+    );
+}
+
+#[test]
+fn order_capture_accepts_omitted_currency_for_single_currency_order() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "single currency omitted capture",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": parent_transaction_id,
+                "amount": "10.00"
+            }
+        }),
+    ));
+
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["kind"],
+        json!("CAPTURE")
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["amountSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+}
+
+#[test]
+fn order_capture_zero_amount_uses_captured_public_error_without_code() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "12.50", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "single currency zero amount capture",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.50", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let capture = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ZeroAmountCapture($input: OrderCaptureInput!) {
+          orderCapture(input: $input) {
+            transaction { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": create.body["data"]["orderCreate"]["order"]["id"].clone(),
+                "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(),
+                "amount": "0.00"
+            }
+        }),
+    ));
+
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Amount must be greater than zero for capture transactions"
+        }])
     );
 }
 

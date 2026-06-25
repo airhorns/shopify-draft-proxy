@@ -1,0 +1,11 @@
+query FunctionOutputFieldFulfillmentConstraintRuleNodeInvalidRead($id: ID!) {
+  node(id: $id) {
+    ... on FulfillmentConstraintRule {
+      functionId
+      functionHandle
+      shopifyFunction {
+        id
+      }
+    }
+  }
+}

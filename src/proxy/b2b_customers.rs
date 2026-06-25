@@ -1538,7 +1538,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
             .store
@@ -1551,10 +1551,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Customer can’t be deleted because they have associated orders"
-                }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
             self.store.staged.customers.remove(&id);
@@ -2403,7 +2400,7 @@ impl DraftProxy {
         if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
             || (is_email && marketing_state == "INVALID")
         {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2424,19 +2421,15 @@ impl DraftProxy {
             self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
         else {
             let user_error = if is_email {
-                json!({
-                    "field": ["input", "customerId"],
-                    "message": "Customer not found",
-                    "code": "INVALID"
-                })
+                user_error(
+                    ["input", "customerId"],
+                    "Customer not found",
+                    Some("INVALID"),
+                )
             } else {
-                json!({
-                    "field": Value::Null,
-                    "message": "Customer not found",
-                    "code": Value::Null
-                })
+                user_error(Value::Null, "Customer not found", None)
             };
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2450,13 +2443,40 @@ impl DraftProxy {
             };
         };
 
-        let marketing_opt_in_level = resolved_string_field(&consent, "marketingOptInLevel")
+        let marketing_opt_in_level_input = resolved_string_field(&consent, "marketingOptInLevel");
+        if marketing_state == "SUBSCRIBED" && marketing_opt_in_level_input.is_none() {
+            self.record_mutation_log_with_status(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            let customer = if is_email {
+                existing_customer.clone()
+            } else {
+                Value::Null
+            };
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    customer,
+                    vec![customer_consent_user_error(
+                        vec!["input", consent_key, "marketingOptInLevel"],
+                        "Marketing opt in level must exist",
+                        "MISSING_ARGUMENT",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+        let marketing_opt_in_level = marketing_opt_in_level_input
             .unwrap_or_else(|| current_consent_opt_in_level(&existing_customer, is_email));
         let consent_updated_at = resolved_string_field(&consent, "consentUpdatedAt");
 
         if let Some(consent_updated_at) = consent_updated_at.as_deref() {
             if customer_consent_updated_at_is_future(consent_updated_at) {
-                self.record_customer_consent_log(
+                self.record_mutation_log_with_status(
                     request,
                     query,
                     variables,
@@ -2484,7 +2504,7 @@ impl DraftProxy {
         }
 
         if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2511,7 +2531,7 @@ impl DraftProxy {
         }
 
         if !is_email && !customer_has_default_phone(&existing_customer) {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2533,7 +2553,7 @@ impl DraftProxy {
         }
 
         if is_email && !customer_has_default_email(&existing_customer) {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2562,7 +2582,7 @@ impl DraftProxy {
             .staged
             .customers
             .insert(customer_id.clone(), customer.clone());
-        self.record_customer_consent_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -2573,23 +2593,6 @@ impl DraftProxy {
         CustomerConsentOutcome {
             payload: customer_consent_payload(customer, Vec::new()),
             top_level_error: None,
-        }
-    }
-
-    fn record_customer_consent_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
         }
     }
 }
@@ -3305,54 +3308,69 @@ fn customer_mailing_addresses(
     (addresses, errors)
 }
 
-fn customer_mailing_address(
+const CUSTOMER_ADDRESS_FREE_TEXT_FIELDS: &[&str] = &[
+    "firstName",
+    "lastName",
+    "address1",
+    "address2",
+    "city",
+    "company",
+    "zip",
+    "phone",
+];
+
+fn customer_address_free_text_errors<F>(
     input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-    customer_set: bool,
-) -> (Value, Vec<Value>) {
+    path_for: F,
+) -> Vec<Value>
+where
+    F: Fn(&str) -> Value,
+{
     let mut errors = Vec::new();
-    for field in [
-        "firstName",
-        "lastName",
-        "address1",
-        "address2",
-        "city",
-        "company",
-        "zip",
-        "phone",
-    ] {
+    for field in CUSTOMER_ADDRESS_FREE_TEXT_FIELDS {
         if let Some(value) = customer_address_string(input, field) {
             let label = customer_address_field_label(field);
             if value.chars().count() > 255 {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} is too long (maximum is 255 characters)"),
                     None,
                 ));
             }
             if customer_address_contains_html(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain HTML tags"),
                     None,
                 ));
             }
-            if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
+            if matches!(*field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain URL"),
                     None,
                 ));
             }
             if customer_address_contains_emoji(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain emojis"),
                     None,
                 ));
             }
         }
     }
+    errors
+}
+
+fn customer_mailing_address(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    customer_set: bool,
+) -> (Value, Vec<Value>) {
+    let mut errors = customer_address_free_text_errors(input, |field| {
+        customer_address_field_path(customer_set, index, Some(field))
+    });
 
     let country_input = customer_address_string(input, "countryCode")
         .or_else(|| customer_address_string(input, "countryCodeV2"))
@@ -3561,49 +3579,7 @@ fn customer_address_input_node(
     customer_last: Option<&str>,
     id: &str,
 ) -> (Option<Value>, Vec<Value>) {
-    let mut errors = Vec::new();
-    for field in [
-        "firstName",
-        "lastName",
-        "address1",
-        "address2",
-        "city",
-        "company",
-        "zip",
-        "phone",
-    ] {
-        if let Some(value) = customer_address_string(input, field) {
-            let label = customer_address_field_label(field);
-            if value.chars().count() > 255 {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} is too long (maximum is 255 characters)"),
-                    None,
-                ));
-            }
-            if customer_address_contains_html(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain HTML tags"),
-                    None,
-                ));
-            }
-            if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain URL"),
-                    None,
-                ));
-            }
-            if customer_address_contains_emoji(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain emojis"),
-                    None,
-                ));
-            }
-        }
-    }
+    let mut errors = customer_address_free_text_errors(input, |field| json!(["address", field]));
 
     // Effective string value for a field: input value when the key is present
     // (trimmed; empty → None), otherwise the existing node's stored value.
@@ -4331,10 +4307,11 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
 }
 
 fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
-    json!({
-        "field": [field],
-        "message": format!("To update {field}, please use the {mutation} Mutation instead")
-    })
+    user_error_omit_code(
+        json!([field]),
+        &format!("To update {field}, please use the {mutation} Mutation instead"),
+        None,
+    )
 }
 
 impl DraftProxy {
@@ -4392,12 +4369,9 @@ impl DraftProxy {
 
         let (payload, status, staged_ids) =
             self.customer_data_erasure_payload(&customer_id, request_erasure);
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
+        self.record_mutation_log_with_status(
+            request, query, variables, root_field, staged_ids, status,
+        );
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
