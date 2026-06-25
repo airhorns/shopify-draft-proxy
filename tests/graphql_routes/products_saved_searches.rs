@@ -129,6 +129,65 @@ fn assert_product_media_type(
 }
 
 #[test]
+fn product_create_media_payload_product_connection_uses_uploaded_before_processing_readback() {
+    let product_id = "gid://shopify/Product/media-status";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| {
+            panic!("product media status staging should not call upstream")
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
+            mediaUserErrors { field message }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/600x400/png",
+                "alt": "Front view"
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let payload = &create.body["data"]["productCreateMedia"];
+    assert_eq!(payload["mediaUserErrors"], json!([]));
+    assert_eq!(payload["media"][0]["status"], json!("UPLOADED"));
+    assert_eq!(
+        payload["product"]["media"]["nodes"][0]["status"],
+        json!("UPLOADED"),
+        "the mutation payload product connection should mirror Shopify's immediate UPLOADED media node"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCreateMediaDownstreamRead($id: ID!) {
+          product(id: $id) {
+            id
+            media(first: 10) {
+              nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"][0]["status"],
+        json!("PROCESSING"),
+        "the stored downstream read remains the async processing state"
+    );
+}
+
+#[test]
 fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     let product_id = "gid://shopify/Product/media-types";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)

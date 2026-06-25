@@ -18,6 +18,37 @@ fn assert_core_metaobject_auto_handle(handle: &str, prefix: &str) {
     );
 }
 
+fn create_metaobject_definition_for_test(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    field_definitions: Vec<Value>,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinitionForTest($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": meta_type,
+            "name": meta_type,
+            "displayNameKey": "title",
+            "fieldDefinitions": field_definitions
+        }}),
+    ));
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
@@ -1610,6 +1641,398 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     assert!(!levels
         .iter()
         .any(|level| level["location"]["id"] == json!(unknown_location_id)));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
+    use shopify_draft_proxy::proxy::UnsupportedMutationMode;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![inventory_activation_base_product()])
+    .with_upstream_transport({
+        let calls = calls.clone();
+        move |_request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            shopify_draft_proxy::proxy::Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"unexpectedUpstream": true}),
+            }
+        }
+    });
+
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "SET-ON-HAND",
+        "10.00",
+    );
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let location_id = "gid://shopify/Location/1";
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let set_on_hand = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          setOnHand: inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes {
+                name
+                delta
+                quantityAfterChange
+                item { id }
+                location { id name }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-local-staging", "input": {"reason": "correction", "referenceDocumentUri": "logistics://inventory/set-on-hand", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 10, "changeFromQuantity": 2}
+        ]}}),
+    ));
+    assert_eq!(set_on_hand.status, 200);
+    assert_eq!(
+        set_on_hand.body["data"]["setOnHand"]["userErrors"],
+        json!([])
+    );
+    let adjustment_group = &set_on_hand.body["data"]["setOnHand"]["inventoryAdjustmentGroup"];
+    assert!(adjustment_group["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/InventoryAdjustmentGroup/")));
+    assert_eq!(
+        adjustment_group["createdAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(adjustment_group["reason"], json!("correction"));
+    assert_eq!(
+        adjustment_group["referenceDocumentUri"],
+        json!("logistics://inventory/set-on-hand")
+    );
+    assert_eq!(
+        adjustment_group["changes"],
+        json!([
+            {
+                "name": "available",
+                "delta": 8,
+                "quantityAfterChange": null,
+                "item": { "id": inventory_item_id },
+                "location": { "id": location_id, "name": "Source location" }
+            },
+            {
+                "name": "on_hand",
+                "delta": 8,
+                "quantityAfterChange": null,
+                "item": { "id": inventory_item_id },
+                "location": { "id": location_id, "name": "Source location" }
+            }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SetOnHandRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { id inventoryQuantity product { id totalInventory tracksInventory } }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt }
+              }
+            }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(10)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 10, "updatedAt": "2024-01-01T00:00:01.000Z"},
+            {"name": "on_hand", "quantity": 10, "updatedAt": null},
+            {"name": "damaged", "quantity": 0, "updatedAt": null}
+        ])
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SetOnHandProductRead($variantId: ID!, $productId: ID!) {
+          productVariant(id: $variantId) { inventoryQuantity }
+          product(id: $productId) {
+            totalInventory
+            hasOutOfStockVariants
+            variants(first: 5) { nodes { inventoryQuantity inventoryItem { tracked } } }
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        product_read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(10)
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["totalInventory"],
+        json!(10)
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["hasOutOfStockVariants"],
+        json!(false)
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let log = proxy.get_log_snapshot();
+    let log_entries = log["entries"].as_array().unwrap();
+    let set_on_hand_log = log_entries
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["operationName"] == json!("inventorySetOnHandQuantities")
+        })
+        .expect("inventorySetOnHandQuantities should be logged for commit replay");
+    assert_eq!(set_on_hand_log["status"], json!("staged"));
+    assert_eq!(
+        set_on_hand_log["query"],
+        json!(
+            r#"
+        mutation SetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          setOnHand: inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes {
+                name
+                delta
+                quantityAfterChange
+                item { id }
+                location { id name }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#
+        )
+    );
+    assert!(set_on_hand_log["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("inventorySetOnHandQuantities")));
+}
+
+#[test]
+fn inventory_set_on_hand_quantities_validation_errors_are_local() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/store-backed";
+    let location_id = "gid://shopify/Location/1";
+
+    let missing_idempotent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingSetOnHandIdempotency($input: InventorySetOnHandQuantitiesInput!) {
+          inventorySetOnHandQuantities(input: $input) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_idempotent.body["errors"][0]["message"],
+        json!("The @idempotent directive is required for this mutation but was not provided.")
+    );
+    assert_eq!(
+        missing_idempotent.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        missing_idempotent.body["data"]["inventorySetOnHandQuantities"],
+        Value::Null
+    );
+
+    let missing_change_from = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingSetOnHandChangeFrom($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-missing-change-from", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_change_from.body["errors"][0]["message"],
+        json!("InventorySetQuantityInput must include the following argument: changeFromQuantity.")
+    );
+    assert_eq!(
+        missing_change_from.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+    assert_eq!(
+        missing_change_from.body["data"]["inventorySetOnHandQuantities"],
+        Value::Null
+    );
+
+    let unknown_item = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-unknown-item", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/999999999999", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_item.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let unknown_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-unknown-location", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_location.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let negative_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NegativeQuantitySetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-negative", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        negative_quantity.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }]
+        })
+    );
+
+    let too_high_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TooHighQuantitySetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-too-high", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1000000001, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        too_high_quantity.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }]
+        })
+    );
+
+    let invalid_reason = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidReasonSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-invalid-reason", "input": {"reason": "not_a_reason", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        invalid_reason.body["data"]["inventorySetOnHandQuantities"]["userErrors"][0]["code"],
+        json!("INVALID_REASON")
+    );
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
@@ -5174,6 +5597,143 @@ fn metaobject_create_rejects_duplicate_field_keys() {
 }
 
 #[test]
+fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_definition = r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let field_definition = |key: String| {
+        json!({
+            "key": key,
+            "name": "Field",
+            "type": "single_line_text_field",
+            "required": false
+        })
+    };
+
+    let oversized_key = "a".repeat(65);
+    let oversized_create = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_length_create",
+            "name": "Field Key Length Create",
+            "fieldDefinitions": [field_definition(oversized_key.clone())]
+        }}),
+    ));
+    assert_eq!(
+        oversized_create.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "0"],
+                "message": "Key is too long (maximum is 64 characters)",
+                "code": "TOO_LONG",
+                "elementKey": oversized_key,
+                "elementIndex": null
+            }]
+        })
+    );
+    let rejected_create_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRejectedDefinition($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id }
+        }
+        "#,
+        json!({"type": "field_key_length_create"}),
+    ));
+    assert_eq!(
+        rejected_create_read.body["data"]["metaobjectDefinitionByType"],
+        Value::Null
+    );
+
+    let uppercase_create = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_case_create",
+            "name": "Field Key Case Create",
+            "fieldDefinitions": [field_definition("myField".to_string())]
+        }}),
+    ));
+    assert_eq!(
+        uppercase_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        uppercase_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"][0]["key"],
+        json!("myField")
+    );
+
+    let base_definition = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "field_key_update_rules",
+            "name": "Field Key Update Rules",
+            "fieldDefinitions": [field_definition("title".to_string())]
+        }}),
+    ));
+    assert_eq!(
+        base_definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = base_definition.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let oversized_update = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{"create": field_definition(oversized_key.clone())}]
+        }}),
+    ));
+    assert_eq!(
+        oversized_update.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "fieldDefinitions", "0", "create"],
+                "message": "Key is too long (maximum is 64 characters)",
+                "code": "TOO_LONG",
+                "elementKey": oversized_key,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let uppercase_update = proxy.process_request(json_graphql_request(
+        update_definition,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{"create": field_definition("Spec_2".to_string())}]
+        }}),
+    ));
+    assert_eq!(
+        uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["fieldDefinitions"][1]["key"],
+        json!("Spec_2")
+    );
+}
+
+#[test]
 fn metaobject_definition_update_validates_field_create_keys_and_display_name_key() {
     let mut proxy = snapshot_proxy();
 
@@ -5767,6 +6327,357 @@ fn metaobject_create_validates_definition_fields_and_capabilities() {
     assert_eq!(
         invalid.body["data"]["metaobjectCreate"]["metaobject"],
         Value::Null
+    );
+}
+
+#[test]
+fn metaobject_create_update_and_upsert_reject_extended_field_value_types() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    let target_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "field_validation_target_type",
+        vec![title_field.clone()],
+    );
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "field_validation_matrix_type",
+        vec![
+            title_field,
+            json!({"key": "money", "name": "Money", "type": "money", "required": false}),
+            json!({"key": "link", "name": "Link", "type": "link", "required": false}),
+            json!({"key": "link_domain", "name": "Link Domain", "type": "link", "required": false, "validations": [{"name": "allowed_domains", "value": "[\"example.com\"]"}]}),
+            json!({"key": "language", "name": "Language", "type": "language", "required": false}),
+            json!({"key": "power", "name": "Power", "type": "power", "required": false}),
+            json!({"key": "file_reference", "name": "File", "type": "file_reference", "required": false}),
+            json!({"key": "page_reference", "name": "Page", "type": "page_reference", "required": false}),
+            json!({"key": "order_reference", "name": "Order", "type": "order_reference", "required": false}),
+            json!({"key": "article_reference", "name": "Article", "type": "article_reference", "required": false}),
+            json!({"key": "product_taxonomy_value_reference", "name": "Product Taxonomy Value", "type": "product_taxonomy_value_reference", "required": false, "validations": [{"name": "product_taxonomy_attribute_handle", "value": "material"}]}),
+            json!({"key": "mixed_reference", "name": "Mixed", "type": "mixed_reference", "required": false, "validations": [{"name": "metaobject_definition_ids", "value": json!([target_definition_id]).to_string()}]}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let setup = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "field_validation_matrix_type",
+            "handle": "field-validation-setup",
+            "fields": [{"key": "title", "value": "Validation setup"}]
+        }}),
+    ));
+    assert_eq!(
+        setup.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let setup_id = setup.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cases = [
+        (
+            "money",
+            "not-money".to_string(),
+            "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+        ),
+        (
+            "link",
+            json!({"text": "Docs", "url": "ftp://nope"}).to_string(),
+            "Value must be one of the following URL schemes: http, https, mailto, sms, tel.",
+        ),
+        (
+            "link_domain",
+            json!({"text": "Docs", "url": "https://not-example.com/path"}).to_string(),
+            "Value must conform to the domain restriction you set.",
+        ),
+        (
+            "language",
+            "not-a-language".to_string(),
+            "Value must be in ISO 639-1 format.",
+        ),
+        (
+            "power",
+            "10".to_string(),
+            "Value must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+        ),
+        (
+            "file_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a file reference string.",
+        ),
+        (
+            "page_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid page reference.",
+        ),
+        (
+            "order_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid order reference.",
+        ),
+        (
+            "article_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid article reference.",
+        ),
+        (
+            "product_taxonomy_value_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value require that you select a product taxonomy value.",
+        ),
+        (
+            "mixed_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must belong to one of the specified metaobject definitions.",
+        ),
+    ];
+
+    for (index, (key, value, message)) in cases.iter().enumerate() {
+        let expected_error = json!([{
+            "field": ["metaobject", "fields", "0"],
+            "message": message,
+            "code": "INVALID_VALUE",
+            "elementKey": key,
+            "elementIndex": null
+        }]);
+        let handle = format!("field-validation-create-{index}");
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"metaobject": {
+                "type": "field_validation_matrix_type",
+                "handle": handle,
+                "fields": [{"key": key, "value": value}]
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["metaobjectCreate"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            create.body["data"]["metaobjectCreate"]["userErrors"],
+            expected_error
+        );
+
+        let update = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({"id": setup_id, "metaobject": {"fields": [{"key": key, "value": value}]}}),
+        ));
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["userErrors"],
+            expected_error
+        );
+
+        let upsert_create = proxy.process_request(json_graphql_request(
+            upsert_query,
+            json!({
+                "handle": {"type": "field_validation_matrix_type", "handle": format!("field-validation-upsert-{index}")},
+                "metaobject": {"fields": [{"key": key, "value": value}]}
+            }),
+        ));
+        assert_eq!(
+            upsert_create.body["data"]["metaobjectUpsert"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+            expected_error
+        );
+    }
+}
+
+#[test]
+fn metaobject_id_values_are_unique_and_merged_update_values_are_revalidated() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "id_validation_type",
+        vec![
+            title_field,
+            json!({"key": "custom_id", "name": "Custom ID", "type": "id", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-first",
+            "fields": [{"key": "custom_id", "value": "shared-id"}]
+        }}),
+    ));
+    assert_eq!(
+        first.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-second",
+            "fields": [{"key": "title", "value": "Second"}]
+        }}),
+    ));
+    let second_id = second.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let expected_taken = json!([{
+        "field": ["metaobject", "fields", "0"],
+        "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+        "code": "TAKEN",
+        "elementKey": "custom_id",
+        "elementIndex": null
+    }]);
+    let duplicate_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-duplicate",
+            "fields": [{"key": "custom_id", "value": "shared-id"}]
+        }}),
+    ));
+    assert_eq!(
+        duplicate_create.body["data"]["metaobjectCreate"]["userErrors"],
+        expected_taken
+    );
+
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": second_id, "metaobject": {"fields": [{"key": "custom_id", "value": "shared-id"}]}}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        expected_taken
+    );
+
+    let duplicate_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "id_validation_type", "handle": "id-validation-second"},
+            "metaobject": {"fields": [{"key": "custom_id", "value": "shared-id"}]}
+        }),
+    ));
+    assert_eq!(
+        duplicate_upsert.body["data"]["metaobjectUpsert"]["userErrors"],
+        expected_taken
+    );
+
+    let stale_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "stale_revalidation_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}),
+            json!({"key": "body", "name": "Body", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+    let stale = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "stale_revalidation_type",
+            "handle": "stale-revalidation",
+            "fields": [
+                {"key": "title", "value": "Stale row"},
+                {"key": "body", "value": "abcdef"}
+            ]
+        }}),
+    ));
+    let stale_id = stale.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": stale_definition_id, "definition": {
+            "fieldDefinitions": [{"update": {"key": "body", "validations": [{"name": "max", "value": "3"}]}}]
+        }}),
+    ));
+    assert_eq!(
+        update_definition.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    let stale_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": stale_id, "metaobject": {"fields": [{"key": "title", "value": "Still stale"}]}}),
+    ));
+    assert_eq!(
+        stale_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([{
+            "field": ["metaobject"],
+            "message": "Value has a maximum length of 3.",
+            "code": "INVALID_VALUE",
+            "elementKey": "body",
+            "elementIndex": null
+        }])
     );
 }
 
@@ -6536,8 +7447,136 @@ fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
 }
 
 #[test]
+fn media_file_update_hydrates_real_file_before_staging_captured_id() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["variables"]["fileIds"],
+                json!([media_id]),
+                "fileUpdate hydrate should request the target file id"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": media_id,
+                            "__typename": "MediaImage",
+                            "alt": "Hydrated alt",
+                            "createdAt": "2026-06-04T00:00:00Z",
+                            "fileStatus": "READY",
+                            "image": {
+                                "url": "https://cdn.example.com/hydrated-file-real.jpg",
+                                "width": 640,
+                                "height": 480
+                            },
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.com/hydrated-file-real-preview.jpg",
+                                    "width": 320,
+                                    "height": 240
+                                }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileUpdateHydratesCapturedId($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": media_id, "alt": "Updated hydrated alt"}]}),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": media_id,
+                "alt": "Updated hydrated alt",
+                "fileStatus": "READY",
+                "filename": "hydrated-file-real.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/hydrated-file-real.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "userErrors": []
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
 fn media_file_update_validates_core_bucket_ordering() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let nodes = body["variables"]["fileIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| match id.as_str() {
+                    Some("gid://shopify/MediaImage/43688017887538") => json!({
+                        "id": "gid://shopify/MediaImage/43688017887538",
+                        "__typename": "MediaImage",
+                        "alt": "Ready image",
+                        "createdAt": "2026-06-05T00:00:00Z",
+                        "fileStatus": "READY",
+                        "image": {
+                            "url": "https://cdn.example.com/ready-image.jpg",
+                            "width": 640,
+                            "height": 480
+                        },
+                        "preview": {
+                            "image": {
+                                "url": "https://cdn.example.com/ready-image-preview.jpg",
+                                "width": 320,
+                                "height": 240
+                            }
+                        }
+                    }),
+                    Some("gid://shopify/ExternalVideo/43688017953074") => json!({
+                        "id": "gid://shopify/ExternalVideo/43688017953074",
+                        "__typename": "ExternalVideo",
+                        "alt": "Ready external video",
+                        "createdAt": "2026-06-05T00:00:00Z",
+                        "fileStatus": "READY"
+                    }),
+                    _ => Value::Null,
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        });
     let mutation = r#"
         mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
           fileUpdate(files: $files) {

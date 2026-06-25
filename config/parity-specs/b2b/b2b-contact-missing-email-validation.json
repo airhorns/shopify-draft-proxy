@@ -1,0 +1,103 @@
+{
+  "scenarioId": "b2b-contact-missing-email-validation",
+  "operationNames": ["companyCreate", "companyContactCreate", "company", "companies"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-missing-email-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-missing-email-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable Admin 2026-04 parity evidence that companyContactCreate and nested companyCreate(input.companyContact) reject contacts without email before staging contact/customer/company graph side effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-company-create",
+        "capturePath": "$.setupCompany.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default company-location IDs."
+          }
+        ]
+      },
+      {
+        "name": "standalone-contact-create-missing-email-user-error",
+        "capturePath": "$.standaloneMissingEmailContactCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-missing-email-validation-contact-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.standaloneMissingEmailContactCreate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "standalone-contact-create-missing-email-read-after-company-unchanged",
+        "capturePath": "$.readAfterStandaloneRejection.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-missing-email-validation-company-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default company-location IDs."
+          }
+        ]
+      },
+      {
+        "name": "nested-company-create-contact-missing-email-user-error",
+        "capturePath": "$.nestedMissingEmailCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-missing-email-validation-company-create.graphql",
+          "variablesCapturePath": "$.nestedMissingEmailCompanyCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "nested-company-create-contact-missing-email-empty-company-search",
+        "capturePath": "$.nestedReadAfterRejection.response.data.companies",
+        "proxyPath": "$.data.companies",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-missing-email-validation-companies-search.graphql",
+          "variablesCapturePath": "$.nestedReadAfterRejection.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

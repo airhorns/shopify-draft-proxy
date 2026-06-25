@@ -1,0 +1,9 @@
+query FunctionOutputFieldFulfillmentConstraintRuleInvalidRead {
+  fulfillmentConstraintRules {
+    functionId
+    functionHandle
+    shopifyFunction {
+      id
+    }
+  }
+}

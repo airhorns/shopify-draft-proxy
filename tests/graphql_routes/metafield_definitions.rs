@@ -582,6 +582,135 @@ fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params(
 }
 
 #[test]
+fn standard_template_metafield_definition_update_rejects_immutable_field_edits() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = standard_enable_subtitle(&mut proxy, None);
+    assert_eq!(initial["userErrors"], json!([]));
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardTemplateDefinitionImmutableUpdate($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id name description validations { name value } }
+            userErrors { __typename field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "descriptors",
+                "key": "subtitle",
+                "name": "Renamed subtitle",
+                "description": "Changed description",
+                "validations": [{ "name": "max", "value": "80" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metafieldDefinitionUpdate"],
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [
+                {
+                    "__typename": "MetafieldDefinitionUpdateUserError",
+                    "field": ["definition", "name"],
+                    "message": "Name cannot be changed in a standard definition.",
+                    "code": "INVALID_INPUT"
+                },
+                {
+                    "__typename": "MetafieldDefinitionUpdateUserError",
+                    "field": ["definition", "description"],
+                    "message": "Description cannot be changed in a standard definition.",
+                    "code": "INVALID_INPUT"
+                },
+                {
+                    "__typename": "MetafieldDefinitionUpdateUserError",
+                    "field": ["definition", "validations"],
+                    "message": "Validations cannot be changed in a standard definition.",
+                    "code": "INVALID_INPUT"
+                }
+            ],
+            "validationJob": null
+        })
+    );
+
+    let read_after_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query StandardTemplateDefinitionReadAfterRejectedUpdate {
+          metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: "descriptors", key: "subtitle" }) {
+            name
+            description
+            validations { name value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_reject.body["data"]["metafieldDefinition"],
+        json!({
+            "name": "Product subtitle",
+            "description": "Used as a shorthand for a product name",
+            "validations": [{ "name": "max", "value": "70" }]
+        })
+    );
+
+    let allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardTemplateDefinitionNonImmutableUpdate($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition {
+              namespace
+              key
+              pinnedPosition
+              access { admin storefront customerAccount }
+              capabilities { adminFilterable { enabled eligible status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "descriptors",
+                "key": "subtitle",
+                "pin": true,
+                "access": { "admin": "MERCHANT_READ_WRITE", "storefront": "PUBLIC_READ" },
+                "capabilities": { "adminFilterable": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        allowed.body["data"]["metafieldDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        allowed.body["data"]["metafieldDefinitionUpdate"]["updatedDefinition"],
+        json!({
+            "namespace": "descriptors",
+            "key": "subtitle",
+            "pinnedPosition": 1,
+            "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ",
+                "customerAccount": "NONE"
+            },
+            "capabilities": {
+                "adminFilterable": {
+                    "enabled": true,
+                    "eligible": true,
+                    "status": "FILTERABLE"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn standard_metafield_definition_reenable_pin_over_cap_uses_next_position() {
     let namespace = "standard_reenable_pin_cap";
     let mut proxy = snapshot_proxy();
@@ -1962,6 +2091,170 @@ fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_
         }),
     ));
     assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
+}
+
+#[test]
+fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_flag() {
+    let mut proxy = snapshot_proxy();
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservedNamespaceGuardProductCreate {
+          productCreate(product: { title: "Reserved namespace guard product" }) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservedNamespaceDefinitionCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType type { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "$app:settings",
+                "key": "config",
+                "name": "Reserved config",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create_definition.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]
+            ["namespace"],
+        json!("app--347082227713--settings")
+    );
+    assert_eq!(
+        create_definition.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservedNamespaceAssociatedMetafieldSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { ownerType namespace key value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": owner_id.clone(),
+                "namespace": "$app:settings",
+                "key": "config",
+                "type": "single_line_text_field",
+                "value": "enabled"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let guarded_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservedNamespaceDefinitionDeleteNoFlag {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "$app:settings", key: "config" }
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        guarded_delete.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinitionId": null,
+            "deletedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionDeleteUserError",
+                "field": null,
+                "message": "Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.",
+                "code": "RESERVED_NAMESPACE_ORPHANED_METAFIELDS"
+            }]
+        })
+    );
+
+    let read_after_guard = proxy.process_request(json_graphql_request(
+        r#"
+        query ReservedNamespaceDefinitionReadAfterGuard {
+          metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: "$app:settings", key: "config" }) {
+            namespace
+            key
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_guard.body["data"]["metafieldDefinition"],
+        json!({
+            "namespace": "app--347082227713--settings",
+            "key": "config"
+        })
+    );
+
+    let delete_all = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservedNamespaceDefinitionDeleteAll {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "$app:settings", key: "config" }
+            deleteAllAssociatedMetafields: true
+          ) {
+            deletedDefinition { ownerType namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete_all.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "app--347082227713--settings",
+            "key": "config"
+        })
+    );
+    assert_eq!(
+        delete_all.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read_metafield_after_delete_all = proxy.process_request(json_graphql_request(
+        r#"
+        query ReservedNamespaceMetafieldReadAfterDeleteAll($id: ID!) {
+          product(id: $id) {
+            metafield(namespace: "$app:settings", key: "config") { namespace key value }
+          }
+        }
+        "#,
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(
+        read_metafield_after_delete_all.body["data"]["product"]["metafield"],
+        Value::Null
+    );
 }
 
 #[test]

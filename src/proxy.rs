@@ -1903,8 +1903,8 @@ mod store_tests {
     fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
         ProductRecord {
             id: id.to_string(),
-            created_at: default_product_timestamp(id),
-            updated_at: default_product_timestamp(id),
+            created_at: default_product_timestamp(),
+            updated_at: default_product_timestamp(),
             title: title.to_string(),
             handle: handle.to_string(),
             status: "ACTIVE".to_string(),

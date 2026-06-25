@@ -2084,7 +2084,7 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "company", "externalId"],
             companies,
@@ -2136,7 +2136,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "externalId"],
             companies,
@@ -2164,11 +2164,11 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
     errors
 }
 
-pub(in crate::proxy) fn b2b_company_external_id_errors(
+pub(in crate::proxy) fn b2b_external_id_errors(
     external_id: &str,
     field: Vec<&str>,
-    companies: &BTreeMap<String, Value>,
-    current_company_id: Option<&str>,
+    records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
 ) -> Vec<Value> {
     if external_id.chars().count() > 64 {
         return vec![b2b_company_user_error(
@@ -2191,50 +2191,8 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
             Some(json!("external_id_contains_invalid_chars")),
         )];
     }
-    let duplicate = companies.iter().any(|(id, company)| {
-        Some(id.as_str()) != current_company_id
-            && company["externalId"].as_str() == Some(external_id)
-    });
-    if duplicate {
-        return vec![b2b_company_user_error(
-            field,
-            "External id has already been taken.",
-            "TAKEN",
-            Some(json!("duplicate_external_id")),
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn b2b_location_external_id_errors(
-    external_id: &str,
-    field: Vec<&str>,
-    locations: &BTreeMap<String, Value>,
-    current_location_id: Option<&str>,
-) -> Vec<Value> {
-    if external_id.chars().count() > 64 {
-        return vec![b2b_company_user_error(
-            field,
-            "External Id must be 64 characters or less.",
-            "TOO_LONG",
-            None,
-        )];
-    }
-    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id
-        .chars()
-        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
-    {
-        return vec![b2b_company_user_error(
-            field,
-            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
-            "INVALID",
-            Some(json!("external_id_contains_invalid_chars")),
-        )];
-    }
-    let duplicate = locations.iter().any(|(id, location)| {
-        Some(id.as_str()) != current_location_id
-            && location["externalId"].as_str() == Some(external_id)
+    let duplicate = records.iter().any(|(id, record)| {
+        Some(id.as_str()) != current_id && record["externalId"].as_str() == Some(external_id)
     });
     if duplicate {
         return vec![b2b_company_user_error(
@@ -2346,9 +2304,17 @@ impl DraftProxy {
             .unwrap_or_else(|| {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
-        let has_tax_exempt = field.arguments.contains_key("taxExempt");
-        let tax_exempt_is_null =
-            matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
+        let tax_exempt_argument = field.raw_arguments.get("taxExempt");
+        let has_tax_exempt =
+            tax_exempt_argument.is_some_and(|argument| !argument.is_unbound_variable());
+        let tax_exempt_is_null = matches!(
+            tax_exempt_argument,
+            Some(RawArgumentValue::Null)
+                | Some(RawArgumentValue::Variable {
+                    value: Some(ResolvedValue::Null),
+                    ..
+                })
+        );
         let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
         let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
@@ -2394,17 +2360,6 @@ impl DraftProxy {
             );
         }
 
-        let mut exemptions = if remove.is_empty() {
-            assign
-        } else {
-            vec![
-                "CA_BC_RESELLER_EXEMPTION".to_string(),
-                "US_CA_RESELLER_EXEMPTION".to_string(),
-            ]
-        };
-        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
-        exemptions.sort();
-        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
         let mut location = self
             .store
             .staged
@@ -2412,6 +2367,30 @@ impl DraftProxy {
             .get(&location_id)
             .cloned()
             .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        let mut exemptions = Vec::new();
+        if let Some(current_exemptions) = location
+            .pointer("/taxSettings/taxExemptions")
+            .and_then(Value::as_array)
+        {
+            for exemption in current_exemptions.iter().filter_map(Value::as_str) {
+                if !exemptions.iter().any(|existing| existing == exemption) {
+                    exemptions.push(exemption.to_string());
+                }
+            }
+        }
+        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
+        for assigned in assign {
+            if !exemptions.iter().any(|existing| existing == &assigned) {
+                exemptions.push(assigned);
+            }
+        }
+        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt")
+            .or_else(|| {
+                location
+                    .pointer("/taxSettings/taxExempt")
+                    .and_then(Value::as_bool)
+            })
+            .unwrap_or(false);
         // companyLocationTaxSettingsUpdate sets taxRegistrationId when the argument is
         // supplied, and otherwise leaves any previously staged registration id untouched.
         let existing_registration_id = location
@@ -2451,7 +2430,12 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -
     json!({
         "id": location_id,
         "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" }
+        "billingAddress": { "address1": "Billing HQ" },
+        "taxSettings": {
+            "taxRegistrationId": Value::Null,
+            "taxExempt": true,
+            "taxExemptions": []
+        }
     })
 }
 
@@ -2724,5 +2708,24 @@ pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
 pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
     if let Value::Object(fields) = entry {
         fields.insert("status".to_string(), json!(status));
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn record_mutation_log_with_status(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
     }
 }

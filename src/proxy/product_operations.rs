@@ -368,10 +368,11 @@ impl DraftProxy {
                 kind: ProductOperationKind::Duplicate,
                 product_id: None,
                 new_product_id: None,
-                user_errors: vec![json!({
-                    "field": ["productId"],
-                    "message": "Product does not exist"
-                })],
+                user_errors: vec![user_error_omit_code(
+                    ["productId"],
+                    "Product does not exist",
+                    None,
+                )],
             };
             self.store
                 .staged
@@ -398,10 +399,11 @@ impl DraftProxy {
                 &payload_selection,
                 &new_product_selection,
                 &operation_selection,
-                vec![json!({
-                    "field": ["productId"],
-                    "message": "Product does not exist"
-                })],
+                vec![user_error_omit_code(
+                    ["productId"],
+                    "Product does not exist",
+                    None,
+                )],
             );
             return MutationOutcome::response(ok_json(
                 json!({ "data": { response_key: payload } }),
@@ -831,30 +833,33 @@ impl DraftProxy {
     ) -> Option<Vec<Value>> {
         let components = resolved_object_list_field(input, "components");
         if input.contains_key("components") && components.is_empty() {
-            return Some(vec![json!({
-                "field": null,
-                "message": "At least one component is required."
-            })]);
+            return Some(vec![user_error_omit_code(
+                Value::Null,
+                "At least one component is required.",
+                None,
+            )]);
         }
         for component in components {
             let product_id = resolved_string_field(&component, "productId").unwrap_or_default();
             let Some(product) = self.store.product_by_id(&product_id) else {
-                return Some(vec![json!({
-                    "field": null,
-                    "message": format!(
+                return Some(vec![user_error_omit_code(
+                    Value::Null,
+                    &format!(
                         "Failed to locate the following products: [{}]",
                         resource_id_tail(&product_id)
-                    )
-                })]);
+                    ),
+                    None,
+                )]);
             };
             if resolved_int_field(&component, "quantity").unwrap_or(1) > 2000 {
-                return Some(vec![json!({
-                    "field": null,
-                    "message": format!(
+                return Some(vec![user_error_omit_code(
+                    Value::Null,
+                    &format!(
                         "Quantity cannot be greater than 2000. The following products have a quantity that exceeds the maximum: [{}]",
                         resource_id_tail(&product_id)
-                    )
-                })]);
+                    ),
+                    None,
+                )]);
             }
             let option_selections = resolved_object_list_field(&component, "optionSelections");
             let option_count = product
@@ -864,23 +869,25 @@ impl DraftProxy {
                 .map(Vec::len)
                 .unwrap_or_default();
             if option_count > 0 && option_selections.len() != option_count {
-                return Some(vec![json!({
-                    "field": null,
-                    "message": format!(
+                return Some(vec![user_error_omit_code(
+                    Value::Null,
+                    &format!(
                         "Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids [{}].",
                         resource_id_tail(&product_id)
-                    )
-                })]);
+                    ),
+                    None,
+                )]);
             }
             if let Some(quantity_option) = resolved_object_field(&component, "quantityOption") {
                 if resolved_object_list_field(&quantity_option, "values").len() == 1 {
-                    return Some(vec![json!({
-                        "field": null,
-                        "message": format!(
+                    return Some(vec![user_error_omit_code(
+                        Value::Null,
+                        &format!(
                             "Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids [{}].",
                             resource_id_tail(&product_id)
-                        )
-                    })]);
+                        ),
+                        None,
+                    )]);
                 }
             }
         }

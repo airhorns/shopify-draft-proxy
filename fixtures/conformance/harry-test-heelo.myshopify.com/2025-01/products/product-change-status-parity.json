@@ -1,23 +1,23 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/10173064872242",
-    "title": "Hermes Product State Conformance 1777416213315",
-    "handle": "hermes-product-state-conformance-1777416213315",
+    "id": "gid://shopify/Product/10221211550002",
+    "title": "Hermes Product State Conformance 1782394032266",
+    "handle": "hermes-product-state-conformance-1782394032266",
     "status": "DRAFT",
-    "tags": ["existing", "hermes-state-1777416213315"]
+    "tags": ["existing", "hermes-state-1782394032266"]
   },
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10173064872242",
+      "productId": "gid://shopify/Product/10221211550002",
       "status": "ARCHIVED"
     },
     "response": {
       "data": {
         "productChangeStatus": {
           "product": {
-            "id": "gid://shopify/Product/10173064872242",
+            "id": "gid://shopify/Product/10221211550002",
             "status": "ARCHIVED",
-            "updatedAt": "2026-04-28T22:43:34Z"
+            "updatedAt": "2026-06-25T13:27:13Z"
           },
           "userErrors": []
         }
@@ -90,15 +90,15 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10173064872242",
-    "query": "status:archived tag:hermes-state-1777416213315"
+    "id": "gid://shopify/Product/10221211550002",
+    "query": "status:archived tag:hermes-state-1782394032266"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10173064872242",
+        "id": "gid://shopify/Product/10221211550002",
         "status": "ARCHIVED",
-        "updatedAt": "2026-04-28T22:43:34Z"
+        "updatedAt": "2026-06-25T13:27:13Z"
       },
       "products": {
         "nodes": []
@@ -124,23 +124,52 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10173064872242"]
+        "ids": ["gid://shopify/Product/10221211550002"]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10173064872242",
-                "title": "Hermes Product State Conformance 1777416213315",
-                "handle": "hermes-product-state-conformance-1777416213315",
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10221211550002",
+                "legacyResourceId": "10221211550002",
+                "title": "Hermes Product State Conformance 1782394032266",
+                "handle": "hermes-product-state-conformance-1782394032266",
                 "status": "DRAFT",
-                "tags": ["existing", "hermes-state-1777416213315"],
-                "updatedAt": "2026-04-28T22:43:34Z"
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": ["existing", "hermes-state-1782394032266"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-06-25T13:27:12Z",
+                "updatedAt": "2026-06-25T13:27:12Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://9kdqfqeu26vlyreq-92891250994.shopifypreview.com/products_preview?preview_key=75377bf6dfa5e048e287cd7f25c908bd&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNi0yNVQxNDoyNzoxMi44MjVaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--0b9c6f39d0d3dc49a196a42717ae6f30c8d82d93",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "resourcePublicationsV2": {
+                  "nodes": []
+                }
               }
             ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

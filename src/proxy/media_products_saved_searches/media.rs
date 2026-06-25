@@ -614,13 +614,7 @@ impl DraftProxy {
     }
 
     fn media_file_for_update(&self, id: &str) -> Option<Value> {
-        let file = self
-            .store
-            .staged
-            .media_files
-            .get(id)
-            .cloned()
-            .or_else(|| seeded_media_file_for_update(id))?;
+        let file = self.store.staged.media_files.get(id).cloned()?;
         let supplied_type = shopify_gid_resource_type(id);
         let actual_type = file.get("__typename").and_then(Value::as_str);
         if supplied_type.is_some() && actual_type.is_some() && supplied_type != actual_type {
@@ -1476,48 +1470,6 @@ fn media_file_numeric_id(file: &Value) -> u64 {
         .map(resource_id_tail)
         .and_then(|tail| tail.parse::<u64>().ok())
         .unwrap_or(0)
-}
-
-fn seeded_media_file_for_update(id: &str) -> Option<Value> {
-    match id {
-        "gid://shopify/MediaImage/43688017887538" => Some(media_file_record(
-            id,
-            "IMAGE",
-            "filename-aggregation-single-1778241113775.jpg",
-            "Seed",
-            "https://cdn.example.com/filename-aggregation-single-1778241113775.jpg",
-            "READY",
-            "2026-05-08T00:00:00.000Z",
-        )),
-        "gid://shopify/MediaImage/43688017920306" => Some(media_file_record(
-            id,
-            "IMAGE",
-            "filename-aggregation-multi-two-1778241113775.jpg",
-            "Seed",
-            "https://cdn.example.com/filename-aggregation-multi-two-1778241113775.jpg",
-            "READY",
-            "2026-05-08T00:00:00.000Z",
-        )),
-        "gid://shopify/ExternalVideo/43688017953074" => Some(media_file_record(
-            id,
-            "EXTERNAL_VIDEO",
-            "filename-aggregation-video-one-1778241113775.mp4",
-            "Seed",
-            "https://www.youtube.com/watch?v=111",
-            "READY",
-            "2026-05-08T00:00:00.000Z",
-        )),
-        "gid://shopify/ExternalVideo/43688017985842" => Some(media_file_record(
-            id,
-            "EXTERNAL_VIDEO",
-            "filename-aggregation-video-two-1778241113775.mp4",
-            "Seed",
-            "https://www.youtube.com/watch?v=222",
-            "READY",
-            "2026-05-08T00:00:00.000Z",
-        )),
-        _ => None,
-    }
 }
 
 // Build a staged media-file record from an upstream `nodes(ids:)` hydration node,
