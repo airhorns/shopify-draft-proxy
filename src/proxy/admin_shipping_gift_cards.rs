@@ -1,6 +1,9 @@
 use super::resolved_values;
 use super::*;
 
+use crate::graphql::ParsedDocument;
+
+mod app_billing;
 mod gift_cards;
 
 // Must byte-match the recorded upstream hydrate query in the store-properties
@@ -35,7 +38,6 @@ const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 // so activate/deactivate preserve its captured name/scope/state instead of
 // fabricating a synthetic record.
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
-const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 // Must byte-match the recorded `ShippingDeliveryProfileVariantsHydrate` upstream
 // call in the delivery-profile lifecycle captures (strict cassette compares
 // query text + variables). Issued so a created/updated profile's
@@ -314,1068 +316,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn current_app_installation_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "currentAppInstallation" {
-                continue;
-            }
-            let value = if self.store.staged.app_uninstalled {
-                Value::Null
-            } else {
-                current_app_installation_json(
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &self.store.staged.revoked_app_access_scopes,
-                    &field.selection,
-                )
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
-        self.store
-            .staged
-            .app_subscriptions
-            .values()
-            .find_map(|subscription| {
-                subscription["lineItems"].as_array().and_then(|line_items| {
-                    line_items.iter().find_map(|line_item| {
-                        line_item["usageRecords"]["nodes"]
-                            .as_array()
-                            .and_then(|records| {
-                                records.iter().find(|record| record["id"] == id).cloned()
-                            })
-                    })
-                })
-            })
-    }
-
-    pub(in crate::proxy) fn app_uninstall(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appUninstall".to_string());
-        let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
-        let requested_id = resolved_object_field(&arguments, "input")
-            .and_then(|input| resolved_string_field(&input, "id"));
-
-        let (app, user_errors) = match requested_id.as_deref() {
-            Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
-                Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "App is not installed on this shop.",
-                    "code": "APP_NOT_INSTALLED"
-                })],
-            ),
-            Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
-                Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "The app cannot be found.",
-                    "code": "APP_NOT_FOUND"
-                })],
-            ),
-            _ => {
-                self.store.staged.app_uninstalled = true;
-                for subscription in self.store.staged.app_subscriptions.values_mut() {
-                    if let Value::Object(fields) = subscription {
-                        fields.insert("status".to_string(), json!("CANCELLED"));
-                    }
-                }
-                self.store.staged.delegate_access_tokens.clear();
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "appUninstall",
-                    vec!["gid://shopify/App/expected".to_string()],
-                );
-                (local_app_json(), vec![])
-            }
-        };
-        ok_json(json!({
-            "data": {
-                response_key: app_uninstall_payload_json(
-                    app,
-                    &payload_selection,
-                    &app_selection,
-                    user_errors,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_subscription_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appSubscriptionCreate".to_string());
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
-        let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
-        let name =
-            resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
-        let mut user_errors = Vec::new();
-        if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
-        }
-        if !arguments.contains_key("returnUrl") {
-            user_errors.push(json!({
-                "field": ["returnUrl"],
-                "message": "Return url can't be blank",
-                "code": null
-            }));
-        }
-        if !arguments.contains_key("lineItems")
-            || matches!(arguments.get("lineItems"), Some(ResolvedValue::List(items)) if items.is_empty())
-        {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "At least one plan must be selected",
-                "code": null
-            }));
-        }
-        let trial_days = arguments
-            .get("trialDays")
-            .and_then(|value| match value {
-                ResolvedValue::Int(value) => Some(*value),
-                _ => None,
-            })
-            .unwrap_or(0);
-        let test = arguments
-            .get("test")
-            .and_then(|value| match value {
-                ResolvedValue::Bool(value) => Some(*value),
-                _ => None,
-            })
-            .unwrap_or(false);
-        let line_items = app_subscription_line_items_from_arguments(&arguments);
-        if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "All pricing plans must use the same currency.",
-                "code": null
-            }));
-        }
-        if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: app_subscription_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &subscription_selection,
-                        user_errors,
-                    )
-                }
-            }));
-        }
-        let subscription = json!({
-            "__typename": "AppSubscription",
-            "id": id,
-            "name": name,
-            "status": if test { "ACTIVE" } else { "PENDING" },
-            "test": test,
-            "trialDays": trial_days,
-            "currentPeriodEnd": "2024-02-07T00:00:00.000Z",
-            "lineItems": line_items
-        });
-        self.store
-            .staged
-            .app_subscriptions
-            .insert(id.clone(), subscription.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "appSubscriptionCreate",
-            vec![id],
-        );
-
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_create_payload_json(
-                    &subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_subscription_cancel(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appSubscriptionCancel".to_string());
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-
-        let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
-            Some(record) if record["status"] == "CANCELLED" => (
-                Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Cannot transition status via :cancel from :cancelled"
-                })],
-            ),
-            Some(record) => {
-                if let Value::Object(fields) = record {
-                    fields.insert("status".to_string(), json!("CANCELLED"));
-                }
-                let updated = record.clone();
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "appSubscriptionCancel",
-                    vec![id],
-                );
-                (updated, vec![])
-            }
-            None => (
-                Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Couldn't find RecurringApplicationCharge"
-                })],
-            ),
-        };
-
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_subscription_trial_extend(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "appSubscriptionTrialExtend".to_string()
-            });
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let days = resolved_int_field(&arguments, "days").unwrap_or(0);
-
-        let (subscription, user_errors) = if days <= 0 {
-            (
-                Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be greater than 0",
-                    "code": null
-                })],
-            )
-        } else if days > 1000 {
-            (
-                Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be less than or equal to 1000",
-                    "code": null
-                })],
-            )
-        } else {
-            match self.store.staged.app_subscriptions.get_mut(&id) {
-                None => (
-                    Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The app subscription wasn't found.",
-                        "code": "SUBSCRIPTION_NOT_FOUND"
-                    })],
-                ),
-                Some(record) if record["status"] != "ACTIVE" => (
-                    Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended on inactive app subscriptions.",
-                        "code": "SUBSCRIPTION_NOT_ACTIVE"
-                    })],
-                ),
-                Some(record) if !app_subscription_trial_is_active(record) => (
-                    Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended after expiration."
-                    })],
-                ),
-                Some(record) => {
-                    let current = record["trialDays"].as_i64().unwrap_or(0);
-                    if let Value::Object(fields) = record {
-                        fields.insert("trialDays".to_string(), json!(current + days));
-                    }
-                    let updated = record.clone();
-                    self.record_mutation_log_entry(
-                        request,
-                        query,
-                        variables,
-                        "appSubscriptionTrialExtend",
-                        vec![id],
-                    );
-                    (updated, vec![])
-                }
-            }
-        };
-
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_subscription_line_item_update(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for root in root_fields(query, variables)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|root| root.name == "appSubscriptionLineItemUpdate")
-        {
-            let subscription_selection =
-                selected_child_selection(&root.selection, "appSubscription").unwrap_or_default();
-            let id = resolved_string_field(&root.arguments, "id").unwrap_or_default();
-            let capped = match root.arguments.get("cappedAmount") {
-                Some(ResolvedValue::Object(value)) => value,
-                _ => {
-                    data.insert(
-                        root.response_key,
-                        app_subscription_payload_json(
-                            Value::Null,
-                            &root.selection,
-                            &subscription_selection,
-                            vec![json!({
-                                "field": ["cappedAmount"],
-                                "message": "Capped amount is required"
-                            })],
-                        ),
-                    );
-                    continue;
-                }
-            };
-            let requested_amount = resolved_money_amount_string(capped.get("amount"));
-            let requested_currency = match capped.get("currencyCode") {
-                Some(ResolvedValue::String(value)) => value.clone(),
-                _ => "USD".to_string(),
-            };
-            let require_approval = match root.arguments.get("requireApproval") {
-                Some(ResolvedValue::Bool(value)) => *value,
-                _ => true,
-            };
-
-            let mut matched_subscription_id = None;
-            let mut matched_line_item = None;
-            let mut matched_line_item_index = None;
-            for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
-                if let Some(line_items) = subscription["lineItems"].as_array() {
-                    if let Some((index, line_item)) = line_items
-                        .iter()
-                        .enumerate()
-                        .find(|(_, line_item)| line_item["id"] == id)
-                    {
-                        matched_subscription_id = Some(subscription_id.clone());
-                        matched_line_item = Some(line_item.clone());
-                        matched_line_item_index = Some(index);
-                        break;
-                    }
-                }
-            }
-
-            let (subscription, user_errors) = match (
-                matched_subscription_id,
-                matched_line_item,
-                matched_line_item_index,
-            ) {
-                (Some(subscription_id), Some(line_item), Some(line_item_index)) => {
-                    let pricing = &line_item["plan"]["pricingDetails"];
-                    if pricing["__typename"] != "AppUsagePricing" {
-                        (
-                            Value::Null,
-                            vec![json!({
-                                "field": null,
-                                "message": "Only variable subscriptions can be updated."
-                            })],
-                        )
-                    } else {
-                        let existing_currency = pricing["cappedAmount"]["currencyCode"]
-                            .as_str()
-                            .unwrap_or("USD");
-                        let existing_amount = pricing["cappedAmount"]["amount"]
-                            .as_str()
-                            .and_then(|amount| amount.parse::<f64>().ok())
-                            .unwrap_or(0.0);
-                        let requested_amount_number =
-                            requested_amount.parse::<f64>().unwrap_or(0.0);
-                        if requested_currency != existing_currency {
-                            (
-                                Value::Null,
-                                vec![json!({
-                                    "field": null,
-                                    "message": format!("Currency code must be {existing_currency}")
-                                })],
-                            )
-                        } else if requested_amount_number <= existing_amount {
-                            (
-                                Value::Null,
-                                vec![json!({
-                                    "field": ["cappedAmount"],
-                                    "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit."
-                                })],
-                            )
-                        } else {
-                            let subscription = if require_approval {
-                                self.store
-                                    .staged
-                                    .app_subscriptions
-                                    .get(&subscription_id)
-                                    .cloned()
-                                    .unwrap_or(Value::Null)
-                            } else {
-                                let subscription = self
-                                    .store
-                                    .staged
-                                    .app_subscriptions
-                                    .get_mut(&subscription_id)
-                                    .expect("located subscription must still exist");
-                                if let Some(line_item) = subscription["lineItems"]
-                                    .as_array_mut()
-                                    .and_then(|line_items| line_items.get_mut(line_item_index))
-                                {
-                                    line_item["plan"]["pricingDetails"]["cappedAmount"] = json!({
-                                        "amount": requested_amount,
-                                        "currencyCode": requested_currency
-                                    });
-                                }
-                                subscription.clone()
-                            };
-                            self.record_mutation_log_entry(
-                                request,
-                                query,
-                                variables,
-                                "appSubscriptionLineItemUpdate",
-                                vec![subscription_id],
-                            );
-                            (subscription, vec![])
-                        }
-                    }
-                }
-                _ => (
-                    Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "Invalid id"
-                    })],
-                ),
-            };
-
-            data.insert(
-                root.response_key,
-                app_subscription_payload_json_with_confirmation_url(
-                    subscription,
-                    &root.selection,
-                    &subscription_selection,
-                    user_errors,
-                    require_approval.then(|| json!("https://app.example.test/local-confirmation")),
-                ),
-            );
-        }
-
-        ok_json(json!({ "data": data }))
-    }
-
-    pub(in crate::proxy) fn find_staged_app_subscription_line_item(
-        &self,
-        line_item_id: &str,
-    ) -> Option<(String, usize)> {
-        self.store
-            .staged
-            .app_subscriptions
-            .iter()
-            .find_map(|(subscription_id, subscription)| {
-                subscription["lineItems"]
-                    .as_array()
-                    .and_then(|items| {
-                        items
-                            .iter()
-                            .position(|line_item| line_item["id"] == line_item_id)
-                    })
-                    .map(|index| (subscription_id.clone(), index))
-            })
-    }
-
-    pub(in crate::proxy) fn app_usage_record_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appUsageRecordCreate".to_string());
-        let usage_record_selection =
-            selected_child_selection(&payload_selection, "appUsageRecord").unwrap_or_default();
-        let line_item_id =
-            resolved_string_field(&arguments, "subscriptionLineItemId").unwrap_or_default();
-        let idempotency_key =
-            resolved_string_field(&arguments, "idempotencyKey").unwrap_or_default();
-        let price = match arguments.get("price") {
-            Some(ResolvedValue::Object(price)) => price,
-            _ => {
-                return ok_json(json!({
-                    "data": { response_key: app_usage_record_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &usage_record_selection,
-                        vec![user_error(["price"], "Price is required", None)],
-                    ) }
-                }));
-            }
-        };
-        let amount = resolved_money_amount_string(price.get("amount"));
-        let currency = match price.get("currencyCode") {
-            Some(ResolvedValue::String(value)) => value.clone(),
-            _ => "USD".to_string(),
-        };
-        let description = resolved_string_field(&arguments, "description").unwrap_or_default();
-
-        let mut usage_record = Value::Null;
-        let mut user_errors = Vec::new();
-        let mut should_record_success = false;
-        if idempotency_key.len() > 255 {
-            user_errors.push(json!({
-                "field": ["idempotencyKey"],
-                "message": "Idempotency key exceeds the maximum length.",
-                "code": null
-            }));
-        } else if description.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["description"],
-                "message": "Description can't be blank",
-                "code": null
-            }));
-        } else if shopify_gid_resource_type(&line_item_id) != Some("AppSubscriptionLineItem") {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
-        } else if let Some((subscription_id, line_item_index)) =
-            self.find_staged_app_subscription_line_item(&line_item_id)
-        {
-            let subscription = self
-                .store
-                .staged
-                .app_subscriptions
-                .get_mut(&subscription_id)
-                .expect("located subscription must still exist");
-            let line_item = subscription["lineItems"]
-                .as_array_mut()
-                .and_then(|items| items.get_mut(line_item_index))
-                .expect("located line item must still exist");
-            let pricing = &line_item["plan"]["pricingDetails"];
-            let existing_currency = pricing["cappedAmount"]["currencyCode"]
-                .as_str()
-                .unwrap_or("USD")
-                .to_string();
-            let capped_amount = pricing["cappedAmount"]["amount"]
-                .as_str()
-                .and_then(|value| value.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let current_balance = pricing["balanceUsed"]["amount"]
-                .as_str()
-                .and_then(|value| value.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let requested_amount = amount.parse::<f64>().unwrap_or(0.0);
-            let existing = line_item["usageRecords"]["nodes"]
-                .as_array()
-                .and_then(|records| {
-                    records
-                        .iter()
-                        .find(|record| {
-                            record["idempotencyKey"] == idempotency_key
-                                && record["apiClientId"] == request_api_client_id(request)
-                        })
-                        .cloned()
-                });
-            if let Some(record) = existing {
-                usage_record = record;
-            } else if currency != existing_currency
-                || current_balance + requested_amount > capped_amount
-            {
-                user_errors.push(json!({
-                    "field": null,
-                    "message": "Total price exceeds balance remaining"
-                }));
-            } else {
-                let new_balance = if current_balance == 0.0 {
-                    amount.clone()
-                } else {
-                    format_money_amount(current_balance + requested_amount)
-                };
-                line_item["plan"]["pricingDetails"]["balanceUsed"] = json!({
-                    "amount": new_balance,
-                    "currencyCode": existing_currency
-                });
-                let subscription_line_item = line_item.clone();
-                usage_record = json!({
-                    "id": "gid://shopify/AppUsageRecord/expected",
-                    "description": description,
-                    "price": { "amount": amount, "currencyCode": currency },
-                    "idempotencyKey": idempotency_key,
-                    "apiClientId": request_api_client_id(request),
-                    "subscriptionLineItem": subscription_line_item
-                });
-                if !line_item["usageRecords"].is_object() {
-                    line_item["usageRecords"] = json!({ "nodes": [] });
-                }
-                if let Some(records) = line_item["usageRecords"]["nodes"].as_array_mut() {
-                    records.push(usage_record.clone());
-                }
-                should_record_success = true;
-            }
-        } else {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
-        }
-
-        if should_record_success {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "appUsageRecordCreate",
-                vec![line_item_id],
-            );
-        }
-
-        ok_json(json!({
-            "data": {
-                response_key: app_usage_record_payload_json(
-                    usage_record,
-                    &payload_selection,
-                    &usage_record_selection,
-                    user_errors,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn delegate_access_token_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "delegateAccessTokenCreate".to_string()
-            });
-        let token_selection =
-            selected_child_selection(&payload_selection, "delegateAccessToken").unwrap_or_default();
-        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
-        let scopes = input
-            .get("delegateAccessScope")
-            .or_else(|| input.get("accessScopes"))
-            .map(resolved_string_list)
-            .unwrap_or_default();
-        let expires_in = match input.get("expiresIn") {
-            Some(ResolvedValue::Int(value)) => *value,
-            _ => 3600,
-        };
-
-        let mut user_errors = Vec::new();
-        if scopes.is_empty() {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The access scope can't be empty.",
-                "code": "EMPTY_ACCESS_SCOPE"
-            }));
-        } else if expires_in <= 0 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The expires_in value must be greater than 0.",
-                "code": "NEGATIVE_EXPIRES_IN"
-            }));
-        } else if delegate_expires_after_parent(request, expires_in) {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The delegate token can't expire after the parent token.",
-                "code": "EXPIRES_AFTER_PARENT"
-            }));
-        } else if let Some(scope) = scopes
-            .iter()
-            .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-        {
-            user_errors.push(json!({
-                "field": null,
-                "message": format!("The access scope is invalid: {scope}"),
-                "code": "UNKNOWN_SCOPES"
-            }));
-        }
-
-        if !user_errors.is_empty() {
-            if user_errors.iter().any(|error| {
-                error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
-            }) {
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "delegateAccessTokenCreate",
-                    vec![],
-                );
-                if let Some(entry) = self.log_entries.last_mut() {
-                    set_log_status(entry, "failed");
-                }
-            }
-            return ok_json(json!({
-                "data": {
-                    response_key: delegate_access_token_create_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &token_selection,
-                        user_errors,
-                    )
-                }
-            }));
-        }
-
-        let token = format!(
-            "shpat_delegate_proxy_{}",
-            self.store.staged.delegate_access_tokens.len() + 1
-        );
-        let parent_access_token =
-            request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_api_client_id(request);
-        let record = json!({
-            "accessToken": token,
-            "accessScopes": scopes,
-            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
-            "expiresIn": expires_in,
-            "parentAccessToken": parent_access_token,
-            "apiClientId": api_client_id
-        });
-        self.store
-            .staged
-            .delegate_access_tokens
-            .insert(token.clone(), record.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "delegateAccessTokenCreate",
-            vec![token],
-        );
-
-        ok_json(json!({
-            "data": {
-                response_key: delegate_access_token_create_payload_json(
-                    record,
-                    &payload_selection,
-                    &token_selection,
-                    vec![],
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn delegate_access_token_destroy(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "delegateAccessTokenDestroy".to_string()
-            });
-        let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
-        let caller_token = request_access_token(request).unwrap_or_default();
-        let caller_api_client_id = request_api_client_id(request);
-
-        let mut status = false;
-        let mut user_errors = Vec::new();
-        if !caller_token.is_empty()
-            && caller_token == token
-            && !token.starts_with("shpat_delegate_proxy_")
-        {
-            user_errors.push(delegate_access_token_destroy_user_error(
-                "Can only delete delegate tokens.",
-                "CAN_ONLY_DELETE_DELEGATE_TOKENS",
-            ));
-        } else if caller_token.starts_with("shpat_delegate_proxy_") && caller_token != token {
-            user_errors.push(delegate_access_token_destroy_user_error(
-                "Access denied.",
-                "ACCESS_DENIED",
-            ));
-        } else if self.store.staged.app_uninstalled {
-            user_errors.push(delegate_access_token_destroy_user_error(
-                "Access token does not exist.",
-                "ACCESS_TOKEN_NOT_FOUND",
-            ));
-        } else if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
-            let token_api_client_id = record
-                .get("apiClientId")
-                .and_then(Value::as_str)
-                .unwrap_or("gid://shopify/App/local");
-            if token_api_client_id != caller_api_client_id {
-                user_errors.push(delegate_access_token_destroy_user_error(
-                    "Access denied.",
-                    "ACCESS_DENIED",
-                ));
-            } else {
-                self.store.staged.delegate_access_tokens.remove(&token);
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "delegateAccessTokenDestroy",
-                    vec![token],
-                );
-                status = true;
-            }
-        } else {
-            user_errors.push(delegate_access_token_destroy_user_error(
-                "Access token does not exist.",
-                "ACCESS_TOKEN_NOT_FOUND",
-            ));
-        }
-
-        ok_json(json!({
-            "data": {
-                response_key: delegate_access_token_destroy_payload_json(
-                    status,
-                    user_errors,
-                    &payload_selection,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_revoke_access_scopes(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appRevokeAccessScopes".to_string());
-        let scopes = arguments
-            .get("scopes")
-            .map(resolved_string_list)
-            .unwrap_or_default();
-
-        let mut user_errors = Vec::new();
-        if app_revoke_access_scopes_missing_source_app(request) {
-            user_errors.push(json!({
-                "field": ["base"],
-                "message": "Source app is missing.",
-                "code": "MISSING_SOURCE_APP"
-            }));
-        } else {
-            if scopes.iter().any(|scope| scope == "read_products") {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "Scopes that are declared as required cannot be revoked.",
-                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-                }));
-            }
-            if scopes
-                .iter()
-                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-            {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "The requested list of scopes to revoke includes invalid handles.",
-                    "code": "UNKNOWN_SCOPES"
-                }));
-            }
-        }
-
-        let revoked = if user_errors.is_empty() {
-            for scope in &scopes {
-                self.store
-                    .staged
-                    .revoked_app_access_scopes
-                    .insert(scope.clone());
-            }
-            scopes
-                .iter()
-                .map(|scope| json!({ "handle": scope, "description": null }))
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        if user_errors.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "appRevokeAccessScopes",
-                scopes.clone(),
-            );
-        }
-
-        ok_json(json!({
-            "data": {
-                response_key: app_revoke_access_scopes_payload_json(
-                    revoked,
-                    user_errors,
-                    &payload_selection,
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn app_purchase_one_time_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "appPurchaseOneTimeCreate".to_string()
-            });
-        let purchase_selection =
-            selected_child_selection(&payload_selection, "appPurchaseOneTime").unwrap_or_default();
-
-        if !arguments.contains_key("returnUrl") {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
-                    "locations": [{ "line": 2, "column": 3 }],
-                    "path": ["mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl", "appPurchaseOneTimeCreate"],
-                    "extensions": {
-                        "code": "missingRequiredArguments",
-                        "className": "Field",
-                        "name": "appPurchaseOneTimeCreate",
-                        "arguments": "returnUrl"
-                    }
-                }]
-            }));
-        }
-
-        let name = arguments
-            .get("name")
-            .and_then(resolved_value_string)
-            .unwrap_or_default();
-        let price = match arguments.get("price") {
-            Some(ResolvedValue::Object(price)) => price.clone(),
-            _ => BTreeMap::new(),
-        };
-        let amount = resolved_money_amount_string(price.get("amount"));
-        let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
-        let mut user_errors = Vec::new();
-        if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
-        } else if amount.parse::<f64>().unwrap_or(0.0) < 0.50 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "Validation failed: Price must be greater than or equal to 0.5",
-                "code": null
-            }));
-        } else if currency_code != "USD" {
-            user_errors.push(json!({
-                "field": ["price"],
-                "message": "Currency code must be USD",
-                "code": null
-            }));
-        }
-
-        if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: app_purchase_one_time_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &purchase_selection,
-                        user_errors,
-                    )
-                }
-            }));
-        }
-
-        let purchase = json!({
-            "id": LOCAL_APP_PURCHASE_ONE_TIME_ID,
-            "name": name,
-            "status": "ACTIVE",
-            "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "price": { "amount": amount, "currencyCode": currency_code }
-        });
-        self.store
-            .staged
-            .app_one_time_purchases
-            .insert(LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string(), purchase.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "appPurchaseOneTimeCreate",
-            vec![LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string()],
-        );
-
-        ok_json(json!({
-            "data": {
-                response_key: app_purchase_one_time_payload_json(
-                    purchase,
-                    &payload_selection,
-                    &purchase_selection,
-                    vec![],
-                )
-            }
-        }))
-    }
-
     pub(in crate::proxy) fn location_mutation(
         &mut self,
         root_field: &str,
@@ -1524,10 +464,11 @@ impl DraftProxy {
                 delivery_profile_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Profile could not be updated."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Profile could not be updated.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -1575,10 +516,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Cannot delete the default profile."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Cannot delete the default profile.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -1589,10 +531,11 @@ impl DraftProxy {
                     delivery_profile_remove_payload_json(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot delete the default profile."
-                        })],
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Cannot delete the default profile.",
+                            None,
+                        )],
                     ),
                     Vec::new(),
                 );
@@ -1601,10 +544,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "The Delivery Profile cannot be found for the shop."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "The Delivery Profile cannot be found for the shop.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -2400,11 +1344,11 @@ impl DraftProxy {
             return location_errors;
         }
         if !local_pickup_time_is_standard(pickup_time) {
-            return vec![json!({
-                "field": ["localPickupSettings"],
-                "message": "Custom pickup time is not allowed for local pickup settings.",
-                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
-            })];
+            return vec![user_error(
+                ["localPickupSettings"],
+                "Custom pickup time is not allowed for local pickup settings.",
+                Some("CUSTOM_PICKUP_TIME_NOT_ALLOWED"),
+            )];
         }
         Vec::new()
     }
@@ -2417,18 +1361,18 @@ impl DraftProxy {
         if self.active_local_pickup_location(location_id).is_some() {
             return Vec::new();
         }
-        vec![json!({
-            "field": ["localPickupSettings"],
-            "message": format!(
+        vec![user_error_with_code_value(
+            ["localPickupSettings"],
+            &format!(
                 "Unable to find an active location for location ID {}",
-                location_id_display_tail(location_id)
+                resource_id_path_tail(location_id)
             ),
-            "code": if root_field == "locationLocalPickupEnable" {
+            json!(if root_field == "locationLocalPickupEnable" {
                 "ACTIVE_LOCATION_NOT_FOUND"
             } else {
                 "LOCATION_NOT_FOUND"
-            }
-        })]
+            }),
+        )]
     }
 
     pub(in crate::proxy) fn location_add(
@@ -2481,7 +1425,7 @@ impl DraftProxy {
             };
             data.insert(
                 field.response_key.clone(),
-                location_add_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -2765,10 +1709,7 @@ impl DraftProxy {
                 .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
             let mut user_errors = Vec::new();
             if source_location.is_none() {
-                user_errors.push(json!({
-                    "field": ["id"],
-                    "message": "Location not found."
-                }));
+                user_errors.push(user_error_omit_code(["id"], "Location not found.", None));
             } else {
                 user_errors.extend(self.location_edit_user_errors(&location_id, &input));
             }
@@ -2792,7 +1733,7 @@ impl DraftProxy {
 
             data.insert(
                 field.response_key,
-                location_edit_payload_selected_json(location, &field.selection, user_errors),
+                location_payload_selected_json(location, &field.selection, user_errors),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -2913,50 +1854,50 @@ impl DraftProxy {
         let mut errors = Vec::new();
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Add a location name",
-                    "code": "BLANK"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Add a location name",
+                    Some("BLANK"),
+                ));
             } else if name.chars().count() > 100 {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Use a shorter location name (up to 100 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Use a shorter location name (up to 100 characters)",
+                    Some("TOO_LONG"),
+                ));
             } else if self.location_name_exists_except(&name, location_id) {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "You already have a location with this name",
-                    "code": "TAKEN"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "You already have a location with this name",
+                    Some("TAKEN"),
+                ));
             }
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "city")
                 .is_some_and(|city| city.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "city"],
-                    "message": "Use a shorter city name (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "city"],
+                    "Use a shorter city name (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -2965,16 +1906,14 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        // Shopify reports the metafield position as a 1-based
-                        // index in the error path (input index 0 → field "1").
-                        "field": ["input", "metafields", (index + 1).to_string(), "type"],
-                        "message": format!(
+                    errors.push(user_error(
+                        json!(["input", "metafields", (index + 1).to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
@@ -2983,11 +1922,7 @@ impl DraftProxy {
         if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
             && !self.has_other_online_order_fulfillment_location(location_id)
         {
-            errors.push(json!({
-                "field": ["input"],
-                "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
-                "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
-            }));
+            errors.push(user_error(["input"], "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT")));
         }
         errors
     }
@@ -3060,40 +1995,40 @@ impl DraftProxy {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
         if name.trim().is_empty() {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Add a location name",
-                "code": "BLANK"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Add a location name",
+                Some("BLANK"),
+            ));
         } else if name.chars().count() > 100 {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Use a shorter location name (up to 100 characters)",
-                "code": "TOO_LONG"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Use a shorter location name (up to 100 characters)",
+                Some("TOO_LONG"),
+            ));
         } else if self.location_name_exists(&name) {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "You already have a location with this name",
-                "code": "TAKEN"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "You already have a location with this name",
+                Some("TAKEN"),
+            ));
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -3102,23 +2037,23 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        "field": ["input", "metafields", index.to_string(), "type"],
-                        "message": format!(
+                    errors.push(user_error(
+                        json!(["input", "metafields", index.to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
         if self.location_limit_reached() {
-            errors.push(json!({
-                "field": ["input"],
-                "code": "INVALID",
-                "message": "You have reached the maximum number of locations (200)"
-            }));
+            errors.push(user_error(
+                ["input"],
+                "You have reached the maximum number of locations (200)",
+                Some("INVALID"),
+            ));
         }
         errors
     }
@@ -3184,22 +2119,18 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ONGOING_RELOCATION",
-                "message": "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later.", Some("HAS_ONGOING_RELOCATION"))];
         }
         if location
             .get("isFulfillmentService")
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_NOT_FOUND",
-                "message": "Location not found."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Location not found.",
+                Some("LOCATION_NOT_FOUND"),
+            )];
         }
         if self.location_limit_reached()
             || location
@@ -3207,18 +2138,14 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Your shop has reached its location limit.",
+                Some("LOCATION_LIMIT"),
+            )];
         }
         if self.location_has_non_unique_active_name(location) {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_NON_UNIQUE_NAME",
-                "message": "This location currently cannot be activated because there exists an active location with the same name."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated because there exists an active location with the same name.", Some("HAS_NON_UNIQUE_NAME"))];
         }
         Vec::new()
     }
@@ -3623,11 +2550,7 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match destination_location_id {
-            Some(destination_id) if destination_id == location_id => vec![json!({
-                "field": ["destinationLocationId"],
-                "code": "DESTINATION_LOCATION_IS_THE_SAME_LOCATION",
-                "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated."
-            })],
+            Some(destination_id) if destination_id == location_id => vec![user_error(["destinationLocationId"], "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.", Some("DESTINATION_LOCATION_IS_THE_SAME_LOCATION"))],
             Some(destination_id)
                 if destination_id.is_empty()
                     || self.location_deactivate_destination_is_inactive(destination_id) =>
@@ -3640,11 +2563,7 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(false) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR",
-                    "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.", Some("PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR"))]
             }
             None if source_location
                 .get("fulfillsOnlineOrders")
@@ -3652,22 +2571,14 @@ impl DraftProxy {
                 == Some(true)
                 && !self.has_other_online_order_fulfillment_location(location_id) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
-                    "message": "At least one location must fulfill online orders."
-                })]
+                vec![user_error(["locationId"], "At least one location must fulfill online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"))]
             }
             None if source_location
                 .get("hasActiveInventory")
                 .and_then(Value::as_bool)
                 .unwrap_or_else(|| self.location_has_inventory(location_id)) =>
             {
-                vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ACTIVE_INVENTORY_ERROR",
-                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated without specifying where to relocate inventory stocked at the location.", Some("HAS_ACTIVE_INVENTORY_ERROR"))]
             }
             None => Vec::new(),
         }
@@ -4093,11 +3004,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold"],
-                            "message": "Fulfillment hold is required.",
-                            "code": "INVALID"
-                        })]
+                        vec![user_error(["fulfillmentHold"], "Fulfillment hold is required.", Some("INVALID"))]
                     )
                 }
             }));
@@ -4119,11 +3026,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "must contain unique line item ids",
-                            "code": "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "must contain unique line item ids", Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"))]
                     )
                 }
             }));
@@ -4140,11 +3043,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"],
-                            "message": "You must select at least one item to place on partial hold.",
-                            "code": "GREATER_THAN_ZERO"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"], "You must select at least one item to place on partial hold.", Some("GREATER_THAN_ZERO"))]
                     )
                 }
             }));
@@ -4165,11 +3064,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "handle"],
-                            "message": "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                            "code": "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "handle"], "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.", Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"))]
                     )
                 }
             }));
@@ -4182,11 +3077,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                            "code": "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"
-                        })]
+                        vec![user_error(["id"], "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.", Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"))]
                     )
                 }
             }));
@@ -4199,11 +3090,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "The fulfillment order is not in a splittable state.",
-                            "code": "FULFILLMENT_ORDER_NOT_SPLITTABLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "The fulfillment order is not in a splittable state.", Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"))]
                     )
                 }
             }));
@@ -4404,11 +3291,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.", None)]
                     )
                 }
             }));
@@ -4580,11 +3463,7 @@ impl DraftProxy {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": field,
-                            "message": message,
-                            "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                        })]
+                        vec![user_error(json!(field), message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                     )
                 }
             }));
@@ -4657,11 +3536,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Fulfillment order is not in cancelable request state and can't be canceled.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Fulfillment order is not in cancelable request state and can't be canceled.", None)]
                     )
                 }
             }));
@@ -4673,11 +3548,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
-                            "code": null
-                        })]
+                        vec![user_error(["id"], "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.", None)]
                     )
                 }
             }));
@@ -4751,20 +3622,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             let deadline = resolved_string_field(&arguments, "fulfillmentDeadline")
@@ -4906,11 +3773,7 @@ impl DraftProxy {
                 response_key: fulfillment_orders_reroute_payload_json(
                     Vec::new(),
                     &payload_selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Fulfillment orders could not be rerouted locally.",
-                        "code": "NOT_IMPLEMENTED"
-                    })]
+                    vec![user_error(Value::Null, "Fulfillment orders could not be rerouted locally.", Some("NOT_IMPLEMENTED"))]
                 )
             }
         }))
@@ -5190,22 +4053,21 @@ impl DraftProxy {
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let new_location_id = resolved_string_field(&arguments, "newLocationId")
             .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
-        let (moved, original, errors) = if id
-            == "gid://shopify/FulfillmentOrder/move-assignment-submitted"
-        {
-            (
-                Value::Null,
-                Value::Null,
-                vec![json!({
-                    "field": null,
-                    "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                    "code": null
-                })],
-            )
-        } else {
-            let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
-            (order.clone(), order, vec![])
-        };
+        let (moved, original, errors) =
+            if id == "gid://shopify/FulfillmentOrder/move-assignment-submitted" {
+                (
+                    Value::Null,
+                    Value::Null,
+                    vec![user_error(
+                    Value::Null,
+                    "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                    None,
+                )],
+                )
+            } else {
+                let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
+                (order.clone(), order, vec![])
+            };
         if errors.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -5246,11 +4108,7 @@ impl DraftProxy {
                 response_key: fulfillment_order_simple_payload_json(
                     Value::Null,
                     &payload_selection,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": message,
-                        "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                    })]
+                    vec![user_error(["id"], message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                 )
             }
         }))
@@ -5280,20 +4138,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             for id in &ids {
@@ -5498,7 +4352,7 @@ impl DraftProxy {
             if user_errors.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             data.insert(
                 field.response_key,
                 publishable_payload_json(
@@ -5907,6 +4761,11 @@ impl DraftProxy {
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
         let segment_id_input = resolved_string_field(&input, "segmentId");
+        if let Some(response) =
+            member_query_segment_id_top_level_error(query, variables, segment_id_input.as_deref())
+        {
+            return response;
+        }
         let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
             (Some(_), Some(_)) => vec![member_query_user_error(
                 json!(["input"]),
@@ -6178,6 +5037,11 @@ impl DraftProxy {
 
         let service_id = self.next_proxy_synthetic_gid("FulfillmentService");
         let location_id = self.next_proxy_synthetic_gid("Location");
+        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false)
+        } else {
+            true
+        };
         let service = fulfillment_service_record(
             &service_id,
             &location_id,
@@ -6185,7 +5049,7 @@ impl DraftProxy {
             callback_url,
             resolved_bool_field(&field.arguments, "trackingSupport").unwrap_or(false),
             resolved_bool_field(&field.arguments, "inventoryManagement").unwrap_or(false),
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false),
+            requires_shipping_method,
         );
         let location = service["location"].clone();
         self.store
@@ -6308,6 +5172,15 @@ impl DraftProxy {
             .as_str()
             .unwrap_or_default()
             .to_string();
+        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
+                existing["requiresShippingMethod"]
+                    .as_bool()
+                    .unwrap_or(false)
+            })
+        } else {
+            true
+        };
         let mut service = fulfillment_service_record(
             &id,
             &location_id,
@@ -6317,11 +5190,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| existing["trackingSupport"].as_bool().unwrap_or(false)),
             resolved_bool_field(&field.arguments, "inventoryManagement")
                 .unwrap_or_else(|| existing["inventoryManagement"].as_bool().unwrap_or(false)),
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
-                existing["requiresShippingMethod"]
-                    .as_bool()
-                    .unwrap_or(false)
-            }),
+            requires_shipping_method,
         );
         if let Some(handle) = existing.get("handle").and_then(Value::as_str) {
             service["handle"] = json!(handle);
@@ -6379,10 +5248,7 @@ impl DraftProxy {
                     fulfillment_service_delete_payload(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": ["inventoryAction"],
-                            "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
-                        })],
+                        vec![user_error_omit_code(["inventoryAction"], "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.", None)],
                     ),
                     vec![],
                 );
@@ -6394,10 +5260,11 @@ impl DraftProxy {
                             fulfillment_service_delete_payload(
                                 Value::Null,
                                 &field.selection,
-                                vec![json!({
-                                    "field": Value::Null,
-                                    "message": "Invalid destination location."
-                                })],
+                                vec![user_error_omit_code(
+                                    Value::Null,
+                                    "Invalid destination location.",
+                                    None,
+                                )],
                             ),
                             vec![],
                         );
@@ -6749,7 +5616,7 @@ impl DraftProxy {
             .unwrap_or_else(|| (root_field.to_string(), BTreeMap::new()));
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return ok_json(
-                json!({ "data": { response_key: { "userErrors": [{ "field": ["id"], "message": "ID is required" }] } } }),
+                json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["id"], "ID is required", None)] } } }),
             );
         };
         let id = id.clone();
@@ -6768,7 +5635,7 @@ impl DraftProxy {
             "shippingPackageUpdate" => {
                 let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
                     return ok_json(
-                        json!({ "data": { response_key: { "userErrors": [{ "field": ["shippingPackage"], "message": "Shipping package input is required" }] } } }),
+                        json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
                 let mut package = self.effective_shipping_package(&id);
@@ -6776,11 +5643,7 @@ impl DraftProxy {
                     return ok_json(json!({
                         "data": {
                             response_key: {
-                                "userErrors": [{
-                                    "field": ["shippingPackage"],
-                                    "message": "Custom shipping box is not updatable",
-                                    "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
-                                }]
+                                "userErrors": [user_error(["shippingPackage"], "Custom shipping box is not updatable", Some("CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"))]
                             }
                         }
                     }));
@@ -7465,7 +6328,7 @@ fn location_edit_invalid_variable_error(
     })
 }
 
-fn location_edit_payload_selected_json(
+fn location_payload_selected_json(
     location: Value,
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -7504,12 +6367,10 @@ fn location_delete_payload_selected_json(
 }
 
 fn location_country_name(country_code: &str) -> Option<&'static str> {
-    match country_code {
-        "CA" => Some("Canada"),
-        "US" => Some("United States"),
-        "GB" => Some("United Kingdom"),
-        "AU" => Some("Australia"),
-        _ => None,
+    if matches!(country_code, "CA" | "US" | "GB" | "AU") {
+        country_name_for_code(country_code)
+    } else {
+        None
     }
 }
 
@@ -7561,27 +6422,6 @@ fn location_idempotency_required_error(
     })
 }
 
-fn location_add_payload_selected_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                location_selected_json(&location, &selection.selection)
-            }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
 fn location_local_pickup_enable_payload_selected_json(
     settings: Value,
     payload_selection: &[SelectedField],
@@ -7618,10 +6458,6 @@ fn location_local_pickup_disable_payload_selected_json(
             _ => None,
         }
     })
-}
-
-fn location_id_display_tail(location_id: &str) -> &str {
-    resource_id_path_tail(location_id)
 }
 
 fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
@@ -7858,42 +6694,6 @@ fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Opti
     }
 }
 
-fn app_subscription_trial_is_active(subscription: &Value) -> bool {
-    let Some(trial_days) = subscription.get("trialDays").and_then(Value::as_i64) else {
-        return false;
-    };
-    if trial_days <= 0 {
-        return false;
-    }
-    subscription
-        .get("currentPeriodEnd")
-        .and_then(Value::as_str)
-        .and_then(parse_rfc3339_epoch_seconds)
-        .is_some_and(|period_end| {
-            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
-                .is_some_and(|now| period_end > now)
-        })
-}
-
-fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
-    let Some(parent_expires_at) =
-        request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
-            .and_then(|value| parse_rfc3339_epoch_seconds(&value))
-    else {
-        return false;
-    };
-    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
-        return false;
-    };
-    created_at + expires_in > parent_expires_at
-}
-
-fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
-    request_header(request, "x-shopify-draft-proxy-source-app-missing")
-        .as_deref()
-        .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
-}
-
 /// The publication gids named in a `publishablePublish`/`publishableUnpublish`
 /// `input: [{ publicationId }]` list, in order.
 pub(in crate::proxy) fn publishable_input_publication_ids(
@@ -7934,30 +6734,34 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
         let publication_id = resolved_string_field(publication, "publicationId");
         match publication_id.as_deref() {
             Some("") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "PublicationId cannot be empty",
+                    None,
+                ));
                 continue;
             }
             Some("gid://shopify/Publication/999999999999") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "Publication does not exist or is not publishable",
+                    None,
+                ));
                 continue;
             }
             Some(id) if !seen.insert(id.to_string()) => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "The same publication was specified more than once"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "The same publication was specified more than once",
+                    None,
+                ));
             }
             Some(_) => {}
-            None => user_errors.push(json!({
-                "field": ["input", field_index, "publicationId"],
-                "message": "PublicationId cannot be empty"
-            })),
+            None => user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publicationId"]),
+                "PublicationId cannot be empty",
+                None,
+            )),
         }
 
         if resolved_string_field(publication, "publishDate")
@@ -7965,10 +6769,11 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
             .map(publishable_publish_date_is_before_1970)
             .unwrap_or(false)
         {
-            user_errors.push(json!({
-                "field": ["input", field_index, "publishDate"],
-                "message": "Publish date must be a date after the year 1969"
-            }));
+            user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publishDate"]),
+                "Publish date must be a date after the year 1969",
+                None,
+            ));
         }
     }
     user_errors
@@ -8105,10 +6910,7 @@ impl DraftProxy {
                 &json!({
                     "signature": Value::Null,
                     "payload": Value::Null,
-                    "userErrors": [{
-                        "field": ["payload"],
-                        "message": "Payload must be valid JSON"
-                    }]
+                    "userErrors": [user_error_omit_code(["payload"], "Payload must be valid JSON", None)]
                 }),
                 &field.selection,
             );
@@ -8314,10 +7116,7 @@ fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value 
 fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &str) -> Value {
     selected_json(
         &json!({
-            "userErrors": [{
-                "field": [field_name],
-                "message": message
-            }]
+            "userErrors": [user_error_omit_code(json!([field_name]), message, None)]
         }),
         &field.selection,
     )
@@ -8508,6 +7307,72 @@ fn member_query_direct_query_error(query: &str) -> Option<Value> {
     let message = segment_query_unexpected_token_message(query)
         .unwrap_or_else(|| "Query is invalid.".to_string());
     Some(member_query_user_error(Value::Null, &message))
+}
+
+fn member_query_segment_id_top_level_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    segment_id: Option<&str>,
+) -> Option<Response> {
+    let segment_id = segment_id?;
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == "customerSegmentMembersQueryCreate")?;
+    match shopify_gid_resource_type(segment_id) {
+        Some("Segment") => None,
+        Some(_) => segment_id_top_level_error(segment_id, &field.response_key, field),
+        None => Some(ok_json(json!({
+            "errors": [member_query_segment_id_invalid_variable_error(&document, field, segment_id)
+                .unwrap_or_else(|| member_query_segment_id_invalid_literal_error(&document, field, segment_id))]
+        }))),
+    }
+}
+
+fn member_query_segment_id_invalid_variable_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Option<Value> {
+    let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("input")? else {
+        return None;
+    };
+    let value = value.as_ref()?;
+    let variable_definition = document.variable_definitions.get(name)?;
+    Some(invalid_variable_error(
+        VariableValidationContext {
+            variable_name: name,
+            variable_type: &variable_definition.type_display,
+            location: variable_definition.location,
+        },
+        value,
+        vec![variable_problem_with_message_value_path(
+            &[json!("segmentId")],
+            &format!("Invalid global id '{segment_id}'"),
+        )],
+    ))
+}
+
+fn member_query_segment_id_invalid_literal_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    segment_id: &str,
+) -> Value {
+    json!({
+        "message": format!("Invalid global id '{segment_id}'"),
+        "locations": [{"line": field.location.line, "column": field.location.column}],
+        "path": [
+            document.operation_path.as_str(),
+            field.response_key.as_str(),
+            "input",
+            "segmentId"
+        ],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
 }
 
 /// Locate the first token that cannot continue a `[NOT] <filter> <operator>`

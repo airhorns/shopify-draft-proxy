@@ -1,6 +1,7 @@
 mutation ProductVariantMediaValidationProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
   productCreateMedia(productId: $productId, media: $media) {
     media {
+      __typename
       id
       alt
       mediaContentType
@@ -14,6 +15,7 @@ mutation ProductVariantMediaValidationProductCreateMedia($productId: ID!, $media
       id
       media(first: 10) {
         nodes {
+          __typename
           id
           alt
           mediaContentType

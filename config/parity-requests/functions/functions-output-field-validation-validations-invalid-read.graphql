@@ -1,0 +1,11 @@
+query FunctionOutputFieldValidationsInvalidRead {
+  validations(first: 5) {
+    nodes {
+      functionId
+      functionHandle
+      createdAt
+      updatedAt
+      enable
+    }
+  }
+}

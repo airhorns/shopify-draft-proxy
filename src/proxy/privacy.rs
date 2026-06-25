@@ -178,15 +178,59 @@ fn data_sale_opt_out_sanitized_email(email: &str) -> Option<String> {
 }
 
 fn data_sale_opt_out_valid_email(email: &str) -> bool {
+    if email.is_empty() || email.chars().count() > 255 {
+        return false;
+    }
     let Some((local, domain)) = email.split_once('@') else {
         return false;
     };
+    // Approximate Shopify Core's
+    // areas/core/shopify/components/platform/essentials/app/validators/email_address_validator.rb
+    // EmailAddress#strict_regexp: RFC-ish dot-atom local part plus host-label/TLD
+    // domain validation after dataSaleOptOut's observed whitespace stripping.
+    !domain.contains('@')
+        && data_sale_opt_out_valid_local_part(local)
+        && data_sale_opt_out_valid_domain(domain)
+}
+
+fn data_sale_opt_out_valid_local_part(local: &str) -> bool {
     !local.is_empty()
-        && !domain.is_empty()
-        && domain.contains('.')
-        && !domain.starts_with('.')
-        && !domain.ends_with('.')
-        && email.matches('@').count() == 1
+        && !local.starts_with('.')
+        && !local.ends_with('.')
+        && !local.contains("..")
+        && local
+            .split('.')
+            .all(|atom| !atom.is_empty() && atom.bytes().all(data_sale_opt_out_valid_atom_byte))
+}
+
+fn data_sale_opt_out_valid_atom_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || b"!#$%&'*+-/=?^_`{|}~".contains(&byte)
+}
+
+fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
+    if domain.is_empty()
+        || domain.starts_with('.')
+        || domain.ends_with('.')
+        || domain.contains("..")
+    {
+        return false;
+    }
+    let labels = domain.split('.').collect::<Vec<_>>();
+    let Some(tld) = labels.last() else {
+        return false;
+    };
+    labels.len() >= 2
+        && labels.iter().all(|label| {
+            let bytes = label.as_bytes();
+            !bytes.is_empty()
+                && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+                && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
+                && bytes
+                    .iter()
+                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+        })
+        && tld.len() >= 2
+        && tld.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
 }
 
 fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {

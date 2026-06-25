@@ -128,7 +128,7 @@ impl DraftProxy {
             .max()
             .unwrap_or(0)
             .max(1);
-        format!("gid://shopify/Publication/{}", max + 1)
+        shopify_gid("Publication", max + 1)
     }
 
     pub(in crate::proxy) fn product_tail_publication_create(
@@ -564,7 +564,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let id = format!("gid://shopify/ProductFeed/{country}-{language}");
+        let id = shopify_gid("ProductFeed", format_args!("{country}-{language}"));
         // A feed is unique per country/language pair; re-creating an existing one is rejected.
         if self.has_products_tail_staged_resource_id(&id) {
             self.record_products_tail_log(

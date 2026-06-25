@@ -37,7 +37,8 @@ Read behavior:
 
 Query export behavior:
 
-- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging.
+- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging, including connection `nodes` selections whose userError example names the offending connection field.
+- Submitted bulk query text is measured after Shopify-style single-quoted newline escaping and rejects escaped UTF-8 byte sizes above 65,535 with `field: ["query"]`, message `Query is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID`, `bulkOperation: null`, and no staged job.
 - Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`.
 - Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic absolute `https://localhost:<proxy-port>/__meta/bulk-operations/<encoded-id>/result.jsonl` result URL, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.
@@ -47,6 +48,7 @@ Query export behavior:
 Mutation import behavior:
 
 - `bulkOperationRunMutation(mutation:, stagedUploadPath:, clientIdentifier:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and accepts any single inner mutation root except `bulkOperationRunMutation` and `bulkOperationRunQuery`, matching Shopify's top-level analyzer.
+- Submitted inner mutation text is measured with the same escaped UTF-8 storage limit. Sizes above 65,535 bytes return `field: ["query"]`, message `is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID_MUTATION`, `bulkOperation: null`, and no staged job.
 - A fully local import requires a proxy staged upload, a valid single-root mutation, an implemented Admin API mutation root with `stage-locally` execution, and a matching local mutation handler.
 - For locally executable roots, each JSONL line is parsed as variables, stages through the same domain handler used by normal GraphQL mutations, and writes one result JSONL row.
 - Accepted roots without a local executor still create an observable local BulkOperation job, but each JSONL line is sent upstream through the unsupported-mutation passthrough escape hatch and logged as `Proxied`. Those lines are Shopify-side effects and do not create local downstream read-after-write state.
@@ -83,6 +85,7 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-schema-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-validators.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-storage-byte-limit.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-group-objects.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-name-independent-run-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-read-arg-validation.json`
@@ -101,6 +104,7 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-operation-type-and-list-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json`
+- `config/parity-specs/bulk-operations/bulk-operation-storage-byte-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-group-objects.json`
 - `config/parity-specs/bulk-operations/bulk-operation-name-independent-run-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operations-read-arg-validation.json`
@@ -118,6 +122,7 @@ Meta API behavior:
 - `corepack pnpm parity -- bulk-operation-status-catalog-cancel`
 - `corepack pnpm parity -- bulk-operation-cancel-status-branches`
 - `corepack pnpm parity -- bulk-operation-run-query-schema-roots`
+- `corepack pnpm parity -- bulk-operation-storage-byte-limit`
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
 - `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`

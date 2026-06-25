@@ -2,6 +2,23 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 
+const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
+
+fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) -> String {
+    let fixed_bytes = "#\n".len() + body.len();
+    assert!(
+        target_bytes >= fixed_bytes,
+        "target must fit the document body"
+    );
+    let padding_bytes = target_bytes - fixed_bytes;
+    assert_eq!(
+        padding_bytes % pad.len(),
+        0,
+        "padding must align with pad byte length"
+    );
+    format!("#{}\n{}", pad.repeat(padding_bytes / pad.len()), body)
+}
+
 #[test]
 fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     let mut proxy = snapshot_proxy();
@@ -324,6 +341,28 @@ fn bulk_operation_run_query_validates_admin_query_branches() {
             ]),
         ),
         (
+            "ordersNodesInsteadOfEdges",
+            "#graphql\n{\n  orders {\n    nodes {\n      id\n    }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'orders { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'orders'.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "multipleNodesInsteadOfEdges",
+            "#graphql\n{\n  orders {\n    nodes {\n      id\n    }\n  }\n  customers {\n    nodes {\n      id\n    }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'orders { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'orders', 'customers'.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
             "topLevelNode",
             "#graphql\n{\n  node(id: \"gid://shopify/Product/0\") {\n    id\n  }\n}",
             json!([
@@ -461,6 +500,130 @@ fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
     assert_eq!(
         response.body["data"]["bulkOperationRunQuery"]["userErrors"],
         json!([])
+    );
+}
+
+#[test]
+fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let oversized_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "a",
+    );
+    assert_eq!(oversized_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OversizedBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": oversized_query }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "Query is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized bulk query must not append a mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentQuery {
+          currentBulkOperation { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a query bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_query_allows_65535_storage_bytes_and_counts_multibyte_bytes() {
+    let boundary_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT,
+        "a",
+    );
+    assert_eq!(boundary_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
+    let mut boundary_proxy = snapshot_proxy();
+    let boundary = boundary_proxy.process_request(json_graphql_request(
+        r#"
+        mutation BoundaryBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": boundary_query }),
+    ));
+    assert_eq!(boundary.status, 200);
+    assert_eq!(
+        boundary.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        boundary.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+
+    let multibyte_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "é",
+    );
+    assert!(
+        multibyte_query.chars().count() < multibyte_query.len(),
+        "fixture must contain multibyte padding"
+    );
+    assert_eq!(multibyte_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
+    let mut multibyte_proxy = snapshot_proxy();
+    let multibyte = multibyte_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MultibyteBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": multibyte_query }),
+    ));
+    assert_eq!(multibyte.status, 200);
+    assert_eq!(
+        multibyte.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        multibyte.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "Query is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID"
+        }])
     );
 }
 
@@ -870,6 +1033,103 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
         current.body["data"]["currentBulkOperation"],
         Value::Null,
         "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let oversized_mutation = padded_bulk_document_for_bytes(
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "a",
+    );
+    assert_eq!(
+        oversized_mutation.len(),
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1
+    );
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": oversized_mutation, "path": "valid" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized bulk mutation must not append a mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
+    let mutation = padded_bulk_document_for_bytes(
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT,
+        "a",
+    );
+    assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": "valid" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([])
     );
 }
 
@@ -3557,6 +3817,145 @@ fn customer_marketing_consent_updates_stage_and_project_downstream_reads() {
 }
 
 #[test]
+fn customer_marketing_consent_subscribed_requires_opt_in_level() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateForConsentRequiredLevel($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+              defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "hermes-consent-required-level@example.com",
+                "firstName": "Hermes",
+                "lastName": "Consent",
+                "phone": "+14155556022"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let email_missing_level = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EmailSubscribedMissingOptInLevel($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "customerId": customer_id,
+                "emailMarketingConsent": {
+                    "marketingState": "SUBSCRIBED",
+                    "consentUpdatedAt": "2026-04-25T02:25:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        email_missing_level.body["data"]["customerEmailMarketingConsentUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "emailMarketingConsent", "marketingOptInLevel"],
+            "message": "Marketing opt in level must exist",
+            "code": "MISSING_ARGUMENT"
+        }])
+    );
+
+    let sms_missing_level = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmsSubscribedMissingOptInLevel($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "customerId": customer_id,
+                "smsMarketingConsent": {
+                    "marketingState": "SUBSCRIBED",
+                    "consentUpdatedAt": "2026-04-25T02:26:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        sms_missing_level.body["data"]["customerSmsMarketingConsentUpdate"]["userErrors"],
+        json!([{
+            "field": ["input", "smsMarketingConsent", "marketingOptInLevel"],
+            "message": "Marketing opt in level must exist",
+            "code": "MISSING_ARGUMENT"
+        }])
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsentRequiredLevelDownstream($id: ID!) {
+          customer(id: $id) {
+            defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+            emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }
+            smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["customer"]["defaultEmailAddress"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["defaultPhoneNumber"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null,
+            "marketingCollectedFrom": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["emailMarketingConsent"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["smsMarketingConsent"],
+        json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null,
+            "consentCollectedFrom": Value::Null
+        })
+    );
+}
+
+#[test]
 fn customer_marketing_consent_resolver_errors_do_not_mutate_state() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -4126,6 +4525,101 @@ fn data_sale_opt_out_validation_and_sanitization_boundaries_match_captured_shape
 }
 
 #[test]
+fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let downstream_read = r#"
+        query DataSaleOptOutInvalidFormatRead($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#;
+    let over_255_email = format!("{}@example.com", "a".repeat(244));
+    assert_eq!(over_255_email.chars().count(), 256);
+    let invalid_emails = [
+        ".me@example.com".to_string(),
+        "me.@example.com".to_string(),
+        "me..example@example.com".to_string(),
+        "me@example..com".to_string(),
+        "me@-example.com".to_string(),
+        "me@example-.com".to_string(),
+        "me@8.8.8.8".to_string(),
+        "💩💩💩@example.com".to_string(),
+        "#@%^%#.com".to_string(),
+        "me@example.com (First Name)".to_string(),
+        over_255_email,
+    ];
+
+    for email in invalid_emails {
+        let mut proxy = snapshot_proxy().with_upstream_transport(|_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "customer": null,
+                    "customerByIdentifier": null,
+                    "customers": {
+                        "nodes": [],
+                        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                    }
+                }
+            }),
+        });
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        assert_eq!(response.status, 200, "status for {email}");
+        assert_eq!(
+            response.body["data"]["dataSaleOptOut"],
+            json!({
+                "customerId": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "Data sale opt out failed.",
+                    "code": "FAILED"
+                }]
+            }),
+            "mutation payload for {email}"
+        );
+        assert_eq!(
+            proxy.get_log_snapshot()["entries"],
+            json!([]),
+            "mutation log for {email}"
+        );
+        assert_eq!(
+            proxy.get_state_snapshot()["stagedState"]["customers"],
+            json!({}),
+            "staged customers for {email}"
+        );
+
+        let read = proxy.process_request(json_graphql_request(
+            downstream_read,
+            json!({
+                "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+                "identifier": { "emailAddress": email.clone() },
+                "query": "tag:created-by-dns-form",
+                "first": 5
+            }),
+        ));
+        assert_eq!(read.status, 200, "downstream read status for {email}");
+        assert_eq!(read.body["data"]["customer"], Value::Null);
+        assert_eq!(read.body["data"]["customerByIdentifier"], Value::Null);
+        assert_eq!(read.body["data"]["customers"]["nodes"], json!([]));
+    }
+}
+
+#[test]
 fn data_sale_opt_out_missing_or_null_email_is_schema_coercion_error() {
     let mut proxy = snapshot_proxy();
     let missing = proxy.process_request(json_graphql_request(
@@ -4398,6 +4892,135 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
             "fulfillmentService": null,
             "userErrors": [{ "field": ["id"], "message": "Fulfillment service could not be found." }]
         })
+    );
+}
+
+#[test]
+fn fulfillment_service_requires_shipping_method_uses_shopify_default_on_omission() {
+    let mut proxy = snapshot_proxy();
+    let create_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOmitted($name: String!) {
+          fulfillmentServiceCreate(name: $name) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS omitted default" }),
+    ));
+    let omitted_service_id = create_omitted.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create_omitted.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let read_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOmitted($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": omitted_service_id }),
+    ));
+    assert_eq!(
+        read_omitted.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let create_explicit_false = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExplicitFalse($name: String!) {
+          fulfillmentServiceCreate(name: $name, requiresShippingMethod: false) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS explicit false" }),
+    ));
+    let false_service_id = create_explicit_false.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create_explicit_false.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(false)
+    );
+
+    let update_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOmitted($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": false_service_id, "name": "Hermes FS omitted update" }),
+    ));
+    assert_eq!(
+        update_omitted.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let read_after_omitted_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterOmittedUpdate($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": false_service_id }),
+    ));
+    assert_eq!(
+        read_after_omitted_update.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(true)
+    );
+
+    let update_explicit_false = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateExplicitFalse($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name, requiresShippingMethod: false) {
+            fulfillmentService {
+              id serviceName requiresShippingMethod
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": false_service_id, "name": "Hermes FS explicit false update" }),
+    ));
+    assert_eq!(
+        update_explicit_false.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]
+            ["requiresShippingMethod"],
+        json!(false)
+    );
+
+    let read_after_explicit_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterExplicitUpdate($id: ID!) {
+          fulfillmentService(id: $id) { id requiresShippingMethod }
+        }
+        "#,
+        json!({ "id": false_service_id }),
+    ));
+    assert_eq!(
+        read_after_explicit_update.body["data"]["fulfillmentService"]["requiresShippingMethod"],
+        json!(false)
     );
 }
 
@@ -6139,14 +6762,34 @@ fn delivery_profile_validations_match_captured_write_subset() {
         })
     );
 
-    let long_name = "x".repeat(128);
-    let too_long = proxy.process_request(json_graphql_request(
+    let max_name = "x".repeat(128);
+    let max_create = proxy.process_request(json_graphql_request(
         create_query,
-        json!({ "profile": { "name": long_name } }),
+        json!({ "profile": { "name": max_name } }),
     ));
     assert_eq!(
-        too_long.body["data"]["deliveryProfileCreate"]["userErrors"][0]["message"],
-        json!("Profile name must be less than 128 characters long")
+        max_create.body["data"]["deliveryProfileCreate"]["profile"]["name"],
+        json!(max_name)
+    );
+    assert_eq!(
+        max_create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+
+    let too_long_name = "x".repeat(129);
+    let too_long = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "profile": { "name": too_long_name } }),
+    ));
+    assert_eq!(
+        too_long.body["data"]["deliveryProfileCreate"],
+        json!({
+            "profile": null,
+            "userErrors": [{
+                "field": ["profile", "name"],
+                "message": "Profile name must be less than 128 characters long"
+            }]
+        })
     );
 
     let disallowed = proxy.process_request(json_graphql_request(
@@ -6210,6 +6853,36 @@ fn delivery_profile_validations_match_captured_write_subset() {
         .as_str()
         .unwrap()
         .to_string();
+
+    let update_max_name = "y".repeat(128);
+    let max_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": id, "profile": { "name": update_max_name } }),
+    ));
+    assert_eq!(
+        max_update.body["data"]["deliveryProfileUpdate"]["profile"]["name"],
+        json!(update_max_name)
+    );
+    assert_eq!(
+        max_update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let update_too_long_name = "y".repeat(129);
+    let too_long_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": id, "profile": { "name": update_too_long_name } }),
+    ));
+    assert_eq!(
+        too_long_update.body["data"]["deliveryProfileUpdate"],
+        json!({
+            "profile": null,
+            "userErrors": [{
+                "field": ["profile", "name"],
+                "message": "Profile name must be less than 128 characters long"
+            }]
+        })
+    );
 
     let missing_update = proxy.process_request(json_graphql_request(
         update_query,
@@ -6948,21 +7621,6 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         }])
     );
 
-    let unsupported_currency = store_credit_credit_error(
-        &mut proxy,
-        &customer_id,
-        json!({ "amount": "1.00", "currencyCode": "CHF" }),
-        None,
-    );
-    assert_eq!(
-        unsupported_currency,
-        json!([{
-            "field": ["creditInput", "creditAmount", "currencyCode"],
-            "message": "Currency is not supported",
-            "code": "UNSUPPORTED_CURRENCY"
-        }])
-    );
-
     let unsupported_debit_currency = store_credit_debit_error(
         &mut proxy,
         &account_id,
@@ -7061,6 +7719,105 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
     assert_eq!(
         entries, 2,
         "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_credit_accepts_live_accepted_ordinary_currency() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditAcceptedCurrency($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: CHF } }) {
+            storeCreditAccountTransaction {
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account {
+                id
+                balance { amount currencyCode }
+                owner { ... on Customer { id email } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    let transaction =
+        &response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"];
+    assert_eq!(
+        transaction["amount"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(
+        transaction["balanceAfterTransaction"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(
+        transaction["account"]["balance"],
+        json!({ "amount": "1.0", "currencyCode": "CHF" })
+    );
+    assert_eq!(transaction["account"]["owner"]["id"], json!(customer_id));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "customerCreate and successful CHF credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_result_only_currency_codes_return_top_level_error_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    for currency in ["USDC", "XXX"] {
+        let response = store_credit_credit_response(
+            &mut proxy,
+            &customer_id,
+            json!({ "amount": "1.00", "currencyCode": currency }),
+            None,
+        );
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["storeCreditAccountCredit"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!(
+                "CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."
+            ))
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("CURRENCY_CODE_INVALID")
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"],
+            json!(["storeCreditAccountCredit"])
+        );
+    }
+
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "result-only currency failures should not stage store-credit mutations"
     );
 }
 

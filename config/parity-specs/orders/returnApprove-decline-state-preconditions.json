@@ -384,5 +384,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for return request approve/decline state preconditions. The replay verifies REQUESTED approval still creates reverse fulfillment work, while OPEN, DECLINED, CLOSED, and CANCELED approve/decline attempts return INVALID on id with return_request_status_invalid and leave downstream return/reverse-fulfillment state unchanged."
+  "notes": "Executable local-runtime parity for return request approve/decline state preconditions. The replay verifies REQUESTED approval still creates reverse fulfillment work, while OPEN, DECLINED, CLOSED, and CANCELED approve/decline attempts return Shopify-like INVALID_STATE userErrors on input.id with rendered messages and leave downstream return/reverse-fulfillment state unchanged. Live Shopify evidence for the wire error shapes is captured by returnApprove-decline-state-preconditions-live."
 }

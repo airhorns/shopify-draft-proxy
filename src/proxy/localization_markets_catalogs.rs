@@ -87,201 +87,6 @@ fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn functions_metadata_mutation_data(
-        &mut self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        // Any function mutation marks the session as having local function
-        // state, so later reads serve locally (read-after-write / -delete)
-        // instead of forwarding the cold read to the upstream.
-        self.store.staged.functions_dirty = true;
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "validationCreate" => self.function_validation_create_payload(field),
-                "validationUpdate" => self.function_validation_update_payload(field),
-                "validationDelete" => self.function_validation_delete_payload(field),
-                "cartTransformCreate" => self.function_cart_transform_create_payload(field),
-                "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
-                "fulfillmentConstraintRuleCreate" => {
-                    self.function_fulfillment_constraint_rule_create_payload(field)
-                }
-                "fulfillmentConstraintRuleUpdate" => {
-                    self.function_fulfillment_constraint_rule_update_payload(field)
-                }
-                "fulfillmentConstraintRuleDelete" => {
-                    self.function_fulfillment_constraint_rule_delete_payload(field)
-                }
-                "taxAppConfigure" => self.function_tax_app_configure_payload(field),
-                _ => Value::Null,
-            };
-            if !value.is_null() {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn functions_metadata_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "validation" => resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.store.staged.function_validations.get(&id).cloned())
-                    .or_else(|| self.store.staged.function_validation.clone())
-                    .unwrap_or(Value::Null),
-                "validations" => local_function_connection_from_nodes(
-                    self.store
-                        .staged
-                        .function_validation_order
-                        .iter()
-                        .filter_map(|id| self.store.staged.function_validations.get(id).cloned())
-                        .collect(),
-                ),
-                "cartTransforms" => local_function_connection_from_nodes(
-                    self.store
-                        .staged
-                        .function_cart_transform_order
-                        .iter()
-                        .filter_map(|id| {
-                            self.store
-                                .staged
-                                .function_cart_transforms
-                                .get(id)
-                                .map(|record| {
-                                    cart_transform_record_for_selection(record, &field.selection)
-                                })
-                        })
-                        .collect(),
-                ),
-                "fulfillmentConstraintRules" => Value::Array(
-                    self.store
-                        .staged
-                        .function_fulfillment_constraint_rule_order
-                        .iter()
-                        .filter_map(|id| {
-                            self.store
-                                .staged
-                                .function_fulfillment_constraint_rules
-                                .get(id)
-                                .map(|record| {
-                                    fulfillment_constraint_rule_record_for_selection(
-                                        record,
-                                        &field.selection,
-                                    )
-                                })
-                        })
-                        .map(|record| selected_json(&record, &field.selection))
-                        .collect(),
-                ),
-                "shopifyFunctions" => {
-                    let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
-                    let api_type = match api_type.as_str() {
-                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
-                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-                            "FULFILLMENT_CONSTRAINT_RULE"
-                        }
-                        _ => "VALIDATION",
-                    };
-                    json!({ "nodes": self.function_catalog_read_nodes(api_type) })
-                }
-                "shopifyFunction" => match resolved_field_string_arg(field, "id") {
-                    Some(id) => {
-                        function_by_id_or_handle(Some(id.as_str()), None).unwrap_or(Value::Null)
-                    }
-                    None => local_cart_transform_function(),
-                },
-                _ => Value::Null,
-            };
-            if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
-            } else if field.name == "fulfillmentConstraintRules" {
-                data.insert(field.response_key.clone(), value);
-            } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
-    }
-
-    fn function_catalog_read_nodes(&self, api_type: &str) -> Vec<Value> {
-        let mut seen = BTreeSet::new();
-        let mut nodes = Vec::new();
-        for function in self
-            .store
-            .staged
-            .function_validation_order
-            .iter()
-            .filter_map(|id| self.store.staged.function_validations.get(id))
-            .chain(
-                self.store
-                    .staged
-                    .function_cart_transform_order
-                    .iter()
-                    .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
-            )
-            .chain(
-                self.store
-                    .staged
-                    .function_fulfillment_constraint_rule_order
-                    .iter()
-                    .filter_map(|id| {
-                        self.store
-                            .staged
-                            .function_fulfillment_constraint_rules
-                            .get(id)
-                    }),
-            )
-            .filter_map(|record| record.get("shopifyFunction"))
-        {
-            if function["apiType"].as_str() == Some(api_type) {
-                if let Some(id) = function["id"].as_str() {
-                    if seen.insert(id.to_string()) {
-                        nodes.push(function.clone());
-                    }
-                }
-            }
-        }
-        if nodes.is_empty() {
-            function_catalog_by_api_type(api_type)
-        } else {
-            nodes
-        }
-    }
-
-    /// True when any function lifecycle has been staged locally (a validation or
-    /// cart-transform created/updated this session). Cold function reads with no
-    /// staged state forward to the upstream so `shopifyFunctions` /
-    /// `shopifyFunction` reflect the shop's real installed functions (with app
-    /// ownership metadata) rather than the synthetic staging catalog.
-    pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
-        self.store.staged.functions_dirty
-            || self.store.staged.function_validation.is_some()
-            || !self.store.staged.function_validations.is_empty()
-            || !self.store.staged.function_validation_order.is_empty()
-            || !self.store.staged.function_cart_transforms.is_empty()
-            || !self.store.staged.function_cart_transform_order.is_empty()
-            || !self
-                .store
-                .staged
-                .function_fulfillment_constraint_rules
-                .is_empty()
-            || !self
-                .store
-                .staged
-                .function_fulfillment_constraint_rule_order
-                .is_empty()
-    }
-
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -428,14 +233,10 @@ impl DraftProxy {
         {
             json!({
                 "shopLocale": null,
-                "userErrors": [{
-                    "field": null,
-                    "message": format!(
+                "userErrors": [user_error(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
-                    ),
-                    "code": "SHOP_LOCALE_LIMIT_REACHED"
-                }]
+                    ), Some("SHOP_LOCALE_LIMIT_REACHED"))]
             })
         } else {
             let name = self
@@ -1174,7 +975,7 @@ impl DraftProxy {
     ) -> bool {
         let normalized = country_code.to_ascii_uppercase();
         if self.store.staged.markets.is_empty() {
-            let shop = effective_shop_json(&self.store);
+            let shop = self.store.effective_shop();
             let domain = shop
                 .get("myshopifyDomain")
                 .and_then(Value::as_str)
@@ -1291,8 +1092,8 @@ impl DraftProxy {
                 return selected_json(
                     &catalog_payload_error(
                         vec!["input", "context", "marketIds", &index.to_string()],
-                        "Market does not exist",
-                        "INVALID",
+                        "Market not found.",
+                        "MARKET_NOT_FOUND",
                     ),
                     &field.selection,
                 );
@@ -1555,7 +1356,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
-        format!("gid://shopify/MarketCatalog/{numeric_id}")
+        shopify_gid("MarketCatalog", numeric_id)
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
@@ -2530,7 +2331,7 @@ impl DraftProxy {
             + (self.store.staged.catalogs.len() * 2)
             + self.store.staged.price_lists.len()
             + 1;
-        format!("gid://shopify/PriceList/{numeric_id}")
+        shopify_gid("PriceList", numeric_id)
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(
@@ -2937,11 +2738,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": format!("Resource {resource_id} does not exist"),
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -2958,11 +2755,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": "Too many keys for resource - maximum 100 per mutation",
-                        "code": "TOO_MANY_KEYS_FOR_RESOURCE"
-                    }]
+                    "userErrors": [user_error(["resourceId"], "Too many keys for resource - maximum 100 per mutation", Some("TOO_MANY_KEYS_FOR_RESOURCE"))]
                 }),
                 &field.selection,
             );
@@ -2970,24 +2763,25 @@ impl DraftProxy {
         let mut staged = Vec::new();
         let mut user_errors = Vec::new();
         let mut has_null_translation_error = false;
+        let primary_locale = self.localization_primary_locale();
         for (index, translation_input) in translations.iter().enumerate() {
             let field_index = index.to_string();
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
-            if locale == "en" {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "locale"],
-                    "message": "Locale cannot be the same as the shop's primary locale",
-                    "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
+            if locale == primary_locale {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "locale"]),
+                    "Locale cannot be the same as the shop's primary locale",
+                    Some("INVALID_LOCALE_FOR_SHOP"),
+                ));
                 continue;
             }
             if !self.localization_shop_locale_added(&locale) {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "locale"],
-                    "message": "Locale is not a valid locale for the shop",
-                    "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "locale"]),
+                    "Locale is not a valid locale for the shop",
+                    Some("INVALID_LOCALE_FOR_SHOP"),
+                ));
                 continue;
             }
             let market_id = resolved_object_string(translation_input, "marketId");
@@ -2998,30 +2792,30 @@ impl DraftProxy {
             // "market doesn't exist" rejection is keyed on here.
             if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
                 has_null_translation_error = true;
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "marketId"],
-                    "message": "The market corresponding to the `marketId` argument doesn't exist",
-                    "code": "MARKET_DOES_NOT_EXIST"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "marketId"]),
+                    "The market corresponding to the `marketId` argument doesn't exist",
+                    Some("MARKET_DOES_NOT_EXIST"),
+                ));
                 continue;
             }
             if resolved_object_string(translation_input, "value").as_deref() == Some("") {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "value"],
-                    "message": "Value can't be blank",
-                    "code": "FAILS_RESOURCE_VALIDATION"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "value"]),
+                    "Value can't be blank",
+                    Some("FAILS_RESOURCE_VALIDATION"),
+                ));
                 continue;
             }
             let key = resolved_object_string(translation_input, "key").unwrap_or_default();
             if self.localization_resource_has_modeled_translation_keys(&resource_id)
-                && !Self::localization_product_translation_key_is_valid(&key)
+                && !self.localization_translation_key_is_valid(&resource_id, &key)
             {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "key"],
-                    "message": format!("Key {key} is not a valid translatable field"),
-                    "code": "INVALID_KEY_FOR_MODEL"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "key"]),
+                    &format!("Key {key} is not a valid translatable field"),
+                    Some("INVALID_KEY_FOR_MODEL"),
+                ));
                 continue;
             }
             if let Some(supplied_digest) =
@@ -3034,21 +2828,21 @@ impl DraftProxy {
                             localization_content_digest(&value) != supplied_digest
                         });
                 if digest_invalid {
-                    user_errors.push(json!({
-                        "field": ["translations", field_index, "translatableContentDigest"],
-                        "message": "Translatable content hash is invalid",
-                        "code": "INVALID_TRANSLATABLE_CONTENT"
-                    }));
+                    user_errors.push(user_error(
+                        json!(["translations", field_index, "translatableContentDigest"]),
+                        "Translatable content hash is invalid",
+                        Some("INVALID_TRANSLATABLE_CONTENT"),
+                    ));
                     continue;
                 }
             }
             if resource_id.contains("PackingSlipTemplate") {
                 has_null_translation_error = true;
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "key"],
-                    "message": "Key body cannot be customized for a market; it can only be translated.",
-                    "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "key"]),
+                    "Key body cannot be customized for a market; it can only be translated.",
+                    Some("RESOURCE_NOT_MARKET_CUSTOMIZABLE"),
+                ));
                 continue;
             }
 
@@ -3058,11 +2852,7 @@ impl DraftProxy {
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
-                    user_errors.push(json!({
-                        "field": ["translations", field_index, "value"],
-                        "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
-                        "code": "FAILS_RESOURCE_VALIDATION"
-                    }));
+                    user_errors.push(user_error(json!(["translations", field_index, "value"]), "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]", Some("FAILS_RESOURCE_VALIDATION")));
                     continue;
                 }
                 translation["value"] = json!(normalize_localized_handle(original_value));
@@ -3106,11 +2896,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": format!("Resource {resource_id} does not exist"),
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -3176,7 +2962,7 @@ impl DraftProxy {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "resourceId" => Some(json!(resource_id)),
             "translatableContent" => Some(Value::Array(
-                localization_translatable_content(resource_id)
+                self.localization_translatable_content(resource_id)
                     .iter()
                     .map(|content| selected_json(content, &selection.selection))
                     .collect(),
@@ -3666,8 +3452,109 @@ impl DraftProxy {
                         .base
                         .localization_product_ids
                         .insert(resource_id.to_string());
+                    self.stage_observed_localization_product_source(resource_id, resource);
+                } else if resource_id.starts_with("gid://shopify/Collection/") {
+                    self.stage_observed_localization_collection_source(resource_id, resource);
                 }
             }
+        }
+    }
+
+    fn stage_observed_localization_product_source(&mut self, resource_id: &str, resource: &Value) {
+        let Some(content) = resource
+            .get("translatableContent")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        let timestamp = default_product_timestamp(resource_id);
+        let mut product = self
+            .store
+            .product_staged_or_base(resource_id)
+            .unwrap_or_else(|| ProductRecord {
+                id: resource_id.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            });
+        let mut observed = false;
+        for entry in content {
+            let Some(key) = entry.get("key").and_then(Value::as_str) else {
+                continue;
+            };
+            let value = entry
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            match key {
+                "title" => product.title = value,
+                "body_html" => product.description_html = value,
+                "handle" => product.handle = value,
+                "product_type" => product.product_type = value,
+                "meta_title" => product.seo_title = value,
+                "meta_description" => product.seo_description = value,
+                _ => continue,
+            }
+            observed = true;
+        }
+        if observed {
+            self.store.stage_product(product);
+        }
+    }
+
+    fn stage_observed_localization_collection_source(
+        &mut self,
+        resource_id: &str,
+        resource: &Value,
+    ) {
+        let Some(content) = resource
+            .get("translatableContent")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        let mut collection = self
+            .store
+            .collection_by_id(resource_id)
+            .cloned()
+            .unwrap_or_else(|| json!({ "id": resource_id }));
+        let Some(object) = collection.as_object_mut() else {
+            return;
+        };
+        let mut observed = false;
+        for entry in content {
+            let Some(key) = entry.get("key").and_then(Value::as_str) else {
+                continue;
+            };
+            let value = entry
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            match key {
+                "title" => {
+                    object.insert("title".to_string(), json!(value));
+                }
+                "body_html" => {
+                    object.insert("descriptionHtml".to_string(), json!(value));
+                }
+                "handle" => {
+                    object.insert("handle".to_string(), json!(value));
+                }
+                "meta_title" => {
+                    collection_set_seo_field(object, "title", value);
+                }
+                "meta_description" => {
+                    collection_set_seo_field(object, "description", value);
+                }
+                _ => continue,
+            }
+            observed = true;
+        }
+        if observed {
+            self.store.stage_collection(Value::Object(object.clone()));
         }
     }
 
@@ -3684,6 +3571,15 @@ impl DraftProxy {
             .iter()
             .filter_map(|translation| translation["resourceId"].as_str().map(ToString::to_string))
             .collect::<Vec<_>>();
+        ids.extend(self.store.products().into_iter().map(|product| product.id));
+        ids.extend(self.store.base.localization_product_ids.iter().cloned());
+        ids.extend(
+            self.store
+                .staged
+                .collections
+                .iter()
+                .map(|(id, _)| id.clone()),
+        );
         ids.sort();
         ids.dedup();
         ids
@@ -3721,6 +3617,38 @@ impl DraftProxy {
         true
     }
 
+    fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
+        let locale = self.localization_primary_locale();
+        if resource_id.starts_with("gid://shopify/Product/") {
+            return self
+                .store
+                .product_staged_or_base(resource_id)
+                .map(|product| localization_product_translatable_content(&product, &locale))
+                .unwrap_or_default();
+        }
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            return self
+                .store
+                .collection_by_id(resource_id)
+                .map(|collection| localization_collection_translatable_content(collection, &locale))
+                .unwrap_or_default();
+        }
+        Vec::new()
+    }
+
+    fn localization_primary_locale(&self) -> String {
+        self.localization_shop_locales(None)
+            .into_iter()
+            .find(|locale| locale.get("primary").and_then(Value::as_bool) == Some(true))
+            .and_then(|locale| {
+                locale
+                    .get("locale")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "en".to_string())
+    }
+
     /// The current source-content value for a translatable resource field, when the
     /// proxy holds authoritative local state for it. Translatable content digests are
     /// `sha256(value)` of the source string (verified against live Shopify captures),
@@ -3729,31 +3657,75 @@ impl DraftProxy {
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
     /// is skipped — mirroring Gleam's "content not found → no digest error".
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
-        if !resource_id.starts_with("gid://shopify/Product/") {
-            return None;
+        if resource_id.starts_with("gid://shopify/Product/") {
+            let product = self.store.product_staged_or_base(resource_id)?;
+            let value = match key {
+                "title" => product.title.clone(),
+                "body_html" => product.description_html.clone(),
+                "handle" => product.handle.clone(),
+                "product_type" => product.product_type.clone(),
+                "meta_title" => product.seo_title.clone(),
+                "meta_description" => product.seo_description.clone(),
+                _ => return None,
+            };
+            return Some(value);
         }
-        let product = self.store.product_staged_or_base(resource_id)?;
-        let value = match key {
-            "title" => product.title.clone(),
-            "handle" => product.handle.clone(),
-            "body_html" => product.description_html.clone(),
-            "product_type" => product.product_type.clone(),
-            "meta_title" => product.seo_title.clone(),
-            "meta_description" => product.seo_description.clone(),
-            _ => return None,
-        };
-        Some(value)
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            let collection = self.store.collection_by_id(resource_id)?;
+            let value = match key {
+                "title" => collection
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "body_html" => collection
+                    .get("descriptionHtml")
+                    .or_else(|| collection.get("bodyHtml"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "handle" => collection
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "meta_title" => collection
+                    .pointer("/seo/title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "meta_description" => collection
+                    .pointer("/seo/description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                _ => return None,
+            };
+            return Some(value.to_string());
+        }
+        None
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
         resource_id.starts_with("gid://shopify/Product/")
+            || (resource_id.starts_with("gid://shopify/Collection/")
+                && self.store.collection_by_id(resource_id).is_some())
     }
 
-    fn localization_product_translation_key_is_valid(key: &str) -> bool {
-        matches!(
-            key,
-            "title" | "handle" | "body_html" | "product_type" | "meta_title" | "meta_description"
-        )
+    fn localization_translation_key_is_valid(&self, resource_id: &str, key: &str) -> bool {
+        if resource_id.starts_with("gid://shopify/Product/") {
+            return matches!(
+                key,
+                "title"
+                    | "body_html"
+                    | "handle"
+                    | "product_type"
+                    | "meta_title"
+                    | "meta_description"
+            );
+        }
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            return matches!(
+                key,
+                "title" | "body_html" | "handle" | "meta_title" | "meta_description"
+            );
+        }
+        false
     }
 
     /// Mirror Shopify's web-presence ↔ alternate-locale sync. When a non-primary
@@ -3859,8 +3831,8 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
 /// root URLs. Falls back to the conformance default when the shop record has no
 /// `myshopifyDomain` (mirrors the fallback used by region-coverage lookups).
 fn web_presence_shop_domain(store: &Store) -> String {
-    effective_shop_json(store)
-        .get("myshopifyDomain")
+    let shop = store.effective_shop();
+    shop.get("myshopifyDomain")
         .and_then(Value::as_str)
         .unwrap_or("harry-test-heelo.myshopify.com")
         .to_string()
@@ -4114,15 +4086,121 @@ fn region_code_from_node(node: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-pub(in crate::proxy) fn localization_translatable_content(resource_id: &str) -> Vec<Value> {
-    let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("Product");
-    vec![json!({
-        "key": "title",
-        "value": format!("{resource_type} title"),
-        "digest": "digest",
-        "locale": "en",
-        "type": "SINGLE_LINE_TEXT_FIELD"
-    })]
+fn localization_product_translatable_content(product: &ProductRecord, locale: &str) -> Vec<Value> {
+    let mut content = vec![localization_content_entry(
+        "title",
+        &product.title,
+        locale,
+        "SINGLE_LINE_TEXT_FIELD",
+    )];
+    if !product.description_html.is_empty() {
+        content.push(localization_content_entry(
+            "body_html",
+            &product.description_html,
+            locale,
+            "HTML",
+        ));
+    }
+    content.push(localization_content_entry(
+        "handle",
+        &product.handle,
+        locale,
+        "URI",
+    ));
+    content.push(localization_content_entry(
+        "product_type",
+        &product.product_type,
+        locale,
+        "SINGLE_LINE_TEXT_FIELD",
+    ));
+    if !product.seo_title.is_empty() {
+        content.push(localization_content_entry(
+            "meta_title",
+            &product.seo_title,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    if !product.seo_description.is_empty() {
+        content.push(localization_content_entry(
+            "meta_description",
+            &product.seo_description,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    content
+}
+
+fn localization_collection_translatable_content(collection: &Value, locale: &str) -> Vec<Value> {
+    let mut content = Vec::new();
+    if let Some(title) = collection.get("title").and_then(Value::as_str) {
+        content.push(localization_content_entry(
+            "title",
+            title,
+            locale,
+            "SINGLE_LINE_TEXT_FIELD",
+        ));
+    }
+    if let Some(body) = collection
+        .get("descriptionHtml")
+        .or_else(|| collection.get("bodyHtml"))
+        .and_then(Value::as_str)
+    {
+        content.push(localization_content_entry(
+            "body_html",
+            body,
+            locale,
+            "HTML",
+        ));
+    }
+    if let Some(handle) = collection.get("handle").and_then(Value::as_str) {
+        content.push(localization_content_entry("handle", handle, locale, "URI"));
+    }
+    if let Some(meta_title) = collection.pointer("/seo/title").and_then(Value::as_str) {
+        content.push(localization_content_entry(
+            "meta_title",
+            meta_title,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    if let Some(meta_description) = collection
+        .pointer("/seo/description")
+        .and_then(Value::as_str)
+    {
+        content.push(localization_content_entry(
+            "meta_description",
+            meta_description,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    content
+}
+
+fn localization_content_entry(key: &str, value: &str, locale: &str, content_type: &str) -> Value {
+    json!({
+        "key": key,
+        "value": value,
+        "digest": localization_content_digest(value),
+        "locale": locale,
+        "type": content_type
+    })
+}
+
+fn collection_set_seo_field(
+    object: &mut serde_json::Map<String, Value>,
+    field: &str,
+    value: String,
+) {
+    let seo = object.entry("seo".to_string()).or_insert_with(|| json!({}));
+    if !seo.is_object() {
+        *seo = json!({});
+    }
+    if let Some(seo_object) = seo.as_object_mut() {
+        seo_object.insert(field.to_string(), json!(value));
+    }
 }
 
 pub(in crate::proxy) fn localization_resource_type_matches(
@@ -4141,5 +4219,5 @@ pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) ->
         "ONLINE_STORE_THEME" => "OnlineStoreTheme",
         _ => "Product",
     };
-    format!("gid://shopify/{gid_type}/9801098789170")
+    shopify_gid(gid_type, "9801098789170")
 }

@@ -56,7 +56,7 @@ Segment query grammar support has two tiers:
 Customer segment member query behavior:
 
 - `customerSegmentMembersQueryCreate(input: { query })` stages Shopify's captured async creation shape with `status: INITIALIZED`, `currentCount: 0`, and `done: false`.
-- `customerSegmentMembersQueryCreate(input: { segmentId })` resolves an effective segment query at creation time, returns the same async shape, and stores a readable local job. Unknown valid Segment GIDs return the captured CDP userError `field: null`, `code: INVALID`, and `message: "Invalid segment ID."`.
+- `customerSegmentMembersQueryCreate(input: { segmentId })` resolves an effective segment query at creation time, returns the same async shape, and stores a readable local job. Malformed or empty GIDs fail input-object coercion with a top-level `INVALID_VARIABLE` error before resolver behavior; wrong-resource Shopify GIDs return top-level `RESOURCE_NOT_FOUND` with `data.customerSegmentMembersQueryCreate: null`. Unknown valid Segment GIDs still return the captured CDP userError `field: null`, `code: INVALID`, and `message: "Invalid segment ID."`.
 - `customerSegmentMembers(query:)`, `customerSegmentMembers(queryId:)`, and `customerSegmentMembers(segmentId:)` return Shopify-like totals, `statistics.attributeStatistics(...){ average sum }`, `edges`, and `pageInfo` for the supported evaluator grammar.
 - `customerSegmentMembersQuery(id:)` returns a staged job or `null` with Shopify's captured `INTERNAL_SERVER_ERROR`-shaped error for unknown query IDs.
 - `customerSegmentMembership(customerId:, segmentIds:)` returns rows only for segments present in effective local state. Missing segment IDs are skipped, and missing or non-matching customers return `isMember: false` for known segments.

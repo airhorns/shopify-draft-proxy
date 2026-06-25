@@ -1,0 +1,18 @@
+mutation B2BContactMissingEmailContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  companyContactCreate(companyId: $companyId, input: $input) {
+    companyContact {
+      id
+      customer {
+        id
+      }
+      company {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

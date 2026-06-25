@@ -1107,6 +1107,171 @@ fn webhook_subscription_validation_guards_match_old_gleam_cases() {
 }
 
 #[test]
+fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
+    let mut proxy = snapshot_proxy();
+    let at_limit_filter = format!("id:{}", "1".repeat(65_532));
+    let over_limit_filter = format!("id:{}", "1".repeat(65_533));
+    let malformed_over_limit_filter = "totally bogus syntax ".repeat(3_500);
+
+    assert_eq!(at_limit_filter.len(), 65_535);
+    assert_eq!(over_limit_filter.len(), 65_536);
+    assert!(malformed_over_limit_filter.len() > 65_535);
+
+    let create_mutation = r#"
+        mutation WebhookSubscriptionFilterByteSizeCreate(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_mutation = r#"
+        mutation WebhookSubscriptionFilterByteSizeUpdate(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let detail_query = r#"
+        query WebhookSubscriptionFilterByteSizeDetail($id: ID!) {
+          webhookSubscription(id: $id) { id filter }
+        }
+    "#;
+    let filter_too_large_error = json!({
+        "webhookSubscription": null,
+        "userErrors": [{
+            "field": ["webhookSubscription"],
+            "message": "The specified filter exceeds the maximum allowed size."
+        }]
+    });
+
+    let at_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-at-limit",
+                "format": "JSON",
+                "filter": at_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        at_limit_create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        at_limit_create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+            .as_str()
+            .is_some()
+    );
+
+    let over_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-over-limit",
+                "format": "JSON",
+                "filter": over_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit_create.body["data"]["webhookSubscriptionCreate"],
+        filter_too_large_error
+    );
+
+    let malformed_over_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-over-limit-malformed",
+                "format": "JSON",
+                "filter": malformed_over_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        malformed_over_limit_create.body["data"]["webhookSubscriptionCreate"],
+        filter_too_large_error,
+        "byte-size validation should take precedence over syntax validation"
+    );
+
+    let malformed_sub_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-sub-limit-malformed",
+                "format": "JSON",
+                "filter": "totally bogus syntax"
+            }
+        }),
+    ));
+    assert_eq!(
+        malformed_sub_limit_create.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription"],
+                "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+            }]
+        })
+    );
+
+    let update_base = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-update-base",
+                "format": "JSON",
+                "filter": "id:1"
+            }
+        }),
+    ));
+    let update_base_id = update_base.body["data"]["webhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .expect("update setup should create a subscription")
+        .to_string();
+
+    let over_limit_update = proxy.process_request(json_graphql_request(
+        update_mutation,
+        json!({
+            "id": update_base_id,
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-update-base",
+                "format": "JSON",
+                "filter": format!("id:{}", "2".repeat(65_533))
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit_update.body["data"]["webhookSubscriptionUpdate"],
+        filter_too_large_error
+    );
+
+    let detail_after_rejected_update = proxy.process_request(json_graphql_request(
+        detail_query,
+        json!({ "id": update_base_id }),
+    ));
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscription"]["filter"],
+        json!("id:1")
+    );
+}
+
+#[test]
 fn webhook_subscription_rejects_unknown_topic_before_staging() {
     let mut proxy = snapshot_proxy();
 
@@ -2072,7 +2237,7 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
     let mut proxy = snapshot_proxy();
 
     let pubsub = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } userErrors { field message } } }",
+        "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id topic callbackUrl uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } userErrors { field message } } }",
         json!({}),
     ));
     assert_eq!(pubsub.status, 200);
@@ -2086,6 +2251,7 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
         json!({
             "id": pubsub_id,
             "topic": "SHOP_UPDATE",
+            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-1",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2096,29 +2262,184 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
     );
 
     let eventbridge = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nmutation { eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { arn: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }",
+        "# RustWebhookLocalRuntime\nmutation { eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { arn: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\" }) { webhookSubscription { id topic callbackUrl uri endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }",
         json!({}),
     ));
     assert_eq!(eventbridge.status, 200);
+    let eventbridge_id = eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
-        eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"]["webhookSubscription"]
-            ["endpoint"],
+        eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"]["webhookSubscription"],
         json!({
-            "__typename": "WebhookEventBridgeEndpoint",
-            "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source"
+            "id": eventbridge_id,
+            "topic": "SHOP_UPDATE",
+            "callbackUrl": "https://eventbridge.arn",
+            "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
+            "endpoint": {
+                "__typename": "WebhookEventBridgeEndpoint",
+                "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source"
+            }
         })
     );
 
     let read = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nquery($id: ID!) { webhookSubscription(id: $id) { id uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } }",
+        r#"# RustWebhookLocalRuntime
+query($pubsubId: ID!, $eventbridgeId: ID!) {
+  pubsub: webhookSubscription(id: $pubsubId) {
+    id
+    callbackUrl
+    uri
+    endpoint {
+      __typename
+      ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+    }
+  }
+  eventbridge: webhookSubscription(id: $eventbridgeId) {
+    id
+    callbackUrl
+    uri
+    endpoint {
+      __typename
+      ... on WebhookEventBridgeEndpoint { arn }
+    }
+  }
+  webhookSubscriptions(first: 10) {
+    nodes {
+      id
+      callbackUrl
+      uri
+      endpoint {
+        __typename
+        ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+        ... on WebhookEventBridgeEndpoint { arn }
+      }
+    }
+  }
+}"#,
+        json!({ "pubsubId": pubsub_id, "eventbridgeId": eventbridge_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["pubsub"],
+        json!({
+            "id": pubsub_id,
+            "callbackUrl": "https://eventbridge.arn",
+            "uri": "pubsub://valid-project:topic-1",
+            "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "valid-project",
+                "pubSubTopic": "topic-1"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["eventbridge"],
+        json!({
+            "id": eventbridge_id,
+            "callbackUrl": "https://eventbridge.arn",
+            "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
+            "endpoint": {
+                "__typename": "WebhookEventBridgeEndpoint",
+                "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            {
+                "id": pubsub_id,
+                "callbackUrl": "https://eventbridge.arn",
+                "uri": "pubsub://valid-project:topic-1",
+                "endpoint": {
+                    "__typename": "WebhookPubSubEndpoint",
+                    "pubSubProject": "valid-project",
+                    "pubSubTopic": "topic-1"
+                }
+            },
+            {
+                "id": eventbridge_id,
+                "callbackUrl": "https://eventbridge.arn",
+                "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
+                "endpoint": {
+                    "__typename": "WebhookEventBridgeEndpoint",
+                    "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source"
+                }
+            }
+        ])
+    );
+
+    let pubsub_update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  pubSubWebhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: { pubSubProject: "valid-project", pubSubTopic: "topic-2" }
+  ) {
+    webhookSubscription {
+      id
+      callbackUrl
+      uri
+      endpoint {
+        __typename
+        ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+      }
+    }
+    userErrors { field message }
+  }
+}"#,
         json!({ "id": pubsub_id }),
     ));
     assert_eq!(
-        read.body["data"]["webhookSubscription"]["endpoint"],
+        pubsub_update.body["data"]["pubSubWebhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
-            "__typename": "WebhookPubSubEndpoint",
-            "pubSubProject": "valid-project",
-            "pubSubTopic": "topic-1"
+            "id": pubsub_id,
+            "callbackUrl": "https://eventbridge.arn",
+            "uri": "pubsub://valid-project:topic-2",
+            "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "valid-project",
+                "pubSubTopic": "topic-2"
+            }
+        })
+    );
+
+    let eventbridge_update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  eventBridgeWebhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: {
+      arn: "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-updated"
+    }
+  ) {
+    webhookSubscription {
+      id
+      callbackUrl
+      uri
+      endpoint {
+        __typename
+        ... on WebhookEventBridgeEndpoint { arn }
+      }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": eventbridge_id }),
+    ));
+    assert_eq!(
+        eventbridge_update.body["data"]["eventBridgeWebhookSubscriptionUpdate"]
+            ["webhookSubscription"],
+        json!({
+            "id": eventbridge_id,
+            "callbackUrl": "https://eventbridge.arn",
+            "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-updated",
+            "endpoint": {
+                "__typename": "WebhookEventBridgeEndpoint",
+                "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-updated"
+            }
         })
     );
 }

@@ -104,7 +104,10 @@ removed public arguments, and delete inventory-action validation. Creation
 creates a service-managed location in local state, update preserves service and
 location identity, and delete applies the captured local location disposition
 for the scenario. Successful service mutations keep original raw GraphQL input
-for commit replay.
+for commit replay. For `requiresShippingMethod`, the local model follows the
+captured public GraphQL default: an omitted argument stages `true` on both
+create and update, while an explicit `false` value remains observable through
+the mutation payload and downstream `fulfillmentService(id:)` reads.
 The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
 `fulfillmentServiceCreate`; those arguments return top-level
@@ -167,7 +170,10 @@ default profile and stage proxy-modelable updates without writing to Shopify at
 runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name
 input with empty `userErrors` while preserving the public default display name
 and incrementing `version`; unsupported side effects such as rate recalculation
-remain outside this slice.
+remain outside this slice. Delivery profile name validation accepts exactly 128
+characters and rejects 129-character names on both create and update with a
+public `UserError` payload containing `field` and `message`; `code` is not
+selectable on the captured Admin GraphQL 2026-04 `UserError` type.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`

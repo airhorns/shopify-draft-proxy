@@ -63,6 +63,14 @@ const validatorQueries = {
     }
   }
 }`,
+  ordersNodesInsteadOfEdges: `#graphql
+{
+  orders {
+    nodes {
+      id
+    }
+  }
+}`,
   topLevelNode: `#graphql
 {
   node(id: "gid://shopify/Product/0") {

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "catalog-create-unknown-market-validation",
+  "operationNames": ["catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-create-unknown-market-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Catalog validation capture for Admin GraphQL 2026-04. Unknown catalogCreate context marketId returns CatalogUserError MARKET_NOT_FOUND without mutating catalog state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-create-unknown-market-payload",
+        "capturePath": "$.cases[0].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate"
+      }
+    ]
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "scenarioId": "discount-amount-applies-on-each-item",
+  "operationNames": [
+    "productCreate",
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBasicUpdate",
+    "discountNode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-amount-applies-on-each-item.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-product-setup.graphql",
+    "variablesCapturePath": "$.setup.product.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-create-user-errors",
+        "capturePath": "$.setup.product.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "code-create-true-discount-amount-each",
+        "capturePath": "$.cases.codeTrueCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.customerGets.value",
+          "$.discountCodeBasicCreate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-code-create.graphql",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases.codeTrueCreate.variables.input.title"
+              },
+              "code": {
+                "fromCapturePath": "$.cases.codeTrueCreate.variables.input.code"
+              },
+              "startsAt": {
+                "fromCapturePath": "$.cases.codeTrueCreate.variables.input.startsAt"
+              },
+              "context": {
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "discountAmount": {
+                    "amount": {
+                      "fromCapturePath": "$.cases.codeTrueCreate.variables.input.customerGets.value.discountAmount.amount"
+                    },
+                    "appliesOnEachItem": {
+                      "fromCapturePath": "$.cases.codeTrueCreate.variables.input.customerGets.value.discountAmount.appliesOnEachItem"
+                    }
+                  }
+                },
+                "items": {
+                  "products": {
+                    "productsToAdd": [
+                      {
+                        "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "code-read-after-create-true-discount-amount-each",
+        "capturePath": "$.cases.codeTrueRead.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountNode.discount.__typename",
+          "$.discountNode.discount.title",
+          "$.discountNode.discount.customerGets.value"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "code-create-true-discount-amount-each",
+              "path": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-false-discount-amount-across",
+        "capturePath": "$.cases.codeFalseCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.customerGets.value",
+          "$.discountCodeBasicCreate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeFalseCreate.variables"
+        }
+      },
+      {
+        "name": "automatic-create-true-discount-amount-each",
+        "capturePath": "$.cases.automaticCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.customerGets.value",
+          "$.discountAutomaticBasicCreate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-automatic-create.graphql",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases.automaticCreate.variables.input.title"
+              },
+              "startsAt": {
+                "fromCapturePath": "$.cases.automaticCreate.variables.input.startsAt"
+              },
+              "context": {
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "discountAmount": {
+                    "amount": {
+                      "fromCapturePath": "$.cases.automaticCreate.variables.input.customerGets.value.discountAmount.amount"
+                    },
+                    "appliesOnEachItem": {
+                      "fromCapturePath": "$.cases.automaticCreate.variables.input.customerGets.value.discountAmount.appliesOnEachItem"
+                    }
+                  }
+                },
+                "items": {
+                  "products": {
+                    "productsToAdd": [
+                      {
+                        "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-update-false-discount-amount-across",
+        "capturePath": "$.cases.automaticUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.customerGets.value",
+          "$.discountAutomaticBasicUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-create-true-discount-amount-each",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.automaticUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "deprecated-each-variable-schema-error",
+        "capturePath": "$.cases.deprecatedEach.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-code-create.graphql",
+          "variablesCapturePath": "$.cases.deprecatedEach.variables"
+        }
+      },
+      {
+        "name": "deprecated-use-each-variable-schema-error",
+        "capturePath": "$.cases.deprecatedUseEach.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-amount-applies-on-each-item-code-create.graphql",
+          "variablesCapturePath": "$.cases.deprecatedUseEach.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for DiscountAmount.appliesOnEachItem read-after-write on code-basic create/read and automatic-basic create/update. The same capture records that deprecated `each` and `useEach` are not public DiscountAmountInput fields on 2026-04 and therefore fail at GraphQL variable coercion before resolver-level discount validation."
+}

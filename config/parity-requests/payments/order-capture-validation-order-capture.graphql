@@ -6,14 +6,8 @@ mutation OrderCaptureValidation($input: OrderCaptureInput!) {
       status
       gateway
       amountSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
       }
       parentTransaction {
         id

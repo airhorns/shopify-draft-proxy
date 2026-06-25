@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.validations.nodesInsteadOfEdges.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-728 captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery AdminQuery validator branches that reject nodes-style connection selection, top-level node, connection nesting depth above two, more than five connections, and nested connections whose parent node omits a non-aliased id. The shared fixture also includes operation-type and connection-within-list branches covered by the focused companion spec. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty.",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery AdminQuery validator branches that reject nodes-style connection selection, top-level node, connection nesting depth above two, more than five connections, and nested connections whose parent node omits a non-aliased id. The nodes-style coverage includes a non-products connection so the error example must use the offending connection name. The shared fixture also includes operation-type and connection-within-list branches covered by the focused companion spec. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -26,6 +26,24 @@
         "name": "nodes-instead-of-edges.bulkOperation",
         "capturePath": "$.validations.nodesInsteadOfEdges.response.data.bulkOperationRunQuery.bulkOperation",
         "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation"
+      },
+      {
+        "name": "orders-nodes-instead-of-edges.userErrors",
+        "capturePath": "$.validations.ordersNodesInsteadOfEdges.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.ordersNodesInsteadOfEdges.variables"
+        }
+      },
+      {
+        "name": "orders-nodes-instead-of-edges.bulkOperation",
+        "capturePath": "$.validations.ordersNodesInsteadOfEdges.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.ordersNodesInsteadOfEdges.variables"
+        }
       },
       {
         "name": "top-level-node.userErrors",

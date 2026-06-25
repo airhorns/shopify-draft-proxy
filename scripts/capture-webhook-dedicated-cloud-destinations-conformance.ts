@@ -295,6 +295,7 @@ try {
           'Captures the deprecated dedicated Pub/Sub and EventBridge webhook subscription create/update roots against Shopify Admin GraphQL.',
           'The dedicated Pub/Sub input stores the equivalent pubsub://project:topic URI and projects WebhookPubSubEndpoint on downstream reads.',
           'The dedicated EventBridge input stores the ARN as the equivalent URI and projects WebhookEventBridgeEndpoint on downstream reads.',
+          'Top-level deprecated callbackUrl returns the Shopify cloud placeholder while uri and endpoint expose the real cloud destination.',
           'Validation cases capture dedicated input field paths for Pub/Sub project/topic and EventBridge ARN failures.',
           'Temporary subscriptions are deleted during cleanup and the script does not trigger webhook delivery.',
         ],
@@ -388,7 +389,7 @@ function buildSpec(apiClientId: string): Record<string, unknown> {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes.',
+      'Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, top-level cloud callbackUrl placeholder projection, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [],

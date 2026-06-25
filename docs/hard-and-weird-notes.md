@@ -940,12 +940,14 @@ HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
 - creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
 - `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
+- a 2026-04 public capture showed `requiresShippingMethod` has the surprising GraphQL-layer default `true`: omitting it on create stores `true`, and omitting it on update resets a previously `false` service back to `true`
 - `fulfillmentServiceDelete(inventoryAction: DELETE)` returned `deletedId` without the `?id=true` query suffix even when the service `id` contained that suffix, and downstream `fulfillmentService(id:)` plus `location(id:)` both returned `null`
 
 Practical rule:
 
 - model fulfillment-service writes as service-plus-location state changes, not as a service scalar patch
 - preserve the original service handle on update unless a broader capture proves a handle-changing input exists
+- treat omitted `requiresShippingMethod` as a defaulted `true` input for both create and update; do not preserve an existing `false` value across an update that omits the argument
 - do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
 
 ### Current: Carrier services are simple records, but their userErrors and callbacks are easy to over-model
@@ -2448,7 +2450,7 @@ Live evidence refreshed on this host:
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
-- Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; it is not the payload-level `Collection does not exist` userError branch used for supplied ids that fail lookup.
+- Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; a supplied but unknown collection id instead returns payload `userErrors[{ field: null, message: "Collection does not exist" }]`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
@@ -2741,6 +2743,7 @@ Captured mutation behavior:
 - HAR-287 expanded the 2026-04 validation matrix:
   - missing/null nested consent payloads, null `marketingState`, invalid enum values, unknown input fields such as SMS `consentCollectedFrom`, and malformed `consentUpdatedAt` values are GraphQL `INVALID_VARIABLE` failures before resolver execution
   - `NOT_SUBSCRIBED`, `REDACTED`, and email `INVALID` are enum values in schema exposure, but the resolver rejects them as input states with top-level `INVALID` errors
+  - for Partner-scoped requesters, `SUBSCRIBED` requires `marketingOptInLevel`; omitting the field returns `userErrors: [{ field: ["input", <consentKey>, "marketingOptInLevel"], message: "Marketing opt in level must exist", code: "MISSING_ARGUMENT" }]` without changing stored consent
   - `PENDING` requires `marketingOptInLevel: CONFIRMED_OPT_IN`; using `SINGLE_OPT_IN` returns a mutation `userErrors` entry at `["input", <consentKey>, "marketingOptInLevel"]` without changing stored consent
   - future `consentUpdatedAt` returns a mutation `userErrors` entry at `["input", <consentKey>, "consentUpdatedAt"]`; email returns the unchanged customer payload, while SMS returns `customer: null`
   - SMS consent update requires an existing default phone number and returns `field: ["input", "smsMarketingConsent"]`, message `A phone number is required to set the SMS consent state.`, code `INVALID` when absent
@@ -3061,6 +3064,7 @@ Capture prerequisites and safety constraints:
 - HAR-416 refreshed the repo-local conformance app release on 2026-04-28 (`HAR-416-rework-functions`) before live Function capture. `shopifyFunctions(first:)` then exposed raw Function string IDs for validation/cart-transform Functions, lowercase `apiType` values (`cart_checkout_validation`, `cart_transform`), and app ownership through `appKey` plus selected `app` fields. With the refreshed grant, validation/cart-transform mutations reached resolver userErrors for wrong Function API type, unknown/unowned handles, invalid metafields, and duplicate cart-transform registration. Shopify allowed multiple `validationCreate` calls for the same validation Function in this shop, so no duplicate-validation userError was observed; the capture script deletes all HAR-416 validation/cart-transform probe resources afterward. `taxAppConfigure` still returned top-level `ACCESS_DENIED` because the caller must be a tax calculations app.
 - HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - HAR-222 locally stages `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` against the order/draft-order graph using the captured template catalog and Shopify-documented standalone mutation input shapes. The 2026-04 disposable-draft live lifecycle capture confirms NET templates compute `dueAt` from `issuedAt` plus template due days, FIXED updates replace the `PaymentSchedule` id, `PaymentSchedule.completed` is not selectable on this API surface, and downstream `draftOrder(id:)` returns `paymentTerms: null` after delete. Rejected local guardrails cover unknown targets, missing/unknown template ids, NET schedules without `issuedAt`, FIXED schedules without `dueAt`, missing update ids, and duplicate deletes without appending staged-write log entries.
+- A 2026-04 disposable-draft capture for payment terms due state confirmed a non-completed FIXED schedule with `dueAt` in the past reports `PaymentSchedule.due: true`, and the owning `PaymentTerms` reports `due: true` / `overdue: true`. A future `dueAt` reports false for all three booleans. The same roll-up is preserved in downstream `draftOrder.paymentTerms` reads after create and after update.
 - A 2026-04 disposable-order capture for successful `paymentTermsCreate` template reprojection confirmed FIXED returns `Fixed`/`FIXED`/`dueInDays: null`, Net 7 returns `Net 7`/`NET`/`dueInDays: 7`, and Due on fulfillment returns `Due on fulfillment`/`FULFILLMENT`/`dueInDays: null` with no schedule nodes. The Net 7 success path required `paymentSchedules.issuedAt`; sending only `dueAt` for that NET template returned user errors for missing issue date and inconsistent due date.
 - A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - A 2026-04 live capture for `paymentTermsCreate` and `paymentTermsUpdate` multiple `paymentSchedules` shows the internal base-scoped error also serializes as `field: null`. Both roots use the exact message `Cannot create payment terms with multiple payment schedules.`, with create/update-specific unsuccessful codes.
@@ -3795,3 +3799,27 @@ Practical rule:
   `read_mobile_platform_applications` and `write_mobile_platform_applications`,
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
+
+## 88. Standard metafield-definition immutable fields return field-specific public errors
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records `metafieldDefinitionUpdate` on the standard product subtitle definition
+rejecting simultaneous `name`, `description`, and `validations` changes with
+three separate `INVALID_INPUT` userErrors:
+
+- `["definition", "name"]` with `Name cannot be changed in a standard definition.`
+- `["definition", "description"]` with `Description cannot be changed in a standard definition.`
+- `["definition", "validations"]` with `Validations cannot be changed in a standard definition.`
+
+The same capture records app-reserved namespace definition deletes without
+`deleteAllAssociatedMetafields: true` returning
+`RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
+`Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
+
+Practical rule:
+
+- model the public field-specific metafieldDefinitionUpdate errors for standard
+  definitions rather than collapsing them into a single internal/core-style
+  `["definition"]` error
+- keep the app-reserved namespace delete message aligned with the public
+  2026-04 capture, not older/internal wording

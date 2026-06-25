@@ -119,7 +119,7 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
             } else {
                 selected_json(&token, token_selection)
             }),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -138,7 +138,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -154,14 +154,6 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     code: &str,
 ) -> Value {
     user_error(Value::Null, message, Some(code))
-}
-
-pub(in crate::proxy) fn synthetic_shop_json() -> Value {
-    default_shop_json()
-}
-
-pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
-    store.effective_shop()
 }
 
 pub(in crate::proxy) fn local_app_json() -> Value {
@@ -411,7 +403,7 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
                     "id": default_id,
                     "plan": { "pricingDetails": {
                         "__typename": "AppRecurringPricing",
-                        "price": { "amount": price_amount, "currencyCode": price_currency }
+                        "price": money_value(&price_amount, &price_currency)
                     }}
                 });
             }
@@ -433,8 +425,8 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
         "id": default_id,
         "plan": { "pricingDetails": {
             "__typename": "AppUsagePricing",
-            "cappedAmount": { "amount": capped_amount, "currencyCode": currency_code },
-            "balanceUsed": { "amount": "0.0", "currencyCode": currency_code },
+            "cappedAmount": money_value(&capped_amount, &currency_code),
+            "balanceUsed": money_value("0.0", &currency_code),
             "interval": "EVERY_30_DAYS",
             "terms": terms
         }}
@@ -591,23 +583,26 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
         return vec![error];
     }
     if !resolved_string_list_field_unsorted(profile, "variantsToDissociate").is_empty() {
-        return vec![delivery_profile_user_error(
+        return vec![user_error_omit_code(
             Value::Null,
             "Cannot disassociate variants when creating a profile.",
+            None,
         )];
     }
     for group in list_object_field(profile, "locationGroupsToCreate") {
         if !list_object_field(&group, "zonesToUpdate").is_empty() {
-            return vec![delivery_profile_user_error(
+            return vec![user_error_omit_code(
                 Value::Null,
                 "Cannot update zones when creating a profile.",
+                None,
             )];
         }
         for zone in list_object_field(&group, "zonesToCreate") {
             if !list_object_field(&zone, "methodDefinitionsToUpdate").is_empty() {
-                return vec![delivery_profile_user_error(
+                return vec![user_error_omit_code(
                     Value::Null,
                     "Profile is invalid: Input cannot include method_definitions_to_update on create.",
+                    None,
                 )];
             }
         }
@@ -624,18 +619,24 @@ pub(in crate::proxy) fn delivery_profile_update_user_errors(
     delivery_profile_common_shape_user_errors(profile)
 }
 
+const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
+const DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE: &str =
+    "Profile name must be less than 128 characters long";
+
 fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let name = resolved_string_arg(profile, "name")?;
     if name.is_empty() {
-        return Some(delivery_profile_user_error(
+        return Some(user_error_omit_code(
             json!(["profile", "name"]),
             "Add a profile name",
+            None,
         ));
     }
-    if name.chars().count() >= 128 {
-        return Some(delivery_profile_user_error(
+    if name.chars().count() > DELIVERY_PROFILE_MAX_NAME_LENGTH {
+        return Some(user_error_omit_code(
             json!(["profile", "name"]),
-            "Profile name must be less than 128 characters long",
+            DELIVERY_PROFILE_NAME_TOO_LONG_MESSAGE,
+            None,
         ));
     }
     None
@@ -653,9 +654,10 @@ fn delivery_profile_common_shape_user_errors(
         }
         for zone in list_object_field(&group, "zonesToCreate") {
             if delivery_profile_zone_countries_from_input(&zone).is_empty() {
-                return vec![delivery_profile_user_error(
+                return vec![user_error_omit_code(
                     Value::Null,
                     "Profile is invalid: cannot create LocationGroupZone without countries.",
+                    None,
                 )];
             }
         }
@@ -678,14 +680,11 @@ fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
-    delivery_profile_user_error(
+    user_error_omit_code(
         Value::Null,
         "The Location could not be found for this shop.",
+        None,
     )
-}
-
-fn delivery_profile_user_error(field: Value, message: &str) -> Value {
-    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn delivery_profile_selected_json(
@@ -1074,7 +1073,7 @@ fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
     let tail = Some(resource_id_path_tail(variant_id))
         .filter(|tail| !tail.is_empty())
         .unwrap_or("local");
-    format!("gid://shopify/Product/delivery-profile-{tail}")
+    shopify_gid("Product", format_args!("delivery-profile-{tail}"))
 }
 
 pub(in crate::proxy) fn delivery_profile_countries_from_input(
@@ -1113,7 +1112,7 @@ fn delivery_profile_zone_countries_from_input(
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
     json!({
-        "id": format!("gid://shopify/DeliveryCountry/{code}"),
+        "id": shopify_gid("DeliveryCountry", code),
         "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
         "code": {
@@ -1910,10 +1909,6 @@ pub(in crate::proxy) fn normalize_taggable_tags(tags: Vec<String>) -> Vec<String
     normalized
 }
 
-pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
-    normalize_taggable_tags(tags)
-}
-
 pub(in crate::proxy) fn normalized_taggable_tags_argument(
     value: Option<&ResolvedValue>,
 ) -> Vec<String> {
@@ -2089,7 +2084,7 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "company", "externalId"],
             companies,
@@ -2141,7 +2136,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "externalId"],
             companies,
@@ -2169,11 +2164,11 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
     errors
 }
 
-pub(in crate::proxy) fn b2b_company_external_id_errors(
+pub(in crate::proxy) fn b2b_external_id_errors(
     external_id: &str,
     field: Vec<&str>,
-    companies: &BTreeMap<String, Value>,
-    current_company_id: Option<&str>,
+    records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
 ) -> Vec<Value> {
     if external_id.chars().count() > 64 {
         return vec![b2b_company_user_error(
@@ -2196,50 +2191,8 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
             Some(json!("external_id_contains_invalid_chars")),
         )];
     }
-    let duplicate = companies.iter().any(|(id, company)| {
-        Some(id.as_str()) != current_company_id
-            && company["externalId"].as_str() == Some(external_id)
-    });
-    if duplicate {
-        return vec![b2b_company_user_error(
-            field,
-            "External id has already been taken.",
-            "TAKEN",
-            Some(json!("duplicate_external_id")),
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn b2b_location_external_id_errors(
-    external_id: &str,
-    field: Vec<&str>,
-    locations: &BTreeMap<String, Value>,
-    current_location_id: Option<&str>,
-) -> Vec<Value> {
-    if external_id.chars().count() > 64 {
-        return vec![b2b_company_user_error(
-            field,
-            "External Id must be 64 characters or less.",
-            "TOO_LONG",
-            None,
-        )];
-    }
-    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id
-        .chars()
-        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
-    {
-        return vec![b2b_company_user_error(
-            field,
-            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
-            "INVALID",
-            Some(json!("external_id_contains_invalid_chars")),
-        )];
-    }
-    let duplicate = locations.iter().any(|(id, location)| {
-        Some(id.as_str()) != current_location_id
-            && location["externalId"].as_str() == Some(external_id)
+    let duplicate = records.iter().any(|(id, record)| {
+        Some(id.as_str()) != current_id && record["externalId"].as_str() == Some(external_id)
     });
     if duplicate {
         return vec![b2b_company_user_error(
@@ -2351,9 +2304,17 @@ impl DraftProxy {
             .unwrap_or_else(|| {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
-        let has_tax_exempt = field.arguments.contains_key("taxExempt");
-        let tax_exempt_is_null =
-            matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
+        let tax_exempt_argument = field.raw_arguments.get("taxExempt");
+        let has_tax_exempt =
+            tax_exempt_argument.is_some_and(|argument| !argument.is_unbound_variable());
+        let tax_exempt_is_null = matches!(
+            tax_exempt_argument,
+            Some(RawArgumentValue::Null)
+                | Some(RawArgumentValue::Variable {
+                    value: Some(ResolvedValue::Null),
+                    ..
+                })
+        );
         let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
         let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
@@ -2399,17 +2360,6 @@ impl DraftProxy {
             );
         }
 
-        let mut exemptions = if remove.is_empty() {
-            assign
-        } else {
-            vec![
-                "CA_BC_RESELLER_EXEMPTION".to_string(),
-                "US_CA_RESELLER_EXEMPTION".to_string(),
-            ]
-        };
-        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
-        exemptions.sort();
-        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
         let mut location = self
             .store
             .staged
@@ -2417,6 +2367,30 @@ impl DraftProxy {
             .get(&location_id)
             .cloned()
             .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        let mut exemptions = Vec::new();
+        if let Some(current_exemptions) = location
+            .pointer("/taxSettings/taxExemptions")
+            .and_then(Value::as_array)
+        {
+            for exemption in current_exemptions.iter().filter_map(Value::as_str) {
+                if !exemptions.iter().any(|existing| existing == exemption) {
+                    exemptions.push(exemption.to_string());
+                }
+            }
+        }
+        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
+        for assigned in assign {
+            if !exemptions.iter().any(|existing| existing == &assigned) {
+                exemptions.push(assigned);
+            }
+        }
+        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt")
+            .or_else(|| {
+                location
+                    .pointer("/taxSettings/taxExempt")
+                    .and_then(Value::as_bool)
+            })
+            .unwrap_or(false);
         // companyLocationTaxSettingsUpdate sets taxRegistrationId when the argument is
         // supplied, and otherwise leaves any previously staged registration id untouched.
         let existing_registration_id = location
@@ -2456,7 +2430,12 @@ pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -
     json!({
         "id": location_id,
         "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" }
+        "billingAddress": { "address1": "Billing HQ" },
+        "taxSettings": {
+            "taxRegistrationId": Value::Null,
+            "taxExempt": true,
+            "taxExemptions": []
+        }
     })
 }
 
@@ -2543,10 +2522,9 @@ fn resource_feedback_validation_error(
 ) -> Option<Value> {
     let messages = resolved_string_list_field_unsorted(input, "messages");
     if messages.is_empty() {
-        return Some(resource_feedback_user_error(
+        return Some(presence_user_error(
             feedback_field_path(feedback_index, "messages", None),
-            "Messages can't be blank",
-            "BLANK",
+            "Messages",
         ));
     }
 
@@ -2563,10 +2541,10 @@ fn resource_feedback_validation_error(
         .iter()
         .position(|message| message.chars().count() > 100)
         .map(|message_index| {
-            resource_feedback_user_error(
+            length_user_error(
                 feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message is too long (maximum is 100 characters)",
-                "TOO_LONG",
+                "Message",
+                LengthUserErrorBound::TooLong { maximum: 100 },
             )
         })
 }
@@ -2722,20 +2700,6 @@ fn valid_utc_date_time(
         && second <= 60
 }
 
-fn days_in_month(year: i32, month: u32) -> u32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => 0,
-    }
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-}
-
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
     request_header(request, "x-shopify-draft-proxy-api-client-id")
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())
@@ -2744,5 +2708,24 @@ pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
 pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
     if let Value::Object(fields) = entry {
         fields.insert("status".to_string(), json!(status));
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn record_mutation_log_with_status(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
     }
 }

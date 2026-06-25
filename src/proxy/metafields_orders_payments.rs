@@ -185,43 +185,8 @@ const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
     "weight",
 ];
 
-const MEASUREMENT_METAFIELD_TYPES: &[&str] = &[
-    "antenna_gain",
-    "area",
-    "battery_charge_capacity",
-    "battery_energy_capacity",
-    "capacitance",
-    "concentration",
-    "data_storage_capacity",
-    "data_transfer_rate",
-    "dimension",
-    "display_density",
-    "distance",
-    "duration",
-    "electric_current",
-    "electrical_resistance",
-    "energy",
-    "frequency",
-    "illuminance",
-    "inductance",
-    "luminous_flux",
-    "mass_flow_rate",
-    "power",
-    "pressure",
-    "resolution",
-    "rotational_speed",
-    "sound_level",
-    "speed",
-    "temperature",
-    "thermal_power",
-    "voltage",
-    "volume",
-    "volumetric_flow_rate",
-    "weight",
-];
-
-fn is_measurement_metafield_type_name(type_name: &str) -> bool {
-    MEASUREMENT_METAFIELD_TYPES.contains(&type_name)
+pub(in crate::proxy) fn is_measurement_metafield_type_name(type_name: &str) -> bool {
+    !measurement_units_for_type(type_name).is_empty()
 }
 
 fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
@@ -1140,21 +1105,10 @@ fn is_shopify_date(value: &str) -> bool {
     if !(1..=12).contains(&month) {
         return false;
     }
-    let max_day = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => return false,
-    };
-    (1..=max_day).contains(&day)
+    (1..=days_in_month(year, month)).contains(&day)
 }
 
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-}
-
-fn is_shopify_metafield_url(value: &str) -> bool {
+pub(in crate::proxy) fn is_shopify_metafield_url(value: &str) -> bool {
     let lowered = value.to_ascii_lowercase();
     if lowered.starts_with("http://") || lowered.starts_with("https://") {
         return url::Url::parse(value)
@@ -1171,7 +1125,7 @@ fn is_shopify_metafield_url(value: &str) -> bool {
     false
 }
 
-fn is_shopify_money_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_money_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1190,7 +1144,7 @@ fn is_shopify_money_value(value: &Value) -> bool {
         && currency_code.chars().all(|ch| ch.is_ascii_uppercase())
 }
 
-fn is_shopify_link_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_link_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1207,7 +1161,10 @@ fn is_shopify_link_value(value: &Value) -> bool {
     !label.trim().is_empty() && is_shopify_metafield_url(url)
 }
 
-fn shopify_measurement_value_error(type_name: &str, value: &Value) -> Option<String> {
+pub(in crate::proxy) fn shopify_measurement_value_error(
+    type_name: &str,
+    value: &Value,
+) -> Option<String> {
     let Some(fields) = value.as_object() else {
         return Some("Value must contain unit and value.".to_string());
     };
@@ -1291,7 +1248,7 @@ fn json_f64_value_with_original(value: &Value) -> Option<(f64, String)> {
     }
 }
 
-fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
+pub(in crate::proxy) fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
     let normalized = measurement_unit_alias(unit);
     measurement_units_for_type(type_name).contains(&normalized.as_str())
 }
@@ -1316,7 +1273,7 @@ fn measurement_unit_alias(unit: &str) -> String {
     }
 }
 
-fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
+pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
     match type_name {
         "antenna_gain" => &["DECIBELS_ISOTROPIC"],
         "area" => &[
@@ -1883,7 +1840,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
                 .map(|namespace| payment_customization_namespace(&namespace))
                 .unwrap_or_default();
             json!({
-                "id": format!("gid://shopify/Metafield/payment-customization-{}", index + 1),
+                "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
                 "namespace": namespace,
                 "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
                 "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
@@ -2002,11 +1959,16 @@ pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
     field: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": ["paymentCustomization", "metafields", index.to_string(), field],
-        "code": "INVALID_METAFIELDS",
-        "message": message
-    })
+    user_error(
+        json!([
+            "paymentCustomization",
+            "metafields",
+            index.to_string(),
+            field
+        ]),
+        message,
+        Some("INVALID_METAFIELDS"),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
@@ -2112,6 +2074,11 @@ pub(in crate::proxy) fn payment_terms_success_record(
     due_in_days: Option<i64>,
     schedules: Value,
 ) -> Value {
+    let terms_due = schedules.as_array().is_some_and(|nodes| {
+        nodes
+            .iter()
+            .any(|node| node.get("due").and_then(Value::as_bool).unwrap_or(false))
+    });
     // Shopify connection cursors are opaque, stable-per-node strings. We anchor
     // them to the first/last schedule node id so they round-trip and are always
     // non-empty for a populated connection (null for an empty schedule set).
@@ -2137,8 +2104,8 @@ pub(in crate::proxy) fn payment_terms_success_record(
         .unwrap_or((None, None));
     json!({
         "id": id,
-        "due": false,
-        "overdue": false,
+        "due": terms_due,
+        "overdue": terms_due,
         "dueInDays": due_in_days.map(|days| json!(days)).unwrap_or(Value::Null),
         "paymentTermsName": name,
         "paymentTermsType": terms_type,
@@ -2158,21 +2125,13 @@ pub(in crate::proxy) fn payment_terms_success_record(
 pub(in crate::proxy) fn payment_terms_template_projection(
     template_id: &str,
 ) -> (&'static str, &'static str, Option<i64>) {
-    let tail = template_id
-        .strip_prefix("gid://shopify/PaymentTermsTemplate/")
-        .unwrap_or(template_id);
-    match tail {
-        "1" => ("Due on receipt", "RECEIPT", None),
-        "2" => ("Net 7", "NET", Some(7)),
-        "3" => ("Net 15", "NET", Some(15)),
-        "5" => ("Net 60", "NET", Some(60)),
-        "6" => ("Net 90", "NET", Some(90)),
-        "7" => ("Fixed", "FIXED", None),
-        "8" => ("Net 45", "NET", Some(45)),
-        "9" => ("Due on fulfillment", "FULFILLMENT", None),
+    let tail = resource_id_tail(template_id);
+    PAYMENT_TERMS_TEMPLATE_CATALOG
+        .iter()
+        .find(|(catalog_tail, ..)| *catalog_tail == tail)
+        .map(|(_, name, _, due_in_days, terms_type)| (*name, *terms_type, *due_in_days))
         // Template/4 is Net 30; unknown/blank ids fall back to the same default term.
-        _ => ("Net 30", "NET", Some(30)),
-    }
+        .unwrap_or(("Net 30", "NET", Some(30)))
 }
 
 /// Shopify's payment-terms template catalog is a fixed, store-independent global
@@ -2232,7 +2191,7 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
             .map(|(tail, name, description, due_in_days, terms_type)| {
                 selected_json(
                     &json!({
-                        "id": format!("gid://shopify/PaymentTermsTemplate/{tail}"),
+                        "id": shopify_gid("PaymentTermsTemplate", tail),
                         "name": name,
                         "description": description,
                         "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
@@ -2276,6 +2235,23 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
     }
 }
 
+fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) -> bool {
+    if completed_at.is_some() {
+        return false;
+    }
+    let Some(due_at) = due_at else {
+        return false;
+    };
+    let Some(due_at_epoch) = super::app_shipping_helpers::parse_rfc3339_epoch_seconds(due_at)
+    else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    due_at_epoch <= now.as_secs() as i64
+}
+
 /// Builds a materialized PaymentSchedule node from the owner money and the
 /// requested schedule. NET terms compute `dueAt` from `issuedAt` plus the
 /// template's due-day count when the input omits an explicit `dueAt`; FIXED
@@ -2296,13 +2272,14 @@ fn payment_schedule_node(
             _ => None,
         },
     };
-    let money = json!({ "amount": normalize_money_amount(amount), "currencyCode": currency });
+    let due = payment_schedule_due_state(due_at.as_deref(), None);
+    let money = money_value(&normalize_money_amount(amount), currency);
     json!({
         "id": schedule_id,
         "issuedAt": issued_at.map(Value::String).unwrap_or(Value::Null),
         "dueAt": due_at.map(Value::String).unwrap_or(Value::Null),
         "completedAt": Value::Null,
-        "due": false,
+        "due": due,
         "amount": money.clone(),
         "balanceDue": money.clone(),
         "totalBalance": money
@@ -2432,7 +2409,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
         json!([])
     } else {
-        let schedule_id = format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id));
+        let schedule_id = shopify_gid("PaymentSchedule", resource_id_tail(id));
         let input_schedules = resolved_object_list_field(attrs, "paymentSchedules");
         let node = payment_schedule_node(
             &schedule_id,
@@ -2508,7 +2485,7 @@ pub(in crate::proxy) fn payment_terms_create_value(
     } else {
         reference_tail
     };
-    let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
+    let terms_id = shopify_gid("PaymentTerms", id_suffix);
     Ok((reference_id, terms_id, attrs))
 }
 
@@ -2737,11 +2714,7 @@ pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Opti
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     json!({
         "success": null,
-        "userErrors": [{
-            "field": null,
-            "message": message,
-            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-        }]
+        "userErrors": [user_error(Value::Null, message, Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"))]
     })
 }
 
@@ -2926,10 +2899,7 @@ impl DraftProxy {
                         let value = selected_json(
                             &json!({
                                 "abandonment": Value::Null,
-                                "userErrors": [{
-                                    "field": ["abandonmentId"],
-                                    "message": "abandonment_not_found"
-                                }]
+                                "userErrors": [user_error_omit_code(["abandonmentId"], "abandonment_not_found", None)]
                             }),
                             &field.selection,
                         );
@@ -2945,25 +2915,25 @@ impl DraftProxy {
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
-                            "message": "invalid",
-                            "code": "NOT_FOUND"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "marketingActivityId"],
+                            "invalid",
+                            Some("NOT_FOUND"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else if delivered_at.starts_with("2099-") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveredAt"],
-                            "message": "invalid",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveredAt"],
+                            "invalid",
+                            Some("INVALID"),
+                        ));
                         ("SENDING".to_string(), Value::Null)
                     } else if status == "SENDING" {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
-                            "message": "invalid_transition",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveryStatus"],
+                            "invalid_transition",
+                            Some("INVALID"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else {
                         (status, Value::String(delivered_at.clone()))
@@ -3195,10 +3165,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["id"],
-                                            "message": "The order does not exist."
-                                        }]
+                                        "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
                                     }),
                                     &field.selection
                                 )
@@ -3211,10 +3178,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["base"],
-                                            "message": "not_editable"
-                                        }]
+                                        "userErrors": [user_error_omit_code(["base"], "not_editable", None)]
                                     }),
                                     &field.selection
                                 )
@@ -3263,7 +3227,7 @@ impl DraftProxy {
 
     fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let line_items = resolved_object_list_field(&order_input, "lineItems");
         let first_line = line_items.first().cloned().unwrap_or_default();
@@ -3758,7 +3722,7 @@ impl DraftProxy {
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let price_set = order_arg
             .get("lineItems")
@@ -3769,31 +3733,32 @@ impl DraftProxy {
             })
             .and_then(|line| resolved_object_field(&line, "priceSet"))
             .map(|price_set| {
-                json!({
-                    "shopMoney": {
-                        "amount": resolved_object_field(&price_set, "shopMoney")
-                            .and_then(|money| resolved_string_field(&money, "amount"))
-                            .unwrap_or_else(|| "42.50".to_string()),
-                        "currencyCode": resolved_object_field(&price_set, "shopMoney")
-                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
-                            .unwrap_or_else(|| "USD".to_string())
-                    },
-                    "presentmentMoney": {
-                        "amount": resolved_object_field(&price_set, "presentmentMoney")
-                            .and_then(|money| resolved_string_field(&money, "amount"))
-                            .unwrap_or_else(|| "57.00".to_string()),
-                        "currencyCode": resolved_object_field(&price_set, "presentmentMoney")
-                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
-                            .unwrap_or_else(|| "CAD".to_string())
-                    }
-                })
+                let shop_money = resolved_object_field(&price_set, "shopMoney");
+                let shop_amount = shop_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "amount"))
+                    .unwrap_or_else(|| "42.50".to_string());
+                let shop_currency = shop_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "currencyCode"))
+                    .unwrap_or_else(|| "USD".to_string());
+                let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
+                let presentment_amount = presentment_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "amount"))
+                    .unwrap_or_else(|| "57.00".to_string());
+                let presentment_currency = presentment_money
+                    .as_ref()
+                    .and_then(|money| resolved_string_field(money, "currencyCode"))
+                    .unwrap_or_else(|| "CAD".to_string());
+                money_set_pair(
+                    &shop_amount,
+                    &shop_currency,
+                    &presentment_amount,
+                    &presentment_currency,
+                )
             })
-            .unwrap_or_else(|| {
-                json!({
-                    "shopMoney": { "amount": "57.00", "currencyCode": "CAD" },
-                    "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
-                })
-            });
+            .unwrap_or_else(|| money_set_pair("57.00", "CAD", "57.00", "CAD"));
         let order = json!({
             "id": id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
