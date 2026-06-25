@@ -2403,7 +2403,7 @@ impl DraftProxy {
         if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
             || (is_email && marketing_state == "INVALID")
         {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2436,7 +2436,7 @@ impl DraftProxy {
                     "code": Value::Null
                 })
             };
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2456,7 +2456,7 @@ impl DraftProxy {
 
         if let Some(consent_updated_at) = consent_updated_at.as_deref() {
             if customer_consent_updated_at_is_future(consent_updated_at) {
-                self.record_customer_consent_log(
+                self.record_mutation_log_with_status(
                     request,
                     query,
                     variables,
@@ -2484,7 +2484,7 @@ impl DraftProxy {
         }
 
         if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2511,7 +2511,7 @@ impl DraftProxy {
         }
 
         if !is_email && !customer_has_default_phone(&existing_customer) {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2533,7 +2533,7 @@ impl DraftProxy {
         }
 
         if is_email && !customer_has_default_email(&existing_customer) {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -2562,7 +2562,7 @@ impl DraftProxy {
             .staged
             .customers
             .insert(customer_id.clone(), customer.clone());
-        self.record_customer_consent_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -2573,23 +2573,6 @@ impl DraftProxy {
         CustomerConsentOutcome {
             payload: customer_consent_payload(customer, Vec::new()),
             top_level_error: None,
-        }
-    }
-
-    fn record_customer_consent_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
         }
     }
 }
@@ -3305,54 +3288,69 @@ fn customer_mailing_addresses(
     (addresses, errors)
 }
 
-fn customer_mailing_address(
+const CUSTOMER_ADDRESS_FREE_TEXT_FIELDS: &[&str] = &[
+    "firstName",
+    "lastName",
+    "address1",
+    "address2",
+    "city",
+    "company",
+    "zip",
+    "phone",
+];
+
+fn customer_address_free_text_errors<F>(
     input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-    customer_set: bool,
-) -> (Value, Vec<Value>) {
+    path_for: F,
+) -> Vec<Value>
+where
+    F: Fn(&str) -> Value,
+{
     let mut errors = Vec::new();
-    for field in [
-        "firstName",
-        "lastName",
-        "address1",
-        "address2",
-        "city",
-        "company",
-        "zip",
-        "phone",
-    ] {
+    for field in CUSTOMER_ADDRESS_FREE_TEXT_FIELDS {
         if let Some(value) = customer_address_string(input, field) {
             let label = customer_address_field_label(field);
             if value.chars().count() > 255 {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} is too long (maximum is 255 characters)"),
                     None,
                 ));
             }
             if customer_address_contains_html(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain HTML tags"),
                     None,
                 ));
             }
-            if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
+            if matches!(*field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain URL"),
                     None,
                 ));
             }
             if customer_address_contains_emoji(&value) {
                 errors.push(user_error_omit_code(
-                    customer_address_field_path(customer_set, index, Some(field)),
+                    path_for(field),
                     &format!("{label} cannot contain emojis"),
                     None,
                 ));
             }
         }
     }
+    errors
+}
+
+fn customer_mailing_address(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    customer_set: bool,
+) -> (Value, Vec<Value>) {
+    let mut errors = customer_address_free_text_errors(input, |field| {
+        customer_address_field_path(customer_set, index, Some(field))
+    });
 
     let country_input = customer_address_string(input, "countryCode")
         .or_else(|| customer_address_string(input, "countryCodeV2"))
@@ -3561,49 +3559,7 @@ fn customer_address_input_node(
     customer_last: Option<&str>,
     id: &str,
 ) -> (Option<Value>, Vec<Value>) {
-    let mut errors = Vec::new();
-    for field in [
-        "firstName",
-        "lastName",
-        "address1",
-        "address2",
-        "city",
-        "company",
-        "zip",
-        "phone",
-    ] {
-        if let Some(value) = customer_address_string(input, field) {
-            let label = customer_address_field_label(field);
-            if value.chars().count() > 255 {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} is too long (maximum is 255 characters)"),
-                    None,
-                ));
-            }
-            if customer_address_contains_html(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain HTML tags"),
-                    None,
-                ));
-            }
-            if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain URL"),
-                    None,
-                ));
-            }
-            if customer_address_contains_emoji(&value) {
-                errors.push(user_error_omit_code(
-                    json!(["address", field]),
-                    &format!("{label} cannot contain emojis"),
-                    None,
-                ));
-            }
-        }
-    }
+    let mut errors = customer_address_free_text_errors(input, |field| json!(["address", field]));
 
     // Effective string value for a field: input value when the key is present
     // (trimmed; empty → None), otherwise the existing node's stored value.
@@ -4392,12 +4348,9 @@ impl DraftProxy {
 
         let (payload, status, staged_ids) =
             self.customer_data_erasure_payload(&customer_id, request_erasure);
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
+        self.record_mutation_log_with_status(
+            request, query, variables, root_field, staged_ids, status,
+        );
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 

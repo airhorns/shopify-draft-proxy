@@ -2084,7 +2084,7 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "company", "externalId"],
             companies,
@@ -2136,7 +2136,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         }
     }
     if let Some(external_id) = resolved_string_arg(input, "externalId") {
-        errors.extend(b2b_company_external_id_errors(
+        errors.extend(b2b_external_id_errors(
             &external_id,
             vec!["input", "externalId"],
             companies,
@@ -2164,11 +2164,11 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
     errors
 }
 
-pub(in crate::proxy) fn b2b_company_external_id_errors(
+pub(in crate::proxy) fn b2b_external_id_errors(
     external_id: &str,
     field: Vec<&str>,
-    companies: &BTreeMap<String, Value>,
-    current_company_id: Option<&str>,
+    records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
 ) -> Vec<Value> {
     if external_id.chars().count() > 64 {
         return vec![b2b_company_user_error(
@@ -2191,50 +2191,8 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
             Some(json!("external_id_contains_invalid_chars")),
         )];
     }
-    let duplicate = companies.iter().any(|(id, company)| {
-        Some(id.as_str()) != current_company_id
-            && company["externalId"].as_str() == Some(external_id)
-    });
-    if duplicate {
-        return vec![b2b_company_user_error(
-            field,
-            "External id has already been taken.",
-            "TAKEN",
-            Some(json!("duplicate_external_id")),
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn b2b_location_external_id_errors(
-    external_id: &str,
-    field: Vec<&str>,
-    locations: &BTreeMap<String, Value>,
-    current_location_id: Option<&str>,
-) -> Vec<Value> {
-    if external_id.chars().count() > 64 {
-        return vec![b2b_company_user_error(
-            field,
-            "External Id must be 64 characters or less.",
-            "TOO_LONG",
-            None,
-        )];
-    }
-    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id
-        .chars()
-        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
-    {
-        return vec![b2b_company_user_error(
-            field,
-            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
-            "INVALID",
-            Some(json!("external_id_contains_invalid_chars")),
-        )];
-    }
-    let duplicate = locations.iter().any(|(id, location)| {
-        Some(id.as_str()) != current_location_id
-            && location["externalId"].as_str() == Some(external_id)
+    let duplicate = records.iter().any(|(id, record)| {
+        Some(id.as_str()) != current_id && record["externalId"].as_str() == Some(external_id)
     });
     if duplicate {
         return vec![b2b_company_user_error(
@@ -2724,5 +2682,24 @@ pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
 pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
     if let Value::Object(fields) = entry {
         fields.insert("status".to_string(), json!(status));
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn record_mutation_log_with_status(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
     }
 }
