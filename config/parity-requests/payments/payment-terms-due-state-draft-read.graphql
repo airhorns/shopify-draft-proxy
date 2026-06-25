@@ -1,0 +1,16 @@
+query PaymentTermsDueStateDraftRead($id: ID!) {
+  draftOrder(id: $id) {
+    paymentTerms {
+      id
+      due
+      overdue
+      paymentSchedules(first: 10) {
+        nodes {
+          dueAt
+          completedAt
+          due
+        }
+      }
+    }
+  }
+}

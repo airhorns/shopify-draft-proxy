@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinition-field-key-min-length.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
     "variablesCapturePath": "$.setup.request.variables",
@@ -50,12 +50,66 @@
         }
       },
       {
+        "name": "create-key-too-long",
+        "capturePath": "$.createKeyTooLong.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createKeyTooLong.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-invalid-characters",
+        "capturePath": "$.createInvalidCharacters.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createInvalidCharacters.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "create-key-ab",
         "capturePath": "$.createKeyAb.response.data.metaobjectDefinitionCreate",
         "proxyPath": "$.data.metaobjectDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
           "variablesCapturePath": "$.createKeyAb.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-key-max-boundary",
+        "capturePath": "$.createKeyMaxBoundary.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createKeyMaxBoundary.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-mixed-case-key",
+        "capturePath": "$.createMixedCaseKey.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createMixedCaseKey.request.variables",
           "apiVersion": "2026-04"
         },
         "expectedDifferences": [
@@ -101,6 +155,40 @@
         }
       },
       {
+        "name": "update-create-key-too-long",
+        "capturePath": "$.updateCreateKeyTooLong.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateKeyTooLong.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-create-invalid-characters",
+        "capturePath": "$.updateCreateInvalidCharacters.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateInvalidCharacters.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "update-create-key-ab",
         "capturePath": "$.updateCreateKeyAb.response.data.metaobjectDefinitionUpdate",
         "proxyPath": "$.data.metaobjectDefinitionUpdate",
@@ -112,6 +200,54 @@
             },
             "definition": {
               "fromCapturePath": "$.updateCreateKeyAb.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy uses the staged synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-create-key-max-boundary",
+        "capturePath": "$.updateCreateKeyMaxBoundary.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateKeyMaxBoundary.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy uses the staged synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-create-mixed-case-key",
+        "capturePath": "$.updateCreateMixedCaseKey.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateMixedCaseKey.request.variables.definition"
             }
           },
           "apiVersion": "2026-04"
