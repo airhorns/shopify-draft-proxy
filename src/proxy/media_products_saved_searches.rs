@@ -288,26 +288,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let mut products = self.store.products();
-        if let Some(ResolvedValue::String(query)) = arguments.get("query") {
-            if query.contains("status:") {
-                products.clear();
-            } else if let Some(tag) = product_tag_query_value(query) {
-                products.retain(|product| {
-                    self.store
-                        .staged
-                        .product_search_tags
-                        .get(&product.id)
-                        .map(|tags| tags.contains(tag))
-                        .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
-                });
-            } else if query.trim_start().starts_with("sku:") {
-                products.retain(|product| {
-                    let variants = self.store.product_variants_for_product(&product.id);
-                    product_matches_sku_query(product, &variants, query)
-                });
-            }
-        }
+        let products = self.products_filtered_by_search_query(arguments.get("query"));
         selected_typed_connection_with_args(
             &products,
             arguments,
@@ -333,38 +314,33 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
-        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
-            if query.contains("status:") {
-                return product_count_json(0, &field.selection);
-            }
-            if let Some(tag) = product_tag_query_value(query) {
-                let products = self.store.products();
-                let count = products
-                    .into_iter()
-                    .filter(|product| {
-                        self.store
-                            .staged
-                            .product_search_tags
-                            .get(&product.id)
-                            .map(|tags| tags.contains(tag))
-                            .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
-                    })
-                    .count();
-                return product_count_json(count, &field.selection);
-            }
-            if query.trim_start().starts_with("sku:") {
-                let products = self.store.products();
-                let count = products
-                    .into_iter()
-                    .filter(|product| {
-                        let variants = self.store.product_variants_for_product(&product.id);
-                        product_matches_sku_query(product, &variants, query)
-                    })
-                    .count();
-                return product_count_json(count, &field.selection);
-            }
-        }
-        product_count_json(self.store.product_count(), &field.selection)
+        let count = if field.arguments.contains_key("query") {
+            self.products_filtered_by_search_query(field.arguments.get("query"))
+                .len()
+        } else {
+            self.store.product_count()
+        };
+        product_count_json(count, &field.selection)
+    }
+
+    pub(in crate::proxy) fn products_filtered_by_search_query(
+        &self,
+        query: Option<&ResolvedValue>,
+    ) -> Vec<ProductRecord> {
+        let mut products = self.store.products();
+        let Some(ResolvedValue::String(query)) = query else {
+            return products;
+        };
+        products.retain(|product| {
+            let variants = self.store.product_variants_for_product(&product.id);
+            product_matches_search_query(
+                product,
+                &variants,
+                self.store.staged.product_search_tags.get(&product.id),
+                query,
+            )
+        });
+        products
     }
 
     pub(in crate::proxy) fn product_create(
