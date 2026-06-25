@@ -566,42 +566,8 @@ fn metaobject_definition_create_validation_errors(
     for (index, field_definition) in field_definitions.iter().enumerate() {
         let key = resolved_string_field(field_definition, "key").unwrap_or_default();
         let index_string = index.to_string();
-        if metaobject_definition_field_key_is_reserved(&key) {
-            errors.push(metaobject_user_error(
-                vec!["definition", "fieldDefinitions", &index_string],
-                &format!("The name \"{key}\" is reserved for system use"),
-                "RESERVED_NAME",
-                json!(key),
-                Value::Null,
-            ));
-            continue;
-        }
-        if key.trim().is_empty() {
-            push_metaobject_blank_key_errors(
-                &mut errors,
-                vec!["definition", "fieldDefinitions", &index_string],
-                &key,
-            );
-            continue;
-        }
-        if key.chars().count() < 2 {
-            errors.push(metaobject_user_error(
-                vec!["definition", "fieldDefinitions", &index_string],
-                "Key is too short (minimum is 2 characters)",
-                "TOO_SHORT",
-                json!(key),
-                Value::Null,
-            ));
-            continue;
-        }
-        if !metaobject_definition_field_key_chars_valid(&key) {
-            errors.push(metaobject_user_error(
-                vec!["definition", "fieldDefinitions", &index_string],
-                "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
-                "INVALID",
-                json!(key),
-                Value::Null,
-            ));
+        let field_path = ["definition", "fieldDefinitions", &index_string];
+        if push_metaobject_field_key_errors(&mut errors, &field_path, &field_path, &key) {
             continue;
         }
         if !seen_keys.insert(key.clone()) {
@@ -656,30 +622,69 @@ fn metaobject_definition_create_validation_errors(
     errors
 }
 
-fn push_metaobject_blank_key_errors(errors: &mut Vec<Value>, path: Vec<&str>, key: &str) {
-    // Shopify runs presence, length, and format validators independently, so a
-    // blank key surfaces all three errors in that order.
-    errors.push(metaobject_user_error(
-        path.clone(),
-        "Key can't be blank",
-        "BLANK",
-        json!(key),
-        Value::Null,
-    ));
-    errors.push(metaobject_user_error(
-        path.clone(),
-        "Key is too short (minimum is 2 characters)",
-        "TOO_SHORT",
-        json!(key),
-        Value::Null,
-    ));
-    errors.push(metaobject_user_error(
-        path,
-        "Key contains one or more invalid characters.",
-        "INVALID",
-        json!(key),
-        Value::Null,
-    ));
+fn push_metaobject_field_key_errors(
+    errors: &mut Vec<Value>,
+    index_path: &[&str],
+    validation_path: &[&str],
+    key: &str,
+) -> bool {
+    if metaobject_definition_field_key_is_reserved(key) {
+        errors.push(metaobject_user_error(
+            index_path.to_vec(),
+            &format!("The name \"{key}\" is reserved for system use"),
+            "RESERVED_NAME",
+            json!(key),
+            Value::Null,
+        ));
+        return true;
+    }
+    if key.trim().is_empty() {
+        let path = validation_path.to_vec();
+        // Blank keys surface Shopify's presence, length, and format errors in order.
+        errors.push(metaobject_user_error(
+            path.clone(),
+            "Key can't be blank",
+            "BLANK",
+            json!(key),
+            Value::Null,
+        ));
+        errors.push(metaobject_user_error(
+            path.clone(),
+            "Key is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+            json!(key),
+            Value::Null,
+        ));
+        errors.push(metaobject_user_error(
+            path,
+            "Key contains one or more invalid characters.",
+            "INVALID",
+            json!(key),
+            Value::Null,
+        ));
+        return true;
+    }
+    if key.chars().count() < 2 {
+        errors.push(metaobject_user_error(
+            validation_path.to_vec(),
+            "Key is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+            json!(key),
+            Value::Null,
+        ));
+        return true;
+    }
+    if !metaobject_definition_field_key_chars_valid(key) {
+        errors.push(metaobject_user_error(
+            validation_path.to_vec(),
+            "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
+            "INVALID",
+            json!(key),
+            Value::Null,
+        ));
+        return true;
+    }
+    false
 }
 
 fn metaobject_renderable_capability_errors(
@@ -844,42 +849,9 @@ fn metaobject_field_operation_validation(
             let key = resolved_string_field(&create, "key").unwrap_or_default();
             // Presence/length/format validators anchor at the `create` object;
             // the already-taken validator anchors one level deeper at `create.key`.
-            if metaobject_definition_field_key_is_reserved(&key) {
-                errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string],
-                    &format!("The name \"{key}\" is reserved for system use"),
-                    "RESERVED_NAME",
-                    json!(key),
-                    Value::Null,
-                ));
-                continue;
-            }
-            if key.trim().is_empty() {
-                push_metaobject_blank_key_errors(
-                    &mut errors,
-                    vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    &key,
-                );
-                continue;
-            }
-            if key.chars().count() < 2 {
-                errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    "Key is too short (minimum is 2 characters)",
-                    "TOO_SHORT",
-                    json!(key),
-                    Value::Null,
-                ));
-                continue;
-            }
-            if !metaobject_definition_field_key_chars_valid(&key) {
-                errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "create"],
-                    "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
-                    "INVALID",
-                    json!(key),
-                    Value::Null,
-                ));
+            let index_path = ["definition", "fieldDefinitions", &index_string];
+            let create_path = ["definition", "fieldDefinitions", &index_string, "create"];
+            if push_metaobject_field_key_errors(&mut errors, &index_path, &create_path, &key) {
                 continue;
             }
             if !seen_create_keys.insert(key.clone()) {
@@ -1930,6 +1902,16 @@ fn metaobject_user_error(
     metaobject_indexed_user_error(field, message, Some(code), element_key, element_index)
 }
 
+fn metaobject_no_definition_error(path_root: &str, meta_type: &str, code: &str) -> Value {
+    metaobject_user_error(
+        vec![path_root, "type"],
+        &format!("No metaobject definition exists for type \"{meta_type}\""),
+        code,
+        Value::Null,
+        Value::Null,
+    )
+}
+
 fn metaobject_keyed_display_name(
     definition: &Value,
     input_values: &BTreeMap<String, String>,
@@ -2080,13 +2062,14 @@ fn metaobject_required_field_errors_for_upsert(
         .collect()
 }
 
-fn metaobject_record_from_definition(
+fn metaobject_record_from_definition_with_options(
     id: &str,
     handle: &str,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
     display_name: &str,
     publishable_status: &str,
+    updated_at: &str,
 ) -> Value {
     let meta_type = definition["type"].as_str().unwrap_or_default();
     let fields = definition["fieldDefinitions"]
@@ -2115,9 +2098,13 @@ fn metaobject_record_from_definition(
         "handle": handle,
         "type": meta_type,
         "displayName": display_name,
-        "updatedAt": "2026-01-01T00:00:00Z",
+        "updatedAt": updated_at,
         "capabilities": {
-            "publishable": {"status": publishable_status},
+            "publishable": if definition["capabilities"]["publishable"]["enabled"].as_bool().unwrap_or(false) {
+                json!({"status": publishable_status})
+            } else {
+                Value::Null
+            },
             "onlineStore": if definition["capabilities"]["onlineStore"]["enabled"].as_bool().unwrap_or(false) {
                 json!({"templateSuffix": Value::Null})
             } else {
@@ -2127,33 +2114,6 @@ fn metaobject_record_from_definition(
         "fields": fields,
         "titleField": title_field
     })
-}
-
-fn metaobject_record_from_definition_with_options(
-    id: &str,
-    handle: &str,
-    definition: &Value,
-    input_values: &BTreeMap<String, String>,
-    display_name: &str,
-    publishable_status: &str,
-    updated_at: &str,
-) -> Value {
-    let mut record = metaobject_record_from_definition(
-        id,
-        handle,
-        definition,
-        input_values,
-        display_name,
-        publishable_status,
-    );
-    record["updatedAt"] = json!(updated_at);
-    if !definition["capabilities"]["publishable"]["enabled"]
-        .as_bool()
-        .unwrap_or(false)
-    {
-        record["capabilities"]["publishable"] = Value::Null;
-    }
-    record
 }
 
 fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
@@ -2807,12 +2767,10 @@ impl DraftProxy {
             return self.selected_metaobject_payload(
                 &json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["metaobject", "type"],
-                        &format!("No metaobject definition exists for type \"{meta_type}\""),
+                    "userErrors": [metaobject_no_definition_error(
+                        "metaobject",
+                        &meta_type,
                         "UNDEFINED_OBJECT_TYPE",
-                        Value::Null,
-                        Value::Null
                     )]
                 }),
                 selection,
@@ -2973,12 +2931,10 @@ impl DraftProxy {
             return self.selected_metaobject_payload(
                 &json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["metaobject", "type"],
-                        &format!("No metaobject definition exists for type \"{meta_type}\""),
+                    "userErrors": [metaobject_no_definition_error(
+                        "metaobject",
+                        &meta_type,
                         "UNDEFINED_OBJECT_TYPE",
-                        Value::Null,
-                        Value::Null
                     )]
                 }),
                 &field.selection,
@@ -3103,12 +3059,10 @@ impl DraftProxy {
                 return self.selected_metaobject_payload(
                     &json!({
                         "metaobject": null,
-                        "userErrors": [metaobject_user_error(
-                            vec!["handle", "type"],
-                            &format!("No metaobject definition exists for type \"{meta_type}\""),
+                        "userErrors": [metaobject_no_definition_error(
+                            "handle",
+                            &meta_type,
                             "UNDEFINED_OBJECT_TYPE",
-                            Value::Null,
-                            Value::Null
                         )]
                     }),
                     &field.selection,
@@ -3214,12 +3168,10 @@ impl DraftProxy {
             return self.selected_metaobject_payload(
                 &json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["handle", "type"],
-                        &format!("No metaobject definition exists for type \"{meta_type}\""),
+                    "userErrors": [metaobject_no_definition_error(
+                        "handle",
+                        &meta_type,
                         "UNDEFINED_OBJECT_TYPE",
-                        Value::Null,
-                        Value::Null
                     )]
                 }),
                 &field.selection,
@@ -3339,12 +3291,10 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "job": null,
-                        "userErrors": [metaobject_user_error(
-                            vec!["where", "type"],
-                            &format!("No metaobject definition exists for type \"{meta_type}\""),
+                        "userErrors": [metaobject_no_definition_error(
+                            "where",
+                            &meta_type,
                             "RECORD_NOT_FOUND",
-                            Value::Null,
-                            Value::Null
                         )]
                     }),
                     &field.selection,
