@@ -49,6 +49,7 @@ Validation behavior:
 - `validationUpdate` rejects Function rebinding input shape before resolver execution because public `ValidationUpdateInput` does not expose `functionId` or `functionHandle`. Inline literals return Shopify's captured top-level `argumentLiteralsIncompatible` field-not-defined error, while variable-bound input returns top-level `INVALID_VARIABLE`; neither branch produces mutation-scoped `userErrors`.
 - Valid `validationUpdate` input applies the same active-validation cap and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
 - Invalid validation metafields reject the entire mutation before staging with index-scoped userErrors. Downstream `validation`, `validations`, `metafields(...)`, and `metafield(namespace:, key:)` reads expose persisted rows.
+- `Validation` reads expose the captured public Admin 2026-04 field set: `id`, `title`, `enabled`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and HasMetafields selections. Local storage keeps Function identifiers and timestamps for lifecycle modeling, but read selections of `functionId`, `functionHandle`, `createdAt`, `updatedAt`, or input-only `enable` return Shopify-style `undefinedField` errors.
 
 Cart transform behavior:
 
@@ -69,7 +70,8 @@ Fulfillment constraint rule behavior:
 - `fulfillmentConstraintRuleUpdate` updates staged rule `deliveryMethodTypes` and returns the updated rule. Unknown IDs and empty `deliveryMethodTypes` return userErrors without staging a replacement.
 - `fulfillmentConstraintRuleDelete` removes the staged rule and returns `{ success: true, userErrors: [] }`. Unknown IDs return `{ success: false, userErrors: [...] }`; the payload does not use `deletedId`.
 - `fulfillmentConstraintRules` lists staged rules in local insertion order and returns `[]` when no local rules exist. The captured 2026-04 schema exposes no singular `fulfillmentConstraintRule(id:)` query root; direct lookup is available through generic `node(id:)` for staged rule IDs.
-- The local model stores Function metadata on the rule for downstream `FulfillmentConstraintRule.function` projections. It does not execute fulfillment-constraint Functions or model checkout/order-routing runtime decisions.
+- `FulfillmentConstraintRule` reads expose `id`, `function`, `deliveryMethodTypes`, and HasMetafields selections. The local model stores Function identifiers and metadata on the rule for downstream `function` projections, but read selections of `functionId`, `functionHandle`, or `shopifyFunction` return Shopify-style `undefinedField` errors.
+- The local model does not execute fulfillment-constraint Functions or model checkout/order-routing runtime decisions.
 
 Function catalog and guardrails:
 
@@ -105,6 +107,7 @@ Function catalog and guardrails:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-errors.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-output-field-validation.json`
 - `config/parity-specs/functions/functions-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-owner-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-create-guardrails.json`
@@ -122,6 +125,7 @@ Function catalog and guardrails:
 - `config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
 - `config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json`
+- `config/parity-specs/functions/functions-output-field-validation.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
 ### Validation
@@ -131,4 +135,5 @@ Function catalog and guardrails:
 - `corepack pnpm parity -- functions-cart-transform-create-validation`
 - `corepack pnpm parity -- functions-cart-transform-create-metafields`
 - `corepack pnpm parity -- functions-fulfillment-constraint-rule-errors`
+- `corepack pnpm parity -- functions-output-field-validation`
 - `corepack pnpm conformance:check`

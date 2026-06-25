@@ -89,7 +89,10 @@ Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for market-backed
 catalog records. They validate missing contexts, unknown catalog/market/price
 list/publication IDs, duplicate or taken relations where captured, remove-only
-context updates, and delete-detach behavior for linked price lists.
+context updates, and delete-detach behavior for linked price lists. Captured
+Admin API 2026-04 behavior returns `MARKET_NOT_FOUND` at
+`["input", "context", "marketIds", <index>]` when `catalogCreate` references an
+unknown context market ID.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured

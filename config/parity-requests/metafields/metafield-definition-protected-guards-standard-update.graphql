@@ -1,0 +1,21 @@
+mutation MetafieldDefinitionProtectedGuardsStandardUpdate($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      id
+      name
+      description
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}

@@ -25,6 +25,18 @@ fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy
     );
 }
 
+fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    let staged_catalogs = &state["stagedState"]["catalogs"];
+    assert!(
+        staged_catalogs.is_null()
+            || staged_catalogs
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty),
+        "expected no staged catalogs, got {staged_catalogs:?}"
+    );
+}
+
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -2021,6 +2033,51 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
 }
 
 #[test]
+fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let state_before = proxy.get_state_snapshot();
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogCreateUnknownMarket($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "EU Catalog",
+                "status": "ACTIVE",
+                "context": {
+                    "driverType": "MARKET",
+                    "marketIds": ["gid://shopify/Market/999999999"]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["catalogCreate"],
+        json!({
+            "catalog": null,
+            "userErrors": [{
+                "__typename": "CatalogUserError",
+                "field": ["input", "context", "marketIds", "0"],
+                "message": "Market not found.",
+                "code": "MARKET_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_before);
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_no_staged_catalogs(&proxy);
+}
+
+#[test]
 fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
     // required/invalid status, required context/market IDs, unsupported country contexts,
@@ -2050,7 +2107,7 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds", "0"], "message": "Market does not exist", "code": "INVALID"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds", "0"], "message": "Market not found.", "code": "MARKET_NOT_FOUND"}),
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": []}}),

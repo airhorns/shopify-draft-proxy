@@ -1,0 +1,20 @@
+mutation FunctionOutputFieldValidationCreate($validation: ValidationCreateInput!) {
+  validationCreate(validation: $validation) {
+    validation {
+      id
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        id
+        handle
+        apiType
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
