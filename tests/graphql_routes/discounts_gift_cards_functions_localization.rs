@@ -1778,7 +1778,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         })
     );
 
-    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enable blockOnFailure functionHandle shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enable blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
+    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enabled blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
     let read_response = proxy.process_request(json_graphql_request(
         read,
         json!({ "validationId": validation_id }),
@@ -1858,6 +1858,134 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
 }
 
 #[test]
+fn functions_validation_reads_reject_fabricated_output_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationForOutputFieldValidation {
+          validationCreate(validation: { functionHandle: "validation-local", title: "Local validation", enable: true, blockOnFailure: true }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+    let validation_id = create.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        query InvalidValidationOutputFields($id: ID!) {
+          validation(id: $id) {
+            functionId
+            functionHandle
+            createdAt
+            updatedAt
+            enable
+          }
+          validations(first: 5) {
+            nodes {
+              functionId
+              functionHandle
+              createdAt
+              updatedAt
+              enable
+            }
+          }
+          node(id: $id) {
+            ... on Validation {
+              functionId
+              functionHandle
+              createdAt
+              updatedAt
+              enable
+            }
+          }
+        }
+        "#,
+        json!({ "id": validation_id }),
+    ));
+    assert_eq!(invalid.status, 200);
+    let errors = invalid.body["errors"].as_array().unwrap();
+    for field_name in [
+        "functionId",
+        "functionHandle",
+        "createdAt",
+        "updatedAt",
+        "enable",
+    ] {
+        assert!(
+            errors.iter().any(|error| {
+                error["message"]
+                    == format!("Field '{field_name}' doesn't exist on type 'Validation'")
+                    && error["extensions"]["typeName"] == "Validation"
+                    && error["extensions"]["fieldName"] == field_name
+            }),
+            "missing undefined-field error for Validation.{field_name}: {errors:#?}"
+        );
+    }
+    assert!(invalid.body.get("data").is_none());
+
+    let valid = proxy.process_request(json_graphql_request(
+        r#"
+        query ValidValidationOutputFields($id: ID!) {
+          validation(id: $id) {
+            id
+            title
+            enabled
+            blockOnFailure
+            shopifyFunction { id }
+          }
+          validations(first: 5) {
+            nodes {
+              id
+              title
+              enabled
+              blockOnFailure
+              shopifyFunction { id }
+            }
+          }
+          node(id: $id) {
+            ... on Validation {
+              id
+              title
+              enabled
+              blockOnFailure
+              shopifyFunction { id }
+            }
+          }
+        }
+        "#,
+        json!({ "id": validation_id }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert!(valid.body.get("errors").is_none());
+    assert_eq!(
+        valid.body["data"]["validation"],
+        json!({
+            "id": "gid://shopify/Validation/2",
+            "title": "Local validation",
+            "enabled": true,
+            "blockOnFailure": true,
+            "shopifyFunction": { "id": "gid://shopify/ShopifyFunction/validation-local" }
+        })
+    );
+    assert_eq!(
+        valid.body["data"]["validations"]["nodes"][0],
+        valid.body["data"]["validation"]
+    );
+    assert_eq!(valid.body["data"]["node"], valid.body["data"]["validation"]);
+}
+
+#[test]
 fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
 
@@ -1917,7 +2045,7 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ReadOwnedFunctionMetadata($validationId: ID!) {
-          validation(id: $validationId) { id title enable blockOnFailure functionId functionHandle shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } }
+          validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } }
           validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType appKey app { title apiKey } } }
           cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") { id title handle apiType appKey app { __typename title apiKey } }
         }
@@ -2061,14 +2189,14 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
     );
 
     let read = proxy.process_request(json_graphql_request(
-        r#"query ValidationAfterRejectedMetafield($id: ID!) { validation(id: $id) { title enable blockOnFailure metafields(first: 5) { nodes { namespace key value } } } }"#,
+        r#"query ValidationAfterRejectedMetafield($id: ID!) { validation(id: $id) { title enabled blockOnFailure metafields(first: 5) { nodes { namespace key value } } } }"#,
         json!({ "id": "gid://shopify/Validation/2" }),
     ));
     assert_eq!(
         read.body["data"]["validation"],
         json!({
             "title": "Renamed",
-            "enable": false,
+            "enabled": false,
             "blockOnFailure": false,
             "metafields": { "nodes": [] }
         })
@@ -2358,6 +2486,112 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
             .len(),
         3
     );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_reads_reject_fabricated_output_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageFulfillmentConstraintRuleForOutputFieldValidation {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let rule_id = create.body["data"]["fulfillmentConstraintRuleCreate"]
+        ["fulfillmentConstraintRule"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        query InvalidFulfillmentConstraintRuleOutputFields($id: ID!) {
+          fulfillmentConstraintRules {
+            functionId
+            functionHandle
+            shopifyFunction { id }
+          }
+          node(id: $id) {
+            ... on FulfillmentConstraintRule {
+              functionId
+              functionHandle
+              shopifyFunction { id }
+            }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+    assert_eq!(invalid.status, 200);
+    let errors = invalid.body["errors"].as_array().unwrap();
+    for field_name in ["functionId", "functionHandle", "shopifyFunction"] {
+        assert!(
+            errors.iter().any(|error| {
+                error["message"]
+                    == format!(
+                        "Field '{field_name}' doesn't exist on type 'FulfillmentConstraintRule'"
+                    )
+                    && error["extensions"]["typeName"] == "FulfillmentConstraintRule"
+                    && error["extensions"]["fieldName"] == field_name
+            }),
+            "missing undefined-field error for FulfillmentConstraintRule.{field_name}: {errors:#?}"
+        );
+    }
+    assert!(invalid.body.get("data").is_none());
+
+    let valid = proxy.process_request(json_graphql_request(
+        r#"
+        query ValidFulfillmentConstraintRuleOutputFields($id: ID!) {
+          direct: fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { id handle apiType }
+          }
+          connection: fulfillmentConstraintRules {
+            nodes {
+              id
+              deliveryMethodTypes
+              function { id handle apiType }
+            }
+          }
+          node(id: $id) {
+            ... on FulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType }
+            }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert!(valid.body.get("errors").is_none());
+    let expected_rule = json!({
+        "id": "gid://shopify/FulfillmentConstraintRule/1",
+        "deliveryMethodTypes": ["SHIPPING"],
+        "function": {
+            "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
+            "handle": "fulfillment-constraint-local",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+        }
+    });
+    assert_eq!(valid.body["data"]["direct"][0], expected_rule);
+    assert_eq!(valid.body["data"]["connection"]["nodes"][0], expected_rule);
+    assert_eq!(valid.body["data"]["node"], expected_rule);
 }
 
 #[test]

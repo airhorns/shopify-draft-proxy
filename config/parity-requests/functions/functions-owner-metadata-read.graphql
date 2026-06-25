@@ -2,10 +2,8 @@ query ReadOwnedFunctionMetadata($validationId: ID!) {
   validation(id: $validationId) {
     id
     title
-    enable
+    enabled
     blockOnFailure
-    functionId
-    functionHandle
     shopifyFunction {
       id
       title
