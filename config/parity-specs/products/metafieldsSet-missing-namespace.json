@@ -24,6 +24,16 @@
         "path": "$.product.metafields.pageInfo.endCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[3].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       }
     ],
     "targets": [

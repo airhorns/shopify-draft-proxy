@@ -165,10 +165,7 @@ pub fn operation_capability(
 fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     let mut object = Map::new();
     object.insert("name".to_string(), json!(entry.name));
-    object.insert(
-        "type".to_string(),
-        json!(operation_type_registry_name(entry.operation_type)),
-    );
+    object.insert("type".to_string(), json!(entry.operation_type.keyword()));
     object.insert("domain".to_string(), json!(entry.domain.registry_name()));
     object.insert(
         "execution".to_string(),
@@ -188,13 +185,5 @@ fn nonempty(value: &str) -> Option<&str> {
         None
     } else {
         Some(value)
-    }
-}
-
-fn operation_type_registry_name(operation_type: OperationType) -> &'static str {
-    match operation_type {
-        OperationType::Query => "query",
-        OperationType::Mutation => "mutation",
-        OperationType::Subscription => "subscription",
     }
 }
