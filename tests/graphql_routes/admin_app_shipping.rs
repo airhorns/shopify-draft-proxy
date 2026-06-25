@@ -2,6 +2,23 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 
+const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
+
+fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) -> String {
+    let fixed_bytes = "#\n".len() + body.len();
+    assert!(
+        target_bytes >= fixed_bytes,
+        "target must fit the document body"
+    );
+    let padding_bytes = target_bytes - fixed_bytes;
+    assert_eq!(
+        padding_bytes % pad.len(),
+        0,
+        "padding must align with pad byte length"
+    );
+    format!("#{}\n{}", pad.repeat(padding_bytes / pad.len()), body)
+}
+
 #[test]
 fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     let mut proxy = snapshot_proxy();
@@ -487,6 +504,130 @@ fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
 }
 
 #[test]
+fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let oversized_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "a",
+    );
+    assert_eq!(oversized_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OversizedBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": oversized_query }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "Query is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized bulk query must not append a mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentQuery {
+          currentBulkOperation { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a query bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_query_allows_65535_storage_bytes_and_counts_multibyte_bytes() {
+    let boundary_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT,
+        "a",
+    );
+    assert_eq!(boundary_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
+    let mut boundary_proxy = snapshot_proxy();
+    let boundary = boundary_proxy.process_request(json_graphql_request(
+        r#"
+        mutation BoundaryBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": boundary_query }),
+    ));
+    assert_eq!(boundary.status, 200);
+    assert_eq!(
+        boundary.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        boundary.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+
+    let multibyte_query = padded_bulk_document_for_bytes(
+        "{ products { edges { node { id } } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "é",
+    );
+    assert!(
+        multibyte_query.chars().count() < multibyte_query.len(),
+        "fixture must contain multibyte padding"
+    );
+    assert_eq!(multibyte_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
+    let mut multibyte_proxy = snapshot_proxy();
+    let multibyte = multibyte_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MultibyteBulkQuery($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": multibyte_query }),
+    ));
+    assert_eq!(multibyte.status, 200);
+    assert_eq!(
+        multibyte.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        multibyte.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "Query is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID"
+        }])
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
     let id = "gid://shopify/BulkOperation/7689772990770";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -892,6 +1033,103 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
         current.body["data"]["currentBulkOperation"],
         Value::Null,
         "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let oversized_mutation = padded_bulk_document_for_bytes(
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1,
+        "a",
+    );
+    assert_eq!(
+        oversized_mutation.len(),
+        BULK_OPERATION_STORAGE_BYTE_LIMIT + 1
+    );
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": oversized_mutation, "path": "valid" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["query"],
+            "message": "is too large (65536 bytes; maximum is 65535 bytes)",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized bulk mutation must not append a mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
+    let mutation = padded_bulk_document_for_bytes(
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        BULK_OPERATION_STORAGE_BYTE_LIMIT,
+        "a",
+    );
+    assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": "valid" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([])
     );
 }
 
