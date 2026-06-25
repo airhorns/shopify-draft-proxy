@@ -384,11 +384,7 @@ impl DraftProxy {
                 "data": {
                     response_key: {
                         "product": null,
-                        "userErrors": [{
-                            "field": ["product"],
-                            "message": "Product input is required",
-                            "code": "REQUIRED"
-                        }]
+                        "userErrors": [user_error(["product"], "Product input is required", Some("REQUIRED"))]
                     }
                 }
             })));
@@ -413,10 +409,11 @@ impl DraftProxy {
         if input.contains_key("id") {
             return MutationOutcome::response(product_create_user_errors_response(
                 query,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "id cannot be specified during creation"
-                })],
+                vec![user_error_omit_code(
+                    ["input"],
+                    "id cannot be specified during creation",
+                    None,
+                )],
             ));
         }
 
@@ -443,10 +440,11 @@ impl DraftProxy {
             if handle.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![json!({
-                        "field": ["handle"],
-                        "message": "Handle is too long (maximum is 255 characters)"
-                    })],
+                    vec![user_error_omit_code(
+                        ["handle"],
+                        "Handle is too long (maximum is 255 characters)",
+                        None,
+                    )],
                 ));
             }
         }
@@ -454,10 +452,11 @@ impl DraftProxy {
             if vendor.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![json!({
-                        "field": ["vendor"],
-                        "message": "Vendor is too long (maximum is 255 characters)"
-                    })],
+                    vec![user_error_omit_code(
+                        ["vendor"],
+                        "Vendor is too long (maximum is 255 characters)",
+                        None,
+                    )],
                 ));
             }
         }
@@ -466,14 +465,16 @@ impl DraftProxy {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![
-                        json!({
-                            "field": ["productType"],
-                            "message": "Product type is too long (maximum is 255 characters)"
-                        }),
-                        json!({
-                            "field": ["customProductType"],
-                            "message": "Custom product type is too long (maximum is 255 characters)"
-                        }),
+                        user_error_omit_code(
+                            ["productType"],
+                            "Product type is too long (maximum is 255 characters)",
+                            None,
+                        ),
+                        user_error_omit_code(
+                            ["customProductType"],
+                            "Custom product type is too long (maximum is 255 characters)",
+                            None,
+                        ),
                     ],
                 ));
             }
@@ -743,11 +744,7 @@ impl DraftProxy {
                 "data": {
                     "productUpdate": {
                         "product": null,
-                        "userErrors": [{
-                            "field": ["product"],
-                            "message": "Product input is required",
-                            "code": "REQUIRED"
-                        }]
+                        "userErrors": [user_error(["product"], "Product input is required", Some("REQUIRED"))]
                     }
                 }
             })));
@@ -816,7 +813,7 @@ impl DraftProxy {
                 let error_selection =
                     selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
                 let user_error = selected_json(
-                    &json!({"field": ["tags"], "message": "Product tags is invalid"}),
+                    &user_error_omit_code(["tags"], "Product tags is invalid", None),
                     &error_selection,
                 );
                 return MutationOutcome::response(ok_json(json!({
@@ -909,7 +906,7 @@ impl DraftProxy {
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let user_error = selected_json(
-            &json!({"field": [field], "message": message}),
+            &user_error_omit_code(json!([field]), message, None),
             &error_selection,
         );
         MutationOutcome::response(ok_json(json!({
@@ -1278,10 +1275,11 @@ impl DraftProxy {
                 "productVariantCreate",
                 None,
                 None,
-                vec![json!({
-                    "field": ["productId"],
-                    "message": "Product does not exist"
-                })],
+                vec![user_error_omit_code(
+                    ["productId"],
+                    "Product does not exist",
+                    None,
+                )],
             ));
         };
         if let Some(response) =
@@ -1348,10 +1346,11 @@ impl DraftProxy {
                 "productVariantUpdate",
                 None,
                 None,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Product variant does not exist"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Product variant does not exist",
+                    None,
+                )],
             ));
         };
         if let Some(response) =
@@ -1390,10 +1389,11 @@ impl DraftProxy {
             return MutationOutcome::response(self.product_variant_delete_response(
                 query,
                 None,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Product variant does not exist"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Product variant does not exist",
+                    None,
+                )],
             ));
         };
         self.store.delete_product_variant(&id);
@@ -2258,13 +2258,7 @@ impl DraftProxy {
     }
 
     fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-        json!({
-            "field": field,
-            "message": message,
-            "code": code
-                .map(|code| Value::String(code.to_string()))
-                .unwrap_or(Value::Null),
-        })
+        user_error(field, message, code)
     }
 
     fn product_variant_bulk_inventory_quantities_limit_user_error(
@@ -2686,7 +2680,7 @@ impl DraftProxy {
             let error_selection =
                 selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
             let error = selected_json(
-                &json!({"field": ["productId"], "message": "Product does not exist"}),
+                &user_error_omit_code(["productId"], "Product does not exist", None),
                 &error_selection,
             );
             return MutationOutcome::response(ok_json(json!({
@@ -3134,56 +3128,65 @@ impl DraftProxy {
             let field_index = target.index.to_string();
             if let Some(channel_id) = target.channel_id.as_deref() {
                 if channel_id == "gid://shopify/Channel/999999999999" {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Channel does not exist or is not publishable"
-                    }));
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "Channel does not exist or is not publishable",
+                        None,
+                    ));
                     continue;
                 }
             }
             match target.target_id() {
-                Some("") | None => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                })),
-                Some("gid://shopify/Publication/999999999999") => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                })),
+                Some("") | None => errors.push(user_error_omit_code(
+                    json!(["productPublications", field_index, "publicationId"]),
+                    "PublicationId cannot be empty",
+                    None,
+                )),
+                Some("gid://shopify/Publication/999999999999") => {
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "Publication does not exist or is not publishable",
+                        None,
+                    ))
+                }
                 Some(id)
                     if self.store.has_known_publication_catalog()
                         && !self.store.has_publication_id(id) =>
                 {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Publication does not exist or is not publishable"
-                    }));
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "Publication does not exist or is not publishable",
+                        None,
+                    ));
                 }
                 Some(id) if !seen.insert(id.to_string()) => {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "The same publication was specified more than once"
-                    }));
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "The same publication was specified more than once",
+                        None,
+                    ));
                 }
                 Some(id)
                     if root_field == "productPublish"
                         && enforce_known_publication_state
                         && product_is_published_on_publication(product, id) =>
                 {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is already published on this publication"
-                    }));
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "Product is already published on this publication",
+                        None,
+                    ));
                 }
                 Some(id)
                     if root_field == "productUnpublish"
                         && enforce_known_publication_state
                         && !product_is_published_on_publication(product, id) =>
                 {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is not published on this publication"
-                    }));
+                    errors.push(user_error_omit_code(
+                        json!(["productPublications", field_index, "publicationId"]),
+                        "Product is not published on this publication",
+                        None,
+                    ));
                 }
                 Some(_) => {}
             }
@@ -3193,10 +3196,11 @@ impl DraftProxy {
                 .map(product_publication_publish_date_is_before_1970)
                 .unwrap_or(false)
             {
-                errors.push(json!({
-                    "field": ["productPublications", field_index, "publishDate"],
-                    "message": "Publish date must be a date after the year 1969"
-                }));
+                errors.push(user_error_omit_code(
+                    json!(["productPublications", field_index, "publishDate"]),
+                    "Publish date must be a date after the year 1969",
+                    None,
+                ));
             }
         }
         errors

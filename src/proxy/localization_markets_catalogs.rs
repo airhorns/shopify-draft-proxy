@@ -233,14 +233,10 @@ impl DraftProxy {
         {
             json!({
                 "shopLocale": null,
-                "userErrors": [{
-                    "field": null,
-                    "message": format!(
+                "userErrors": [user_error(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
-                    ),
-                    "code": "SHOP_LOCALE_LIMIT_REACHED"
-                }]
+                    ), Some("SHOP_LOCALE_LIMIT_REACHED"))]
             })
         } else {
             let name = self
@@ -2742,11 +2738,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": format!("Resource {resource_id} does not exist"),
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
                 }),
                 &field.selection,
             );
@@ -2763,11 +2755,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": "Too many keys for resource - maximum 100 per mutation",
-                        "code": "TOO_MANY_KEYS_FOR_RESOURCE"
-                    }]
+                    "userErrors": [user_error(["resourceId"], "Too many keys for resource - maximum 100 per mutation", Some("TOO_MANY_KEYS_FOR_RESOURCE"))]
                 }),
                 &field.selection,
             );
@@ -2781,19 +2769,19 @@ impl DraftProxy {
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
             if locale == primary_locale {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "locale"],
-                    "message": "Locale cannot be the same as the shop's primary locale",
-                    "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "locale"]),
+                    "Locale cannot be the same as the shop's primary locale",
+                    Some("INVALID_LOCALE_FOR_SHOP"),
+                ));
                 continue;
             }
             if !self.localization_shop_locale_added(&locale) {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "locale"],
-                    "message": "Locale is not a valid locale for the shop",
-                    "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "locale"]),
+                    "Locale is not a valid locale for the shop",
+                    Some("INVALID_LOCALE_FOR_SHOP"),
+                ));
                 continue;
             }
             let market_id = resolved_object_string(translation_input, "marketId");
@@ -2804,30 +2792,30 @@ impl DraftProxy {
             // "market doesn't exist" rejection is keyed on here.
             if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
                 has_null_translation_error = true;
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "marketId"],
-                    "message": "The market corresponding to the `marketId` argument doesn't exist",
-                    "code": "MARKET_DOES_NOT_EXIST"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "marketId"]),
+                    "The market corresponding to the `marketId` argument doesn't exist",
+                    Some("MARKET_DOES_NOT_EXIST"),
+                ));
                 continue;
             }
             if resolved_object_string(translation_input, "value").as_deref() == Some("") {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "value"],
-                    "message": "Value can't be blank",
-                    "code": "FAILS_RESOURCE_VALIDATION"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "value"]),
+                    "Value can't be blank",
+                    Some("FAILS_RESOURCE_VALIDATION"),
+                ));
                 continue;
             }
             let key = resolved_object_string(translation_input, "key").unwrap_or_default();
             if self.localization_resource_has_modeled_translation_keys(&resource_id)
                 && !self.localization_translation_key_is_valid(&resource_id, &key)
             {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "key"],
-                    "message": format!("Key {key} is not a valid translatable field"),
-                    "code": "INVALID_KEY_FOR_MODEL"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "key"]),
+                    &format!("Key {key} is not a valid translatable field"),
+                    Some("INVALID_KEY_FOR_MODEL"),
+                ));
                 continue;
             }
             if let Some(supplied_digest) =
@@ -2840,21 +2828,21 @@ impl DraftProxy {
                             localization_content_digest(&value) != supplied_digest
                         });
                 if digest_invalid {
-                    user_errors.push(json!({
-                        "field": ["translations", field_index, "translatableContentDigest"],
-                        "message": "Translatable content hash is invalid",
-                        "code": "INVALID_TRANSLATABLE_CONTENT"
-                    }));
+                    user_errors.push(user_error(
+                        json!(["translations", field_index, "translatableContentDigest"]),
+                        "Translatable content hash is invalid",
+                        Some("INVALID_TRANSLATABLE_CONTENT"),
+                    ));
                     continue;
                 }
             }
             if resource_id.contains("PackingSlipTemplate") {
                 has_null_translation_error = true;
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "key"],
-                    "message": "Key body cannot be customized for a market; it can only be translated.",
-                    "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
-                }));
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "key"]),
+                    "Key body cannot be customized for a market; it can only be translated.",
+                    Some("RESOURCE_NOT_MARKET_CUSTOMIZABLE"),
+                ));
                 continue;
             }
 
@@ -2864,11 +2852,7 @@ impl DraftProxy {
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
-                    user_errors.push(json!({
-                        "field": ["translations", field_index, "value"],
-                        "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
-                        "code": "FAILS_RESOURCE_VALIDATION"
-                    }));
+                    user_errors.push(user_error(json!(["translations", field_index, "value"]), "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]", Some("FAILS_RESOURCE_VALIDATION")));
                     continue;
                 }
                 translation["value"] = json!(normalize_localized_handle(original_value));
@@ -2912,11 +2896,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "translations": null,
-                    "userErrors": [{
-                        "field": ["resourceId"],
-                        "message": format!("Resource {resource_id} does not exist"),
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
                 }),
                 &field.selection,
             );

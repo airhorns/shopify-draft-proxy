@@ -60,19 +60,19 @@ impl DraftProxy {
         let (app, user_errors) = match requested_id.as_deref() {
             Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "App is not installed on this shop.",
-                    "code": "APP_NOT_INSTALLED"
-                })],
+                vec![user_error(
+                    ["id"],
+                    "App is not installed on this shop.",
+                    Some("APP_NOT_INSTALLED"),
+                )],
             ),
             Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "The app cannot be found.",
-                    "code": "APP_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["id"],
+                    "The app cannot be found.",
+                    Some("APP_NOT_FOUND"),
+                )],
             ),
             _ => {
                 self.store.staged.app_uninstalled = true;
@@ -119,27 +119,19 @@ impl DraftProxy {
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["name"], "Name can't be blank", None));
         }
         if !arguments.contains_key("returnUrl") {
-            user_errors.push(json!({
-                "field": ["returnUrl"],
-                "message": "Return url can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["returnUrl"], "Return url can't be blank", None));
         }
         if !arguments.contains_key("lineItems")
             || matches!(arguments.get("lineItems"), Some(ResolvedValue::List(items)) if items.is_empty())
         {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "At least one plan must be selected",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["lineItems"],
+                "At least one plan must be selected",
+                None,
+            ));
         }
         let trial_days = arguments
             .get("trialDays")
@@ -157,11 +149,11 @@ impl DraftProxy {
             .unwrap_or(false);
         let line_items = app_subscription_line_items_from_arguments(&arguments);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
-            user_errors.push(json!({
-                "field": ["lineItems"],
-                "message": "All pricing plans must use the same currency.",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["lineItems"],
+                "All pricing plans must use the same currency.",
+                None,
+            ));
         }
         if !user_errors.is_empty() {
             return ok_json(json!({
@@ -223,10 +215,11 @@ impl DraftProxy {
         let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
             Some(record) if record["status"] == "CANCELLED" => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Cannot transition status via :cancel from :cancelled"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Cannot transition status via :cancel from :cancelled",
+                    None,
+                )],
             ),
             Some(record) => {
                 if let Value::Object(fields) = record {
@@ -244,10 +237,11 @@ impl DraftProxy {
             }
             None => (
                 Value::Null,
-                vec![json!({
-                    "field": ["id"],
-                    "message": "Couldn't find RecurringApplicationCharge"
-                })],
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Couldn't find RecurringApplicationCharge",
+                    None,
+                )],
             ),
         };
 
@@ -281,45 +275,42 @@ impl DraftProxy {
         let (subscription, user_errors) = if days <= 0 {
             (
                 Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be greater than 0",
-                    "code": null
-                })],
+                vec![user_error(["days"], "Days must be greater than 0", None)],
             )
         } else if days > 1000 {
             (
                 Value::Null,
-                vec![json!({
-                    "field": ["days"],
-                    "message": "Days must be less than or equal to 1000",
-                    "code": null
-                })],
+                vec![user_error(
+                    ["days"],
+                    "Days must be less than or equal to 1000",
+                    None,
+                )],
             )
         } else {
             match self.store.staged.app_subscriptions.get_mut(&id) {
                 None => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The app subscription wasn't found.",
-                        "code": "SUBSCRIPTION_NOT_FOUND"
-                    })],
+                    vec![user_error(
+                        ["id"],
+                        "The app subscription wasn't found.",
+                        Some("SUBSCRIPTION_NOT_FOUND"),
+                    )],
                 ),
                 Some(record) if record["status"] != "ACTIVE" => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended on inactive app subscriptions.",
-                        "code": "SUBSCRIPTION_NOT_ACTIVE"
-                    })],
+                    vec![user_error(
+                        ["id"],
+                        "The trial can't be extended on inactive app subscriptions.",
+                        Some("SUBSCRIPTION_NOT_ACTIVE"),
+                    )],
                 ),
                 Some(record) if !app_subscription_trial_is_active(record) => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended after expiration."
-                    })],
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "The trial can't be extended after expiration.",
+                        None,
+                    )],
                 ),
                 Some(record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
@@ -375,10 +366,11 @@ impl DraftProxy {
                             Value::Null,
                             &root.selection,
                             &subscription_selection,
-                            vec![json!({
-                                "field": ["cappedAmount"],
-                                "message": "Capped amount is required"
-                            })],
+                            vec![user_error_omit_code(
+                                ["cappedAmount"],
+                                "Capped amount is required",
+                                None,
+                            )],
                         ),
                     );
                     continue;
@@ -422,10 +414,11 @@ impl DraftProxy {
                     if pricing["__typename"] != "AppUsagePricing" {
                         (
                             Value::Null,
-                            vec![json!({
-                                "field": null,
-                                "message": "Only variable subscriptions can be updated."
-                            })],
+                            vec![user_error_omit_code(
+                                Value::Null,
+                                "Only variable subscriptions can be updated.",
+                                None,
+                            )],
                         )
                     } else {
                         let existing_currency = pricing["cappedAmount"]["currencyCode"]
@@ -440,18 +433,16 @@ impl DraftProxy {
                         if requested_currency != existing_currency {
                             (
                                 Value::Null,
-                                vec![json!({
-                                    "field": null,
-                                    "message": format!("Currency code must be {existing_currency}")
-                                })],
+                                vec![user_error_omit_code(
+                                    Value::Null,
+                                    &format!("Currency code must be {existing_currency}"),
+                                    None,
+                                )],
                             )
                         } else if requested_amount_number <= existing_amount {
                             (
                                 Value::Null,
-                                vec![json!({
-                                    "field": ["cappedAmount"],
-                                    "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit."
-                                })],
+                                vec![user_error_omit_code(["cappedAmount"], "Spending limit can only be increased. Please contact the app developer to decrease spending limit.", None)],
                             )
                         } else {
                             let subscription = if require_approval {
@@ -492,10 +483,7 @@ impl DraftProxy {
                 }
                 _ => (
                     Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "Invalid id"
-                    })],
+                    vec![user_error_omit_code(["id"], "Invalid id", None)],
                 ),
             };
 
@@ -572,23 +560,19 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         let mut should_record_success = false;
         if idempotency_key.len() > 255 {
-            user_errors.push(json!({
-                "field": ["idempotencyKey"],
-                "message": "Idempotency key exceeds the maximum length.",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["idempotencyKey"],
+                "Idempotency key exceeds the maximum length.",
+                None,
+            ));
         } else if description.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["description"],
-                "message": "Description can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                ["description"],
+                "Description can't be blank",
+                None,
+            ));
         } else if shopify_gid_resource_type(&line_item_id) != Some("AppSubscriptionLineItem") {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
+            user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
         } else if let Some((subscription_id, line_item_index)) =
             self.find_staged_app_subscription_line_item(&line_item_id)
         {
@@ -632,10 +616,11 @@ impl DraftProxy {
             } else if currency != existing_currency
                 || current_balance + requested_amount > capped_amount
             {
-                user_errors.push(json!({
-                    "field": null,
-                    "message": "Total price exceeds balance remaining"
-                }));
+                user_errors.push(user_error_omit_code(
+                    Value::Null,
+                    "Total price exceeds balance remaining",
+                    None,
+                ));
             } else {
                 let new_balance = if current_balance == 0.0 {
                     amount.clone()
@@ -664,11 +649,7 @@ impl DraftProxy {
                 should_record_success = true;
             }
         } else {
-            user_errors.push(json!({
-                "field": ["subscriptionLineItemId"],
-                "message": "Invalid id",
-                "code": null
-            }));
+            user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
         }
 
         if should_record_success {
@@ -718,32 +699,32 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         if scopes.is_empty() {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The access scope can't be empty.",
-                "code": "EMPTY_ACCESS_SCOPE"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The access scope can't be empty.",
+                Some("EMPTY_ACCESS_SCOPE"),
+            ));
         } else if expires_in <= 0 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The expires_in value must be greater than 0.",
-                "code": "NEGATIVE_EXPIRES_IN"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The expires_in value must be greater than 0.",
+                Some("NEGATIVE_EXPIRES_IN"),
+            ));
         } else if delegate_expires_after_parent(request, expires_in) {
-            user_errors.push(json!({
-                "field": null,
-                "message": "The delegate token can't expire after the parent token.",
-                "code": "EXPIRES_AFTER_PARENT"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "The delegate token can't expire after the parent token.",
+                Some("EXPIRES_AFTER_PARENT"),
+            ));
         } else if let Some(scope) = scopes
             .iter()
             .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
         {
-            user_errors.push(json!({
-                "field": null,
-                "message": format!("The access scope is invalid: {scope}"),
-                "code": "UNKNOWN_SCOPES"
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                &format!("The access scope is invalid: {scope}"),
+                Some("UNKNOWN_SCOPES"),
+            ));
         }
 
         if !user_errors.is_empty() {
@@ -900,28 +881,28 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         if app_revoke_access_scopes_missing_source_app(request) {
-            user_errors.push(json!({
-                "field": ["id"],
-                "message": "No app found on the access token.",
-                "code": "MISSING_SOURCE_APP"
-            }));
+            user_errors.push(user_error(
+                ["id"],
+                "No app found on the access token.",
+                Some("MISSING_SOURCE_APP"),
+            ));
         } else {
             if scopes.iter().any(|scope| scope == "read_products") {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "Scopes that are declared as required cannot be revoked.",
-                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-                }));
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "Scopes that are declared as required cannot be revoked.",
+                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
+                ));
             }
             if scopes
                 .iter()
                 .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
             {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "The requested list of scopes to revoke includes invalid handles.",
-                    "code": "UNKNOWN_SCOPES"
-                }));
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "The requested list of scopes to revoke includes invalid handles.",
+                    Some("UNKNOWN_SCOPES"),
+                ));
             }
         }
 
@@ -1001,23 +982,15 @@ impl DraftProxy {
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
-            user_errors.push(json!({
-                "field": ["name"],
-                "message": "Name can't be blank",
-                "code": null
-            }));
+            user_errors.push(user_error(["name"], "Name can't be blank", None));
         } else if amount.parse::<f64>().unwrap_or(0.0) < 0.50 {
-            user_errors.push(json!({
-                "field": null,
-                "message": "Validation failed: Price must be greater than or equal to 0.5",
-                "code": null
-            }));
+            user_errors.push(user_error(
+                Value::Null,
+                "Validation failed: Price must be greater than or equal to 0.5",
+                None,
+            ));
         } else if currency_code != "USD" {
-            user_errors.push(json!({
-                "field": ["price"],
-                "message": "Currency code must be USD",
-                "code": null
-            }));
+            user_errors.push(user_error(["price"], "Currency code must be USD", None));
         }
 
         if !user_errors.is_empty() {

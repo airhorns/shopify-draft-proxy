@@ -786,12 +786,12 @@ impl DraftProxy {
         let input = discount_input(field, input_arg);
         let existing_record = self.discount_record(&id).cloned();
         let user_errors = match existing_record.as_ref() {
-            None => vec![json!({
-                "field": ["id"],
-                "message": "Discount does not exist",
-                "code": Value::Null,
-                "extraInfo": Value::Null
-            })],
+            None => vec![user_error_with_extra_info(
+                ["id"],
+                "Discount does not exist",
+                None,
+                Value::Null,
+            )],
             Some(existing) => {
                 // A "bulk" code discount (one carrying more than one redeem code,
                 // typically populated via discountRedeemCodeBulkAdd) cannot have its
@@ -807,12 +807,12 @@ impl DraftProxy {
                     .map(|input| resolved_string_path(input, &["code"]).is_some())
                     .unwrap_or(false);
                 if is_bulk && changes_code {
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "Cannot update the code of a bulk discount.",
-                        "code": Value::Null,
-                        "extraInfo": Value::Null
-                    })]
+                    vec![user_error_with_extra_info(
+                        ["id"],
+                        "Cannot update the code of a bulk discount.",
+                        None,
+                        Value::Null,
+                    )]
                 } else {
                     let mut errors =
                         discount_input_user_errors(input.as_ref(), input_arg, typename, false);
@@ -997,11 +997,11 @@ impl DraftProxy {
                     return MutationFieldOutcome::unlogged(discount_payload_for_root(
                         &field.name,
                         Value::Null,
-                        vec![json!({
-                            "field": ["base"],
-                            "message": "Discount could not be activated.",
-                            "code": "INTERNAL_ERROR"
-                        })],
+                        vec![user_error(
+                            ["base"],
+                            "Discount could not be activated.",
+                            Some("INTERNAL_ERROR"),
+                        )],
                     ));
                 }
             }
@@ -1285,35 +1285,20 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["discountId"],
-                    "message": "Code discount does not exist.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["codes"],
-                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()),
-                    "code": "MAX_INPUT_SIZE_EXCEEDED",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [{
-                    "field": ["codes"],
-                    "message": "Codes can't be blank",
-                    "code": "BLANK",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1419,12 +1404,7 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["discountId"],
-                    "message": "Code discount does not exist.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
@@ -1450,12 +1430,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["search"],
-                    "message": "'Search' can't be blank.",
-                    "code": "BLANK",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1463,12 +1438,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [{
-                    "field": ["savedSearchId"],
-                    "message": "Invalid 'saved_search_id'.",
-                    "code": "INVALID",
-                    "extraInfo": Value::Null
-                }]
+                "userErrors": [user_error_with_extra_info(["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {

@@ -985,34 +985,34 @@ fn selling_plan_group_create_model_user_errors(
 
     let plans = resolved_object_list_field(input, "sellingPlansToCreate");
     if plans.len() > MAX_SELLING_PLANS_PER_GROUP {
-        errors.push(json!({
-            "field": ["input"],
-            "message": "Selling plan groups can't have more than 31 selling plans.",
-            "code": "SELLING_PLAN_COUNT_UPPER_BOUND"
-        }));
+        errors.push(user_error(
+            ["input"],
+            "Selling plan groups can't have more than 31 selling plans.",
+            Some("SELLING_PLAN_COUNT_UPPER_BOUND"),
+        ));
     } else if plans.is_empty() {
-        errors.push(json!({
-            "field": ["input"],
-            "message": "Selling plan groups must have at least 1 selling plan.",
-            "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
-        }));
+        errors.push(user_error(
+            ["input"],
+            "Selling plan groups must have at least 1 selling plan.",
+            Some("SELLING_PLAN_COUNT_LOWER_BOUND"),
+        ));
     }
 
     for (index, plan) in plans.iter().enumerate() {
         let index = index.to_string();
         if resolved_object_field(plan, "billingPolicy").is_none() {
-            errors.push(json!({
-                "field": ["input", "sellingPlansToCreate", index, "billingPolicy"],
-                "message": "Selling plans to create billing policy must be present.",
-                "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
-            }));
+            errors.push(user_error(
+                json!(["input", "sellingPlansToCreate", index, "billingPolicy"]),
+                "Selling plans to create billing policy must be present.",
+                Some("SELLING_PLAN_BILLING_POLICY_MISSING"),
+            ));
         }
         if resolved_object_field(plan, "deliveryPolicy").is_none() {
-            errors.push(json!({
-                "field": ["input", "sellingPlansToCreate", index, "deliveryPolicy"],
-                "message": "Selling plans to create delivery policy must be present.",
-                "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
-            }));
+            errors.push(user_error(
+                json!(["input", "sellingPlansToCreate", index, "deliveryPolicy"]),
+                "Selling plans to create delivery policy must be present.",
+                Some("SELLING_PLAN_DELIVERY_POLICY_MISSING"),
+            ));
         }
     }
 
