@@ -122,8 +122,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "marketingActivity" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -216,29 +215,24 @@ impl DraftProxy {
                 _ => Value::Null,
             };
             if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
+                Some(Value::Null)
             } else if matches!(
                 field.name.as_str(),
                 "marketingActivities" | "marketingEvents"
             ) {
-                data.insert(field.response_key.clone(), value);
+                Some(value)
             } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
+                Some(selected_json(&value, &field.selection))
             }
-        }
-        Value::Object(data)
+        })
     }
 
     pub(in crate::proxy) fn webhook_subscriptions_query_data(
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "webhookSubscription" => field
                     .arguments
                     .get("id")
@@ -265,10 +259,8 @@ impl DraftProxy {
                     )
                 }
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn webhook_subscription_records_for_connection(
@@ -333,19 +325,25 @@ impl DraftProxy {
         let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
-        for field in &document.root_fields {
+        let mut early_response = None;
+        let data = root_payload_json(&document.root_fields, |field| {
+            if early_response.is_some() {
+                return None;
+            }
             let required_errors = webhook_required_argument_errors(field, &document);
             if !required_errors.is_empty() {
-                return ok_json(json!({ "errors": required_errors }));
+                early_response = Some(ok_json(json!({ "errors": required_errors })));
+                return None;
             }
             if let Some(error) = webhook_subscription_topic_coercion_error(field, Some(&document)) {
-                return ok_json(json!({ "errors": [error] }));
+                early_response = Some(ok_json(json!({ "errors": [error] })));
+                return None;
             }
             if let Some(error) =
                 dedicated_pubsub_required_field_error(&field.name, field, &document)
             {
-                return ok_json(json!({ "errors": [error] }));
+                early_response = Some(ok_json(json!({ "errors": [error] })));
+                return None;
             }
             let payload = match field.name.as_str() {
                 "webhookSubscriptionCreate"
@@ -362,13 +360,17 @@ impl DraftProxy {
                     self.webhook_subscription_delete_field(field, request, query, variables)
                 }
                 other => {
-                    return json_error(
+                    early_response = Some(json_error(
                         501,
                         &format!("No Rust webhooks dispatcher implemented for root field: {other}"),
-                    );
+                    ));
+                    return None;
                 }
             };
-            data.insert(field.response_key.clone(), payload);
+            Some(payload)
+        });
+        if let Some(response) = early_response {
+            return response;
         }
         ok_json(json!({ "data": data }))
     }
@@ -903,10 +905,9 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         request: &Request,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut top_errors: Vec<Value> = Vec::new();
         let mut omit_data = false;
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if matches!(
                 field.name.as_str(),
                 "marketingActivityCreateExternal"
@@ -921,8 +922,7 @@ impl DraftProxy {
                             "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
                             "path": [field.name.clone()]
                         }));
-                        data.insert(field.response_key.clone(), Value::Null);
-                        continue;
+                        return Some(Value::Null);
                     }
                     Some(MarketingUrlError::MissingHost {
                         field: bad_field,
@@ -947,7 +947,7 @@ impl DraftProxy {
                             }
                         }));
                         omit_data = true;
-                        continue;
+                        return None;
                     }
                     None => {}
                 }
@@ -1017,12 +1017,12 @@ impl DraftProxy {
                 }
                 _ => Value::Null,
             };
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         let mut body = if omit_data {
             json!({})
         } else {
-            json!({ "data": Value::Object(data) })
+            json!({ "data": data })
         };
         if !top_errors.is_empty() {
             body["errors"] = Value::Array(top_errors);
@@ -1709,9 +1709,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "inventoryItems" => inventory_empty_connection(&field.selection),
                 "inventoryProperties" => {
                     selected_json(&inventory_properties_json(), &field.selection)
@@ -1749,10 +1748,8 @@ impl DraftProxy {
                     self.inventory_product_selected_json(&id, &field.selection)
                 }
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn inventory_mutation_data(
@@ -1760,9 +1757,12 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> MutationOutcome {
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
-        for field in fields {
+        let mut top_level_response = None;
+        let data = root_payload_json(fields, |field| {
+            if top_level_response.is_some() {
+                return None;
+            }
             let outcome = match field.name.as_str() {
                 "inventoryAdjustQuantities" => self.inventory_adjust_quantities(request, field),
                 "inventorySetQuantities" => self.inventory_set_quantities(request, field),
@@ -1799,20 +1799,21 @@ impl DraftProxy {
                 _ => MutationFieldOutcome::unlogged(Value::Null),
             };
             if let Some(errors) = outcome.value.get("__topLevelErrors") {
-                return MutationOutcome::response(ok_json(json!({
+                top_level_response = Some(MutationOutcome::response(ok_json(json!({
                     "errors": errors,
                     "data": { field.response_key.clone(): Value::Null }
-                })));
+                }))));
+                return None;
             }
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(field.response_key.clone(), outcome.value);
+            Some(outcome.value)
+        });
+        if let Some(response) = top_level_response {
+            return response;
         }
-        MutationOutcome::with_log_drafts(
-            ok_json(json!({ "data": Value::Object(data) })),
-            log_drafts,
-        )
+        MutationOutcome::with_log_drafts(ok_json(json!({ "data": data })), log_drafts)
     }
 
     fn inventory_item_selected_json(
@@ -3783,10 +3784,7 @@ impl DraftProxy {
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "inventoryLevel" => Some(inventory_level.clone().unwrap_or(Value::Null)),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         })
     }
@@ -3797,10 +3795,7 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         })
     }
@@ -3822,10 +3817,7 @@ impl DraftProxy {
                     .as_ref()
                     .map_or(Value::Null, |levels| Value::Array(levels.clone())),
             ),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         })
     }
@@ -3841,10 +3833,7 @@ impl DraftProxy {
                 inventory_item.as_ref().unwrap_or(&Value::Null),
                 &selection.selection,
             )),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         })
     }

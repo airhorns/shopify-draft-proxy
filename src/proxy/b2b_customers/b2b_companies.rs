@@ -58,12 +58,16 @@ impl DraftProxy {
         if let Some(response) = b2b_tax_settings_invalid_enum_response(query, &fields) {
             return Some(response);
         }
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "companyLocationTaxSettingsUpdate" {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
                 return None;
             }
-            let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(&field);
+            if field.name != "companyLocationTaxSettingsUpdate" {
+                declined = true;
+                return None;
+            }
+            let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(field);
             self.record_mutation_log_with_status(
                 request,
                 query,
@@ -72,12 +76,12 @@ impl DraftProxy {
                 staged_ids,
                 status,
             );
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
-            );
+            Some(selected_json(&payload, &field.selection))
+        });
+        if declined {
+            return None;
         }
-        Some(ok_json(json!({ "data": Value::Object(data) })))
+        Some(ok_json(json!({ "data": data })))
     }
 
     pub(in crate::proxy) fn b2b_location_buyer_experience_tail_helper_response(
@@ -98,10 +102,9 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "companyLocationUpdate") =>
             {
-                let mut data = serde_json::Map::new();
-                for field in fields {
+                let data = root_payload_json(&fields, |field| {
                     let (payload, status, staged_ids) =
-                        self.b2b_company_location_update_payload(&field);
+                        self.b2b_company_location_update_payload(field);
                     self.record_mutation_log_with_status(
                         request,
                         query,
@@ -110,20 +113,16 @@ impl DraftProxy {
                         staged_ids,
                         status,
                     );
-                    data.insert(
-                        field.response_key.clone(),
-                        selected_json(&payload, &field.selection),
-                    );
-                }
-                Some(ok_json(json!({ "data": Value::Object(data) })))
+                    Some(selected_json(&payload, &field.selection))
+                });
+                Some(ok_json(json!({ "data": data })))
             }
             OperationType::Query
                 if parsed_root_fields
                     .iter()
                     .all(|field| field == "companyLocation") =>
             {
-                let mut data = serde_json::Map::new();
-                for field in fields {
+                let data = root_payload_json(&fields, |field| {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let location = self
                         .store
@@ -135,9 +134,9 @@ impl DraftProxy {
                             self.b2b_company_location_selected_json(&location, &field.selection)
                         })
                         .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), location);
-                }
-                Some(ok_json(json!({ "data": Value::Object(data) })))
+                    Some(location)
+                });
+                Some(ok_json(json!({ "data": data })))
             }
             _ => None,
         }
@@ -253,61 +252,67 @@ impl DraftProxy {
 
         match operation_type {
             OperationType::Mutation => {
-                let mut data = serde_json::Map::new();
-                for field in fields {
+                let mut declined = false;
+                let data = root_payload_json(&fields, |field| {
+                    if declined {
+                        return None;
+                    }
                     let (payload, status, staged_ids) = match field.name.as_str() {
-                        "companyCreate" => self.b2b_company_create_payload(&field),
-                        "companyUpdate" => self.b2b_company_update_payload(&field),
-                        "companyDelete" => self.b2b_company_delete_payload(&field),
-                        "companiesDelete" => self.b2b_companies_delete_payload(&field),
-                        "companyContactCreate" => self.b2b_company_contact_create_payload(&field),
-                        "companyContactUpdate" => self.b2b_company_contact_update_payload(&field),
-                        "companyContactDelete" => self.b2b_company_contact_delete_payload(&field),
-                        "companyContactsDelete" => self.b2b_company_contacts_delete_payload(&field),
+                        "companyCreate" => self.b2b_company_create_payload(field),
+                        "companyUpdate" => self.b2b_company_update_payload(field),
+                        "companyDelete" => self.b2b_company_delete_payload(field),
+                        "companiesDelete" => self.b2b_companies_delete_payload(field),
+                        "companyContactCreate" => self.b2b_company_contact_create_payload(field),
+                        "companyContactUpdate" => self.b2b_company_contact_update_payload(field),
+                        "companyContactDelete" => self.b2b_company_contact_delete_payload(field),
+                        "companyContactsDelete" => self.b2b_company_contacts_delete_payload(field),
                         "companyContactRemoveFromCompany" => {
-                            self.b2b_company_contact_remove_from_company_payload(&field)
+                            self.b2b_company_contact_remove_from_company_payload(field)
                         }
                         "companyAssignMainContact" => {
-                            self.b2b_company_assign_main_contact_payload(&field)
+                            self.b2b_company_assign_main_contact_payload(field)
                         }
                         "companyRevokeMainContact" => {
-                            self.b2b_company_revoke_main_contact_payload(&field)
+                            self.b2b_company_revoke_main_contact_payload(field)
                         }
                         "companyContactAssignRole" => {
-                            self.b2b_company_contact_assign_role_payload(&field)
+                            self.b2b_company_contact_assign_role_payload(field)
                         }
                         "companyContactAssignRoles" => {
-                            self.b2b_company_contact_assign_roles_payload(&field)
+                            self.b2b_company_contact_assign_roles_payload(field)
                         }
                         "companyContactRevokeRole" => {
-                            self.b2b_company_contact_revoke_role_payload(&field)
+                            self.b2b_company_contact_revoke_role_payload(field)
                         }
                         "companyContactRevokeRoles" => {
-                            self.b2b_company_contact_revoke_roles_payload(&field)
+                            self.b2b_company_contact_revoke_roles_payload(field)
                         }
-                        "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
-                        "companyLocationUpdate" => self.b2b_company_location_update_payload(&field),
-                        "companyLocationDelete" => self.b2b_company_location_delete_payload(&field),
+                        "companyLocationCreate" => self.b2b_company_location_create_payload(field),
+                        "companyLocationUpdate" => self.b2b_company_location_update_payload(field),
+                        "companyLocationDelete" => self.b2b_company_location_delete_payload(field),
                         "companyLocationsDelete" => {
-                            self.b2b_company_locations_delete_payload(&field)
+                            self.b2b_company_locations_delete_payload(field)
                         }
                         "companyLocationAssignAddress" => {
-                            self.b2b_company_location_assign_address_payload(&field)
+                            self.b2b_company_location_assign_address_payload(field)
                         }
-                        "companyAddressDelete" => self.b2b_company_address_delete_payload(&field),
+                        "companyAddressDelete" => self.b2b_company_address_delete_payload(field),
                         "companyLocationAssignStaffMembers" => {
-                            self.b2b_company_location_assign_staff_members_payload(&field)
+                            self.b2b_company_location_assign_staff_members_payload(field)
                         }
                         "companyLocationRemoveStaffMembers" => {
-                            self.b2b_company_location_remove_staff_members_payload(&field)
+                            self.b2b_company_location_remove_staff_members_payload(field)
                         }
                         "companyLocationAssignRoles" => {
-                            self.b2b_company_location_assign_roles_payload(&field)
+                            self.b2b_company_location_assign_roles_payload(field)
                         }
                         "companyLocationRevokeRoles" => {
-                            self.b2b_company_location_revoke_roles_payload(&field)
+                            self.b2b_company_location_revoke_roles_payload(field)
                         }
-                        _ => return None,
+                        _ => {
+                            declined = true;
+                            return None;
+                        }
                     };
                     self.record_mutation_log_with_status(
                         request,
@@ -317,16 +322,19 @@ impl DraftProxy {
                         staged_ids,
                         status,
                     );
-                    data.insert(
-                        field.response_key.clone(),
-                        self.b2b_payload_selected_json(&payload, &field.selection),
-                    );
+                    Some(self.b2b_payload_selected_json(&payload, &field.selection))
+                });
+                if declined {
+                    return None;
                 }
-                Some(ok_json(json!({ "data": Value::Object(data) })))
+                Some(ok_json(json!({ "data": data })))
             }
             OperationType::Query => {
-                let mut data = serde_json::Map::new();
-                for field in fields {
+                let mut declined = false;
+                let data = root_payload_json(&fields, |field| {
+                    if declined {
+                        return None;
+                    }
                     let value = match field.name.as_str() {
                         "company" => {
                             let id =
@@ -382,12 +390,18 @@ impl DraftProxy {
                                 value_id_cursor,
                             )
                         }
-                        "companies" => self.b2b_companies_connection(&field),
-                        _ => return None,
+                        "companies" => self.b2b_companies_connection(field),
+                        _ => {
+                            declined = true;
+                            return None;
+                        }
                     };
-                    data.insert(field.response_key.clone(), value);
+                    Some(value)
+                });
+                if declined {
+                    return None;
                 }
-                Some(ok_json(json!({ "data": Value::Object(data) })))
+                Some(ok_json(json!({ "data": data })))
             }
             _ => None,
         }

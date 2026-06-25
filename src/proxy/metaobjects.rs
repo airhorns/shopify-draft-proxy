@@ -2575,9 +2575,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         request: &Request,
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "metaobjects" => self.metaobject_connection(field),
                 "metaobject" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2604,10 +2603,8 @@ impl DraftProxy {
                 }
                 "metaobjectDefinitions" => self.metaobject_definition_connection(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn metaobject_live_hybrid_read(
@@ -2619,18 +2616,21 @@ impl DraftProxy {
         let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
             return response;
         };
-        for field in fields {
+        let aliased_data = root_payload_json(fields, |field| {
             if data.contains_key(&field.response_key) {
-                continue;
+                return None;
             }
-            if let Some(value) = data.get(&field.name).cloned() {
-                data.insert(field.response_key.clone(), value);
+            data.get(&field.name).cloned()
+        });
+        if let Some(aliased_data) = aliased_data.as_object() {
+            for (response_key, value) in aliased_data {
+                data.insert(response_key.clone(), value.clone());
             }
         }
         let upstream_nodes = metaobject_nodes_from_upstream_data(data);
-        for field in fields {
+        let fallback_data = root_payload_json(fields, |field| {
             if data.contains_key(&field.response_key) {
-                continue;
+                return None;
             }
             let value = match field.name.as_str() {
                 "metaobject" => {
@@ -2643,7 +2643,7 @@ impl DraftProxy {
                 }
                 "metaobjectByHandle" => {
                     let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
-                        continue;
+                        return None;
                     };
                     let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
                     let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
@@ -2657,9 +2657,14 @@ impl DraftProxy {
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
+            Some(value)
+        });
+        if let Some(fallback_data) = fallback_data.as_object() {
+            for (response_key, value) in fallback_data {
+                data.insert(response_key.clone(), value.clone());
+            }
         }
         response
     }
@@ -2671,15 +2676,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if field.name == "metaobjectBulkDelete" {
                 if let Some(error) = metaobject_bulk_delete_selector_error(field, query) {
                     errors.push(error);
-                    data.insert(field.response_key.clone(), Value::Null);
-                    continue;
+                    return Some(Value::Null);
                 }
             }
             let value = match field.name.as_str() {
@@ -2701,8 +2704,8 @@ impl DraftProxy {
                 }
                 _ => Value::Null,
             };
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
@@ -2720,7 +2723,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        let mut body = json!({"data": Value::Object(data)});
+        let mut body = json!({"data": data});
         if !errors.is_empty() {
             body["errors"] = Value::Array(errors);
         }
@@ -3036,9 +3039,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "urlRedirect" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -3050,10 +3052,8 @@ impl DraftProxy {
                 }
                 "urlRedirects" => self.url_redirect_connection(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {

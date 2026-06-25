@@ -356,11 +356,17 @@ impl DraftProxy {
     }
 
     fn order_return_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut missing_required = false;
+        let data = root_payload_json(fields, |field| {
+            if missing_required {
+                return None;
+            }
             let value = match field.name.as_str() {
                 "return" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .returns
@@ -369,11 +375,17 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.selected_return_order(&id, &field.selection)
                 }
                 "reverseDelivery" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .reverse_deliveries
@@ -382,7 +394,10 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "reverseFulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .reverse_fulfillment_orders
@@ -390,11 +405,14 @@ impl DraftProxy {
                         .map(|record| selected_json(record, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
+            Some(value)
+        });
+        if missing_required {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     fn should_handle_order_return_read(&self, fields: &[RootFieldSelection]) -> bool {

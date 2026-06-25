@@ -120,10 +120,7 @@ pub(in crate::proxy) fn fulfillment_order_payload_json(
                 &fulfillment_order,
                 &selection.selection,
             )),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -153,10 +150,7 @@ pub(in crate::proxy) fn fulfillment_order_request_payload_json(
             "unsubmittedFulfillmentOrder" => {
                 Some(nullable_selected_json(&unsubmitted, &selection.selection))
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             name if root_field == "fulfillmentOrderSubmitFulfillmentRequest"
                 && name == "fulfillmentOrder" =>
             {
@@ -188,10 +182,7 @@ pub(in crate::proxy) fn fulfillment_order_split_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -218,10 +209,7 @@ pub(in crate::proxy) fn fulfillment_order_merge_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })

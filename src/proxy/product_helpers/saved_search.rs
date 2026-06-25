@@ -145,10 +145,7 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
                 Some(record) => saved_search_json(record, saved_search_selections),
                 None => Value::Null,
             }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -818,24 +815,21 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let data = root_payload_json(&fields, |field| {
             let outcome = match field.name.as_str() {
-                "savedSearchCreate" => self.saved_search_create_field(&field),
-                "savedSearchUpdate" => self.saved_search_update_field(&field),
-                "savedSearchDelete" => self.saved_search_delete_field(&field),
-                _ => continue,
+                "savedSearchCreate" => self.saved_search_create_field(field),
+                "savedSearchUpdate" => self.saved_search_update_field(field),
+                "savedSearchDelete" => self.saved_search_delete_field(field),
+                _ => return None,
             };
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(field.response_key.clone(), outcome.value);
-        }
-        MutationOutcome::with_log_drafts(
-            ok_json(json!({ "data": Value::Object(data) })),
-            log_drafts,
-        )
+            Some(outcome.value)
+        });
+        MutationOutcome::with_log_drafts(ok_json(json!({ "data": data })), log_drafts)
     }
 
     pub(in crate::proxy) fn saved_search_create_field(

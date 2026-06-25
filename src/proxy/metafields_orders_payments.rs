@@ -1738,26 +1738,19 @@ pub(in crate::proxy) fn customer_loyalty_metafield(
 }
 
 pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
-            "event" => Some(Value::Null),
-            "events" => Some(selected_json(
-                &json!({
-                    "nodes": [],
-                    "edges": [],
-                    "pageInfo": empty_page_info()
-                }),
-                &field.selection,
-            )),
-            "eventsCount" => Some(event_count_empty_json(&field.selection)),
-            _ => Some(Value::Null),
-        };
-        if let Some(value) = value {
-            data.insert(field.response_key.clone(), value);
-        }
-    }
-    Value::Object(data)
+    root_payload_json(fields, |field| match field.name.as_str() {
+        "event" => Some(Value::Null),
+        "events" => Some(selected_json(
+            &json!({
+                "nodes": [],
+                "edges": [],
+                "pageInfo": empty_page_info()
+            }),
+            &field.selection,
+        )),
+        "eventsCount" => Some(event_count_empty_json(&field.selection)),
+        _ => Some(Value::Null),
+    })
 }
 
 pub(in crate::proxy) fn event_count_empty_json(selections: &[SelectedField]) -> Value {
@@ -1774,27 +1767,20 @@ pub(in crate::proxy) fn event_count_empty_json(selections: &[SelectedField]) -> 
 }
 
 pub(in crate::proxy) fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
-            "deliverySettings" => Some(selected_json(
-                &json!({
-                    "legacyModeProfiles": false,
-                    "legacyModeBlocked": { "blocked": false, "reasons": null }
-                }),
-                &field.selection,
-            )),
-            "deliveryPromiseSettings" => Some(selected_json(
-                &json!({ "deliveryDatesEnabled": false, "processingTime": null }),
-                &field.selection,
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            data.insert(field.response_key.clone(), value);
-        }
-    }
-    Value::Object(data)
+    root_payload_json(fields, |field| match field.name.as_str() {
+        "deliverySettings" => Some(selected_json(
+            &json!({
+                "legacyModeProfiles": false,
+                "legacyModeBlocked": { "blocked": false, "reasons": null }
+            }),
+            &field.selection,
+        )),
+        "deliveryPromiseSettings" => Some(selected_json(
+            &json!({ "deliveryDatesEnabled": false, "processingTime": null }),
+            &field.selection,
+        )),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn payment_customization_connection(
@@ -2176,10 +2162,9 @@ fn payment_terms_template_exists(template_id: &str) -> bool {
 /// resolved independently; an optional `paymentTermsType` argument filters the
 /// catalog to a single terms type.
 pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
+    root_payload_json(fields, |field| {
         if field.name != "paymentTermsTemplates" {
-            continue;
+            return None;
         }
         let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
             .or_else(|| resolved_string_arg(&field.arguments, "type"));
@@ -2203,9 +2188,8 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
                 )
             })
             .collect();
-        data.insert(field.response_key.clone(), Value::Array(templates));
-    }
-    Value::Object(data)
+        Some(Value::Array(templates))
+    })
 }
 
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
@@ -2881,9 +2865,8 @@ impl DraftProxy {
         if !owns_operation {
             return None;
         }
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let value = match field.name.as_str() {
                 "abandonmentUpdateActivitiesDeliveryStatuses" => {
                     let abandonment_id =
@@ -2903,8 +2886,7 @@ impl DraftProxy {
                             }),
                             &field.selection,
                         );
-                        data.insert(field.response_key, value);
-                        continue;
+                        return Some(value);
                     }
                     let marketing_activity_id =
                         resolved_string_arg(&field.arguments, "marketingActivityId")
@@ -2962,10 +2944,10 @@ impl DraftProxy {
                         .map(|record| selected_json(record, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key, value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -2975,7 +2957,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn money_bag_presentment_local_data(
@@ -3114,12 +3096,15 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields {
+        let mut early_response = None;
+        let data = root_payload_json(&fields, |field| {
+            if early_response.is_some() {
+                return None;
+            }
             let value = match field.name.as_str() {
                 "orderCreate" => {
-                    let order = self.stage_money_bag_order(&field);
+                    let order = self.stage_money_bag_order(field);
                     staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
                     selected_json(
                         &json!({ "order": order, "userErrors": [] }),
@@ -3160,9 +3145,9 @@ impl DraftProxy {
                     let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let order = self.store.staged.orders.get(&order_id);
                     if order.is_none() {
-                        return Some(json!({
+                        early_response = Some(json!({
                             "data": {
-                                field.response_key: selected_json(
+                                field.response_key.clone(): selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
                                         "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
@@ -3171,11 +3156,12 @@ impl DraftProxy {
                                 )
                             }
                         }));
+                        return None;
                     }
                     if order.is_some_and(order_edit_order_is_not_editable) {
-                        return Some(json!({
+                        early_response = Some(json!({
                             "data": {
-                                field.response_key: selected_json(
+                                field.response_key.clone(): selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
                                         "userErrors": [user_error_omit_code(["base"], "not_editable", None)]
@@ -3184,6 +3170,7 @@ impl DraftProxy {
                                 )
                             }
                         }));
+                        return None;
                     }
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
@@ -3215,14 +3202,17 @@ impl DraftProxy {
                         &field.selection,
                     )
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if let Some(response) = early_response {
+            return Some(response);
         }
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, "orderCreate", staged_ids);
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
@@ -3332,13 +3322,16 @@ impl DraftProxy {
             if !has_terms_mutation && !has_staged_owner_read {
                 return None;
             }
-            let mut data = serde_json::Map::new();
             let mut staged_ids = Vec::new();
             let mut logged = false;
-            for field in fields {
+            let mut missing_required = false;
+            let data = root_payload_json(&fields, |field| {
+                if missing_required {
+                    return None;
+                }
                 let value = match field.name.as_str() {
                     "orderCreate" => {
-                        let order = self.stage_payment_terms_order(&field);
+                        let order = self.stage_payment_terms_order(field);
                         staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
                         logged = true;
                         selected_json(
@@ -3346,7 +3339,7 @@ impl DraftProxy {
                             &field.selection,
                         )
                     }
-                    "paymentTermsCreate" => match payment_terms_create_value(&field) {
+                    "paymentTermsCreate" => match payment_terms_create_value(field) {
                         Ok((owner_id, terms_id, attrs)) => {
                             // Hydrate (and stage) the owner so we can read its
                             // money and financial status. A paid Order is rejected
@@ -3391,7 +3384,7 @@ impl DraftProxy {
                         }
                         Err(payload) => payload["paymentTermsCreate"].clone(),
                     },
-                    "paymentTermsUpdate" => match payment_terms_update_value(&field) {
+                    "paymentTermsUpdate" => match payment_terms_update_value(field) {
                         Ok((terms_id, attrs)) => {
                             let owner_id = self.payment_terms_owner_id(&terms_id);
                             // Cold update (no local owner link): hydrate the
@@ -3483,16 +3476,25 @@ impl DraftProxy {
                         }
                     }
                     "order" => {
-                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                            missing_required = true;
+                            return None;
+                        };
                         self.selected_payment_terms_owner(&id, &field.selection, false)
                     }
                     "draftOrder" => {
-                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                            missing_required = true;
+                            return None;
+                        };
                         self.selected_payment_terms_owner(&id, &field.selection, true)
                     }
-                    _ => continue,
+                    _ => return None,
                 };
-                data.insert(field.response_key, value);
+                Some(value)
+            });
+            if missing_required {
+                return None;
             }
             if logged {
                 self.record_mutation_log_entry(
@@ -3503,7 +3505,7 @@ impl DraftProxy {
                     staged_ids,
                 );
             }
-            return Some(json!({ "data": Value::Object(data) }));
+            return Some(json!({ "data": data }));
         }
         None
     }

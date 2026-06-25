@@ -7,10 +7,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "currentAppInstallation" {
-                continue;
+                return None;
             }
             let value = if self.store.staged.app_uninstalled {
                 Value::Null
@@ -22,9 +21,8 @@ impl DraftProxy {
                     &field.selection,
                 )
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {

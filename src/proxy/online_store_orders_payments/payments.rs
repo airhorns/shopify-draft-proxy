@@ -790,9 +790,8 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let (value, staged_ids) = self.stage_refund_create(request, query, variables, &field);
+        let data = root_payload_json(&fields, |field| {
+            let (value, staged_ids) = self.stage_refund_create(request, query, variables, field);
             if !staged_ids.is_empty() {
                 self.record_staged_orders_log_entry(
                     request,
@@ -802,9 +801,9 @@ impl DraftProxy {
                     staged_ids,
                 );
             }
-            data.insert(field.response_key, value);
-        }
-        Some(json!({ "data": Value::Object(data) }))
+            Some(value)
+        });
+        Some(json!({ "data": data }))
     }
 
     pub(super) fn stage_refund_create(
@@ -1682,9 +1681,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "paymentCustomization" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     match self.store.staged.payment_customizations.get(&id) {
@@ -1705,31 +1703,26 @@ impl DraftProxy {
                     });
                     payment_customization_connection(&records, &field.selection)
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn payment_customization_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "paymentCustomizationCreate" => self.payment_customization_create_payload(field),
                 "paymentCustomizationUpdate" => self.payment_customization_update_payload(field),
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
                 "paymentCustomizationDelete" => self.payment_customization_delete_payload(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn payment_customization_create_payload(

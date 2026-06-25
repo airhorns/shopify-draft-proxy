@@ -1096,16 +1096,29 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "orderCreate" => self.stage_order_create(request, query, variables, &field),
-                "orderUpdate" => self.stage_order_update(request, query, variables, &field)?,
+                "orderCreate" => self.stage_order_create(request, query, variables, field),
+                "orderUpdate" => {
+                    let Some(value) = self.stage_order_update(request, query, variables, field)
+                    else {
+                        declined = true;
+                        return None;
+                    };
+                    value
+                }
                 "orderClose" | "orderOpen" => {
-                    self.stage_order_lifecycle(request, query, variables, &field)
+                    self.stage_order_lifecycle(request, query, variables, field)
                 }
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+                        declined = true;
+                        return None;
+                    };
                     let order = self
                         .store
                         .staged
@@ -1115,13 +1128,19 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&order, &field.selection)
                 }
-                "orders" => self.staged_orders_connection(&field),
-                "ordersCount" => self.staged_orders_count(&field),
-                _ => return None,
+                "orders" => self.staged_orders_connection(field),
+                "ordersCount" => self.staged_orders_count(field),
+                _ => {
+                    declined = true;
+                    return None;
+                }
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     /// Full order projections from the seeded catalog that match a connection's
@@ -3094,27 +3113,37 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "customerCreate" => self.order_customer_paths_customer_create(&field),
-                "companyCreate" => self.order_customer_paths_company_create(&field),
+                "customerCreate" => self.order_customer_paths_customer_create(field),
+                "companyCreate" => self.order_customer_paths_company_create(field),
                 "companyAssignCustomerAsContact" => {
-                    self.order_customer_paths_assign_customer(&field)
+                    self.order_customer_paths_assign_customer(field)
                 }
-                "orderCreate" => self.order_customer_paths_order_create(&field),
+                "orderCreate" => self.order_customer_paths_order_create(field),
                 "orderCancel" => {
-                    self.order_customer_paths_cancel_order(request, query, variables, &field)
+                    self.order_customer_paths_cancel_order(request, query, variables, field)
                 }
-                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, &field)),
+                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, field)),
                 "orderCustomerRemove" => {
-                    Some(self.order_customer_remove_error_paths(request, &field))
+                    Some(self.order_customer_remove_error_paths(request, field))
                 }
                 _ => None,
-            }?;
-            data.insert(field.response_key.clone(), value);
+            };
+            let Some(value) = value else {
+                declined = true;
+                return None;
+            };
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_customer_create(

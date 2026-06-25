@@ -175,9 +175,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "bulkOperation" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.bulk_operation_by_id(&id)
@@ -192,11 +191,9 @@ impl DraftProxy {
                         .map(|operation| selected_json(operation, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     fn bulk_operation_read_validation_response(
