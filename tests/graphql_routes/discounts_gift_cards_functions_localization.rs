@@ -4363,6 +4363,25 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
 fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
     let mut proxy = snapshot_proxy();
 
+    let setup_customer = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientValidationCustomer {
+          customerCreate(input: { firstName: "Gift", lastName: "Recipient", email: "gift-recipient-validation@example.com" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup_customer.status, 200);
+    assert_eq!(
+        setup_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = setup_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("setup customer id")
+        .to_string();
+
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardRecipientValidation(
           $activeId: ID!,
@@ -4392,7 +4411,7 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
         }"#,
         json!({
             "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
-            "recipientId": "gid://shopify/Customer/10587888714034",
+            "recipientId": recipient_id,
             "tooLongPreferredName": "x".repeat(256),
             "tooLongMessage": "x".repeat(201),
             "htmlPreferredName": "<b>Recipient</b>",
@@ -4412,7 +4431,7 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
             "createHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }], "giftCardCode": null },
             "createFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
             "createPastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
-            "createValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "giftCardCode": "giftcard00000001", "userErrors": [] },
+            "createValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "giftCardCode": "giftcard00000002", "userErrors": [] },
             "updateLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
             "updateLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
             "updateHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }] },
@@ -4421,6 +4440,113 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
             "updateFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }] },
             "updateValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "userErrors": [] }
         })
+    );
+}
+
+#[test]
+fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let setup_customer = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientValidationCustomer {
+          customerCreate(input: { firstName: "Gift", lastName: "Recipient", email: "gift-recipient@example.com" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup_customer.status, 200);
+    assert_eq!(
+        setup_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = setup_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("setup customer id")
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientPresence($activeId: ID!, $recipientId: ID!, $missingRecipientId: ID!) {
+          createUnknownRecipient: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $missingRecipientId } }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          updateUnknownRecipient: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $missingRecipientId } }) {
+            giftCard { id recipientAttributes { recipient { id } } }
+            userErrors { field code message }
+          }
+          createBlankPreferredName: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: "" } }) {
+            giftCard { id recipientAttributes { preferredName } }
+            giftCardCode
+            userErrors { field code message }
+          }
+          createBlankMessage: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: "" } }) {
+            giftCard { id recipientAttributes { message } }
+            giftCardCode
+            userErrors { field code message }
+          }
+          updateBlankPreferredName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: "" } }) {
+            giftCard { id recipientAttributes { preferredName } }
+            userErrors { field code message }
+          }
+          updateBlankMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: "" } }) {
+            giftCard { id recipientAttributes { message } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "recipientId": recipient_id,
+            "missingRecipientId": "gid://shopify/Customer/999999999999"
+        }),
+    ));
+
+    let recipient_not_found = json!([{
+        "field": ["input", "recipientAttributes", "id"],
+        "code": "RECIPIENT_NOT_FOUND",
+        "message": "Recipient could not be found"
+    }]);
+    let blank_preferred_name = json!([{
+        "field": ["input", "recipientAttributes", "preferredName"],
+        "code": "INVALID",
+        "message": "Preferred name can't be blank"
+    }]);
+    let blank_message = json!([{
+        "field": ["input", "recipientAttributes", "message"],
+        "code": "INVALID",
+        "message": "Message can't be blank"
+    }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createUnknownRecipient": { "giftCard": null, "giftCardCode": null, "userErrors": recipient_not_found },
+            "updateUnknownRecipient": { "giftCard": null, "userErrors": recipient_not_found },
+            "createBlankPreferredName": { "giftCard": null, "giftCardCode": null, "userErrors": blank_preferred_name },
+            "createBlankMessage": { "giftCard": null, "giftCardCode": null, "userErrors": blank_message },
+            "updateBlankPreferredName": { "giftCard": null, "userErrors": blank_preferred_name },
+            "updateBlankMessage": { "giftCard": null, "userErrors": blank_message }
+        })
+    );
+
+    let read_after_rejections = proxy.process_request(json_graphql_request(
+        r#"query GiftCardRecipientPresenceRead($activeId: ID!) {
+          giftCard(id: $activeId) {
+            id
+            recipientAttributes { recipient { id } preferredName message }
+          }
+          giftCards(first: 10) { nodes { id recipientAttributes { recipient { id } } } }
+        }"#,
+        json!({ "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(
+        read_after_rejections.body["data"]["giftCard"]["recipientAttributes"],
+        Value::Null
+    );
+    assert_eq!(
+        read_after_rejections.body["data"]["giftCards"]["nodes"],
+        json!([])
     );
 }
 
@@ -4661,6 +4787,24 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
         })
     );
 
+    let setup_recipient = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateSuppliedRecipient {
+          customerCreate(input: { firstName: "Requested", lastName: "Recipient", email: "requested-recipient@example.com" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        setup_recipient.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = setup_recipient.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("setup recipient id")
+        .to_string();
+
     let supplied_create = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreateSupplied($recipientId: ID!, $sendAt: DateTime!) {
           supplied: giftCardCreate(input: {
@@ -4692,13 +4836,13 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
           }
         }"#,
         json!({
-            "recipientId": "gid://shopify/Customer/10587888714034",
+            "recipientId": recipient_id.clone(),
             "sendAt": "2026-07-01T00:00:00Z"
         }),
     ));
     assert_eq!(supplied_create.status, 200);
     let supplied_card = json!({
-        "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic",
+        "id": "gid://shopify/GiftCard/3?shopify-draft-proxy=synthetic",
         "note": "Requested gift card note",
         "expiresOn": "2028-01-31",
         "customer": null,
@@ -4707,14 +4851,14 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
             "message": "Requested recipient message",
             "preferredName": "Requested Recipient",
             "sendNotificationAt": "2026-07-01T00:00:00Z",
-            "recipient": { "id": "gid://shopify/Customer/10587888714034" }
+            "recipient": { "id": recipient_id }
         }
     });
     assert_eq!(
         supplied_create.body["data"]["supplied"],
         json!({
             "giftCard": supplied_card,
-            "giftCardCode": "giftcard00000002",
+            "giftCardCode": "giftcard00000003",
             "userErrors": []
         })
     );
@@ -4735,7 +4879,7 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
             }
           }
         }"#,
-        json!({ "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic" }),
+        json!({ "id": "gid://shopify/GiftCard/3?shopify-draft-proxy=synthetic" }),
     ));
     assert_eq!(supplied_read.status, 200);
     assert_eq!(supplied_read.body["data"]["giftCard"], supplied_card);
@@ -5286,14 +5430,32 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
     ));
     assert_eq!(restore.status, 200);
 
+    let setup_recipient = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryShopTimezoneRecipient {
+          customerCreate(input: { firstName: "Timezone", lastName: "Recipient", email: "timezone-recipient@example.com" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        setup_recipient.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = setup_recipient.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("setup recipient id")
+        .to_string();
+
     let setup = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardExpiryShopTimezoneSetup {
+        r#"mutation GiftCardExpiryShopTimezoneSetup($recipientId: ID!) {
           creditCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
           debitCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
           customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: "gid://shopify/Customer/10552623464754" }) { giftCard { id } giftCardCode userErrors { field code message } }
-          recipientNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", recipientAttributes: { id: "gid://shopify/Customer/timezone-recipient" } }) { giftCard { id } giftCardCode userErrors { field code message } }
+          recipientNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", recipientAttributes: { id: $recipientId } }) { giftCard { id } giftCardCode userErrors { field code message } }
         }"#,
-        json!({}),
+        json!({ "recipientId": recipient_id }),
     ));
     assert_eq!(setup.body["data"]["creditCard"]["userErrors"], json!([]));
     assert_eq!(setup.body["data"]["debitCard"]["userErrors"], json!([]));

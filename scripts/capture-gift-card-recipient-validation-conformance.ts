@@ -287,7 +287,53 @@ const recipientValidationMutation = `#graphql
     $futureSendAt: DateTime!
     $pastSendAt: DateTime!
     $validSendAt: DateTime!
+    $missingRecipientId: ID!
   ) {
+    createUnknownRecipient: giftCardCreate(
+      input: { initialValue: "10", recipientAttributes: { id: $missingRecipientId } }
+    ) {
+      giftCard {
+        id
+      }
+      giftCardCode
+      userErrors {
+        field
+        code
+        message
+      }
+    }
+    createBlankPreferredName: giftCardCreate(
+      input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: "" } }
+    ) {
+      giftCard {
+        id
+        recipientAttributes {
+          preferredName
+        }
+      }
+      giftCardCode
+      userErrors {
+        field
+        code
+        message
+      }
+    }
+    createBlankMessage: giftCardCreate(
+      input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: "" } }
+    ) {
+      giftCard {
+        id
+        recipientAttributes {
+          message
+        }
+      }
+      giftCardCode
+      userErrors {
+        field
+        code
+        message
+      }
+    }
     createLongPreferredName: giftCardCreate(
       input: {
         initialValue: "10"
@@ -426,6 +472,53 @@ const recipientValidationMutation = `#graphql
         id
         recipientAttributes {
           preferredName
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+    updateUnknownRecipient: giftCardUpdate(
+      id: $activeId
+      input: { recipientAttributes: { id: $missingRecipientId } }
+    ) {
+      giftCard {
+        id
+        recipientAttributes {
+          recipient {
+            id
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+    updateBlankPreferredName: giftCardUpdate(
+      id: $activeId
+      input: { recipientAttributes: { id: $recipientId, preferredName: "" } }
+    ) {
+      giftCard {
+        id
+        recipientAttributes {
+          preferredName
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+    updateBlankMessage: giftCardUpdate(
+      id: $activeId
+      input: { recipientAttributes: { id: $recipientId, message: "" } }
+    ) {
+      giftCard {
+        id
+        recipientAttributes {
+          message
         }
       }
       userErrors {
@@ -576,6 +669,7 @@ try {
       futureSendAt: '2026-10-01T00:00:00Z',
       pastSendAt: '2026-04-28T09:31:02Z',
       validSendAt: '2026-07-01T00:00:00Z',
+      missingRecipientId: 'gid://shopify/Customer/999999999999',
     },
   };
   const liveVariables = {
@@ -609,6 +703,24 @@ try {
   const expected = isObject(liveData)
     ? {
         data: {
+          createUnknownRecipient: errorPayload(
+            'create',
+            'id',
+            'RECIPIENT_NOT_FOUND',
+            capturedMessage(recipientValidation, liveData, 'createUnknownRecipient', 'Recipient could not be found'),
+          ),
+          createBlankPreferredName: errorPayload(
+            'create',
+            'preferredName',
+            'INVALID',
+            capturedMessage(recipientValidation, liveData, 'createBlankPreferredName', "Preferred name can't be blank"),
+          ),
+          createBlankMessage: errorPayload(
+            'create',
+            'message',
+            'INVALID',
+            capturedMessage(recipientValidation, liveData, 'createBlankMessage', "Message can't be blank"),
+          ),
           createLongPreferredName: errorPayload(
             'create',
             'preferredName',
@@ -684,6 +796,24 @@ try {
               'preferredName is too long (maximum is 255)',
             ),
           ),
+          updateUnknownRecipient: errorPayload(
+            'update',
+            'id',
+            'RECIPIENT_NOT_FOUND',
+            capturedMessage(recipientValidation, liveData, 'updateUnknownRecipient', 'Recipient could not be found'),
+          ),
+          updateBlankPreferredName: errorPayload(
+            'update',
+            'preferredName',
+            'INVALID',
+            capturedMessage(recipientValidation, liveData, 'updateBlankPreferredName', "Preferred name can't be blank"),
+          ),
+          updateBlankMessage: errorPayload(
+            'update',
+            'message',
+            'INVALID',
+            capturedMessage(recipientValidation, liveData, 'updateBlankMessage', "Message can't be blank"),
+          ),
           updateLongMessage: errorPayload(
             'update',
             'message',
@@ -750,9 +880,9 @@ try {
         storeDomain,
         apiVersion,
         notes: [
-          'Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.',
+          'Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.',
           'Setup creates one disposable customer and one active gift card; cleanup deactivates the setup gift card and deletes the setup customer.',
-          'The public giftCardUpdate userErrors type in Admin API 2025-01 exposes field/message only; replay expectations add local typed code values.',
+          'The public giftCardUpdate userErrors type in the captured API exposes field/message only; replay expectations add local typed code values.',
         ],
         proxyVariables,
         setup,
