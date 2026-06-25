@@ -6875,7 +6875,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-code-basic-lifecycle-conformance.ts',
     purpose: 'Code discount basic create/update/delete lifecycle.',
-    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-code-basic-lifecycle.json`],
     cleanupBehavior: 'Deletes created code discount during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -7437,6 +7437,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/discounts/discount-customer-gets-value-multiple-types-update.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-amount-applies-on-each-item',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-amount-applies-on-each-item-conformance.ts',
+    purpose:
+      'Fixed DiscountAmount appliesOnEachItem read-after-write for code-basic and automatic-basic discounts, plus public-schema deprecated field rejection.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-amount-applies-on-each-item.json`,
+      'config/parity-specs/discounts/discount-amount-applies-on-each-item.json',
+      'config/parity-requests/discounts/discount-amount-applies-on-each-item-product-setup.graphql',
+      'config/parity-requests/discounts/discount-amount-applies-on-each-item-code-create.graphql',
+      'config/parity-requests/discounts/discount-amount-applies-on-each-item-read.graphql',
+      'config/parity-requests/discounts/discount-amount-applies-on-each-item-automatic-create.graphql',
+      'config/parity-requests/discounts/discount-amount-applies-on-each-item-automatic-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code and automatic basic discounts, captures fixed-amount readback and schema rejection branches, then deletes created discounts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
