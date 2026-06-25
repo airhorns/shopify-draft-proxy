@@ -248,10 +248,7 @@ fn product_visible_publication_entries(product: &ProductRecord) -> Vec<ProductPu
 
 fn product_publication_count_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
     selected_json(
-        &json!({
-            "count": product_visible_publication_entries(product).len(),
-            "precision": "EXACT"
-        }),
+        &count_object(product_visible_publication_entries(product).len()),
         selections,
     )
 }
@@ -402,7 +399,7 @@ pub(in crate::proxy) fn product_publication_field_json(
 /// (`publicationsCount`, `publishedProductsCount`, `resourcePublicationsCount`,
 /// `publicationCount`, `channel.productsCount`, ...).
 pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
-    json!({ "count": count, "precision": "EXACT" })
+    count_object(count)
 }
 
 /// The canonical `Publication` record the local publication engine stages and
@@ -855,7 +852,7 @@ fn infer_product_media_content_type(original_source: &str) -> &'static str {
     if product_media_source_is_external_video(original_source) {
         return "EXTERNAL_VIDEO";
     }
-    match product_media_source_extension(original_source).as_str() {
+    match file_extension(original_source).as_str() {
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         "glb" | "gltf" | "usdz" => "MODEL_3D",
         _ => "IMAGE",
@@ -865,22 +862,6 @@ fn infer_product_media_content_type(original_source: &str) -> &'static str {
 fn product_media_source_is_external_video(original_source: &str) -> bool {
     let source = original_source.to_ascii_lowercase();
     source.contains("youtube.com/") || source.contains("youtu.be/") || source.contains("vimeo.com/")
-}
-
-fn product_media_source_extension(original_source: &str) -> String {
-    let path = original_source
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(original_source);
-    let filename = path
-        .rsplit('/')
-        .find(|segment| !segment.is_empty())
-        .unwrap_or("");
-    filename
-        .rsplit_once('.')
-        .map(|(_, extension)| extension)
-        .unwrap_or("")
-        .to_ascii_lowercase()
 }
 
 fn product_media_user_errors_payload(
@@ -2425,11 +2406,7 @@ pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
 }
 
 pub(in crate::proxy) fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "count" => Some(json!(count)),
-        "precision" => Some(json!("EXACT")),
-        _ => None,
-    })
+    selected_json(&count_object(count), selections)
 }
 
 pub(in crate::proxy) fn rust_state_dump_path_exists(dump: &Value, path: &str) -> bool {
@@ -3196,22 +3173,6 @@ fn product_status_allowed_values_label(request: &Request) -> String {
 
 fn product_status_allows_unlisted(request: &Request) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2025, 10))
-}
-
-pub(in crate::proxy) fn version_at_least(
-    version: &str,
-    minimum_year: u16,
-    minimum_month: u8,
-) -> bool {
-    let Some((year, month)) = parse_year_month_version(version) else {
-        return false;
-    };
-    (year, month) >= (minimum_year, minimum_month)
-}
-
-fn parse_year_month_version(version: &str) -> Option<(u16, u8)> {
-    let (year, month) = version.split_once('-')?;
-    Some((year.parse().ok()?, month.parse().ok()?))
 }
 
 pub(in crate::proxy) fn product_delete_required_id_error(

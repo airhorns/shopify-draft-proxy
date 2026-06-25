@@ -74,6 +74,22 @@ pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
     }
 }
 
+pub(in crate::proxy) fn version_at_least(
+    version: &str,
+    minimum_year: u16,
+    minimum_month: u8,
+) -> bool {
+    let Some((year, month)) = parse_year_month_version(version) else {
+        return false;
+    };
+    (year, month) >= (minimum_year, minimum_month)
+}
+
+fn parse_year_month_version(version: &str) -> Option<(u16, u8)> {
+    let (year, month) = version.split_once('-')?;
+    Some((year.parse().ok()?, month.parse().ok()?))
+}
+
 pub(in crate::proxy) fn request_header(request: &Request, header_name: &str) -> Option<String> {
     request
         .headers

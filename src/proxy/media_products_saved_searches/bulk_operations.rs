@@ -324,9 +324,9 @@ impl DraftProxy {
             );
         }
 
-        let id = format!(
-            "gid://shopify/BulkOperation/{}",
-            7_000_000_000_000_u64 + self.next_synthetic_id
+        let id = shopify_gid(
+            "BulkOperation",
+            7_000_000_000_000_u64 + self.next_synthetic_id,
         );
         self.next_synthetic_id += 1;
         let group_objects = resolved_bool_field(&arguments, "groupObjects").unwrap_or(false);
@@ -459,9 +459,9 @@ impl DraftProxy {
             );
         }
 
-        let id = format!(
-            "gid://shopify/BulkOperation/{}",
-            7_000_000_000_000_u64 + self.next_synthetic_id
+        let id = shopify_gid(
+            "BulkOperation",
+            7_000_000_000_000_u64 + self.next_synthetic_id,
         );
         self.next_synthetic_id += 1;
         let created_at = "2026-05-05T20:34:00Z";

@@ -252,7 +252,7 @@ fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {
         "canDelete": true,
         "loyalty": Value::Null,
         "metafield": Value::Null,
-        "metafields": { "nodes": [], "pageInfo": empty_page_info() },
+        "metafields": connection_json(Vec::new()),
         "defaultEmailAddress": { "emailAddress": email },
         "defaultPhoneNumber": Value::Null,
         "defaultAddress": Value::Null,

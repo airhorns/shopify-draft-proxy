@@ -28,6 +28,19 @@ pub(in crate::proxy) fn resource_id_tail(id: &str) -> &str {
         .unwrap_or_default()
 }
 
+pub(in crate::proxy) fn shopify_gid_tail_for_type<'a>(
+    id: &'a str,
+    resource_type: &str,
+) -> Option<&'a str> {
+    let rest = id.strip_prefix("gid://shopify/")?;
+    let (candidate_type, tail) = rest.split_once('/')?;
+    (candidate_type == resource_type && !tail.is_empty()).then_some(tail)
+}
+
+pub(in crate::proxy) fn is_shopify_gid_of_type(id: &str, resource_type: &str) -> bool {
+    shopify_gid_tail_for_type(id, resource_type).is_some()
+}
+
 pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
     let rest = id.strip_prefix("gid://shopify/")?;
     let (resource_type, resource_id) = rest.split_once('/')?;
@@ -97,6 +110,29 @@ mod tests {
             "42"
         );
         assert_eq!(resource_id_tail("42"), "42");
+    }
+
+    #[test]
+    fn extracts_type_checked_shopify_gid_tails() {
+        assert_eq!(
+            shopify_gid_tail_for_type("gid://shopify/Product/42", "Product"),
+            Some("42")
+        );
+        assert_eq!(
+            shopify_gid_tail_for_type(
+                "gid://shopify/Product/42?shopify-draft-proxy=synthetic",
+                "Product"
+            ),
+            Some("42?shopify-draft-proxy=synthetic")
+        );
+        assert_eq!(
+            shopify_gid_tail_for_type("gid://shopify/Product/42", "Customer"),
+            None
+        );
+        assert!(is_shopify_gid_of_type(
+            "gid://shopify/Product/42",
+            "Product"
+        ));
     }
 
     #[test]

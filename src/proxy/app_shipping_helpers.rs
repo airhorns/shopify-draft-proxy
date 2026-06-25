@@ -378,11 +378,8 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
     let default_id = match (total_items, index) {
         (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
         (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
-        _ if index == 0 => "gid://shopify/AppSubscriptionLineItem/expected".to_string(),
-        _ => format!(
-            "gid://shopify/AppSubscriptionLineItem/expected-{}",
-            index + 1
-        ),
+        _ if index == 0 => shopify_gid("AppSubscriptionLineItem", "expected"),
+        _ => shopify_gid("AppSubscriptionLineItem", format!("expected-{}", index + 1)),
     };
     let mut capped_amount = "100.0".to_string();
     let mut currency_code = "USD".to_string();
@@ -704,12 +701,15 @@ pub(in crate::proxy) fn delivery_profile_selected_json(
             .get(&selection.name)
             .cloned()
             .map(|value| nullable_selected_json(&value, &selection.selection)),
-        "productVariantsCount" => Some(selected_json(
-            profile
-                .get("productVariantsCount")
-                .unwrap_or(&json!({ "count": 0, "precision": "EXACT" })),
-            &selection.selection,
-        )),
+        "productVariantsCount" => {
+            let default_count = count_object(0);
+            Some(selected_json(
+                profile
+                    .get("productVariantsCount")
+                    .unwrap_or(&default_count),
+                &selection.selection,
+            ))
+        }
         "profileItems" => Some(delivery_profile_items_connection_json(
             profile
                 .get("profileItems")
@@ -786,12 +786,13 @@ fn delivery_location_group_selected_json(group: &Value, selections: &[SelectedFi
             &selection.arguments,
             &selection.selection,
         )),
-        "locationsCount" => Some(selected_json(
-            group
-                .get("locationsCount")
-                .unwrap_or(&json!({ "count": 0, "precision": "EXACT" })),
-            &selection.selection,
-        )),
+        "locationsCount" => {
+            let default_count = count_object(0);
+            Some(selected_json(
+                group.get("locationsCount").unwrap_or(&default_count),
+                &selection.selection,
+            ))
+        }
         _ => group
             .get(&selection.name)
             .cloned()
@@ -1019,10 +1020,7 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["originLocationCount"] = json!(origin_count);
     profile["zoneCountryCount"] = json!(country_count);
     profile["activeMethodDefinitionsCount"] = json!(active_methods);
-    profile["productVariantsCount"] = json!({
-        "count": variant_count,
-        "precision": "EXACT"
-    });
+    profile["productVariantsCount"] = count_object(variant_count);
 }
 
 pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
@@ -1399,8 +1397,8 @@ pub(in crate::proxy) fn collection_publication_record(id: String, published: boo
         "handle": "hermes-collection-conformance-1777078204269",
         "publishedOnCurrentPublication": false,
         "publishedOnPublication": published,
-        "availablePublicationsCount": { "count": count, "precision": "EXACT" },
-        "resourcePublicationsCount": { "count": count, "precision": "EXACT" }
+        "availablePublicationsCount": count_object(count),
+        "resourcePublicationsCount": count_object(count)
     })
 }
 
@@ -1454,11 +1452,7 @@ pub(in crate::proxy) fn segment_payload_json(
 }
 
 pub(in crate::proxy) fn segment_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "count" => Some(json!(count)),
-        "precision" => Some(json!("EXACT")),
-        _ => None,
-    })
+    selected_json(&count_object(count), selections)
 }
 
 pub(in crate::proxy) fn customer_segment_members_query_payload_json(

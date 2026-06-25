@@ -1827,6 +1827,7 @@ mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
+mod scalar_helpers;
 mod schema_validation;
 mod selection;
 mod selling_plans;
@@ -1886,6 +1887,8 @@ pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::scalar_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]

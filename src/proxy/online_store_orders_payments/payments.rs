@@ -393,10 +393,7 @@ pub(in crate::proxy) fn build_refund_line_items(
     resolved_object_list_field(input, "refundLineItems")
         .iter()
         .map(|line_input| {
-            let id = format!(
-                "gid://shopify/RefundLineItem/{}",
-                *next_refund_line_item_id
-            );
+            let id = shopify_gid("RefundLineItem", *next_refund_line_item_id);
             *next_refund_line_item_id += 1;
             let quantity = refund_line_item_quantity(line_input);
             let restock_type = resolved_string_field(line_input, "restockType")
@@ -1216,9 +1213,9 @@ impl DraftProxy {
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());
-        let transaction_id = format!(
-            "gid://shopify/OrderTransaction/{}",
-            self.store.staged.order_payment_next_transaction_id
+        let transaction_id = shopify_gid(
+            "OrderTransaction",
+            self.store.staged.order_payment_next_transaction_id,
         );
         self.store.staged.order_payment_next_transaction_id += 1;
         let kind = resolved_string_field(&first_transaction, "kind")
@@ -1318,9 +1315,9 @@ impl DraftProxy {
             );
         }
 
-        let transaction_id = format!(
-            "gid://shopify/OrderTransaction/{}",
-            self.store.staged.order_payment_next_transaction_id
+        let transaction_id = shopify_gid(
+            "OrderTransaction",
+            self.store.staged.order_payment_next_transaction_id,
         );
         self.store.staged.order_payment_next_transaction_id += 1;
         let transaction = payment_transaction_record_from_amount_set(
@@ -1522,9 +1519,9 @@ impl DraftProxy {
             (capturable_amount - requested_amount_value).max(0.0)
         };
         let total_received = already_captured + requested_amount_value;
-        let transaction_id = format!(
-            "gid://shopify/OrderTransaction/{}",
-            self.store.staged.order_payment_next_transaction_id
+        let transaction_id = shopify_gid(
+            "OrderTransaction",
+            self.store.staged.order_payment_next_transaction_id,
         );
         self.store.staged.order_payment_next_transaction_id += 1;
         let transaction_amount_set = payment_money_set_for_capture(
@@ -1636,9 +1633,9 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let transaction_id = format!(
-            "gid://shopify/OrderTransaction/{}",
-            self.store.staged.order_payment_next_transaction_id
+        let transaction_id = shopify_gid(
+            "OrderTransaction",
+            self.store.staged.order_payment_next_transaction_id,
         );
         self.store.staged.order_payment_next_transaction_id += 1;
         let amount_set = parent_transaction["amountSet"].clone();
@@ -1811,10 +1808,7 @@ impl DraftProxy {
             );
         }
 
-        let id = format!(
-            "gid://shopify/PaymentCustomization/{}",
-            self.next_synthetic_id
-        );
+        let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
         let record = payment_customization_record(&id, &input);
         self.store

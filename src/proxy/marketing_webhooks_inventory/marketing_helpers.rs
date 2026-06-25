@@ -144,12 +144,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
-        .unwrap_or_else(|| {
-            format!(
-                "gid://shopify/MarketingEvent/{}",
-                numeric.parse::<u64>().unwrap_or(1) + 1
-            )
-        });
+        .unwrap_or_else(|| shopify_gid("MarketingEvent", numeric.parse::<u64>().unwrap_or(1) + 1));
     let status_label = marketing_status_label(&status, &tactic, None);
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)

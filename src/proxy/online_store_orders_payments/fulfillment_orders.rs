@@ -275,12 +275,9 @@ pub(in crate::proxy) fn order_fulfillments_mut(order: &mut Value) -> Option<&mut
 pub(in crate::proxy) fn fulfillment_line_item_record(line: &Value, quantity: i64) -> Value {
     let line_id = line.get("id").and_then(Value::as_str).unwrap_or_default();
     let fulfillment_line_item_id = if line_id.is_empty() {
-        "gid://shopify/FulfillmentLineItem/1".to_string()
+        shopify_gid("FulfillmentLineItem", 1)
     } else {
-        format!(
-            "gid://shopify/FulfillmentLineItem/{}",
-            resource_id_tail(line_id)
-        )
+        shopify_gid("FulfillmentLineItem", resource_id_tail(line_id))
     };
     json!({
         "id": fulfillment_line_item_id,
@@ -1303,9 +1300,12 @@ impl DraftProxy {
             })
             .unwrap_or_else(|| {
                 json!({
-                    "id": format!(
-                        "gid://shopify/Order/observed-fulfillment-order-{}",
-                        resource_id_tail(&fulfillment_order_id)
+                    "id": shopify_gid(
+                        "Order",
+                        format!(
+                            "observed-fulfillment-order-{}",
+                            resource_id_tail(&fulfillment_order_id)
+                        )
                     ),
                     "name": Value::Null,
                     "displayFulfillmentStatus": "UNFULFILLED",

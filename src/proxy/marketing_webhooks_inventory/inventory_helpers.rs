@@ -1,13 +1,7 @@
 use super::*;
 
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "nodes": [],
-            "pageInfo": empty_page_info()
-        }),
-        selection,
-    )
+    selected_empty_connection_json(selection)
 }
 
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
@@ -159,21 +153,25 @@ fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<
 }
 
 pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
-    format!(
-        "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
+    let level_tail = format!(
+        "{}-{}",
         resource_id_tail(inventory_item_id),
-        resource_id_tail(location_id),
+        resource_id_tail(location_id)
+    );
+    format!(
+        "{}?inventory_item_id={}",
+        shopify_gid("InventoryLevel", level_tail),
         inventory_item_id
     )
 }
 
 pub(in crate::proxy) fn inventory_level_id_tail(id: &str) -> Option<&str> {
-    id.strip_prefix("gid://shopify/InventoryLevel/")
+    shopify_gid_tail_for_type(id, "InventoryLevel")
         .map(|rest| rest.split('?').next().unwrap_or_default())
 }
 
 pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
-    let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
+    let rest = shopify_gid_tail_for_type(id, "InventoryLevel")?;
     rest.split_once("?inventory_item_id=")
 }
 

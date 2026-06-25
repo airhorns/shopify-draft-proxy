@@ -249,10 +249,9 @@ pub(in crate::proxy) fn draft_order_line_item(
         })
         .unwrap_or(Value::Null);
     json!({
-        "id": format!(
-            "gid://shopify/DraftOrderLineItem/{}{}",
-            resource_id_tail(draft_order_id),
-            index + 1
+        "id": shopify_gid(
+            "DraftOrderLineItem",
+            format!("{}{}", resource_id_tail(draft_order_id), index + 1),
         ),
         "title": title,
         "name": title,
@@ -294,10 +293,9 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
         .unwrap_or(0.0);
     let line_total = unit_amount * quantity as f64;
     json!({
-        "id": format!(
-            "gid://shopify/DraftOrderLineItem/{}{}",
-            resource_id_tail(draft_order_id),
-            index + 1
+        "id": shopify_gid(
+            "DraftOrderLineItem",
+            format!("{}{}", resource_id_tail(draft_order_id), index + 1),
         ),
         "title": title,
         "name": title,
@@ -331,10 +329,9 @@ pub(in crate::proxy) fn draft_order_reassign_line_item_ids(
 ) {
     if let Some(nodes) = draft_order["lineItems"]["nodes"].as_array_mut() {
         for (index, line) in nodes.iter_mut().enumerate() {
-            line["id"] = json!(format!(
-                "gid://shopify/DraftOrderLineItem/{}{}",
-                resource_id_tail(draft_order_id),
-                index + 1
+            line["id"] = json!(shopify_gid(
+                "DraftOrderLineItem",
+                format!("{}{}", resource_id_tail(draft_order_id), index + 1),
             ));
         }
         draft_order["__draftProxyLineItems"] = Value::Array(nodes.clone());
@@ -1081,10 +1078,7 @@ impl DraftProxy {
                 "draftOrder" => self.staged_draft_order_read(&field),
                 "draftOrders" => self.staged_draft_orders_connection(&field),
                 "draftOrdersCount" => selected_json(
-                    &json!({
-                        "count": self.store.staged.draft_orders.len(),
-                        "precision": "EXACT"
-                    }),
+                    &count_object(self.store.staged.draft_orders.len()),
                     &field.selection,
                 ),
                 _ => return None,
@@ -1423,8 +1417,6 @@ impl DraftProxy {
 
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
         let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
-        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&field.selection, &["edges", "node"]);
         let mut records = self
             .store
             .staged
@@ -1440,30 +1432,14 @@ impl DraftProxy {
                 .cmp(left["id"].as_str().unwrap_or_default())
         });
         let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
-        let nodes = records
-            .iter()
-            .map(|draft_order| selected_json(draft_order, &node_selection))
-            .collect::<Vec<_>>();
-        let edges = records
-            .iter()
-            .map(|draft_order| {
-                json!({
-                    "cursor": value_id_cursor(draft_order),
-                    "node": selected_json(draft_order, &edge_node_selection)
-                })
-            })
-            .collect::<Vec<_>>();
         selected_json(
-            &json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info }),
+            &connection_json_with_cursor(records, |_, node| value_id_cursor(node), page_info),
             &field.selection,
         )
     }
 
     pub(super) fn next_draft_order_id(&mut self) -> String {
-        let id = format!(
-            "gid://shopify/DraftOrder/{}",
-            self.store.staged.next_draft_order_id
-        );
+        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
         self.store.staged.next_draft_order_id += 1;
         id
     }
@@ -1813,10 +1789,7 @@ impl DraftProxy {
         fallback_amount: &str,
         currency_code: &str,
     ) -> Value {
-        let id = format!(
-            "gid://shopify/DraftOrder/{}",
-            self.store.staged.next_draft_order_id
-        );
+        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
         self.store.staged.next_draft_order_id += 1;
         let amount = if draft_order_create_input_email(field).as_deref()
             == Some("complete-readback@example.test")
@@ -1856,10 +1829,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         purchasing: (Option<String>, Option<String>, Option<String>),
     ) -> Value {
-        let id = format!(
-            "gid://shopify/DraftOrder/{}",
-            self.store.staged.next_draft_order_id
-        );
+        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
         self.store.staged.next_draft_order_id += 1;
         let name = format!("#D{}", self.store.staged.draft_orders.len() + 1);
         let (company_id, contact_id, location_id) = purchasing;
@@ -2100,10 +2070,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = format!(
-            "gid://shopify/DraftOrder/{}",
-            self.store.staged.next_draft_order_id
-        );
+        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
         self.store.staged.next_draft_order_id += 1;
         let email = resolved_string_field(&input, "email")
             .filter(|email| !email.trim().is_empty())

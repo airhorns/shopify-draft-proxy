@@ -307,13 +307,7 @@ impl DraftProxy {
                 "ordersCount" => {
                     data.insert(
                         field.response_key,
-                        selected_json(
-                            &json!({
-                                "count": 0,
-                                "precision": "EXACT"
-                            }),
-                            &field.selection,
-                        ),
+                        selected_json(&count_object(0), &field.selection),
                     );
                 }
                 _ => {}

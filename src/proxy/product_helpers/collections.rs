@@ -1661,7 +1661,7 @@ fn collection_from_input(
             "products": connection_json(Vec::<Value>::new()),
             "defaultProducts": connection_json(Vec::<Value>::new()),
             "manualProducts": connection_json(Vec::<Value>::new()),
-            "productsCount": {"count": 0, "precision": "EXACT"}
+            "productsCount": count_object(0)
         })
     });
     if let Some(object) = collection.as_object_mut() {
@@ -1737,19 +1737,13 @@ fn apply_collection_products(collection: &mut Value, products: &[ProductRecord])
             connection_json(product_nodes.clone()),
         );
         object.insert("manualProducts".to_string(), connection_json(product_nodes));
-        object.insert(
-            "productsCount".to_string(),
-            json!({"count": products.len(), "precision": "EXACT"}),
-        );
+        object.insert("productsCount".to_string(), count_object(products.len()));
     }
 }
 
 fn apply_collection_create_payload_products_count(collection: &mut Value) {
     if let Some(object) = collection.as_object_mut() {
-        object.insert(
-            "productsCount".to_string(),
-            json!({"count": 0, "precision": "EXACT"}),
-        );
+        object.insert("productsCount".to_string(), count_object(0));
     }
 }
 

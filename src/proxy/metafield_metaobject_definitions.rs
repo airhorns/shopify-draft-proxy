@@ -2051,7 +2051,7 @@ fn metafield_definition_create_errors_for_namespace(
             "Namespace is too long (maximum is 255 characters)",
             "TOO_LONG",
         ));
-    } else if !metafield_definition_token_chars_valid(namespace) {
+    } else if !token_chars_valid(namespace) {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "namespace"]),
@@ -2080,7 +2080,7 @@ fn metafield_definition_create_errors_for_namespace(
             "Key is too long (maximum is 64 characters)",
             "TOO_LONG",
         ));
-    } else if !metafield_definition_token_chars_valid(&key) {
+    } else if !token_chars_valid(&key) {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "key"]),
@@ -2274,12 +2274,6 @@ fn metafield_definition_validation_errors(
         }
     }
     errors
-}
-
-fn metafield_definition_token_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
 pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
