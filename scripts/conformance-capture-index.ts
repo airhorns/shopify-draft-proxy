@@ -9792,6 +9792,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-filter-byte-size-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-filter-byte-size-validation.ts',
+    purpose:
+      'WebhookSubscriptionInput.filter byte-size validation for accepted-at-limit create, oversized create, and oversized update.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-filter-byte-size-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-filter-byte-size-validation.json',
+    ],
+    cleanupBehavior: 'Deletes accepted-at-limit and update-base webhook subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
