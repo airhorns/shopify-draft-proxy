@@ -2031,7 +2031,7 @@ fn inline_input_field_name_location(
     None
 }
 
-fn inline_argument_value_location(
+pub(in crate::proxy) fn inline_argument_value_location(
     query: &str,
     field: &RootFieldSelection,
     argument_name: &str,
