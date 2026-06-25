@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace.",
+  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace. Shopify `compareDigest` values are opaque CAS tokens; local staged digests must be non-empty and internally consistent, but do not byte-match Shopify's opaque token.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -26,14 +26,14 @@
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
       },
       {
-        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "path": "$.metafieldsSet.metafields[0].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns deterministic non-empty draft digests for staged metafields."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       },
       {
         "path": "$.product.metafields.nodes[3].compareDigest",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens; the proxy returns a deterministic non-empty draft digest for the staged app-namespace metafield."
+        "reason": "Shopify compareDigest is an opaque CAS token while local staged metafields use deterministic draft tokens."
       }
     ],
     "targets": [
