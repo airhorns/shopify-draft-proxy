@@ -394,50 +394,24 @@ impl DraftProxy {
         let Some(context) = record.get_mut("context") else {
             return;
         };
-        if let Some(customers) = context.get_mut("customers").and_then(Value::as_array_mut) {
-            for customer in customers {
-                let Some(id) = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(display_name) = self
-                    .store
-                    .staged
-                    .customers
-                    .get(&id)
-                    .and_then(|record| record.get("displayName"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    customer["displayName"] = display_name;
-                }
-            }
-        }
-        if let Some(segments) = context.get_mut("segments").and_then(Value::as_array_mut) {
-            for segment in segments {
-                let Some(id) = segment
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(name) = self
-                    .store
-                    .staged
-                    .segments
-                    .get(&id)
-                    .and_then(|record| record.get("name"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    segment["name"] = name;
-                }
-            }
-        }
+        backfill_context_names(context, "customers", "id", "displayName", |id| {
+            self.store
+                .staged
+                .customers
+                .get(id)
+                .and_then(|record| record.get("displayName"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
+        backfill_context_names(context, "segments", "id", "name", |id| {
+            self.store
+                .staged
+                .segments
+                .get(id)
+                .and_then(|record| record.get("name"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
     }
 
     /// Forward a single batched `nodes(ids:)` lookup for every product / variant /
@@ -1285,20 +1259,20 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), "MAX_INPUT_SIZE_EXCEEDED")]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], "Codes can't be blank", "BLANK")]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1404,7 +1378,7 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
@@ -1430,7 +1404,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["search"], "'Search' can't be blank.", "BLANK")]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1438,7 +1412,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID")]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
@@ -1783,6 +1757,32 @@ impl DraftProxy {
             None
         } else {
             Some(candidate)
+        }
+    }
+}
+
+fn backfill_context_names<F>(
+    context: &mut Value,
+    array_key: &str,
+    source_field: &str,
+    dest_field: &str,
+    lookup: F,
+) where
+    F: Fn(&str) -> Option<Value>,
+{
+    let Some(items) = context.get_mut(array_key).and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in items {
+        let Some(id) = item
+            .get(source_field)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        if let Some(value) = lookup(&id) {
+            item[dest_field] = value;
         }
     }
 }
@@ -2159,19 +2159,10 @@ fn discount_context_customer_selection_user_error(
 /// return the resolved input object. The public Admin API names the create/update
 /// input argument after the discount kind (e.g. `basicCodeDiscount`), not `input`.
 fn discount_field_input(field: &RootFieldSelection) -> Option<BTreeMap<String, ResolvedValue>> {
-    let input_arg = match field.name.as_str() {
-        "discountCodeBasicCreate" | "discountCodeBasicUpdate" => "basicCodeDiscount",
-        "discountCodeBxgyCreate" | "discountCodeBxgyUpdate" => "bxgyCodeDiscount",
-        "discountCodeFreeShippingCreate" | "discountCodeFreeShippingUpdate" => {
-            "freeShippingCodeDiscount"
-        }
-        "discountAutomaticBasicCreate" | "discountAutomaticBasicUpdate" => "automaticBasicDiscount",
-        "discountAutomaticBxgyCreate" | "discountAutomaticBxgyUpdate" => "automaticBxgyDiscount",
-        "discountAutomaticFreeShippingCreate" | "discountAutomaticFreeShippingUpdate" => {
-            "freeShippingAutomaticDiscount"
-        }
-        _ => return None,
-    };
+    let input_arg = discount_mutation_input_arg(&field.name)?;
+    if matches!(input_arg, "codeAppDiscount" | "automaticAppDiscount") {
+        return None;
+    }
     discount_input(field, input_arg)
 }
 
