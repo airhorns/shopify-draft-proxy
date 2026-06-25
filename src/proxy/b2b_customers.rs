@@ -2450,7 +2450,34 @@ impl DraftProxy {
             };
         };
 
-        let marketing_opt_in_level = resolved_string_field(&consent, "marketingOptInLevel")
+        let marketing_opt_in_level_input = resolved_string_field(&consent, "marketingOptInLevel");
+        if marketing_state == "SUBSCRIBED" && marketing_opt_in_level_input.is_none() {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            let customer = if is_email {
+                existing_customer.clone()
+            } else {
+                Value::Null
+            };
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    customer,
+                    vec![customer_consent_user_error(
+                        vec!["input", consent_key, "marketingOptInLevel"],
+                        "Marketing opt in level must exist",
+                        "MISSING_ARGUMENT",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+        let marketing_opt_in_level = marketing_opt_in_level_input
             .unwrap_or_else(|| current_consent_opt_in_level(&existing_customer, is_email));
         let consent_updated_at = resolved_string_field(&consent, "consentUpdatedAt");
 

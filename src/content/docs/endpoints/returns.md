@@ -51,8 +51,10 @@ Local staged mutations:
   legacy `returnReason` variable values are rejected at the GraphQL variable-coercion layer with `INVALID_VARIABLE`.
 - `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
   reverse fulfillment order with line work for the approved return line quantities. Approving a return whose status is no
-  longer `REQUESTED` returns `INVALID` on `["id"]` with `return_request_status_invalid`, does not change the return, and
-  does not create additional reverse fulfillment order work. When `notifyCustomer: true` is supplied, the proxy validates
+  longer `REQUESTED` returns `INVALID_STATE` on `["input", "id"]` with Shopify's rendered
+  `Return is not approvable. Only returns with status REQUESTED can be approved.` message, does not change the return,
+  and does not create additional reverse fulfillment order work. Unknown Return IDs return `NOT_FOUND` on
+  `["input", "id"]` with `Return not found.` When `notifyCustomer: true` is supplied, the proxy validates
   `tmp_notify_customer.email_address` with the shared basic email guard but does not send notification side effects.
 - `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
   Decline reasons are canonicalized to Shopify enum casing and must be `RETURN_PERIOD_ENDED`, `FINAL_SALE`, or `OTHER`;
@@ -60,8 +62,11 @@ Local staged mutations:
   longer than 500 characters return `TOO_LONG` on `["input", "declineNote"]`. When `notifyCustomer: true` is supplied,
   the proxy validates `tmp_notify_customer.email_address` with the shared basic email guard but does not send
   notification side effects.
-  Declining a non-`REQUESTED` return returns the same `INVALID` / `return_request_status_invalid` user error and leaves
-  local return state unchanged.
+  Declining a non-`REQUESTED` return returns `INVALID_STATE` on `["input", "id"]` with Shopify's rendered
+  `Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.` message and leaves local
+  return state unchanged. Declining an already `DECLINED` return returns `INVALID_STATE` with
+  `The return is already declined.` Unknown Return IDs return `NOT_FOUND` on `["input", "id"]` with
+  `Return not found.`
 - `returnClose` transitions `OPEN` returns to `CLOSED` and records a local `closedAt` timestamp. Already `CLOSED`
   returns are returned unchanged without re-stamping `closedAt` or order `updatedAt`. Other statuses, except
   line-item-empty `REQUESTED` returns, return `INVALID_STATE` on `["id"]` with Shopify's captured
@@ -169,6 +174,10 @@ Local staged mutations:
 - Return status precondition parity:
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
+- Return approve/decline state-precondition parity:
+  `config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json`,
+  captures invalid-state and not-found userError shapes for `returnApproveRequest` and `returnDeclineRequest`.
 - Return shipping fee parity:
   `config/parity-specs/orders/return-shipping-fee-recorded.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json`.

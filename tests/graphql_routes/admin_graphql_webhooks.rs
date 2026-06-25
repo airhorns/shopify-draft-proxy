@@ -1107,6 +1107,171 @@ fn webhook_subscription_validation_guards_match_old_gleam_cases() {
 }
 
 #[test]
+fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
+    let mut proxy = snapshot_proxy();
+    let at_limit_filter = format!("id:{}", "1".repeat(65_532));
+    let over_limit_filter = format!("id:{}", "1".repeat(65_533));
+    let malformed_over_limit_filter = "totally bogus syntax ".repeat(3_500);
+
+    assert_eq!(at_limit_filter.len(), 65_535);
+    assert_eq!(over_limit_filter.len(), 65_536);
+    assert!(malformed_over_limit_filter.len() > 65_535);
+
+    let create_mutation = r#"
+        mutation WebhookSubscriptionFilterByteSizeCreate(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_mutation = r#"
+        mutation WebhookSubscriptionFilterByteSizeUpdate(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let detail_query = r#"
+        query WebhookSubscriptionFilterByteSizeDetail($id: ID!) {
+          webhookSubscription(id: $id) { id filter }
+        }
+    "#;
+    let filter_too_large_error = json!({
+        "webhookSubscription": null,
+        "userErrors": [{
+            "field": ["webhookSubscription"],
+            "message": "The specified filter exceeds the maximum allowed size."
+        }]
+    });
+
+    let at_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-at-limit",
+                "format": "JSON",
+                "filter": at_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        at_limit_create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        at_limit_create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+            .as_str()
+            .is_some()
+    );
+
+    let over_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-over-limit",
+                "format": "JSON",
+                "filter": over_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit_create.body["data"]["webhookSubscriptionCreate"],
+        filter_too_large_error
+    );
+
+    let malformed_over_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-over-limit-malformed",
+                "format": "JSON",
+                "filter": malformed_over_limit_filter
+            }
+        }),
+    ));
+    assert_eq!(
+        malformed_over_limit_create.body["data"]["webhookSubscriptionCreate"],
+        filter_too_large_error,
+        "byte-size validation should take precedence over syntax validation"
+    );
+
+    let malformed_sub_limit_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-sub-limit-malformed",
+                "format": "JSON",
+                "filter": "totally bogus syntax"
+            }
+        }),
+    ));
+    assert_eq!(
+        malformed_sub_limit_create.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription"],
+                "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+            }]
+        })
+    );
+
+    let update_base = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "ORDERS_CREATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-update-base",
+                "format": "JSON",
+                "filter": "id:1"
+            }
+        }),
+    ));
+    let update_base_id = update_base.body["data"]["webhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .expect("update setup should create a subscription")
+        .to_string();
+
+    let over_limit_update = proxy.process_request(json_graphql_request(
+        update_mutation,
+        json!({
+            "id": update_base_id,
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-update-base",
+                "format": "JSON",
+                "filter": format!("id:{}", "2".repeat(65_533))
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit_update.body["data"]["webhookSubscriptionUpdate"],
+        filter_too_large_error
+    );
+
+    let detail_after_rejected_update = proxy.process_request(json_graphql_request(
+        detail_query,
+        json!({ "id": update_base_id }),
+    ));
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscription"]["filter"],
+        json!("id:1")
+    );
+}
+
+#[test]
 fn webhook_subscription_rejects_unknown_topic_before_staging() {
     let mut proxy = snapshot_proxy();
 

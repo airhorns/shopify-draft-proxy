@@ -1,0 +1,242 @@
+{
+  "scenarioId": "localization-translatable-content-product",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-25T04:00:39.329Z",
+  "setup": {
+    "shopLocales": {
+      "response": {
+        "data": {
+          "shopLocales": [
+            {
+              "locale": "en",
+              "name": "English",
+              "primary": true,
+              "published": true
+            },
+            {
+              "locale": "es",
+              "name": "Spanish",
+              "primary": false,
+              "published": false
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Localization translatable content 1782360038049-lin7ul",
+          "handle": "localization-translatable-content-1782360038049-lin7ul",
+          "descriptionHtml": "<p>Localization source body 1782360038049-lin7ul</p>",
+          "productType": "Localization Type 1782360038049-lin7ul",
+          "seo": {
+            "title": "Localization SEO title 1782360038049-lin7ul",
+            "description": "Localization SEO description 1782360038049-lin7ul"
+          },
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220883378482",
+              "title": "Localization translatable content 1782360038049-lin7ul",
+              "handle": "localization-translatable-content-1782360038049-lin7ul",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Product/10220883378482"
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10220883378482",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization translatable content 1782360038049-lin7ul",
+              "digest": "0c731c3bd10a4f609cc608221f9953458586f80f2dd723d95b7df3b55bc26f37",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization source body 1782360038049-lin7ul</p>",
+              "digest": "72d650c2412f6e9c1c1310db89cb40f8e1c145d473f98548caa967626fcf3acc",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-translatable-content-1782360038049-lin7ul",
+              "digest": "d68554ed2f21b58f7ddcae629ef95b1f00d6451af05d9477defb0ab0002649b9",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "Localization Type 1782360038049-lin7ul",
+              "digest": "31137a2992a1af56ea5af68890386d9012de0031b31d7dfd5de28484d64a1963",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization SEO title 1782360038049-lin7ul",
+              "digest": "f66cddac43613c1885d462d44bf09161ae24e2bd585dce7936d9872301edd5ea",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization SEO description 1782360038049-lin7ul",
+              "digest": "d27d5f9a057fe5344bd86950eaa3d10904f6dab7f74b82de95a529c743096f3e",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10220883378482",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationTranslatableContentRead",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10220883378482"
+      },
+      "query": "#graphql\n  query LocalizationTranslatableContentRead($resourceId: ID!) {\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10220883378482",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization translatable content 1782360038049-lin7ul",
+                  "digest": "0c731c3bd10a4f609cc608221f9953458586f80f2dd723d95b7df3b55bc26f37",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "body_html",
+                  "value": "<p>Localization source body 1782360038049-lin7ul</p>",
+                  "digest": "72d650c2412f6e9c1c1310db89cb40f8e1c145d473f98548caa967626fcf3acc",
+                  "locale": "en",
+                  "type": "HTML"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-translatable-content-1782360038049-lin7ul",
+                  "digest": "d68554ed2f21b58f7ddcae629ef95b1f00d6451af05d9477defb0ab0002649b9",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "Localization Type 1782360038049-lin7ul",
+                  "digest": "31137a2992a1af56ea5af68890386d9012de0031b31d7dfd5de28484d64a1963",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "meta_title",
+                  "value": "Localization SEO title 1782360038049-lin7ul",
+                  "digest": "f66cddac43613c1885d462d44bf09161ae24e2bd585dce7936d9872301edd5ea",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "meta_description",
+                  "value": "Localization SEO description 1782360038049-lin7ul",
+                  "digest": "d27d5f9a057fe5344bd86950eaa3d10904f6dab7f74b82de95a529c743096f3e",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

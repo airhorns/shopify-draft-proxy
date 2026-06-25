@@ -1,0 +1,128 @@
+{
+  "scenarioId": "webhook-subscription-filter-byte-size-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate", "webhookSubscription"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-filter-byte-size-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.acceptedAtLimit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhook subscription filter byte-size validation. Shopify accepts a syntactically valid filter at 65,535 UTF-8 bytes, rejects create/update filters at 65,536 bytes with the distinct filter size userError, and leaves the subscription unchanged after a rejected update.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "accepted-at-limit-filter",
+        "capturePath": "$.cases.acceptedAtLimit.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "create-oversized-filter-user-error",
+        "capturePath": "$.cases.rejectedCreateAboveLimit.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.rejectedCreateAboveLimit.variables"
+        }
+      },
+      {
+        "name": "create-update-base",
+        "capturePath": "$.cases.createUpdateBase.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createUpdateBase.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "update-oversized-filter-user-error",
+        "capturePath": "$.cases.rejectedUpdateAboveLimit.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-update-base",
+              "path": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.rejectedUpdateAboveLimit.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-rejected-filter-update",
+        "capturePath": "$.cases.detailAfterRejectedUpdate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-update-base",
+              "path": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The rejected update leaves the proxy synthetic update timestamp unchanged from the create."
+          }
+        ]
+      }
+    ]
+  }
+}
