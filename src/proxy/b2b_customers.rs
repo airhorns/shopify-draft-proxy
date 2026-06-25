@@ -2445,7 +2445,7 @@ impl DraftProxy {
 
         let marketing_opt_in_level_input = resolved_string_field(&consent, "marketingOptInLevel");
         if marketing_state == "SUBSCRIBED" && marketing_opt_in_level_input.is_none() {
-            self.record_customer_consent_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
