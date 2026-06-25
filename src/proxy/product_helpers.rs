@@ -410,7 +410,7 @@ pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
 /// id suffix and name, so both are derived rather than recorded per scenario.
 pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
     let suffix = resource_id_path_tail(id);
-    let channel_id = format!("gid://shopify/Channel/{suffix}");
+    let channel_id = shopify_gid("Channel", suffix);
     json!({
         "id": id,
         "name": name,
@@ -488,7 +488,7 @@ impl DraftProxy {
                 continue;
             }
             let media_content_type = resolved_string_field(item, "mediaContentType")
-                .unwrap_or_else(|| "IMAGE".to_string());
+                .unwrap_or_else(|| infer_product_media_content_type(&original_source).to_string());
             let id = self.next_proxy_synthetic_gid(product_media_gid_type(&media_content_type));
             let alt = resolved_string_field(item, "alt").unwrap_or_default();
             created.push(product_media_node_with_type(
@@ -497,6 +497,7 @@ impl DraftProxy {
                 &media_content_type,
                 "UPLOADED",
                 None,
+                Some(&original_source),
             ));
             staged.push(product_media_node_with_type(
                 &id,
@@ -508,6 +509,7 @@ impl DraftProxy {
                     "UPLOADED"
                 },
                 None,
+                Some(&original_source),
             ));
         }
 
@@ -523,6 +525,7 @@ impl DraftProxy {
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
         }
+        let product_media_nodes = self.product_known_media(&product_id);
 
         Some(json!({
             "media": created.clone(),
@@ -530,7 +533,7 @@ impl DraftProxy {
             "mediaUserErrors": source_errors,
             "product": {
                 "id": product_id,
-                "media": { "nodes": created }
+                "media": { "nodes": product_media_nodes }
             }
         }))
     }
@@ -583,11 +586,15 @@ impl DraftProxy {
                 }
                 node["status"] = json!("READY");
                 node["preview"] = json!({ "image": { "url": ready_url } });
-                // Preserve an observed ProductImage id so downstream deletes can
-                // still derive `deletedProductImageIds` from the asset.
-                match node.get("image").and_then(|image| image.get("id")) {
-                    Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
-                    None => node["image"] = json!({ "url": ready_url }),
+                if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
+                    // Preserve an observed ProductImage id so downstream deletes can
+                    // still derive `deletedProductImageIds` from the asset.
+                    match node.get("image").and_then(|image| image.get("id")) {
+                        Some(image_id) => {
+                            node["image"] = json!({ "id": image_id, "url": ready_url })
+                        }
+                        None => node["image"] = json!({ "url": ready_url }),
+                    }
                 }
                 updated.push(node.clone());
             }
@@ -758,25 +765,33 @@ impl DraftProxy {
     /// already staged/observed for this product so the proxy honours real
     /// asset metadata instead of hardcoding GID-specific captions.
     fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let alt = self
+        let known = self
             .store
             .product_staged_or_base(product_id)
             .and_then(|product| {
-                product.media.iter().find_map(|node| {
-                    if node.get("id").and_then(Value::as_str) == Some(id) {
-                        node.get("alt").and_then(Value::as_str).map(str::to_string)
-                    } else {
-                        None
-                    }
+                product
+                    .media
+                    .into_iter()
+                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+            });
+        let mut node = known.unwrap_or_else(|| {
+            let alt = self
+                .store
+                .product_staged_or_base(product_id)
+                .and_then(|product| {
+                    product.media.iter().find_map(|node| {
+                        if node.get("id").and_then(Value::as_str) == Some(id) {
+                            node.get("alt").and_then(Value::as_str).map(str::to_string)
+                        } else {
+                            None
+                        }
+                    })
                 })
-            })
-            .unwrap_or_default();
-        json!({
-            "id": id,
-            "alt": alt,
-            "mediaContentType": "IMAGE",
-            "status": "PROCESSING"
-        })
+                .unwrap_or_default();
+            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
+        });
+        node["status"] = json!("PROCESSING");
+        node
     }
 }
 
@@ -786,11 +801,14 @@ fn product_media_node_with_type(
     media_content_type: &str,
     status: &str,
     image_url: Option<&str>,
+    original_source: Option<&str>,
 ) -> Value {
     let image = image_url
         .map(|url| json!({ "url": url }))
         .unwrap_or(Value::Null);
+    let typename = product_media_typename(media_content_type);
     let mut node = json!({
+        "__typename": typename,
         "id": id,
         "alt": alt,
         "mediaContentType": media_content_type,
@@ -801,8 +819,22 @@ fn product_media_node_with_type(
     });
     if media_content_type == "IMAGE" {
         node["image"] = image;
+    } else if matches!(media_content_type, "VIDEO" | "MODEL_3D") {
+        if let Some(source) = original_source {
+            node["originalSource"] = json!({ "url": source });
+            node["sources"] = json!([{ "url": source }]);
+        }
     }
     node
+}
+
+fn product_media_typename(media_content_type: &str) -> &'static str {
+    match media_content_type {
+        "EXTERNAL_VIDEO" => "ExternalVideo",
+        "MODEL_3D" => "Model3d",
+        "VIDEO" => "Video",
+        _ => "MediaImage",
+    }
 }
 
 fn product_media_gid_type(media_content_type: &str) -> &'static str {
@@ -816,6 +848,38 @@ fn product_media_gid_type(media_content_type: &str) -> &'static str {
 
 fn product_media_ready_url() -> &'static str {
     "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+}
+
+fn infer_product_media_content_type(original_source: &str) -> &'static str {
+    if product_media_source_is_external_video(original_source) {
+        return "EXTERNAL_VIDEO";
+    }
+    match product_media_source_extension(original_source).as_str() {
+        "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
+        "glb" | "gltf" | "usdz" => "MODEL_3D",
+        _ => "IMAGE",
+    }
+}
+
+fn product_media_source_is_external_video(original_source: &str) -> bool {
+    let source = original_source.to_ascii_lowercase();
+    source.contains("youtube.com/") || source.contains("youtu.be/") || source.contains("vimeo.com/")
+}
+
+fn product_media_source_extension(original_source: &str) -> String {
+    let path = original_source
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(original_source);
+    let filename = path
+        .rsplit('/')
+        .find(|segment| !segment.is_empty())
+        .unwrap_or("");
+    filename
+        .rsplit_once('.')
+        .map(|(_, extension)| extension)
+        .unwrap_or("")
+        .to_ascii_lowercase()
 }
 
 fn product_media_user_errors_payload(
@@ -1723,7 +1787,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| format!("gid://shopify/InventoryItem/{}", resource_id_tail(&id))),
+            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }

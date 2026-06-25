@@ -21,7 +21,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes.",
+  "notes": "Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, top-level cloud callbackUrl placeholder projection, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

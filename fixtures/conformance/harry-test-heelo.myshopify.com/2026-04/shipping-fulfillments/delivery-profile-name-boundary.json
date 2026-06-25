@@ -1,0 +1,294 @@
+{
+  "capturedAt": "2026-06-24T16:10:47.328Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "locationUsed": "gid://shopify/Location/106318430514",
+    "maximumNameLength": 128,
+    "rejectedNameLength": 129,
+    "tooLongMessage": "Profile name must be less than 128 characters long",
+    "deliveryProfileUserErrorsType": "UserError",
+    "userErrorFields": ["field", "message"],
+    "codeSelectionProbe": {
+      "query": "mutation DeliveryProfileNameBoundaryCodeProbe($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Boundary reject xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'code' doesn't exist on type 'UserError'",
+              "locations": [
+                {
+                  "line": 10,
+                  "column": 9
+                }
+              ],
+              "path": ["mutation DeliveryProfileNameBoundaryCodeProbe", "deliveryProfileCreate", "userErrors", "code"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "mutations": {
+    "createAccepted": {
+      "query": "mutation DeliveryProfileNameBoundaryCreate($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Boundary create xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/132528898354",
+                "name": "Boundary create xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateAccepted": {
+      "query": "mutation DeliveryProfileNameBoundaryUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132528898354",
+        "profile": {
+          "name": "Boundary update xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/132528898354",
+                "name": "Boundary update xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateRejected": {
+      "query": "mutation DeliveryProfileNameBoundaryUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132528898354",
+        "profile": {
+          "name": "Boundary reject xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Profile name must be less than 128 characters long"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createRejected": {
+      "query": "mutation DeliveryProfileNameBoundaryCreate($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Boundary reject xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Profile name must be less than 128 characters long"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removeCreatedProfile": {
+      "query": "mutation DeliveryProfileNameBoundaryCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132528898354"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/345de87b-e73c-4c74-acae-1202729e77b2",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
+    "The capture creates one disposable delivery profile with a 128-character name, updates it to another 128-character name, records 129-character create/update validation failures, then removes the profile in cleanup.",
+    "Admin GraphQL 2026-04 exposes deliveryProfileCreate and deliveryProfileUpdate userErrors as generic UserError with field/message only; the code selection probe records that public schema behavior."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileLocationsHydrate",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

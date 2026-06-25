@@ -12,16 +12,8 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
-fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
-fn return_user_error_owned(field: Vec<String>, message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
 fn return_status_invalid_error() -> Value {
-    return_user_error(&["id"], "return_request_status_invalid", "INVALID")
+    user_error(["id"], "return_request_status_invalid", Some("INVALID"))
 }
 
 fn blank_return_line_string(value: Option<String>) -> bool {
@@ -39,25 +31,17 @@ fn validate_return_line_item_reason(
     let definition_missing = blank_return_line_string(reason_definition_id);
     if reason_missing && definition_missing {
         return Some(match input_name {
-            "returnInput" => return_user_error_owned(
-                vec![
+            "returnInput" => user_error(vec![
                     "returnInput".to_string(),
                     "returnLineItems".to_string(),
                     index.to_string(),
-                ],
-                "Return line items Either return reason or return reason definition must be provided",
-                "NOT_FOUND",
-            ),
-            _ => return_user_error_owned(
-                vec![
+                ], "Return line items Either return reason or return reason definition must be provided", Some("NOT_FOUND")),
+            _ => presence_user_error(vec![
                     "input".to_string(),
                     "returnLineItems".to_string(),
                     index.to_string(),
                     "returnReason".to_string(),
-                ],
-                "Return reason can't be blank",
-                "BLANK",
-            ),
+                ], "Return reason"),
         });
     }
 
@@ -65,16 +49,12 @@ fn validate_return_line_item_reason(
         && reason.as_deref() == Some("OTHER")
         && blank_return_line_string(resolved_string_field(item, "returnReasonNote"))
     {
-        return Some(return_user_error_owned(
-            vec![
+        return Some(user_error(vec![
                 "returnInput".to_string(),
                 "returnLineItems".to_string(),
                 index.to_string(),
                 "returnReasonNote".to_string(),
-            ],
-            "Return line items return reason note The note is required when the return reason is \"Other\"",
-            "BLANK",
-        ));
+            ], "Return line items return reason note The note is required when the return reason is \"Other\"", Some("BLANK")));
     }
 
     None
@@ -182,19 +162,19 @@ fn validate_return_decline_input(
     const VALID_REASONS: &[&str] = &["RETURN_PERIOD_ENDED", "FINAL_SALE", "OTHER"];
     let reason = resolved_string_field(input, "declineReason").unwrap_or_default();
     if !VALID_REASONS.contains(&reason.as_str()) {
-        return Err(vec![return_user_error(
-            &["declineReason"],
+        return Err(vec![user_error(
+            ["declineReason"],
             &format!("Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"),
-            "INVALID",
+            Some("INVALID"),
         )]);
     }
     if let Some(notify) = resolved_object_field(input, "tmp_notify_customer") {
         if let Some(email) = resolved_string_field(&notify, "email_address") {
             if !valid_email_address(&email) {
-                return Err(vec![return_user_error(
-                    &["input", "tmp_notify_customer", "email_address"],
+                return Err(vec![user_error(
+                    ["input", "tmp_notify_customer", "email_address"],
                     "Email address is invalid",
-                    "INVALID",
+                    Some("INVALID"),
                 )]);
             }
         }
@@ -257,6 +237,18 @@ fn return_status_transition_error(
 }
 
 impl DraftProxy {
+    fn return_payload(
+        &self,
+        return_value: Value,
+        user_errors: Vec<Value>,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_json(
+            &json!({ "return": return_value, "userErrors": user_errors }),
+            selection,
+        )
+    }
+
     pub(in crate::proxy) fn order_return_local_runtime_data(
         &mut self,
         request: &Request,
@@ -420,15 +412,13 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let items = resolved_object_list_field(&input, "returnLineItems");
         if items.is_empty() {
-            return selected_json(
-                &json!({
-                    "return": Value::Null,
-                    "userErrors": [return_user_error(
-                        &["returnLineItems"],
-                        "Return must include at least one line item.",
-                        "INVALID",
-                    )]
-                }),
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(
+                    ["returnLineItems"],
+                    "Return must include at least one line item.",
+                    Some("INVALID"),
+                )],
                 &field.selection,
             );
         }
@@ -438,10 +428,7 @@ impl DraftProxy {
             .filter_map(|(index, item)| validate_return_line_item_reason(input_name, index, item))
             .collect::<Vec<_>>();
         if !reason_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": reason_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, reason_errors, &field.selection);
         }
         // Validate every line first, allocating return-line-item ids only for
         // valid lines (matching the reference fold). Any error short-circuits
@@ -467,14 +454,14 @@ impl DraftProxy {
                 .as_deref()
                 .and_then(|id| find_order_fulfillment_line_item(&order, id));
             match fulfillment_line_item {
-                None => user_errors.push(return_user_error(
-                    &[
+                None => user_errors.push(user_error(
+                    [
                         "returnLineItems",
                         &index.to_string(),
                         "fulfillmentLineItemId",
                     ],
                     "Fulfillment line item does not exist.",
-                    "INVALID",
+                    Some("INVALID"),
                 )),
                 Some(fulfillment_line_item) => {
                     let available = fulfillment_line_item["quantity"].as_i64().unwrap_or(0);
@@ -485,10 +472,10 @@ impl DraftProxy {
                     );
                     let remaining = (available - already).max(0);
                     if quantity <= 0 || quantity > remaining {
-                        user_errors.push(return_user_error(
-                            &["returnLineItems", &index.to_string(), "quantity"],
+                        user_errors.push(user_error(
+                            ["returnLineItems", &index.to_string(), "quantity"],
                             "Quantity is not available for return.",
-                            "INVALID",
+                            Some("INVALID"),
                         ));
                     } else {
                         let rli_id = self.next_synthetic_gid("ReturnLineItem");
@@ -502,10 +489,7 @@ impl DraftProxy {
             }
         }
         if !user_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": user_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, user_errors, &field.selection);
         }
         let return_id = self.next_synthetic_gid("Return");
         let order_name = order["name"].as_str().unwrap_or("#ORDER").to_string();
@@ -566,10 +550,7 @@ impl DraftProxy {
             .entry(order_id)
             .or_default()
             .push(return_id);
-        selected_json(
-            &json!({ "return": return_record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(return_record, Vec::new(), &field.selection)
     }
 
     /// Total quantity already consumed against a fulfillment line item by
@@ -648,14 +629,16 @@ impl DraftProxy {
     /// state untouched.
     fn approve_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         };
         if record["status"].as_str() != Some("REQUESTED") {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         }
@@ -665,10 +648,7 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `returnDeclineRequest`: validate the decline input (reason enum, note
@@ -680,21 +660,20 @@ impl DraftProxy {
         let reason = match validate_return_decline_input(&input) {
             Ok(reason) => reason,
             Err(errors) => {
-                return selected_json(
-                    &json!({ "return": Value::Null, "userErrors": errors }),
-                    &field.selection,
-                );
+                return self.return_payload(Value::Null, errors, &field.selection);
             }
         };
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         };
         if record["status"].as_str() != Some("REQUESTED") {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+            return self.return_payload(
+                Value::Null,
+                vec![return_status_invalid_error()],
                 &field.selection,
             );
         }
@@ -705,10 +684,7 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `returnClose` / `returnReopen` / `returnCancel`. Allowed transitions
@@ -724,15 +700,21 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist.", "INVALID")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(
+                    ["id"],
+                    "Return does not exist.",
+                    Some("INVALID"),
+                )],
                 &field.selection,
             );
         };
         let current = record["status"].as_str().unwrap_or_default().to_string();
         if let Some((message, code)) = return_status_transition_error(target_status, &record) {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], message, code)] }),
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(["id"], message, Some(code))],
                 &field.selection,
             );
         }
@@ -748,10 +730,7 @@ impl DraftProxy {
                 .returns
                 .insert(id.to_string(), record.clone());
         }
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// `removeFromReturn`: validate the return is still editable, then validate
@@ -764,15 +743,20 @@ impl DraftProxy {
         let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
         let removals = list_object_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist.", "INVALID")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(
+                    ["returnId"],
+                    "Return does not exist.",
+                    Some("INVALID"),
+                )],
                 &field.selection,
             );
         };
         let status = record["status"].as_str().unwrap_or_default();
         if !matches!(status, "OPEN" | "REQUESTED") {
             return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return status is invalid.", "INVALID_STATE")] }),
+                &json!({ "return": Value::Null, "userErrors": [user_error(["returnId"], "Return status is invalid.", Some("INVALID_STATE"))] }),
                 &field.selection,
             );
         }
@@ -790,20 +774,20 @@ impl DraftProxy {
                     .position(|node| node["id"].as_str() == Some(id))
             });
             match position {
-                None => user_errors.push(return_user_error(
-                    &["returnLineItems", &index.to_string(), "returnLineItemId"],
+                None => user_errors.push(user_error(
+                    ["returnLineItems", &index.to_string(), "returnLineItemId"],
                     "Return line item does not exist.",
-                    "INVALID",
+                    Some("INVALID"),
                 )),
                 Some(position) => {
                     let current = nodes[position]["quantity"].as_i64().unwrap_or(0);
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
                     if quantity <= 0 || quantity > removable {
-                        user_errors.push(return_user_error(
-                            &["returnLineItems", &index.to_string(), "quantity"],
+                        user_errors.push(user_error(
+                            ["returnLineItems", &index.to_string(), "quantity"],
                             "Quantity is not removable from return.",
-                            "INVALID",
+                            Some("INVALID"),
                         ));
                     } else {
                         let next_quantity = current - quantity;
@@ -821,10 +805,7 @@ impl DraftProxy {
             }
         }
         if !user_errors.is_empty() {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": user_errors }),
-                &field.selection,
-            );
+            return self.return_payload(Value::Null, user_errors, &field.selection);
         }
         let total_quantity: i64 = nodes
             .iter()
@@ -834,10 +815,7 @@ impl DraftProxy {
         record["totalQuantity"] = json!(total_quantity);
         self.sync_reverse_fulfillment_line_items(&mut record);
         self.store.staged.returns.insert(return_id, record.clone());
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 
     /// Build the OPEN reverse fulfillment order for a return: one RFO line item
@@ -1041,7 +1019,7 @@ impl DraftProxy {
     fn update_reverse_delivery(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut delivery) = self.store.staged.reverse_deliveries.get(id).cloned() else {
             return selected_json(
-                &json!({ "reverseDelivery": Value::Null, "userErrors": [return_user_error(&["reverseDeliveryId"], "Reverse delivery does not exist", "NOT_FOUND")] }),
+                &json!({ "reverseDelivery": Value::Null, "userErrors": [user_error(["reverseDeliveryId"], "Reverse delivery does not exist", Some("NOT_FOUND"))] }),
                 &field.selection,
             );
         };
@@ -1070,11 +1048,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "reverseFulfillmentOrderLineItems": Value::Null,
-                    "userErrors": [return_user_error(
-                        &["dispositionInputs"],
-                        "The array cannot be empty.",
-                        "BLANK",
-                    )]
+                    "userErrors": [user_error(["dispositionInputs"], "The array cannot be empty.", Some("BLANK"))]
                 }),
                 &field.selection,
             );
@@ -1112,14 +1086,14 @@ impl DraftProxy {
                         .map(|line_item| (order_id.clone(), line_item.clone()))
                 })
             else {
-                user_errors.push(return_user_error_owned(
+                user_errors.push(user_error(
                     vec![
                         "dispositionInputs".to_string(),
                         index,
                         "reverseFulfillmentOrderLineItemId".to_string(),
                     ],
                     "Reverse fulfillment order line item was not found.",
-                    "NOT_FOUND",
+                    Some("NOT_FOUND"),
                 ));
                 continue;
             };
@@ -1131,14 +1105,14 @@ impl DraftProxy {
                 .or_else(|| line_item["totalQuantity"].as_i64())
                 .unwrap_or(0);
             if quantity <= 0 || quantity > disposable_quantity {
-                user_errors.push(return_user_error_owned(
+                user_errors.push(user_error(
                     vec![
                         "dispositionInputs".to_string(),
                         index,
                         "quantity".to_string(),
                     ],
                     "Quantity is invalid.",
-                    "INVALID",
+                    Some("INVALID"),
                 ));
                 continue;
             }
@@ -1149,14 +1123,14 @@ impl DraftProxy {
                 .pointer("/fulfillmentLineItem/lineItem/variant")
                 .is_some_and(Value::is_null);
             if disposition_type == "RESTOCKED" && explicitly_custom_line_item {
-                user_errors.push(return_user_error_owned(
+                user_errors.push(user_error(
                     vec![
                         "dispositionInputs".to_string(),
                         index,
                         "dispositionType".to_string(),
                     ],
                     "RESTOCKED is an invalid disposition type for a custom line item.",
-                    "INVALID",
+                    Some("INVALID"),
                 ));
                 continue;
             }
@@ -1171,10 +1145,10 @@ impl DraftProxy {
         }
 
         if user_errors.is_empty() && reverse_fulfillment_order_ids.len() > 1 {
-            user_errors.push(return_user_error(
-                &["dispositionInputs"],
+            user_errors.push(user_error(
+                ["dispositionInputs"],
                 "Cannot dispose items from more than one reverse fulfillment order.",
-                "INVALID",
+                Some("INVALID"),
             ));
         }
 
@@ -1225,8 +1199,13 @@ impl DraftProxy {
 
     fn process_return(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
-            return selected_json(
-                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist", "NOT_FOUND")] }),
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(
+                    ["returnId"],
+                    "Return does not exist",
+                    Some("NOT_FOUND"),
+                )],
                 &field.selection,
             );
         };
@@ -1254,9 +1233,6 @@ impl DraftProxy {
             .staged
             .returns
             .insert(id.to_string(), stored_record);
-        selected_json(
-            &json!({ "return": record, "userErrors": [] }),
-            &field.selection,
-        )
+        self.return_payload(record, Vec::new(), &field.selection)
     }
 }

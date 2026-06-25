@@ -1,6 +1,6 @@
 {
   "scenarioId": "bulk-operation-run-query-validators",
-  "capturedAt": "2026-05-07T14:23:56.108Z",
+  "capturedAt": "2026-06-24T15:58:51.858Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "validations": {
@@ -31,6 +31,39 @@
             "throttleStatus": {
               "maximumAvailable": 2000,
               "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "ordersNodesInsteadOfEdges": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  orders {\n    nodes {\n      id\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'orders { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'orders'.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }
@@ -68,7 +101,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1973,
+              "currentlyAvailable": 1963,
               "restoreRate": 100
             }
           }
@@ -101,7 +134,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1973,
               "restoreRate": 100
             }
           }
@@ -134,7 +167,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1963,
+              "currentlyAvailable": 1945,
               "restoreRate": 100
             }
           }
@@ -200,7 +233,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1946,
+              "currentlyAvailable": 1936,
               "restoreRate": 100
             }
           }
@@ -233,7 +266,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1940,
+              "currentlyAvailable": 1926,
               "restoreRate": 100
             }
           }

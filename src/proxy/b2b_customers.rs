@@ -344,6 +344,9 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
+        if let Some(response) = store_credit_result_only_currency_response(&fields) {
+            return MutationOutcome::response(response);
+        }
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         for field in fields {
@@ -409,16 +412,6 @@ impl DraftProxy {
                         "A positive amount must be used to debit a store credit account"
                     },
                     "NEGATIVE_OR_ZERO_AMOUNT",
-                ),
-            );
-        }
-        if is_credit && !store_credit_supported_currency(&currency) {
-            return self.store_credit_error_outcome(
-                field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "currencyCode"],
-                    "Currency is not supported",
-                    "UNSUPPORTED_CURRENCY",
                 ),
             );
         }
@@ -912,7 +905,7 @@ impl DraftProxy {
         let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
         let id = if order_email.ends_with("example.test") {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
-            format!("gid://shopify/Order/{}", ordinal.max(1))
+            shopify_gid("Order", ordinal.max(1))
         } else {
             synthetic_shopify_gid("Order", self.next_synthetic_id)
         };
@@ -991,9 +984,10 @@ impl DraftProxy {
             _ => (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         Value::Null,
                         "Local staging for this customer mutation is not implemented.",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1023,9 +1017,10 @@ impl DraftProxy {
             return (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["id"]),
                         "Cannot specify ID on creation",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1164,9 +1159,10 @@ impl DraftProxy {
             return (
                 customer_address_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["customerId"]),
                         "Customer does not exist",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1197,9 +1193,10 @@ impl DraftProxy {
             return (
                 customer_address_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["address"]),
                         "Address already exists",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1241,9 +1238,10 @@ impl DraftProxy {
             return (
                 customer_address_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["addressId"]),
                         "The id of the address does not match the id in the input",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1375,7 +1373,7 @@ impl DraftProxy {
                 return (
                     json!({
                         "customer": customer,
-                        "userErrors": [customer_user_error(json!(["addressId"]), "Address does not exist")]
+                        "userErrors": [user_error_omit_code(json!(["addressId"]), "Address does not exist", None)]
                     }),
                     Vec::new(),
                     Vec::new(),
@@ -1398,7 +1396,7 @@ impl DraftProxy {
                 return (
                     json!({
                         "customer": customer,
-                        "userErrors": [customer_user_error(json!(["addressId"]), "Address does not exist")]
+                        "userErrors": [user_error_omit_code(json!(["addressId"]), "Address does not exist", None)]
                     }),
                     Vec::new(),
                     Vec::new(),
@@ -1469,9 +1467,10 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         if self.customer_address_exists_anywhere(address_id) {
             (
-                build_payload(vec![customer_user_error(
+                build_payload(vec![user_error_omit_code(
                     json!(["addressId"]),
                     "Address does not exist",
+                    None,
                 )]),
                 Vec::new(),
                 Vec::new(),
@@ -1508,9 +1507,10 @@ impl DraftProxy {
             return (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["id"]),
                         "Customer does not exist",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1591,10 +1591,10 @@ impl DraftProxy {
             return (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error_with_code(
+                    vec![user_error(
                         json!(["input"]),
                         "The id field is not allowed if identifier is provided.",
-                        "ID_NOT_ALLOWED",
+                        Some("ID_NOT_ALLOWED"),
                     )],
                 ),
                 Vec::new(),
@@ -1664,9 +1664,10 @@ impl DraftProxy {
             return (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["input"]),
                         "The input field corresponding to the identifier is required.",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -1682,10 +1683,7 @@ impl DraftProxy {
             return (
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
-                        json!(["input"]),
-                        "The identifier value does not match the value of the corresponding field in the input.",
-                    )],
+                    vec![user_error_omit_code(json!(["input"]), "The identifier value does not match the value of the corresponding field in the input.", None)],
                 ),
                 Vec::new(),
                 Vec::new(),
@@ -1895,9 +1893,10 @@ impl DraftProxy {
                 normalized.email = Some(None);
             } else if let Some(email) = email {
                 if self.customer_email_taken(request, current_id, &email) {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "email"),
                         "Email has already been taken",
+                        None,
                     ));
                 }
                 normalized.email = Some(Some(email));
@@ -1909,14 +1908,16 @@ impl DraftProxy {
                     .count()
                     > 255
                 {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "email"),
                         "Email is too long (maximum is 255 characters)",
+                        None,
                     ));
                 }
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "email"),
                     "Email is invalid",
+                    None,
                 ));
             }
         } else if input
@@ -1931,22 +1932,25 @@ impl DraftProxy {
                 normalized.phone = Some(None);
             } else if let Some(phone) = normalize_customer_phone(&raw_phone) {
                 if self.customer_phone_taken(request, current_id, &phone) {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "phone"),
                         "Phone has already been taken",
+                        None,
                     ));
                 }
                 normalized.phone = Some(Some(phone));
             } else {
                 if raw_phone.trim().chars().count() > 255 {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "phone"),
                         "Phone is too long (maximum is 255 characters)",
+                        None,
                     ));
                 }
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "phone"),
                     "Phone is invalid",
+                    None,
                 ));
             }
         } else if input
@@ -1962,9 +1966,10 @@ impl DraftProxy {
             } else if let Some(locale) = normalize_shopify_locale(raw_locale.trim()) {
                 normalized.locale = Some(Some(locale));
             } else {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "locale"),
                     "Locale is invalid",
+                    None,
                 ));
             }
         } else if input
@@ -1982,9 +1987,10 @@ impl DraftProxy {
                     } else {
                         "Last name is too long (maximum is 255 characters)"
                     };
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_field_path(customer_set, field),
                         message,
+                        None,
                     ));
                 }
                 let normalized_value = blank_string_to_option(value.trim().to_string());
@@ -2007,9 +2013,10 @@ impl DraftProxy {
 
         if let Some(note) = resolved_string_field(input, "note") {
             if note.chars().count() > 5000 {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "note"),
                     "Note is too long (maximum is 5000 characters)",
+                    None,
                 ));
             }
             normalized.note = Some(Some(note));
@@ -2023,16 +2030,18 @@ impl DraftProxy {
         if input.contains_key("tags") {
             let tags = raw_taggable_tags_argument(input.get("tags"));
             if tags.iter().any(|tag| tag.chars().count() > 255) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "tags"),
                     "Tags is too long (maximum is 255 characters)",
+                    None,
                 ));
             }
             let normalized_tags = normalize_taggable_tags(tags);
             if normalized_tags.len() > 250 {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_field_path(customer_set, "tags"),
                     "Tags cannot be more than 250",
+                    None,
                 ));
             }
             normalized.tags = Some(normalized_tags);
@@ -2041,9 +2050,10 @@ impl DraftProxy {
         if input.contains_key("taxExempt") {
             match input.get("taxExempt") {
                 Some(ResolvedValue::Bool(value)) => normalized.tax_exempt = Some(*value),
-                Some(ResolvedValue::Null) if customer_set => errors.push(customer_user_error(
+                Some(ResolvedValue::Null) if customer_set => errors.push(user_error_omit_code(
                     json!(["input", "taxExempt"]),
                     "Tax exempt is of unexpected type NilClass",
+                    None,
                 )),
                 _ => {}
             }
@@ -2188,9 +2198,10 @@ impl DraftProxy {
             return Some((
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["emailMarketingConsent"]),
                         "An email address is required to set the email marketing consent state.",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -2202,9 +2213,10 @@ impl DraftProxy {
             return Some((
                 customer_payload(
                     Value::Null,
-                    vec![customer_user_error(
+                    vec![user_error_omit_code(
                         json!(["smsMarketingConsent"]),
                         "A phone number is required to set the SMS consent state.",
+                        None,
                     )],
                 ),
                 Vec::new(),
@@ -2775,28 +2787,21 @@ fn customer_payload(customer: Value, user_errors: Vec<Value>) -> Value {
     json!({ "customer": customer, "userErrors": user_errors })
 }
 
-fn customer_user_error(field: Value, message: &str) -> Value {
-    user_error_omit_code(field, message, None)
-}
-
-fn customer_user_error_with_code(field: Value, message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
 fn customer_identity_user_error(field: Value) -> Value {
-    customer_user_error(
+    user_error_omit_code(
         field,
         "A name, phone number, or email address must be present",
+        None,
     )
 }
 
 fn customer_set_not_found_payload() -> Value {
     customer_payload(
         Value::Null,
-        vec![customer_user_error_with_code(
+        vec![user_error(
             json!(["input"]),
             "Resource matching the identifier was not found.",
-            "NOT_FOUND",
+            Some("NOT_FOUND"),
         )],
     )
 }
@@ -3002,9 +3007,10 @@ fn customer_create_nested_id_error(input: &BTreeMap<String, ResolvedValue>) -> O
             for (index, entry) in entries.iter().enumerate() {
                 if let ResolvedValue::Object(object) = entry {
                     if object.contains_key("id") {
-                        return Some(customer_user_error(
+                        return Some(user_error_omit_code(
                             json!([collection, index.to_string(), "id"]),
                             &format!("Cannot specify {label} ID on creation"),
+                            None,
                         ));
                     }
                 }
@@ -3318,27 +3324,31 @@ fn customer_mailing_address(
         if let Some(value) = customer_address_string(input, field) {
             let label = customer_address_field_label(field);
             if value.chars().count() > 255 {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_address_field_path(customer_set, index, Some(field)),
                     &format!("{label} is too long (maximum is 255 characters)"),
+                    None,
                 ));
             }
             if customer_address_contains_html(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_address_field_path(customer_set, index, Some(field)),
                     &format!("{label} cannot contain HTML tags"),
+                    None,
                 ));
             }
             if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_address_field_path(customer_set, index, Some(field)),
                     &format!("{label} cannot contain URL"),
+                    None,
                 ));
             }
             if customer_address_contains_emoji(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     customer_address_field_path(customer_set, index, Some(field)),
                     &format!("{label} cannot contain emojis"),
+                    None,
                 ));
             }
         }
@@ -3355,9 +3365,10 @@ fn customer_mailing_address(
     {
         Some(country) => Some(country),
         None if country_input.is_some() => {
-            errors.push(customer_user_error(
+            errors.push(user_error_omit_code(
                 customer_address_field_path(customer_set, index, Some("country")),
                 "Country is invalid",
+                None,
             ));
             None
         }
@@ -3368,9 +3379,10 @@ fn customer_mailing_address(
             match customer_province_from_input(country.code, raw_province) {
                 Some(province) => province,
                 None => {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         customer_address_field_path(customer_set, index, Some("province")),
                         "Province is invalid",
+                        None,
                     ));
                     None
                 }
@@ -3411,9 +3423,10 @@ fn customer_mailing_address(
     if is_blank && !customer_set {
         return (
             Value::Null,
-            vec![customer_user_error(
+            vec![user_error_omit_code(
                 customer_address_field_path(customer_set, index, None),
                 "Customer address cannot be blank.",
+                None,
             )],
         );
     }
@@ -3562,27 +3575,31 @@ fn customer_address_input_node(
         if let Some(value) = customer_address_string(input, field) {
             let label = customer_address_field_label(field);
             if value.chars().count() > 255 {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     json!(["address", field]),
                     &format!("{label} is too long (maximum is 255 characters)"),
+                    None,
                 ));
             }
             if customer_address_contains_html(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     json!(["address", field]),
                     &format!("{label} cannot contain HTML tags"),
+                    None,
                 ));
             }
             if matches!(field, "city" | "zip" | "phone") && customer_address_contains_url(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     json!(["address", field]),
                     &format!("{label} cannot contain URL"),
+                    None,
                 ));
             }
             if customer_address_contains_emoji(&value) {
-                errors.push(customer_user_error(
+                errors.push(user_error_omit_code(
                     json!(["address", field]),
                     &format!("{label} cannot contain emojis"),
+                    None,
                 ));
             }
         }
@@ -3617,9 +3634,10 @@ fn customer_address_input_node(
     let country = match country_raw.as_deref().and_then(customer_country_from_input) {
         Some(country) => Some(country),
         None if country_raw.is_some() => {
-            errors.push(customer_user_error(
+            errors.push(user_error_omit_code(
                 json!(["address", "country"]),
                 "Country is invalid",
+                None,
             ));
             None
         }
@@ -3641,9 +3659,10 @@ fn customer_address_input_node(
             match customer_province_from_input(country.code, raw_province) {
                 Some(province) => province,
                 None => {
-                    errors.push(customer_user_error(
+                    errors.push(user_error_omit_code(
                         json!(["address", "province"]),
                         "Province is invalid",
+                        None,
                     ));
                     None
                 }
@@ -5114,15 +5133,43 @@ fn shopify_decimal_text(value: f64) -> String {
     }
 }
 
-fn store_credit_supported_currency(currency: &str) -> bool {
-    matches!(
-        currency,
-        "USD" | "CAD" | "AUD" | "EUR" | "GBP" | "JPY" | "NZD"
-    )
-}
-
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
     !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+}
+
+fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    let field = fields.iter().find(|field| {
+        matches!(
+            field.name.as_str(),
+            "storeCreditAccountCredit" | "storeCreditAccountDebit"
+        )
+    })?;
+    let (input_name, amount_name) = if field.name == "storeCreditAccountCredit" {
+        ("creditInput", "creditAmount")
+    } else {
+        ("debitInput", "debitAmount")
+    };
+    let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+    let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
+    let currency = resolved_string_field(&amount_input, "currencyCode")?;
+    if !matches!(currency.as_str(), "USDC" | "XXX") {
+        return None;
+    }
+
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "errors": [{
+            "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "CURRENCY_CODE_INVALID" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": Value::Object(data)
+    })))
 }
 
 fn normalize_merged_customer_defaults(customer: &mut Value) {

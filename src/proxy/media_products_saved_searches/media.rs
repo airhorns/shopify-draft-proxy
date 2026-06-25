@@ -204,12 +204,14 @@ impl DraftProxy {
         self.hydrate_referenced_products(request, &inputs);
         self.hydrate_file_update_targets(request, &inputs);
 
-        let missing_ids = inputs
-            .iter()
-            .filter_map(|input| resolved_string_field(input, "id"))
-            .filter(|id| self.media_file_for_update(id).is_none())
-            .collect::<Vec<_>>();
-        let missing_ids = dedupe_media_strings(missing_ids);
+        let mut missing_ids = Vec::new();
+        extend_unique_strings(
+            &mut missing_ids,
+            inputs
+                .iter()
+                .filter_map(|input| resolved_string_field(input, "id"))
+                .filter(|id| self.media_file_for_update(id).is_none()),
+        );
         if !missing_ids.is_empty() {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
@@ -393,11 +395,11 @@ impl DraftProxy {
         // existence checks run against the real backend and the post-delete
         // cascade can clear the file from those owners.
         self.hydrate_media_file_references(request, &ids);
-        let missing_ids = dedupe_media_strings(
+        let mut missing_ids = Vec::new();
+        extend_unique_strings(
+            &mut missing_ids,
             ids.iter()
-                .filter(|id| !self.media_file_delete_target_exists(id))
-                .cloned()
-                .collect(),
+                .filter(|id| !self.media_file_delete_target_exists(id)),
         );
         if !missing_ids.is_empty() {
             let payload = json!({
@@ -432,12 +434,12 @@ impl DraftProxy {
                 "fileAcknowledgeUpdateFailed".to_string()
             });
         let file_ids = media_string_list_arg(query, variables, "fileIds");
-        let missing_ids = dedupe_media_strings(
+        let mut missing_ids = Vec::new();
+        extend_unique_strings(
+            &mut missing_ids,
             file_ids
                 .iter()
-                .filter(|id| self.media_file_for_update(id).is_none())
-                .cloned()
-                .collect(),
+                .filter(|id| self.media_file_for_update(id).is_none()),
         );
         if !missing_ids.is_empty() {
             let payload = json!({
@@ -449,20 +451,18 @@ impl DraftProxy {
             })));
         }
 
-        let non_ready_ids = dedupe_media_strings(
-            file_ids
-                .iter()
-                .filter(|id| {
-                    self.media_file_for_update(id)
-                        .and_then(|file| {
-                            file.get("fileStatus")
-                                .and_then(Value::as_str)
-                                .map(str::to_string)
-                        })
-                        .is_none_or(|status| status != "READY")
-                })
-                .cloned()
-                .collect(),
+        let mut non_ready_ids = Vec::new();
+        extend_unique_strings(
+            &mut non_ready_ids,
+            file_ids.iter().filter(|id| {
+                self.media_file_for_update(id)
+                    .and_then(|file| {
+                        file.get("fileStatus")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .is_none_or(|status| status != "READY")
+            }),
         );
         if !non_ready_ids.is_empty() {
             let payload = json!({
@@ -601,7 +601,7 @@ impl DraftProxy {
             return id.to_string();
         }
         let numeric_id = id.trim_start_matches("gid://shopify/Video/");
-        let media_image_id = format!("gid://shopify/MediaImage/{}", numeric_id);
+        let media_image_id = shopify_gid("MediaImage", numeric_id);
         if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
         } else {
@@ -642,12 +642,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let missing_ids = dedupe_media_strings(
+        let mut missing_ids = Vec::new();
+        extend_unique_strings(
+            &mut missing_ids,
             inputs
                 .iter()
                 .filter_map(|input| resolved_string_field(input, "id"))
-                .filter(|id| !id.is_empty() && self.media_file_for_update(id).is_none())
-                .collect(),
+                .filter(|id| !id.is_empty() && self.media_file_for_update(id).is_none()),
         );
         if missing_ids.is_empty() {
             return;
@@ -685,16 +686,12 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let product_ids = dedupe_media_strings(
-            inputs
-                .iter()
-                .flat_map(|input| {
-                    let mut ids = list_string_field(input, "referencesToAdd");
-                    ids.extend(list_string_field(input, "referencesToRemove"));
-                    ids
-                })
-                .collect(),
-        );
+        let mut product_ids = Vec::new();
+        for input in inputs {
+            for field in ["referencesToAdd", "referencesToRemove"] {
+                extend_unique_strings(&mut product_ids, list_string_field(input, field));
+            }
+        }
         for product_id in product_ids {
             if product_id.is_empty() || self.store.product_by_id(&product_id).is_some() {
                 continue;
@@ -725,14 +722,12 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let missing = dedupe_media_strings(
-            file_ids
-                .iter()
-                .filter(|id| {
-                    !id.is_empty() && !self.store.staged.media_files.contains_key(id.as_str())
-                })
-                .cloned()
-                .collect(),
+        let mut missing = Vec::new();
+        extend_unique_strings(
+            &mut missing,
+            file_ids.iter().filter(|id| {
+                !id.is_empty() && !self.store.staged.media_files.contains_key(id.as_str())
+            }),
         );
         if missing.is_empty() {
             return;
@@ -823,9 +818,11 @@ impl DraftProxy {
         inputs: &[BTreeMap<String, ResolvedValue>],
     ) -> Vec<Value> {
         let any_missing = inputs.iter().any(|input| {
-            let mut product_ids = list_string_field(input, "referencesToAdd");
-            product_ids.extend(list_string_field(input, "referencesToRemove"));
-            dedupe_media_strings(product_ids).iter().any(|product_id| {
+            let mut product_ids = Vec::new();
+            for field in ["referencesToAdd", "referencesToRemove"] {
+                extend_unique_strings(&mut product_ids, list_string_field(input, field));
+            }
+            product_ids.iter().any(|product_id| {
                 !product_id.is_empty() && self.store.product_by_id(product_id).is_none()
             })
         });
@@ -1737,14 +1734,6 @@ fn valid_image_mime_type(mime_type: &str) -> bool {
             | "image/heic"
             | "image/heif"
     )
-}
-
-fn dedupe_media_strings(values: Vec<String>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    values
-        .into_iter()
-        .filter(|value| seen.insert(value.clone()))
-        .collect()
 }
 
 fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {

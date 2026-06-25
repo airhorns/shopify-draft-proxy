@@ -31,6 +31,7 @@ const customerLookupDocument = await readFile(
 // new-customer-defaults capture (it lives at 2026-04 and depends on a slow tag-search indexing
 // poll), so this run regenerates only the missing-email / parity / whitespace 2025-01 fixtures.
 const skipNewCustomerDefaults = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_SKIP_NEW_DEFAULTS === 'true';
+const invalidFormatOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_INVALID_FORMAT_ONLY === 'true';
 
 async function captureCustomerLookup(emailAddress, context) {
   const result = await runGraphql(customerLookupDocument, { identifier: { emailAddress } });
@@ -50,6 +51,22 @@ function customerLookupUpstreamCall(emailAddress, payload) {
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
     throw new Error(`${context} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+}
+
+function assertDataSaleOptOutFailed(payload, context) {
+  const expected = {
+    customerId: null,
+    userErrors: [
+      {
+        field: null,
+        message: 'Data sale opt out failed.',
+        code: 'FAILED',
+      },
+    ],
+  };
+  if (JSON.stringify(payload) !== JSON.stringify(expected)) {
+    throw new Error(`${context} did not return FAILED payload: ${JSON.stringify(payload, null, 2)}`);
   }
 }
 
@@ -204,8 +221,120 @@ const deleteMutation = `#graphql
   }
 `;
 
+const invalidFormatCases = [
+  {
+    name: 'leadingDotLocal',
+    variables: { email: '.me@example.com' },
+  },
+  {
+    name: 'trailingDotLocal',
+    variables: { email: 'me.@example.com' },
+  },
+  {
+    name: 'consecutiveDotLocal',
+    variables: { email: 'me..example@example.com' },
+  },
+  {
+    name: 'consecutiveDotDomain',
+    variables: { email: 'me@example..com' },
+  },
+  {
+    name: 'leadingDashDomainLabel',
+    variables: { email: 'me@-example.com' },
+  },
+  {
+    name: 'trailingDashDomainLabel',
+    variables: { email: 'me@example-.com' },
+  },
+  {
+    name: 'ipv4LiteralDomain',
+    variables: { email: 'me@8.8.8.8' },
+  },
+  {
+    name: 'emojiLocal',
+    variables: { email: '💩💩💩@example.com' },
+  },
+  {
+    name: 'invalidDomainChars',
+    variables: { email: '#@%^%#.com' },
+  },
+  {
+    name: 'displayNameComment',
+    variables: { email: 'me@example.com (First Name)' },
+  },
+  {
+    name: 'over255Length',
+    variables: { email: `${'a'.repeat(244)}@example.com` },
+  },
+];
+
+async function captureInvalidFormatCases() {
+  const invalidFormats = {};
+  const accidentalCustomerIds = [];
+  try {
+    for (const testCase of invalidFormatCases) {
+      const result = await runGraphql(dataSaleOptOutMutation, testCase.variables);
+      assertNoTopLevelErrors(result, `dataSaleOptOut invalid format ${testCase.name}`);
+      const payload = result.payload?.data?.dataSaleOptOut;
+      const customerId = payload?.customerId;
+      if (typeof customerId === 'string' && customerId) {
+        accidentalCustomerIds.push(customerId);
+      }
+      assertDataSaleOptOutFailed(payload, `dataSaleOptOut invalid format ${testCase.name}`);
+      invalidFormats[testCase.name] = {
+        variables: testCase.variables,
+        response: result.payload,
+      };
+    }
+  } finally {
+    for (const customerId of accidentalCustomerIds) {
+      await runGraphql(deleteMutation, { input: { id: customerId } });
+    }
+  }
+  return {
+    setup: {
+      seededCustomers: false,
+      note: 'Format-validation-only capture; Core rejects before creating or updating a customer.',
+    },
+    mutation: invalidFormats.leadingDotLocal,
+    validation: {
+      invalidFormats,
+    },
+    cleanup: {
+      accidentalCustomerIds,
+    },
+    upstreamCalls: [],
+  };
+}
+
+async function writeInvalidFormatCapture() {
+  const invalidFormatCapture = await captureInvalidFormatCases();
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-invalid-format.json'),
+    `${JSON.stringify(invalidFormatCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return invalidFormatCapture;
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
+
+  if (invalidFormatOnly) {
+    await writeInvalidFormatCapture();
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-invalid-format.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   const missingEmailResult = await runGraphql(dataSaleOptOutMissingEmailMutation);
   if (
@@ -244,6 +373,7 @@ async function main() {
     );
     return;
   }
+  await writeInvalidFormatCapture();
 
   const stamp = Date.now();
   const emailAddress = `hermes-data-sale-${stamp}@example.com`;
@@ -503,6 +633,7 @@ async function main() {
           ok: true,
           outputDir,
           files: [
+            'data-sale-opt-out-invalid-format.json',
             'data-sale-opt-out-parity.json',
             'data-sale-opt-out-whitespace-email.json',
             ...(newCustomerDefaultsCapture ? ['data-sale-opt-out-new-customer-defaults.json'] : []),
