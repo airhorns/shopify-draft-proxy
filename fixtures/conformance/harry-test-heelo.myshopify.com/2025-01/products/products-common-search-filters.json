@@ -1,0 +1,745 @@
+{
+  "variables": {
+    "statusQuery": "status:ACTIVE",
+    "vendorTypeQuery": "vendor:\"Levi's\" product_type:\"Apparel\""
+  },
+  "preconditionRead": {
+    "query": "#graphql\n  query ProductsCommonSearchFilterSeed {\n    products(first: 50, query: \"status:ACTIVE\", sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        id\n        title\n        status\n        vendor\n        productType\n      }\n    }\n  }\n",
+    "variables": {},
+    "selectedProduct": {
+      "id": "gid://shopify/Product/9885518299442",
+      "title": "Levi's Commuter Skinny Jeans",
+      "status": "ACTIVE",
+      "vendor": "Levi's",
+      "productType": "Apparel"
+    },
+    "response": {
+      "data": {
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/9899728634162",
+              "title": "Test Product - 5640",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899720343858",
+              "title": "Test Product - 8211",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899713560882",
+              "title": "Test Product - 6710",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899705270578",
+              "title": "Test Product - 3648",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899704516914",
+              "title": "Test Product - 9634",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899697733938",
+              "title": "Test Product - 6051",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899696980274",
+              "title": "Test Product - 7627",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9885518299442",
+              "title": "Levi's Commuter Skinny Jeans",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel"
+            },
+            {
+              "id": "gid://shopify/Product/9885516038450",
+              "title": "Harding",
+              "status": "ACTIVE",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Premium Fixed Gear Bike"
+            },
+            {
+              "id": "gid://shopify/Product/9885515284786",
+              "title": "Leather 6-Pack Holder",
+              "status": "ACTIVE",
+              "vendor": "Walnut Studiolo",
+              "productType": "Bike Accessories"
+            },
+            {
+              "id": "gid://shopify/Product/9899718574386",
+              "title": "Test Product - 1736",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899718082866",
+              "title": "Test Product - 1747",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899717820722",
+              "title": "Test Product - 5207",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899713298738",
+              "title": "Test Product - 2953",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899711791410",
+              "title": "Test Product - 9212",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899709530418",
+              "title": "Test Product - 3174",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899708776754",
+              "title": "Test Product - 7219",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9885514531122",
+              "title": "Truvativ Square Taper Bottom Bracket",
+              "status": "ACTIVE",
+              "vendor": "Truvativ",
+              "productType": "Bottom Brackets"
+            },
+            {
+              "id": "gid://shopify/Product/9885513777458",
+              "title": "Keirin Pro Track Frameset",
+              "status": "ACTIVE",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Framesets"
+            },
+            {
+              "id": "gid://shopify/Product/9899735351602",
+              "title": "Test Product - 6437",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899734597938",
+              "title": "Test Product - 995",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899733156146",
+              "title": "Test Product - 5854",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899732140338",
+              "title": "Test Product - 5060",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899731386674",
+              "title": "Test Product - 1331",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899730141490",
+              "title": "Test Product - 1178",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899729322290",
+              "title": "Test Product - 4807",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899728568626",
+              "title": "Test Product - 2055",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899727126834",
+              "title": "Test Product - 8206",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899722342706",
+              "title": "Test Product - 8255",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899721031986",
+              "title": "Test Product - 9884",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899715559730",
+              "title": "Test Product - 1571",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899714249010",
+              "title": "Test Product - 654",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899712053554",
+              "title": "Test Product - 2252",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899709038898",
+              "title": "Test Product - 6320",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9885514268978",
+              "title": "City Bell",
+              "status": "ACTIVE",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Bells"
+            },
+            {
+              "id": "gid://shopify/Product/9885505487154",
+              "title": "Pure Fix Drome Saddle",
+              "status": "ACTIVE",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Saddle"
+            },
+            {
+              "id": "gid://shopify/Product/10214002491698",
+              "title": "HAR-752 bulk throttle har-752-1781597178939 4",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899732402482",
+              "title": "Test Product - 7679",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899729125682",
+              "title": "Test Product - 1955",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899726307634",
+              "title": "Test Product - 8968",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899717329202",
+              "title": "Test Product - 5355",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899711037746",
+              "title": "Test Product - 5278",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899705958706",
+              "title": "Test Product - 6714",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899703009586",
+              "title": "Test Product - 1119",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899699175730",
+              "title": "Test Product - 5023",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899698422066",
+              "title": "Test Product - 8313",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9899697668402",
+              "title": "Test Product - 6879",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            {
+              "id": "gid://shopify/Product/9885509746994",
+              "title": "Water Bottle Holder",
+              "status": "ACTIVE",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Water Bottle Holder"
+            },
+            {
+              "id": "gid://shopify/Product/9885504733490",
+              "title": "Kenda Kwest Tire 700C: 23C - 32C",
+              "status": "ACTIVE",
+              "vendor": "Kenda",
+              "productType": "Tires"
+            },
+            {
+              "id": "gid://shopify/Product/10214001738034",
+              "title": "HAR-752 bulk throttle har-752-1781596993987 5",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "statusCount": {
+        "count": 1440,
+        "precision": "EXACT"
+      },
+      "statusProducts": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODk5NzI4NjM0MTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMy4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9899728634162",
+              "title": "Test Product - 5640",
+              "handle": "test-product-5640",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "updatedAt": "2026-06-24T14:40:33Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODk5NzIwMzQzODU4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9899720343858",
+              "title": "Test Product - 8211",
+              "handle": "test-product-8211",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "updatedAt": "2026-06-24T14:40:32Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODk5NzEzNTYwODgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9899713560882",
+              "title": "Test Product - 6710",
+              "handle": "test-product-6710",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "updatedAt": "2026-06-24T14:40:32Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODk5NzA1MjcwNTc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9899705270578",
+              "title": "Test Product - 3648",
+              "handle": "test-product-3648",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "updatedAt": "2026-06-24T14:40:32Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODk5NzA0NTE2OTE0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9899704516914",
+              "title": "Test Product - 9634",
+              "handle": "test-product-9634",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "updatedAt": "2026-06-24T14:40:32Z"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo5ODk5NzI4NjM0MTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMy4wMDAwMDAifQ==",
+          "endCursor": "eyJsYXN0X2lkIjo5ODk5NzA0NTE2OTE0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ=="
+        }
+      },
+      "vendorTypeCount": {
+        "count": 6,
+        "precision": "EXACT"
+      },
+      "vendorTypeProducts": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mjk5NDQyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMS4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9885518299442",
+              "title": "Levi's Commuter Skinny Jeans",
+              "handle": "levis-commuter-skinny-jeans",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel",
+              "tags": ["Accessories", "Apparel", "Pants"],
+              "updatedAt": "2026-06-24T14:40:31Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4NDYzMjgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNS4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9885518463282",
+              "title": "Levi's Commuter 504 Regular Straight Jeans",
+              "handle": "levis-commuter-504-regular-straight-jeans",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel",
+              "tags": ["Accessories", "Apparel", "Pants"],
+              "updatedAt": "2026-06-24T14:40:25Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mzk3NzQ2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNC4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9885518397746",
+              "title": "Levi's Commuter 511 Slim Fit Jeans",
+              "handle": "levis-commuter-511-slim-fit-jeans",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel",
+              "tags": ["Accessories", "Apparel", "Pants"],
+              "updatedAt": "2026-06-24T14:40:24Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4MzMyMjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNC4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9885518332210",
+              "title": "Levi's Commuter Shorts",
+              "handle": "levis-lady-commuter-shorts",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel",
+              "tags": ["Accessories", "Apparel", "Shorts"],
+              "updatedAt": "2026-06-24T14:40:24Z"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTA0OTMwMDk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyMi4wMDAwMDAifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9885504930098",
+              "title": "Levi's Commuter 504 Regular Straight Shorts",
+              "handle": "levis-511-slim-fit-commuter-shorts",
+              "status": "ACTIVE",
+              "vendor": "Levi's",
+              "productType": "Apparel",
+              "tags": ["Accessories", "Apparel", "Shorts"],
+              "updatedAt": "2026-06-24T14:40:22Z"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mjk5NDQyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMS4wMDAwMDAifQ==",
+          "endCursor": "eyJsYXN0X2lkIjo5ODg1NTA0OTMwMDk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyMi4wMDAwMDAifQ=="
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 30,
+        "actualQueryCost": 30,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1970,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsCommonSearchFiltersRead",
+      "variables": {
+        "statusQuery": "status:ACTIVE",
+        "vendorTypeQuery": "vendor:\"Levi's\" product_type:\"Apparel\""
+      },
+      "query": "query ProductsCommonSearchFiltersRead($statusQuery: String!, $vendorTypeQuery: String!) {\n  statusCount: productsCount(query: $statusQuery) {\n    count\n    precision\n  }\n  statusProducts: products(first: 5, query: $statusQuery, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  vendorTypeCount: productsCount(query: $vendorTypeQuery) {\n    count\n    precision\n  }\n  vendorTypeProducts: products(first: 5, query: $vendorTypeQuery, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "statusCount": {
+              "count": 1440,
+              "precision": "EXACT"
+            },
+            "statusProducts": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzI4NjM0MTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMy4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899728634162",
+                    "title": "Test Product - 5640",
+                    "handle": "test-product-5640",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-06-24T14:40:33Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzIwMzQzODU4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899720343858",
+                    "title": "Test Product - 8211",
+                    "handle": "test-product-8211",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-06-24T14:40:32Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzEzNTYwODgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899713560882",
+                    "title": "Test Product - 6710",
+                    "handle": "test-product-6710",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-06-24T14:40:32Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzA1MjcwNTc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899705270578",
+                    "title": "Test Product - 3648",
+                    "handle": "test-product-3648",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-06-24T14:40:32Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzA0NTE2OTE0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899704516914",
+                    "title": "Test Product - 9634",
+                    "handle": "test-product-9634",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-06-24T14:40:32Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODk5NzI4NjM0MTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMy4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODk5NzA0NTE2OTE0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMi4wMDAwMDAifQ=="
+              }
+            },
+            "vendorTypeCount": {
+              "count": 6,
+              "precision": "EXACT"
+            },
+            "vendorTypeProducts": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mjk5NDQyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9885518299442",
+                    "title": "Levi's Commuter Skinny Jeans",
+                    "handle": "levis-commuter-skinny-jeans",
+                    "status": "ACTIVE",
+                    "vendor": "Levi's",
+                    "productType": "Apparel",
+                    "tags": ["Accessories", "Apparel", "Pants"],
+                    "updatedAt": "2026-06-24T14:40:31Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4NDYzMjgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9885518463282",
+                    "title": "Levi's Commuter 504 Regular Straight Jeans",
+                    "handle": "levis-commuter-504-regular-straight-jeans",
+                    "status": "ACTIVE",
+                    "vendor": "Levi's",
+                    "productType": "Apparel",
+                    "tags": ["Accessories", "Apparel", "Pants"],
+                    "updatedAt": "2026-06-24T14:40:25Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mzk3NzQ2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9885518397746",
+                    "title": "Levi's Commuter 511 Slim Fit Jeans",
+                    "handle": "levis-commuter-511-slim-fit-jeans",
+                    "status": "ACTIVE",
+                    "vendor": "Levi's",
+                    "productType": "Apparel",
+                    "tags": ["Accessories", "Apparel", "Pants"],
+                    "updatedAt": "2026-06-24T14:40:24Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTE4MzMyMjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyNC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9885518332210",
+                    "title": "Levi's Commuter Shorts",
+                    "handle": "levis-lady-commuter-shorts",
+                    "status": "ACTIVE",
+                    "vendor": "Levi's",
+                    "productType": "Apparel",
+                    "tags": ["Accessories", "Apparel", "Shorts"],
+                    "updatedAt": "2026-06-24T14:40:24Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODg1NTA0OTMwMDk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyMi4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9885504930098",
+                    "title": "Levi's Commuter 504 Regular Straight Shorts",
+                    "handle": "levis-511-slim-fit-commuter-shorts",
+                    "status": "ACTIVE",
+                    "vendor": "Levi's",
+                    "productType": "Apparel",
+                    "tags": ["Accessories", "Apparel", "Shorts"],
+                    "updatedAt": "2026-06-24T14:40:22Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE4Mjk5NDQyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDozMS4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODg1NTA0OTMwMDk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yNCAxNDo0MDoyMi4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
