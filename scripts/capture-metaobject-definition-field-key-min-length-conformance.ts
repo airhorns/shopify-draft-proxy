@@ -197,8 +197,13 @@ async function cleanupDefinition(id: string | null, cleanup: Capture[]): Promise
 const cleanup: Capture[] = [];
 let setupDefinitionId: string | null = null;
 let createBoundaryDefinitionId: string | null = null;
+let createMaxBoundaryDefinitionId: string | null = null;
+let createMixedCaseDefinitionId: string | null = null;
 
 try {
+  const maxLengthKey = 'a'.repeat(64);
+  const tooLongKey = 'a'.repeat(65);
+
   const setup = await captureGraphql('setup-valid-definition', queries.create, {
     definition: createDefinitionInput(`field_key_min_setup_${runId}`, 'Field Key Min Setup', 'title', [
       field('title', 'Title'),
@@ -233,6 +238,30 @@ try {
     'create-key-empty',
   );
 
+  const createKeyTooLong = await captureGraphql('create-key-too-long', queries.create, {
+    definition: createDefinitionInput(`field_key_max_65_${runId}`, 'Field Key Max 65', tooLongKey, [
+      field(tooLongKey, 'Too Long Key'),
+    ]),
+  });
+  assertHasUserErrorCode(
+    createKeyTooLong.response,
+    ['data', 'metaobjectDefinitionCreate', 'userErrors'],
+    'TOO_LONG',
+    'create-key-too-long',
+  );
+
+  const createInvalidCharacters = await captureGraphql('create-invalid-characters', queries.create, {
+    definition: createDefinitionInput(`field_key_invalid_${runId}`, 'Field Key Invalid Characters', 'bad.key', [
+      field('bad.key', 'Bad Key'),
+    ]),
+  });
+  assertHasUserErrorCode(
+    createInvalidCharacters.response,
+    ['data', 'metaobjectDefinitionCreate', 'userErrors'],
+    'INVALID',
+    'create-invalid-characters',
+  );
+
   const createKeyAb = await captureGraphql('create-key-ab', queries.create, {
     definition: createDefinitionInput(`field_key_min_ab_${runId}`, 'Field Key Min AB', 'ab', [field('ab', 'AB')]),
   });
@@ -241,6 +270,38 @@ try {
     createKeyAb.response,
     ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
     'create-key-ab',
+  );
+
+  const createKeyMaxBoundary = await captureGraphql('create-key-max-boundary', queries.create, {
+    definition: createDefinitionInput(`field_key_max_64_${runId}`, 'Field Key Max 64', maxLengthKey, [
+      field(maxLengthKey, 'Max Boundary Key'),
+    ]),
+  });
+  assertNoUserErrors(
+    createKeyMaxBoundary.response,
+    ['data', 'metaobjectDefinitionCreate', 'userErrors'],
+    'create-key-max-boundary',
+  );
+  createMaxBoundaryDefinitionId = readDefinitionId(
+    createKeyMaxBoundary.response,
+    ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
+    'create-key-max-boundary',
+  );
+
+  const createMixedCaseKey = await captureGraphql('create-mixed-case-key', queries.create, {
+    definition: createDefinitionInput(`field_key_case_${runId}`, 'Field Key Case', 'myField', [
+      field('myField', 'Mixed Case Key'),
+    ]),
+  });
+  assertNoUserErrors(
+    createMixedCaseKey.response,
+    ['data', 'metaobjectDefinitionCreate', 'userErrors'],
+    'create-mixed-case-key',
+  );
+  createMixedCaseDefinitionId = readDefinitionId(
+    createMixedCaseKey.response,
+    ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
+    'create-mixed-case-key',
   );
 
   const updateCreateKeyA = await captureGraphql('update-create-key-a', queries.update, {
@@ -265,6 +326,28 @@ try {
     'update-create-key-empty',
   );
 
+  const updateCreateKeyTooLong = await captureGraphql('update-create-key-too-long', queries.update, {
+    id: setupDefinitionId,
+    definition: createFieldDefinition(tooLongKey, 'Too Long Key'),
+  });
+  assertHasUserErrorCode(
+    updateCreateKeyTooLong.response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'TOO_LONG',
+    'update-create-key-too-long',
+  );
+
+  const updateCreateInvalidCharacters = await captureGraphql('update-create-invalid-characters', queries.update, {
+    id: setupDefinitionId,
+    definition: createFieldDefinition('bad.key', 'Bad Key'),
+  });
+  assertHasUserErrorCode(
+    updateCreateInvalidCharacters.response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'INVALID',
+    'update-create-invalid-characters',
+  );
+
   const updateCreateKeyAb = await captureGraphql('update-create-key-ab', queries.update, {
     id: setupDefinitionId,
     definition: createFieldDefinition('ab', 'AB'),
@@ -273,6 +356,26 @@ try {
     updateCreateKeyAb.response,
     ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
     'update-create-key-ab',
+  );
+
+  const updateCreateKeyMaxBoundary = await captureGraphql('update-create-key-max-boundary', queries.update, {
+    id: setupDefinitionId,
+    definition: createFieldDefinition(maxLengthKey, 'Max Boundary Key'),
+  });
+  assertNoUserErrors(
+    updateCreateKeyMaxBoundary.response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'update-create-key-max-boundary',
+  );
+
+  const updateCreateMixedCaseKey = await captureGraphql('update-create-mixed-case-key', queries.update, {
+    id: setupDefinitionId,
+    definition: createFieldDefinition('Spec_2', 'Spec 2'),
+  });
+  assertNoUserErrors(
+    updateCreateMixedCaseKey.response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'update-create-mixed-case-key',
   );
 
   const updateDeleteKeyEmpty = await captureGraphql('update-delete-key-empty', queries.update, {
@@ -286,6 +389,8 @@ try {
     'update-delete-key-empty',
   );
 
+  await cleanupDefinition(createMixedCaseDefinitionId, cleanup);
+  await cleanupDefinition(createMaxBoundaryDefinitionId, cleanup);
   await cleanupDefinition(createBoundaryDefinitionId, cleanup);
   await cleanupDefinition(setupDefinitionId, cleanup);
 
@@ -298,14 +403,22 @@ try {
         storeDomain,
         apiVersion,
         summary:
-          'MetaobjectDefinition field definition key minimum-length validation for create and update.create, including empty strings and the accepted two-character boundary.',
+          'MetaobjectDefinition field definition key length and character validation for create and update.create, including empty strings, 2/64-character accepted boundaries, 65-character rejection, mixed-case acceptance, and invalid format errors.',
         setup,
         createKeyA,
         createKeyEmpty,
+        createKeyTooLong,
+        createInvalidCharacters,
         createKeyAb,
+        createKeyMaxBoundary,
+        createMixedCaseKey,
         updateCreateKeyA,
         updateCreateKeyEmpty,
+        updateCreateKeyTooLong,
+        updateCreateInvalidCharacters,
         updateCreateKeyAb,
+        updateCreateKeyMaxBoundary,
+        updateCreateMixedCaseKey,
         updateDeleteKeyEmpty,
         cleanup,
         upstreamCalls: [],
@@ -317,6 +430,8 @@ try {
   console.log(`Wrote ${outputPath}`);
 } catch (error) {
   try {
+    await cleanupDefinition(createMixedCaseDefinitionId, cleanup);
+    await cleanupDefinition(createMaxBoundaryDefinitionId, cleanup);
     await cleanupDefinition(createBoundaryDefinitionId, cleanup);
     await cleanupDefinition(setupDefinitionId, cleanup);
   } finally {

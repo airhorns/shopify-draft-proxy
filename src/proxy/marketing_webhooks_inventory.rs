@@ -48,6 +48,7 @@ const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
 const INVENTORY_ITEM_WEIGHT_UNITS: &[&str] = &["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"];
 const COMMON_MISSING_INVENTORY_ID_TAILS: &[&str] = &["999999999999", "missing", "unknown"];
 const INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS: &[&str] = &["999999999998", "999999999999999"];
+const WEBHOOK_FILTER_MAX_BYTE_SIZE: usize = 65_535;
 const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "AC", "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AR", "AT", "AU", "AW", "AX", "AZ",
     "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
@@ -474,7 +475,7 @@ impl DraftProxy {
         let payload = json!({
             "deletedWebhookSubscriptionId": deleted_id,
             "userErrors": if deleted_id == Value::Null {
-                json!([{ "field": ["id"], "message": "Webhook subscription does not exist" }])
+                json!([user_error_omit_code(["id"], "Webhook subscription does not exist", None)])
             } else {
                 json!([])
             }
@@ -515,82 +516,92 @@ impl DraftProxy {
             .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
         if uri.trim().is_empty() {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address can't be blank"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address can't be blank",
+                None,
+            ));
         }
         if uri.starts_with("http://") {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address protocol http:// is not supported"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address protocol http:// is not supported",
+                None,
+            ));
         }
         if uri.starts_with("kafka://") {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address protocol kafka:// is not supported"
-            }));
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address is not a valid kafka topic"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address protocol kafka:// is not supported",
+                None,
+            ));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address is not a valid kafka topic",
+                None,
+            ));
         }
         if uri.len() > 65_535 {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address is too big (maximum is 64 KB)"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address is too big (maximum is 64 KB)",
+                None,
+            ));
         }
         if webhook_uri_uses_disallowed_host(uri) {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address cannot be a Shopify or an internal domain"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address cannot be a Shopify or an internal domain",
+                None,
+            ));
         }
         if let Some(pubsub_tail) = uri.strip_prefix("pubsub://") {
             let pubsub_parts = pubsub_tail.split_once(':');
             let (project, topic) = pubsub_parts.unwrap_or((pubsub_tail, ""));
             if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
-                errors.push(json!({
-                    "field": ["webhookSubscription", "callbackUrl"],
-                    "message": "Address protocol pubsub:// is not supported"
-                }));
-                errors.push(json!({
-                    "field": ["webhookSubscription", "callbackUrl"],
-                    "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
-                }));
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription", "callbackUrl"],
+                    "Address protocol pubsub:// is not supported",
+                    None,
+                ));
+                errors.push(user_error_omit_code(["webhookSubscription", "callbackUrl"], "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic", None));
             } else if !valid_gcp_project_id(project) {
                 if root_field.starts_with("pubSubWebhookSubscription") {
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "pubSubProject"],
-                        "message": "Google Cloud Pub/Sub project ID is not valid"
-                    }));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "pubSubProject"],
+                        "Google Cloud Pub/Sub project ID is not valid",
+                        None,
+                    ));
                 } else {
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is invalid"
-                    }));
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is not a valid GCP project id."
-                    }));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "callbackUrl"],
+                        "Address is invalid",
+                        None,
+                    ));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "callbackUrl"],
+                        "Address is not a valid GCP project id.",
+                        None,
+                    ));
                 }
             } else if !valid_gcp_pubsub_topic_id(topic) {
                 if root_field.starts_with("pubSubWebhookSubscription") {
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "pubSubTopic"],
-                        "message": "Google Cloud Pub/Sub topic ID is not valid"
-                    }));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "pubSubTopic"],
+                        "Google Cloud Pub/Sub topic ID is not valid",
+                        None,
+                    ));
                 } else {
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is invalid"
-                    }));
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is not a valid GCP topic id."
-                    }));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "callbackUrl"],
+                        "Address is invalid",
+                        None,
+                    ));
+                    errors.push(user_error_omit_code(
+                        ["webhookSubscription", "callbackUrl"],
+                        "Address is not a valid GCP topic id.",
+                        None,
+                    ));
                 }
             }
         }
@@ -600,28 +611,28 @@ impl DraftProxy {
                     request.headers.get("x-shopify-draft-proxy-api-client-id")
                 {
                     if arn_api_client_id != caller_api_client_id {
-                        errors.push(json!({
-                            "field": address_field,
-                            "message": "Address is invalid"
-                        }));
-                        errors.push(json!({
-                            "field": address_field,
-                            "message": format!(
+                        errors.push(user_error_omit_code(
+                            json!(address_field),
+                            "Address is invalid",
+                            None,
+                        ));
+                        errors.push(user_error_omit_code(json!(address_field), &format!(
                                 "Address is an AWS ARN and includes api_client_id '{}' instead of '{}'",
                                 arn_api_client_id, caller_api_client_id
-                            )
-                        }));
+                            ), None));
                     }
                 }
             } else {
-                errors.push(json!({
-                    "field": address_field,
-                    "message": "Address is invalid"
-                }));
-                errors.push(json!({
-                    "field": address_field,
-                    "message": "Address is not a valid AWS ARN"
-                }));
+                errors.push(user_error_omit_code(
+                    json!(address_field),
+                    "Address is invalid",
+                    None,
+                ));
+                errors.push(user_error_omit_code(
+                    json!(address_field),
+                    "Address is not a valid AWS ARN",
+                    None,
+                ));
             }
         }
         let topic = record["topic"].as_str().unwrap_or_default();
@@ -629,15 +640,17 @@ impl DraftProxy {
         if (uri.starts_with("pubsub://") || uri.starts_with("arn:aws:events:"))
             && !format.eq_ignore_ascii_case("JSON")
         {
-            errors.push(json!({
-                "field": ["webhookSubscription", "format"],
-                "message": "Format can only be used with format: 'json'"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "format"],
+                "Format can only be used with format: 'json'",
+                None,
+            ));
         } else if topic == "RETURNS_APPROVE" && format.eq_ignore_ascii_case("XML") {
-            errors.push(json!({
-                "field": ["webhookSubscription", "format"],
-                "message": "Format 'xml' is invalid for this webhook topic. Allowed formats: json"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "format"],
+                "Format 'xml' is invalid for this webhook topic. Allowed formats: json",
+                None,
+            ));
         }
         if self
             .store
@@ -658,33 +671,33 @@ impl DraftProxy {
                         == webhook_subscription_optional_string_key(record, "apiPermissionId")
             })
         {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address for this topic has already been taken"
-            }));
+            errors.push(user_error_omit_code(
+                ["webhookSubscription", "callbackUrl"],
+                "Address for this topic has already been taken",
+                None,
+            ));
         }
         if let Some(name) = record["name"].as_str() {
             if name.is_empty() {
-                errors.push(json!({
-                    "field": ["webhookSubscription", "name"],
-                    "message": "Name is too short (minimum is 1 character)"
-                }));
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription", "name"],
+                    "Name is too short (minimum is 1 character)",
+                    None,
+                ));
             }
             if name.is_empty()
                 || !name
                     .chars()
                     .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
             {
-                errors.push(json!({
-                    "field": ["webhookSubscription", "name"],
-                    "message": "Name name field can only contain alphanumeric characters, underscores, and hyphens"
-                }));
+                errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
             }
             if name.chars().count() > 50 {
-                errors.push(json!({
-                    "field": ["webhookSubscription", "name"],
-                    "message": "Name is too long (maximum is 50 characters)"
-                }));
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription", "name"],
+                    "Name is too long (maximum is 50 characters)",
+                    None,
+                ));
             }
             if self
                 .store
@@ -698,18 +711,26 @@ impl DraftProxy {
                             .is_some_and(|existing_name| existing_name.eq_ignore_ascii_case(name))
                 })
             {
-                errors.push(json!({
-                    "field": ["webhookSubscription", "name"],
-                    "message": "Name already exists, no duplicate allowed"
-                }));
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription", "name"],
+                    "Name already exists, no duplicate allowed",
+                    None,
+                ));
             }
         }
         if let Some(filter) = record["filter"].as_str() {
-            if webhook_filter_is_invalid(filter) {
-                errors.push(json!({
-                    "field": ["webhookSubscription"],
-                    "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
-                }));
+            if webhook_filter_exceeds_byte_size_limit(filter) {
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription"],
+                    "The specified filter exceeds the maximum allowed size.",
+                    None,
+                ));
+            } else if webhook_filter_is_invalid(filter) {
+                errors.push(user_error_omit_code(
+                    ["webhookSubscription"],
+                    "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
+                    None,
+                ));
             }
         }
         errors
@@ -952,7 +973,7 @@ impl DraftProxy {
                     &json!({
                         "marketingActivity": null,
                         "redirectPath": null,
-                        "userErrors": if field.response_key == "invalidExtension" { json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }]) } else { json!([]) }
+                        "userErrors": if field.response_key == "invalidExtension" { json!([user_error_omit_code(["input", "marketingActivityExtensionId"], "Could not find the marketing extension", None)]) } else { json!([]) }
                     }),
                     &field.selection,
                 ),
@@ -1141,11 +1162,7 @@ impl DraftProxy {
         {
             return marketing_activity_payload(
                 None,
-                vec![json!({
-                    "field": null,
-                    "message": "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.",
-                    "code": "DELETE_JOB_ENQUEUED"
-                })],
+                vec![user_error(Value::Null, "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.", Some("DELETE_JOB_ENQUEUED"))],
             );
         }
         if !input.contains_key("utm")
@@ -1154,21 +1171,17 @@ impl DraftProxy {
         {
             return marketing_activity_payload(
                 None,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.",
-                    "code": "NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER"
-                })],
+                vec![user_error(["input"], "Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.", Some("NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER"))],
             );
         }
         if has_marketing_currency_mismatch(&input) {
             return marketing_activity_payload(
                 None,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "Currency code is not matching between budget and ad spend",
-                    "code": null
-                })],
+                vec![user_error(
+                    ["input"],
+                    "Currency code is not matching between budget and ad spend",
+                    None,
+                )],
             );
         }
         if let Some(err) = invalid_marketing_url_error(&input, &field.name) {
@@ -1182,11 +1195,7 @@ impl DraftProxy {
         {
             return marketing_activity_payload(
                 None,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-                    "code": "INVALID_CHANNEL_HANDLE"
-                })],
+                vec![user_error(["input"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
             );
         }
         let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
@@ -1198,11 +1207,11 @@ impl DraftProxy {
             {
                 return marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input"],
-                        "message": "Validation failed: Remote ID has already been taken",
-                        "code": null
-                    })],
+                    vec![user_error(
+                        ["input"],
+                        "Validation failed: Remote ID has already been taken",
+                        None,
+                    )],
                 );
             }
             if resolved_object_field(&input, "utm")
@@ -1214,11 +1223,11 @@ impl DraftProxy {
             {
                 return marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input"],
-                        "message": "Validation failed: Utm campaign has already been taken",
-                        "code": null
-                    })],
+                    vec![user_error(
+                        ["input"],
+                        "Validation failed: Utm campaign has already been taken",
+                        None,
+                    )],
                 );
             }
             if resolved_string_field(&input, "urlParameterValue").is_some_and(|value| {
@@ -1232,11 +1241,7 @@ impl DraftProxy {
                 };
                 return marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input"],
-                        "message": message,
-                        "code": null
-                    })],
+                    vec![user_error(["input"], message, None)],
                 );
             }
         }
@@ -1272,11 +1277,7 @@ impl DraftProxy {
             && !field.arguments.contains_key("remoteId")
         {
             return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [{
-                "field": null,
-                "message": "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.",
-                "code": "INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"
-            }] }),
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [user_error(Value::Null, "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.", Some("INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"))] }),
                 &field.selection,
             );
         }
@@ -1368,11 +1369,7 @@ impl DraftProxy {
             return selected_json(
                 &marketing_engagement_payload(
                     None,
-                    vec![json!({
-                        "field": null,
-                        "message": "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
-                        "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"
-                    })],
+                    vec![user_error(Value::Null, "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"))],
                 ),
                 &field.selection,
             );
@@ -1381,11 +1378,7 @@ impl DraftProxy {
             return selected_json(
                 &marketing_engagement_payload(
                     None,
-                    vec![json!({
-                        "field": null,
-                        "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
-                        "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
-                    })],
+                    vec![user_error(Value::Null, "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"))],
                 ),
                 &field.selection,
             );
@@ -1395,11 +1388,7 @@ impl DraftProxy {
                 return selected_json(
                     &marketing_engagement_payload(
                         None,
-                        vec![json!({
-                            "field": ["channelHandle"],
-                            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-                            "code": "INVALID_CHANNEL_HANDLE"
-                        })],
+                        vec![user_error(["channelHandle"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
                     ),
                     &field.selection,
                 );
@@ -1411,11 +1400,11 @@ impl DraftProxy {
             return selected_json(
                 &marketing_engagement_payload(
                     None,
-                    vec![json!({
-                        "field": ["marketingEngagement"],
-                        "message": "Currency codes in the marketing engagement input do not match.",
-                        "code": "CURRENCY_CODE_MISMATCH_INPUT"
-                    })],
+                    vec![user_error(
+                        ["marketingEngagement"],
+                        "Currency codes in the marketing engagement input do not match.",
+                        Some("CURRENCY_CODE_MISMATCH_INPUT"),
+                    )],
                 ),
                 &field.selection,
             );
@@ -1467,11 +1456,7 @@ impl DraftProxy {
             return selected_json(
                 &marketing_engagement_payload(
                     None,
-                    vec![json!({
-                        "field": ["marketingEngagement"],
-                        "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.",
-                        "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"
-                    })],
+                    vec![user_error(["marketingEngagement"], "Marketing activity currency code does not match the currency code in the marketing engagement input.", Some("MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"))],
                 ),
                 &field.selection,
             );
@@ -1499,11 +1484,7 @@ impl DraftProxy {
         let (result, errors) = if has_channel_handle == delete_all_channels {
             (
                 Value::Null,
-                vec![json!({
-                    "field": null,
-                    "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
-                    "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
-                })],
+                vec![user_error(Value::Null, "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", Some("INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"))],
             )
         } else if let Some(channel_handle) = resolved_string_arg(&field.arguments, "channelHandle")
         {
@@ -1517,11 +1498,7 @@ impl DraftProxy {
             } else {
                 (
                     Value::Null,
-                    vec![json!({
-                        "field": ["channelHandle"],
-                        "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-                        "code": "INVALID_CHANNEL_HANDLE"
-                    })],
+                    vec![user_error(["channelHandle"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
                 )
             }
         } else {
@@ -1630,11 +1607,11 @@ impl DraftProxy {
             return Some(marketing_activity_not_external_error());
         }
         if existing["marketingEvent"].is_null() {
-            return Some(json!({
-                "field": null,
-                "message": "Marketing activity is not valid, the associated marketing event does not exist.",
-                "code": "MARKETING_EVENT_DOES_NOT_EXIST"
-            }));
+            return Some(user_error(
+                Value::Null,
+                "Marketing activity is not valid, the associated marketing event does not exist.",
+                Some("MARKETING_EVENT_DOES_NOT_EXIST"),
+            ));
         }
         if marketing_input_tactic_is_storefront_app(input) {
             return Some(marketing_activity_cannot_update_tactic_to_storefront_error());
@@ -1647,20 +1624,20 @@ impl DraftProxy {
         if resolved_string_field(input, "channelHandle").is_some_and(|channel_handle| {
             existing["marketingEvent"]["channelHandle"].as_str() != Some(channel_handle.as_str())
         }) {
-            return Some(json!({
-                "field": ["input"],
-                "message": "Channel handle cannot be modified.",
-                "code": "IMMUTABLE_CHANNEL_HANDLE"
-            }));
+            return Some(user_error(
+                ["input"],
+                "Channel handle cannot be modified.",
+                Some("IMMUTABLE_CHANNEL_HANDLE"),
+            ));
         }
         if input_string_field_value(input, "urlParameterValue")
             .is_some_and(|value| json_string_value(&existing["urlParameterValue"]) != Some(value))
         {
-            return Some(json!({
-                "field": ["input"],
-                "message": "URL parameter value cannot be modified.",
-                "code": "IMMUTABLE_URL_PARAMETER"
-            }));
+            return Some(user_error(
+                ["input"],
+                "URL parameter value cannot be modified.",
+                Some("IMMUTABLE_URL_PARAMETER"),
+            ));
         }
         if (input.contains_key("utm") || selector_utm.is_some())
             && (input_utm_value(input, selector_utm, "campaign")
@@ -1670,21 +1647,21 @@ impl DraftProxy {
                 || input_utm_value(input, selector_utm, "medium")
                     != json_string_value(&existing["utmParameters"]["medium"]))
         {
-            return Some(json!({
-                "field": ["input"],
-                "message": "UTM parameters cannot be modified.",
-                "code": "IMMUTABLE_UTM_PARAMETERS"
-            }));
+            return Some(user_error(
+                ["input"],
+                "UTM parameters cannot be modified.",
+                Some("IMMUTABLE_UTM_PARAMETERS"),
+            ));
         }
         if let Some(parent_remote_id) = resolved_string_field(input, "parentRemoteId") {
             let Some(parent_id) =
                 self.find_marketing_activity_by_remote(&parent_remote_id, request)
             else {
-                return Some(json!({
-                    "field": ["input"],
-                    "message": "Remote ID does not correspond to an activity.",
-                    "code": "INVALID_REMOTE_ID"
-                }));
+                return Some(user_error(
+                    ["input"],
+                    "Remote ID does not correspond to an activity.",
+                    Some("INVALID_REMOTE_ID"),
+                ));
             };
             let existing_parent_remote_id = existing["parentRemoteId"].as_str().unwrap_or("");
             let existing_parent_id = if existing_parent_remote_id.is_empty() {
@@ -1693,21 +1670,21 @@ impl DraftProxy {
                 self.find_marketing_activity_by_remote(existing_parent_remote_id, request)
             };
             if existing_parent_id.as_deref() != Some(parent_id.as_str()) {
-                return Some(json!({
-                    "field": ["input"],
-                    "message": "Parent ID cannot be modified.",
-                    "code": "IMMUTABLE_PARENT_ID"
-                }));
+                return Some(user_error(
+                    ["input"],
+                    "Parent ID cannot be modified.",
+                    Some("IMMUTABLE_PARENT_ID"),
+                ));
             }
         }
         if resolved_string_field(input, "hierarchyLevel").is_some_and(|hierarchy_level| {
             existing["hierarchyLevel"].as_str() != Some(hierarchy_level.as_str())
         }) {
-            return Some(json!({
-                "field": ["input"],
-                "message": "Hierarchy level cannot be modified.",
-                "code": "IMMUTABLE_HIERARCHY_LEVEL"
-            }));
+            return Some(user_error(
+                ["input"],
+                "Hierarchy level cannot be modified.",
+                Some("IMMUTABLE_HIERARCHY_LEVEL"),
+            ));
         }
         None
     }
@@ -1789,6 +1766,9 @@ impl DraftProxy {
             let outcome = match field.name.as_str() {
                 "inventoryAdjustQuantities" => self.inventory_adjust_quantities(request, field),
                 "inventorySetQuantities" => self.inventory_set_quantities(request, field),
+                "inventorySetOnHandQuantities" => {
+                    self.inventory_set_on_hand_quantities(request, field)
+                }
                 "inventoryMoveQuantities" => self.inventory_move_quantities(field),
                 "inventoryActivate" => self.inventory_activate(field),
                 "inventoryDeactivate" => self.inventory_deactivate(field),
@@ -2475,7 +2455,9 @@ impl DraftProxy {
             return;
         };
         variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
+        let product_id = variant.product_id.clone();
         self.store.stage_product_variant(variant);
+        self.sync_product_inventory_aggregates(&product_id);
     }
 
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
@@ -2598,10 +2580,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": null,
-                    "userErrors": [{
-                        "field": ["input", "ignoreCompareQuantity"],
-                        "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."
-                    }]
+                    "userErrors": [user_error_omit_code(["input", "ignoreCompareQuantity"], "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity.", None)]
                 }),
                 &field.selection,
             ));
@@ -2687,6 +2666,117 @@ impl DraftProxy {
                 &field.selection,
             ),
             LogDraft::staged("inventorySetQuantities", "products", Vec::new()),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_set_on_hand_quantities(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        if inventory_requires_idempotency(request) && !inventory_field_has_idempotent(field) {
+            return MutationFieldOutcome::unlogged(inventory_idempotency_required_payload(
+                field,
+                "inventorySetOnHandQuantities",
+            ));
+        }
+
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let set_quantities = resolved_object_list_field(&input, "setQuantities");
+        if inventory_set_requires_change_from(request, field) {
+            if let Some(error_payload) = inventory_quantity_missing_change_from_payload(
+                field,
+                "inventorySetOnHandQuantities",
+                "InventorySetQuantityInput",
+                &set_quantities,
+                "quantity",
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
+        }
+        if let Some(error_payload) = inventory_invalid_reason_payload(field, &input) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            inventory_invalid_set_on_hand_quantities_payload(field, &set_quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
+            self.inventory_set_on_hand_quantities_existence_payload(field, &set_quantities)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+
+        let reason =
+            resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
+        let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
+        let mut changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
+        for quantity in set_quantities {
+            let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
+            let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
+            let new_on_hand = resolved_int_field(&quantity, "quantity").unwrap_or(0);
+            let key = (item_id.clone(), location_id.clone());
+            let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+            let delta = {
+                let level = self
+                    .store
+                    .staged
+                    .inventory_levels
+                    .entry(key.clone())
+                    .or_default();
+                let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
+                let delta = new_on_hand - old_on_hand;
+                let old_available = level.get("available").copied().unwrap_or(0);
+                let available_after_change = old_available + delta;
+                level.insert("available".to_string(), available_after_change);
+                level.insert("on_hand".to_string(), new_on_hand);
+                level.entry("damaged".to_string()).or_insert(0);
+                delta
+            };
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key);
+            }
+            self.stamp_inventory_quantity(&item_id, &location_id, "available", &updated_at);
+            self.store.staged.inventory_quantity_updated_at.remove(&(
+                item_id.clone(),
+                location_id.clone(),
+                "on_hand".to_string(),
+            ));
+            self.sync_variant_available_quantity(&item_id, "available");
+            changes.push(inventory_set_on_hand_change_json(
+                &item_id,
+                "available",
+                delta,
+                &location_id,
+                &location_name,
+            ));
+            changes.push(inventory_set_on_hand_change_json(
+                &item_id,
+                "on_hand",
+                delta,
+                &location_id,
+                &location_name,
+            ));
+        }
+
+        MutationFieldOutcome::staged(
+            selected_json(
+                &json!({
+                    "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
+                        "reason": reason,
+                        "referenceDocumentUri": reference,
+                        "changes": changes
+                    },
+                    "userErrors": []
+                }),
+                &field.selection,
+            ),
+            LogDraft::staged("inventorySetOnHandQuantities", "products", Vec::new()),
         )
     }
 
@@ -2837,10 +2927,7 @@ impl DraftProxy {
                 return MutationFieldOutcome::unlogged(selected_json(
                     &json!({
                         "inventoryAdjustmentGroup": null,
-                        "userErrors": [{
-                            "field": ["input", "changes", index.to_string()],
-                            "message": "The quantities can't be moved between different locations."
-                        }]
+                        "userErrors": [user_error_omit_code(json!(["input", "changes", index.to_string()]), "The quantities can't be moved between different locations.", None)]
                     }),
                     &field.selection,
                 ));
@@ -2948,6 +3035,39 @@ impl DraftProxy {
                 errors.push(inventory_unknown_location_error(vec![
                     "input".to_string(),
                     "quantities".to_string(),
+                    index.to_string(),
+                    "locationId".to_string(),
+                ]));
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(inventory_invalid_adjustment_payload(field, errors))
+        }
+    }
+
+    fn inventory_set_on_hand_quantities_existence_payload(
+        &self,
+        field: &RootFieldSelection,
+        set_quantities: &[BTreeMap<String, ResolvedValue>],
+    ) -> Option<Value> {
+        let mut errors = Vec::new();
+        for (index, quantity) in set_quantities.iter().enumerate() {
+            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+            if !self.inventory_item_exists(&item_id) {
+                errors.push(inventory_unknown_inventory_item_error(vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "inventoryItemId".to_string(),
+                ]));
+            }
+            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+            if !self.inventory_location_exists(&location_id) {
+                errors.push(inventory_unknown_location_error(vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
                     index.to_string(),
                     "locationId".to_string(),
                 ]));
@@ -5096,7 +5216,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
                     "deletedId": Value::Null,
-                    "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
+                    "userErrors": [user_error_omit_code(["id"], "Inventory transfer not found.", None)]
                 }),
                 &field.selection,
             ));
@@ -5105,10 +5225,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
                     "deletedId": Value::Null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Can't delete the transfer if it's not in the draft status."
-                    }]
+                    "userErrors": [user_error_omit_code(["id"], "Can't delete the transfer if it's not in the draft status.", None)]
                 }),
                 &field.selection,
             ));
@@ -5162,7 +5279,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 transfer_field: Value::Null,
-                "userErrors": [{"field": ["id"], "message": "Inventory transfer not found."}]
+                "userErrors": [user_error_omit_code(["id"], "Inventory transfer not found.", None)]
             }),
             selection,
         )
@@ -5280,28 +5397,28 @@ impl DraftProxy {
         let destination_is_active =
             self.inventory_transfer_location_is_active(destination_location_id);
         if !origin_is_active {
-            user_errors.push(json!({
-                "field": ["input", "originLocationId"],
-                "message": "The location selected can't be found.",
-                "code": "LOCATION_NOT_FOUND"
-            }));
+            user_errors.push(user_error(
+                ["input", "originLocationId"],
+                "The location selected can't be found.",
+                Some("LOCATION_NOT_FOUND"),
+            ));
         }
         if !destination_is_active {
-            user_errors.push(json!({
-                "field": ["input", "destinationLocationId"],
-                "message": "The location selected can't be found.",
-                "code": "LOCATION_NOT_FOUND"
-            }));
+            user_errors.push(user_error(
+                ["input", "destinationLocationId"],
+                "The location selected can't be found.",
+                Some("LOCATION_NOT_FOUND"),
+            ));
         }
         if !origin_location_id.is_empty()
             && origin_location_id == destination_location_id
             && origin_is_active
         {
-            user_errors.push(json!({
-                "field": ["input", "destinationLocationId"],
-                "message": "The origin location cannot be the same as the destination location.",
-                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
-            }));
+            user_errors.push(user_error(
+                ["input", "destinationLocationId"],
+                "The origin location cannot be the same as the destination location.",
+                Some("TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"),
+            ));
         }
 
         let mut item_counts: BTreeMap<String, usize> = BTreeMap::new();
@@ -5316,27 +5433,27 @@ impl DraftProxy {
             let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
             let quantity = resolved_int_field(item_input, "quantity").unwrap_or(0);
             if item_counts.get(&item_id).copied().unwrap_or(0) > 1 {
-                user_errors.push(json!({
-                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
-                    "message": "The inventory item is already present in the list. Each item must be unique.",
-                    "code": "DUPLICATE_ITEM"
-                }));
+                user_errors.push(user_error(
+                    json!(["input", "lineItems", index.to_string(), "inventoryItemId"]),
+                    "The inventory item is already present in the list. Each item must be unique.",
+                    Some("DUPLICATE_ITEM"),
+                ));
             }
             if origin_is_active
                 && !self.inventory_transfer_item_is_stocked_at_origin(&item_id, origin_location_id)
             {
-                user_errors.push(json!({
-                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
-                    "message": "The inventory item could not be found.",
-                    "code": "ITEM_NOT_FOUND"
-                }));
+                user_errors.push(user_error(
+                    json!(["input", "lineItems", index.to_string(), "inventoryItemId"]),
+                    "The inventory item could not be found.",
+                    Some("ITEM_NOT_FOUND"),
+                ));
             }
             if quantity < 0 {
-                user_errors.push(json!({
-                    "field": ["input", "lineItems", index.to_string(), "quantity"],
-                    "message": "The quantity can't be negative.",
-                    "code": "INVALID_QUANTITY"
-                }));
+                user_errors.push(user_error(
+                    json!(["input", "lineItems", index.to_string(), "quantity"]),
+                    "The quantity can't be negative.",
+                    Some("INVALID_QUANTITY"),
+                ));
             }
         }
         user_errors
@@ -5673,19 +5790,19 @@ fn json_string_value(value: &Value) -> Option<String> {
 }
 
 fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing activity is not external.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
+    user_error(
+        Value::Null,
+        "Marketing activity is not external.",
+        Some("ACTIVITY_NOT_EXTERNAL"),
+    )
 }
 
 fn marketing_activity_delete_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
+    user_error(
+        Value::Null,
+        "The marketing activity must be an external activity.",
+        Some("ACTIVITY_NOT_EXTERNAL"),
+    )
 }
 
 /// The ordered required (non-null) arguments for each webhook mutation root,
@@ -5978,6 +6095,10 @@ fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&s
 /// field via `field:value` syntax. A non-empty filter that names no field
 /// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
 /// mean "no filter" and are accepted.
+fn webhook_filter_exceeds_byte_size_limit(filter: &str) -> bool {
+    filter.len() > WEBHOOK_FILTER_MAX_BYTE_SIZE
+}
+
 fn webhook_filter_is_invalid(filter: &str) -> bool {
     let trimmed = filter.trim();
     if trimmed.is_empty() {
@@ -6035,10 +6156,29 @@ fn inventory_adjust_requires_change_from(request: &Request) -> bool {
 
 fn inventory_set_requires_change_from(request: &Request, field: &RootFieldSelection) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
-        && field
-            .directives
-            .iter()
-            .any(|directive| directive == "idempotent")
+        && inventory_field_has_idempotent(field)
+}
+
+fn inventory_requires_idempotency(request: &Request) -> bool {
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
+}
+
+fn inventory_field_has_idempotent(field: &RootFieldSelection) -> bool {
+    field
+        .directives
+        .iter()
+        .any(|directive| directive == "idempotent")
+}
+
+fn inventory_idempotency_required_payload(field: &RootFieldSelection, root_field: &str) -> Value {
+    json!({
+        "__topLevelErrors": [{
+            "message": "The @idempotent directive is required for this mutation but was not provided.",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "BAD_REQUEST" },
+            "path": [root_field]
+        }]
+    })
 }
 
 fn empty_inventory_quantities() -> BTreeMap<String, i64> {
@@ -6380,14 +6520,14 @@ fn inventory_invalid_reason_payload(
     }
     Some(inventory_invalid_adjustment_payload(
         field,
-        vec![json!({
-            "field": ["input", "reason"],
-            "message": format!(
+        vec![user_error(
+            ["input", "reason"],
+            &format!(
                 "The specified reason is invalid. Valid values are: {}.",
                 INVENTORY_VALID_REASONS.join(", ")
             ),
-            "code": "INVALID_REASON"
-        })],
+            Some("INVALID_REASON"),
+        )],
     ))
 }
 
@@ -6401,11 +6541,11 @@ fn inventory_invalid_public_quantity_name_payload(
     }
     Some(inventory_invalid_adjustment_payload(
         field,
-        vec![json!({
-            "field": path,
-            "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
-            "code": "INVALID_QUANTITY_NAME"
-        })],
+        vec![user_error(
+            json!(path),
+            INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
+            Some("INVALID_QUANTITY_NAME"),
+        )],
     ))
 }
 
@@ -6418,11 +6558,11 @@ fn inventory_invalid_set_quantity_name_payload(
     }
     Some(inventory_invalid_adjustment_payload(
         field,
-        vec![json!({
-            "field": ["input", "name"],
-            "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
-            "code": "INVALID_NAME"
-        })],
+        vec![user_error(
+            ["input", "name"],
+            INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
+            Some("INVALID_NAME"),
+        )],
     ))
 }
 
@@ -6435,11 +6575,11 @@ fn inventory_invalid_set_quantities_payload(
         if resolved_int_field(quantity, "quantity")
             .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
         {
-            errors.push(json!({
-                "field": ["input", "quantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be higher than 1,000,000,000.",
-                "code": "INVALID_QUANTITY_TOO_HIGH"
-            }));
+            errors.push(user_error(
+                json!(["input", "quantities", index.to_string(), "quantity"]),
+                "The quantity can't be higher than 1,000,000,000.",
+                Some("INVALID_QUANTITY_TOO_HIGH"),
+            ));
         }
     }
 
@@ -6458,11 +6598,41 @@ fn inventory_invalid_set_quantities_payload(
         .flat_map(|indexes| indexes.iter().copied())
         .collect();
     for index in duplicate_indexes {
-        errors.push(json!({
-            "field": ["input", "quantities", index.to_string(), "locationId"],
-            "message": "The combination of inventoryItemId and locationId must be unique.",
-            "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
-        }));
+        errors.push(user_error(
+            json!(["input", "quantities", index.to_string(), "locationId"]),
+            "The combination of inventoryItemId and locationId must be unique.",
+            Some("NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"),
+        ));
+    }
+
+    if errors.is_empty() {
+        return None;
+    }
+    Some(inventory_invalid_adjustment_payload(field, errors))
+}
+
+fn inventory_invalid_set_on_hand_quantities_payload(
+    field: &RootFieldSelection,
+    set_quantities: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    let mut errors = Vec::new();
+    for (index, quantity) in set_quantities.iter().enumerate() {
+        if resolved_int_field(quantity, "quantity").is_some_and(|value| value < 0) {
+            errors.push(json!({
+                "field": ["input", "setQuantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }));
+        }
+        if resolved_int_field(quantity, "quantity")
+            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
+        {
+            errors.push(json!({
+                "field": ["input", "setQuantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }));
+        }
     }
 
     if errors.is_empty() {
@@ -6484,20 +6654,42 @@ fn inventory_invalid_adjustment_payload(
     )
 }
 
-fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
+fn inventory_set_on_hand_change_json(
+    item_id: &str,
+    name: &str,
+    delta: i64,
+    location_id: &str,
+    location_name: &str,
+) -> Value {
     json!({
-        "field": field,
-        "message": "The specified inventory item could not be found.",
-        "code": "INVALID_INVENTORY_ITEM"
+        "name": name,
+        "delta": delta,
+        "quantityAfterChange": Value::Null,
+        "ledgerDocumentUri": Value::Null,
+        "item": {
+            "id": item_id
+        },
+        "location": {
+            "id": location_id,
+            "name": location_name
+        }
     })
 }
 
+fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
+    user_error(
+        json!(field),
+        "The specified inventory item could not be found.",
+        Some("INVALID_INVENTORY_ITEM"),
+    )
+}
+
 fn inventory_unknown_location_error(field: Vec<String>) -> Value {
-    json!({
-        "field": field,
-        "message": "The specified location could not be found.",
-        "code": "INVALID_LOCATION"
-    })
+    user_error(
+        json!(field),
+        "The specified location could not be found.",
+        Some("INVALID_LOCATION"),
+    )
 }
 
 #[cfg(test)]
@@ -6529,11 +6721,11 @@ fn immutable_external_activity_validator_rejects_missing_marketing_event() {
 
     assert_eq!(
         err,
-        Some(json!({
-            "field": null,
-            "message": "Marketing activity is not valid, the associated marketing event does not exist.",
-            "code": "MARKETING_EVENT_DOES_NOT_EXIST"
-        }))
+        Some(user_error(
+            Value::Null,
+            "Marketing activity is not valid, the associated marketing event does not exist.",
+            Some("MARKETING_EVENT_DOES_NOT_EXIST")
+        ))
     );
 }
 

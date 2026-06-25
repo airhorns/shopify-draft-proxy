@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-05-07T18:20:24.858Z",
+  "capturedAt": "2026-06-25T01:47:26.587Z",
   "source": "local-runtime-capture-script",
   "apiVersion": "2026-04",
-  "notes": "Executable local-runtime parity fixture for the supported order-backed return lifecycle. Live no-side-effect schema evidence remains in fixtures/conformance/harry-test-heelo.myshopify.com/<api-version>/orders/return-reverse-logistics-introspection.json; return decline validation public-schema evidence is recorded by scripts/capture-return-decline-request-validation-conformance.ts. This fixture supplies the fulfilled order graph needed to replay local return lifecycle and validation branches without runtime Shopify writes.",
+  "notes": "Executable local-runtime parity fixture for the supported order-backed return lifecycle. Live Shopify evidence for returnApproveRequest/returnDeclineRequest invalid-state and not-found userError shapes is recorded in fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json; return decline validation public-schema evidence is recorded by scripts/capture-return-decline-request-validation-conformance.ts. This fixture supplies the fulfilled order graph needed to replay local return lifecycle and validation branches without runtime Shopify writes.",
   "returnCreate": {
     "variables": {
       "returnInput": {
@@ -477,9 +477,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -491,9 +491,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -505,9 +505,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -519,9 +519,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -533,9 +533,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -547,9 +547,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "The return is already declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -561,9 +561,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -575,9 +575,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }

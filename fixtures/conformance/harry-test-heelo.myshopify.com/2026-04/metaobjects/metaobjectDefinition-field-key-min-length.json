@@ -1,15 +1,15 @@
 {
-  "capturedAt": "2026-05-06T23:21:33.622Z",
+  "capturedAt": "2026-06-25T03:26:59.059Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "MetaobjectDefinition field definition key minimum-length validation for create and update.create, including empty strings and the accepted two-character boundary.",
+  "summary": "MetaobjectDefinition field definition key length and character validation for create and update.create, including empty strings, 2/64-character accepted boundaries, 65-character rejection, mixed-case acceptance, and invalid format errors.",
   "setup": {
     "name": "setup-valid-definition",
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_key_min_setup_1778109691899",
+          "type": "field_key_min_setup_1782358015517",
           "name": "Field Key Min Setup",
           "displayNameKey": "title",
           "fieldDefinitions": [
@@ -27,8 +27,8 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17912529202",
-            "type": "field_key_min_setup_1778109691899",
+            "id": "gid://shopify/MetaobjectDefinition/19324010802",
+            "type": "field_key_min_setup_1782358015517",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -58,7 +58,7 @@
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_key_min_a_1778109691899",
+          "type": "field_key_min_a_1782358015517",
           "name": "Field Key Min A",
           "displayNameKey": "a",
           "fieldDefinitions": [
@@ -106,7 +106,7 @@
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_key_min_empty_1778109691899",
+          "type": "field_key_min_empty_1782358015517",
           "name": "Field Key Min Empty",
           "displayNameKey": "",
           "fieldDefinitions": [
@@ -162,13 +162,109 @@
       }
     }
   },
+  "createKeyTooLong": {
+    "name": "create-key-too-long",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_key_max_65_1782358015517",
+          "name": "Field Key Max 65",
+          "displayNameKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "fieldDefinitions": [
+            {
+              "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "name": "Too Long Key",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0"],
+              "message": "Key is too long (maximum is 64 characters)",
+              "code": "TOO_LONG",
+              "elementKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createInvalidCharacters": {
+    "name": "create-invalid-characters",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_key_invalid_1782358015517",
+          "name": "Field Key Invalid Characters",
+          "displayNameKey": "bad.key",
+          "fieldDefinitions": [
+            {
+              "key": "bad.key",
+              "name": "Bad Key",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0"],
+              "message": "Key contains one or more invalid characters.",
+              "code": "INVALID",
+              "elementKey": "bad.key",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "createKeyAb": {
     "name": "create-key-ab",
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_key_min_ab_1778109691899",
+          "type": "field_key_min_ab_1782358015517",
           "name": "Field Key Min AB",
           "displayNameKey": "ab",
           "fieldDefinitions": [
@@ -186,12 +282,110 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17912627506",
-            "type": "field_key_min_ab_1778109691899",
+            "id": "gid://shopify/MetaobjectDefinition/19324174642",
+            "type": "field_key_min_ab_1782358015517",
             "displayNameKey": "ab",
             "fieldDefinitions": [
               {
                 "key": "ab"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createKeyMaxBoundary": {
+    "name": "create-key-max-boundary",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_key_max_64_1782358015517",
+          "name": "Field Key Max 64",
+          "displayNameKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "fieldDefinitions": [
+            {
+              "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "name": "Max Boundary Key",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19324207410",
+            "type": "field_key_max_64_1782358015517",
+            "displayNameKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "fieldDefinitions": [
+              {
+                "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createMixedCaseKey": {
+    "name": "create-mixed-case-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_key_case_1782358015517",
+          "name": "Field Key Case",
+          "displayNameKey": "myField",
+          "fieldDefinitions": [
+            {
+              "key": "myField",
+              "name": "Mixed Case Key",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19324240178",
+            "type": "field_key_case_1782358015517",
+            "displayNameKey": "myField",
+            "fieldDefinitions": [
+              {
+                "key": "myField"
               }
             ]
           },
@@ -216,7 +410,7 @@
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17912529202",
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
         "definition": {
           "fieldDefinitions": [
             {
@@ -264,7 +458,7 @@
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17912529202",
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
         "definition": {
           "fieldDefinitions": [
             {
@@ -321,12 +515,108 @@
       }
     }
   },
+  "updateCreateKeyTooLong": {
+    "name": "update-create-key-too-long",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
+        "definition": {
+          "fieldDefinitions": [
+            {
+              "create": {
+                "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "name": "Too Long Key",
+                "type": "single_line_text_field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0", "create"],
+              "message": "Key is too long (maximum is 64 characters)",
+              "code": "TOO_LONG",
+              "elementKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateCreateInvalidCharacters": {
+    "name": "update-create-invalid-characters",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
+        "definition": {
+          "fieldDefinitions": [
+            {
+              "create": {
+                "key": "bad.key",
+                "name": "Bad Key",
+                "type": "single_line_text_field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0", "create"],
+              "message": "Key contains one or more invalid characters.",
+              "code": "INVALID",
+              "elementKey": "bad.key",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "updateCreateKeyAb": {
     "name": "update-create-key-ab",
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17912529202",
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
         "definition": {
           "fieldDefinitions": [
             {
@@ -345,8 +635,8 @@
       "data": {
         "metaobjectDefinitionUpdate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17912529202",
-            "type": "field_key_min_setup_1778109691899",
+            "id": "gid://shopify/MetaobjectDefinition/19324010802",
+            "type": "field_key_min_setup_1782358015517",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -373,12 +663,125 @@
       }
     }
   },
+  "updateCreateKeyMaxBoundary": {
+    "name": "update-create-key-max-boundary",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
+        "definition": {
+          "fieldDefinitions": [
+            {
+              "create": {
+                "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "name": "Max Boundary Key",
+                "type": "single_line_text_field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19324010802",
+            "type": "field_key_min_setup_1782358015517",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title"
+              },
+              {
+                "key": "ab"
+              },
+              {
+                "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateCreateMixedCaseKey": {
+    "name": "update-create-mixed-case-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
+        "definition": {
+          "fieldDefinitions": [
+            {
+              "create": {
+                "key": "Spec_2",
+                "name": "Spec 2",
+                "type": "single_line_text_field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19324010802",
+            "type": "field_key_min_setup_1782358015517",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title"
+              },
+              {
+                "key": "ab"
+              },
+              {
+                "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "key": "Spec_2"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "updateDeleteKeyEmpty": {
     "name": "update-delete-key-empty",
     "request": {
       "query": "mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17912529202",
+        "id": "gid://shopify/MetaobjectDefinition/19324010802",
         "definition": {
           "fieldDefinitions": [
             {
@@ -425,14 +828,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17912627506"
+          "id": "gid://shopify/MetaobjectDefinition/19324240178"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17912627506",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324240178",
             "userErrors": []
           }
         },
@@ -454,14 +857,72 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17912529202"
+          "id": "gid://shopify/MetaobjectDefinition/19324207410"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17912529202",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324207410",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete-3",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19324174642"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324174642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete-4",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19324010802"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19324010802",
             "userErrors": []
           }
         },

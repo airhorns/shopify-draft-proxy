@@ -78,9 +78,8 @@
       "validation": {
         "id": "gid://shopify/Validation/2",
         "title": "Updated validation",
-        "enable": false,
+        "enabled": false,
         "blockOnFailure": false,
-        "functionHandle": "validation-local",
         "shopifyFunction": {
           "id": "gid://shopify/ShopifyFunction/validation-local",
           "title": "Validation Local",
@@ -93,7 +92,7 @@
           {
             "id": "gid://shopify/Validation/2",
             "title": "Updated validation",
-            "enable": false,
+            "enabled": false,
             "blockOnFailure": false
           }
         ],

@@ -25,6 +25,18 @@ Use the registry helpers here before adding capability metadata or support disco
 
 Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
 
+## `src/proxy/schema_validation.rs` UserError Builders
+
+Use these builders before adding inline `json!` userError objects with `field`, `message`, and optional `code` keys.
+
+- `user_error(...)` emits the standard three-key userError shape and converts absent codes to JSON null.
+- `user_error_omit_code(...)` emits field/message-only shapes, adding `code` only when Shopify includes it.
+- `user_error_with_code_value(...)` handles computed or non-string code values.
+- `presence_user_error(...)`, `length_user_error(...)`, typed variants, `user_error_with_extra_info(...)`, and `user_error_with_element_index(...)` cover common specialized userError shapes.
+- `UserErrorField` accepts static paths, dynamic string paths, and JSON values, so prefer passing the field path directly instead of rebuilding arrays locally.
+
+Do not use these helpers for top-level GraphQL `errors`/`extensions` envelopes; those are a different response shape.
+
 ## Selection And Connection Helpers
 
 Several generic serializers live under `src/proxy/` and should be reused before adding local copies.

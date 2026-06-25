@@ -4,19 +4,19 @@
       "data": {
         "customerEmailMarketingConsentUpdate": {
           "customer": {
-            "id": "gid://shopify/Customer/10820180148530",
+            "id": "gid://shopify/Customer/10841260523826",
             "firstName": "Hermes",
             "lastName": "Consent",
             "displayName": "Hermes Consent",
-            "email": "hermes-consent-1782102968746@example.com",
+            "email": "hermes-consent-1782350410422@example.com",
             "defaultEmailAddress": {
-              "emailAddress": "hermes-consent-1782102968746@example.com",
+              "emailAddress": "hermes-consent-1782350410422@example.com",
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
               "marketingUpdatedAt": "2026-04-25T01:00:00Z"
             },
             "defaultPhoneNumber": {
-              "phoneNumber": "+14155558746",
+              "phoneNumber": "+14155550422",
               "marketingState": "NOT_SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
               "marketingUpdatedAt": null,
@@ -42,7 +42,7 @@
   "mutation": {
     "variables": {
       "input": {
-        "customerId": "gid://shopify/Customer/10820180148530",
+        "customerId": "gid://shopify/Customer/10841260523826",
         "smsMarketingConsent": {
           "marketingState": "SUBSCRIBED",
           "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -54,19 +54,19 @@
       "data": {
         "customerSmsMarketingConsentUpdate": {
           "customer": {
-            "id": "gid://shopify/Customer/10820180148530",
+            "id": "gid://shopify/Customer/10841260523826",
             "firstName": "Hermes",
             "lastName": "Consent",
             "displayName": "Hermes Consent",
-            "email": "hermes-consent-1782102968746@example.com",
+            "email": "hermes-consent-1782350410422@example.com",
             "defaultEmailAddress": {
-              "emailAddress": "hermes-consent-1782102968746@example.com",
+              "emailAddress": "hermes-consent-1782350410422@example.com",
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
               "marketingUpdatedAt": "2026-04-25T01:00:00Z"
             },
             "defaultPhoneNumber": {
-              "phoneNumber": "+14155558746",
+              "phoneNumber": "+14155550422",
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
               "marketingUpdatedAt": "2026-04-25T01:05:00Z",
@@ -82,7 +82,7 @@
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1962,
             "restoreRate": 100
           }
         }
@@ -91,29 +91,29 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Customer/10820180148530",
+      "id": "gid://shopify/Customer/10841260523826",
       "identifier": {
-        "id": "gid://shopify/Customer/10820180148530"
+        "id": "gid://shopify/Customer/10841260523826"
       },
-      "query": "email:hermes-consent-1782102968746@example.com",
+      "query": "email:hermes-consent-1782350410422@example.com",
       "first": 5
     },
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10820180148530",
+          "id": "gid://shopify/Customer/10841260523826",
           "firstName": "Hermes",
           "lastName": "Consent",
           "displayName": "Hermes Consent",
-          "email": "hermes-consent-1782102968746@example.com",
+          "email": "hermes-consent-1782350410422@example.com",
           "defaultEmailAddress": {
-            "emailAddress": "hermes-consent-1782102968746@example.com",
+            "emailAddress": "hermes-consent-1782350410422@example.com",
             "marketingState": "SUBSCRIBED",
             "marketingOptInLevel": "SINGLE_OPT_IN",
             "marketingUpdatedAt": "2026-04-25T01:00:00Z"
           },
           "defaultPhoneNumber": {
-            "phoneNumber": "+14155558746",
+            "phoneNumber": "+14155550422",
             "marketingState": "SUBSCRIBED",
             "marketingOptInLevel": "SINGLE_OPT_IN",
             "marketingUpdatedAt": "2026-04-25T01:05:00Z",
@@ -121,19 +121,19 @@
           }
         },
         "customerByIdentifier": {
-          "id": "gid://shopify/Customer/10820180148530",
+          "id": "gid://shopify/Customer/10841260523826",
           "firstName": "Hermes",
           "lastName": "Consent",
           "displayName": "Hermes Consent",
-          "email": "hermes-consent-1782102968746@example.com",
+          "email": "hermes-consent-1782350410422@example.com",
           "defaultEmailAddress": {
-            "emailAddress": "hermes-consent-1782102968746@example.com",
+            "emailAddress": "hermes-consent-1782350410422@example.com",
             "marketingState": "SUBSCRIBED",
             "marketingOptInLevel": "SINGLE_OPT_IN",
             "marketingUpdatedAt": "2026-04-25T01:00:00Z"
           },
           "defaultPhoneNumber": {
-            "phoneNumber": "+14155558746",
+            "phoneNumber": "+14155550422",
             "marketingState": "SUBSCRIBED",
             "marketingOptInLevel": "SINGLE_OPT_IN",
             "marketingUpdatedAt": "2026-04-25T01:05:00Z",
@@ -154,7 +154,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1974,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -191,7 +191,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1974,
               "restoreRate": 100
             }
           }
@@ -203,24 +203,56 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10820180181298",
+              "id": "gid://shopify/Customer/10841260556594",
               "firstName": "Hermes",
               "lastName": "ConsentTransition",
               "displayName": "Hermes ConsentTransition",
-              "email": "hermes-consent-transition-1782102968746@example.com",
+              "email": "hermes-consent-transition-1782350410422@example.com",
               "defaultEmailAddress": {
-                "emailAddress": "hermes-consent-transition-1782102968746@example.com",
+                "emailAddress": "hermes-consent-transition-1782350410422@example.com",
                 "marketingState": "NOT_SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": null
               },
               "defaultPhoneNumber": {
-                "phoneNumber": "+14156668746",
+                "phoneNumber": "+14156660422",
                 "marketingState": "NOT_SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": null,
                 "marketingCollectedFrom": null
               }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "emailOnlyCustomer": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10841260589362",
+              "firstName": "Hermes",
+              "lastName": "ConsentEmailOnly",
+              "displayName": "Hermes ConsentEmailOnly",
+              "email": "hermes-consent-email-only-1782350410422@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-consent-email-only-1782350410422@example.com",
+                "marketingState": "NOT_SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "marketingUpdatedAt": null
+              },
+              "defaultPhoneNumber": null
             },
             "userErrors": []
           }
@@ -237,22 +269,28 @@
           }
         }
       },
-      "emailOnlyCustomer": {
+      "missingLevelCustomer": {
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10820180214066",
+              "id": "gid://shopify/Customer/10841260687666",
               "firstName": "Hermes",
-              "lastName": "ConsentEmailOnly",
-              "displayName": "Hermes ConsentEmailOnly",
-              "email": "hermes-consent-email-only-1782102968746@example.com",
+              "lastName": "ConsentMissingLevel",
+              "displayName": "Hermes ConsentMissingLevel",
+              "email": "hermes-consent-missing-level-1782350410422@example.com",
               "defaultEmailAddress": {
-                "emailAddress": "hermes-consent-email-only-1782102968746@example.com",
+                "emailAddress": "hermes-consent-missing-level-1782350410422@example.com",
                 "marketingState": "NOT_SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": null
               },
-              "defaultPhoneNumber": null
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14158880422",
+                "marketingState": "NOT_SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "marketingUpdatedAt": null,
+                "marketingCollectedFrom": null
+              }
             },
             "userErrors": []
           }
@@ -263,7 +301,43 @@
             "actualQueryCost": 12,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingOptInLevel": {
+      "name": "subscribed missing opt-in level",
+      "variables": {
+        "input": {
+          "customerId": "gid://shopify/Customer/10841260687666",
+          "smsMarketingConsent": {
+            "marketingState": "SUBSCRIBED"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSmsMarketingConsentUpdate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input", "smsMarketingConsent", "marketingOptInLevel"],
+                "message": "Marketing opt in level must exist",
+                "code": "MISSING_ARGUMENT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -275,7 +349,7 @@
         "name": "missing consent payload",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530"
+            "customerId": "gid://shopify/Customer/10841260523826"
           }
         },
         "response": {
@@ -291,7 +365,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530"
+                  "customerId": "gid://shopify/Customer/10841260523826"
                 },
                 "problems": [
                   {
@@ -308,7 +382,7 @@
         "name": "null consent payload",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": null
           }
         },
@@ -325,7 +399,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530",
+                  "customerId": "gid://shopify/Customer/10841260523826",
                   "smsMarketingConsent": null
                 },
                 "problems": [
@@ -343,7 +417,7 @@
         "name": "null marketingState",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": {
               "marketingState": null,
               "marketingOptInLevel": "SINGLE_OPT_IN"
@@ -363,7 +437,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530",
+                  "customerId": "gid://shopify/Customer/10841260523826",
                   "smsMarketingConsent": {
                     "marketingState": null,
                     "marketingOptInLevel": "SINGLE_OPT_IN"
@@ -384,7 +458,7 @@
         "name": "invalid marketingOptInLevel",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "BOGUS"
@@ -404,7 +478,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530",
+                  "customerId": "gid://shopify/Customer/10841260523826",
                   "smsMarketingConsent": {
                     "marketingState": "SUBSCRIBED",
                     "marketingOptInLevel": "BOGUS"
@@ -425,7 +499,7 @@
         "name": "invalid consentUpdatedAt",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -446,7 +520,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530",
+                  "customerId": "gid://shopify/Customer/10841260523826",
                   "smsMarketingConsent": {
                     "marketingState": "SUBSCRIBED",
                     "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -469,7 +543,7 @@
         "name": "future consentUpdatedAt",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -507,7 +581,7 @@
         "name": "customer without phone contact method",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180214066",
+            "customerId": "gid://shopify/Customer/10841260589362",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -545,7 +619,7 @@
         "name": "unsupported consentCollectedFrom input field",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180148530",
+            "customerId": "gid://shopify/Customer/10841260523826",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -566,7 +640,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180148530",
+                  "customerId": "gid://shopify/Customer/10841260523826",
                   "smsMarketingConsent": {
                     "marketingState": "SUBSCRIBED",
                     "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -588,7 +662,7 @@
         "name": "pending requires confirmed opt-in",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "PENDING",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -626,7 +700,7 @@
         "name": "pending confirmed opt-in transition",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "PENDING",
               "marketingOptInLevel": "CONFIRMED_OPT_IN",
@@ -638,19 +712,19 @@
           "data": {
             "customerSmsMarketingConsentUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10820180181298",
+                "id": "gid://shopify/Customer/10841260556594",
                 "firstName": "Hermes",
                 "lastName": "ConsentTransition",
                 "displayName": "Hermes ConsentTransition",
-                "email": "hermes-consent-transition-1782102968746@example.com",
+                "email": "hermes-consent-transition-1782350410422@example.com",
                 "defaultEmailAddress": {
-                  "emailAddress": "hermes-consent-transition-1782102968746@example.com",
+                  "emailAddress": "hermes-consent-transition-1782350410422@example.com",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T02:06:00Z"
                 },
                 "defaultPhoneNumber": {
-                  "phoneNumber": "+14156668746",
+                  "phoneNumber": "+14156660422",
                   "marketingState": "PENDING",
                   "marketingOptInLevel": "CONFIRMED_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T03:04:00Z",
@@ -677,7 +751,7 @@
         "name": "subscribed unknown opt-in transition",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "SUBSCRIBED",
               "marketingOptInLevel": "UNKNOWN",
@@ -689,19 +763,19 @@
           "data": {
             "customerSmsMarketingConsentUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10820180181298",
+                "id": "gid://shopify/Customer/10841260556594",
                 "firstName": "Hermes",
                 "lastName": "ConsentTransition",
                 "displayName": "Hermes ConsentTransition",
-                "email": "hermes-consent-transition-1782102968746@example.com",
+                "email": "hermes-consent-transition-1782350410422@example.com",
                 "defaultEmailAddress": {
-                  "emailAddress": "hermes-consent-transition-1782102968746@example.com",
+                  "emailAddress": "hermes-consent-transition-1782350410422@example.com",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T02:06:00Z"
                 },
                 "defaultPhoneNumber": {
-                  "phoneNumber": "+14156668746",
+                  "phoneNumber": "+14156660422",
                   "marketingState": "SUBSCRIBED",
                   "marketingOptInLevel": "UNKNOWN",
                   "marketingUpdatedAt": "2026-04-25T03:05:00Z",
@@ -728,7 +802,7 @@
         "name": "unsubscribed transition",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "UNSUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -740,19 +814,19 @@
           "data": {
             "customerSmsMarketingConsentUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10820180181298",
+                "id": "gid://shopify/Customer/10841260556594",
                 "firstName": "Hermes",
                 "lastName": "ConsentTransition",
                 "displayName": "Hermes ConsentTransition",
-                "email": "hermes-consent-transition-1782102968746@example.com",
+                "email": "hermes-consent-transition-1782350410422@example.com",
                 "defaultEmailAddress": {
-                  "emailAddress": "hermes-consent-transition-1782102968746@example.com",
+                  "emailAddress": "hermes-consent-transition-1782350410422@example.com",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T02:06:00Z"
                 },
                 "defaultPhoneNumber": {
-                  "phoneNumber": "+14156668746",
+                  "phoneNumber": "+14156660422",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T03:06:00Z",
@@ -779,7 +853,7 @@
         "name": "idempotent repeated update",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "UNSUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -791,19 +865,19 @@
           "data": {
             "customerSmsMarketingConsentUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10820180181298",
+                "id": "gid://shopify/Customer/10841260556594",
                 "firstName": "Hermes",
                 "lastName": "ConsentTransition",
                 "displayName": "Hermes ConsentTransition",
-                "email": "hermes-consent-transition-1782102968746@example.com",
+                "email": "hermes-consent-transition-1782350410422@example.com",
                 "defaultEmailAddress": {
-                  "emailAddress": "hermes-consent-transition-1782102968746@example.com",
+                  "emailAddress": "hermes-consent-transition-1782350410422@example.com",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T02:06:00Z"
                 },
                 "defaultPhoneNumber": {
-                  "phoneNumber": "+14156668746",
+                  "phoneNumber": "+14156660422",
                   "marketingState": "UNSUBSCRIBED",
                   "marketingOptInLevel": "SINGLE_OPT_IN",
                   "marketingUpdatedAt": "2026-04-25T03:06:00Z",
@@ -830,7 +904,7 @@
         "name": "not subscribed input state",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "NOT_SUBSCRIBED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -874,7 +948,7 @@
         "name": "redacted input state",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "REDACTED",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -918,7 +992,7 @@
         "name": "invalid input state",
         "variables": {
           "input": {
-            "customerId": "gid://shopify/Customer/10820180181298",
+            "customerId": "gid://shopify/Customer/10841260556594",
             "smsMarketingConsent": {
               "marketingState": "INVALID",
               "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -939,7 +1013,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "customerId": "gid://shopify/Customer/10820180181298",
+                  "customerId": "gid://shopify/Customer/10841260556594",
                   "smsMarketingConsent": {
                     "marketingState": "INVALID",
                     "marketingOptInLevel": "SINGLE_OPT_IN",
@@ -956,6 +1030,42 @@
             }
           ]
         }
+      },
+      {
+        "name": "subscribed missing opt-in level",
+        "variables": {
+          "input": {
+            "customerId": "gid://shopify/Customer/10841260687666",
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED"
+            }
+          }
+        },
+        "response": {
+          "data": {
+            "customerSmsMarketingConsentUpdate": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["input", "smsMarketingConsent", "marketingOptInLevel"],
+                  "message": "Marketing opt in level must exist",
+                  "code": "MISSING_ARGUMENT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
       }
     ]
   },
@@ -963,7 +1073,7 @@
     "response": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10820180148530",
+          "deletedCustomerId": "gid://shopify/Customer/10841260523826",
           "userErrors": []
         }
       },
@@ -982,7 +1092,7 @@
     "transitionCustomerResponse": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10820180181298",
+          "deletedCustomerId": "gid://shopify/Customer/10841260556594",
           "userErrors": []
         }
       },
@@ -1001,7 +1111,7 @@
     "emailOnlyCustomerResponse": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10820180214066",
+          "deletedCustomerId": "gid://shopify/Customer/10841260589362",
           "userErrors": []
         }
       },
@@ -1020,7 +1130,26 @@
     "phoneOnlyCustomerResponse": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10820180246834",
+          "deletedCustomerId": "gid://shopify/Customer/10841260622130",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "missingLevelCustomerResponse": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10841260687666",
           "userErrors": []
         }
       },
@@ -1041,7 +1170,7 @@
     {
       "operationName": "CustomerHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10820180148530"
+        "id": "gid://shopify/Customer/10841260523826"
       },
       "query": "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}\n",
       "response": {
@@ -1049,12 +1178,12 @@
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10820180148530",
+              "id": "gid://shopify/Customer/10841260523826",
               "firstName": "Hermes",
               "lastName": "Consent",
               "displayName": "Hermes Consent",
-              "email": "hermes-consent-1782102968746@example.com",
-              "legacyResourceId": "10820180148530",
+              "email": "hermes-consent-1782350410422@example.com",
+              "legacyResourceId": "10841260523826",
               "locale": "en",
               "note": null,
               "canDelete": true,
@@ -1063,22 +1192,22 @@
               "taxExempt": false,
               "taxExemptions": [],
               "state": "DISABLED",
-              "tags": ["consent-1782102968746", "parity"],
+              "tags": ["consent-1782350410422", "parity"],
               "numberOfOrders": "0",
-              "createdAt": "2026-06-22T04:36:08Z",
-              "updatedAt": "2026-06-22T04:36:10Z",
+              "createdAt": "2026-06-25T01:20:10Z",
+              "updatedAt": "2026-06-25T01:20:11Z",
               "amountSpent": {
                 "amount": "0.0",
                 "currencyCode": "CAD"
               },
               "defaultEmailAddress": {
-                "emailAddress": "hermes-consent-1782102968746@example.com",
+                "emailAddress": "hermes-consent-1782350410422@example.com",
                 "marketingState": "SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": "2026-04-25T01:00:00Z"
               },
               "defaultPhoneNumber": {
-                "phoneNumber": "+14155558746",
+                "phoneNumber": "+14155550422",
                 "marketingState": "NOT_SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": null,
@@ -1146,7 +1275,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1974,
+                "currentlyAvailable": 1972,
                 "restoreRate": 100
               }
             }

@@ -1,0 +1,1217 @@
+{
+  "capturedAt": "2026-06-25T01:33:23.885Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live returnApproveRequest/returnDeclineRequest state-precondition capture for non-REQUESTED OPEN and DECLINED returns plus unknown Return IDs, using disposable fulfilled orders.",
+  "setup": {
+    "open": {
+      "label": "open",
+      "orderId": "gid://shopify/Order/8857458049330",
+      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17371653505330",
+      "orderCreate": {
+        "query": "#graphql\n  fragment ReturnApproveDeclineStateOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnApproveDeclineStateOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnApproveDeclineStateOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "return-approve-decline-open-20260625013318@example.com",
+            "note": "return approve decline state precondition capture open 20260625013318",
+            "tags": ["return-approve-decline", "open", "20260625013318"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Return",
+              "lastName": "State",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "Return approve decline open item 20260625013318",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8857458049330",
+                  "name": "#1564",
+                  "createdAt": "2026-06-25T01:33:18Z",
+                  "updatedAt": "2026-06-25T01:33:18Z",
+                  "displayFinancialStatus": null,
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/LineItem/19592136294706",
+                        "title": "Return approve decline open item 20260625013318",
+                        "quantity": 1
+                      }
+                    ]
+                  },
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9793856176434",
+                        "status": "OPEN",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19760836411698",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19592136294706",
+                                "title": "Return approve decline open item 20260625013318"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "returns": {
+                    "nodes": []
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 58,
+                "actualQueryCost": 25,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1975,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "fulfillmentCreate": {
+        "query": "mutation ReturnApproveDeclineStateFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "fulfillment": {
+            "notifyCustomer": false,
+            "trackingInfo": {
+              "number": "RETURN-APPROVE-DECLINE-open-20260625013318",
+              "url": "https://example.com/track/return-approve-decline-open-20260625013318",
+              "company": "Hermes Carrier"
+            },
+            "lineItemsByFulfillmentOrder": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9793856176434",
+                "fulfillmentOrderLineItems": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19760836411698",
+                    "quantity": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "message": "return approve decline state precondition fulfillment open 20260625013318"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentCreate": {
+                "fulfillment": {
+                  "id": "gid://shopify/Fulfillment/8006701416754",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17371653505330",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19592136294706",
+                          "title": "Return approve decline open item 20260625013318"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 18,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "orderReadAfterFulfillment": {
+        "query": "#graphql\n  fragment ReturnApproveDeclineStateOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnApproveDeclineStateOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnApproveDeclineStateOrderFields\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8857458049330"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8857458049330",
+                "name": "#1564",
+                "createdAt": "2026-06-25T01:33:18Z",
+                "updatedAt": "2026-06-25T01:33:19Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "FULFILLED",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19592136294706",
+                      "title": "Return approve decline open item 20260625013318",
+                      "quantity": 1
+                    }
+                  ]
+                },
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/8006701416754",
+                    "status": "SUCCESS",
+                    "displayStatus": "FULFILLED",
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/17371653505330",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19592136294706",
+                            "title": "Return approve decline open item 20260625013318"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9793856176434",
+                      "status": "CLOSED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19760836411698",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 0,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19592136294706",
+                              "title": "Return approve decline open item 20260625013318"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 49,
+                "actualQueryCost": 20,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1980,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "declined": {
+      "label": "declined",
+      "orderId": "gid://shopify/Order/8857458082098",
+      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17371653538098",
+      "orderCreate": {
+        "query": "#graphql\n  fragment ReturnApproveDeclineStateOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnApproveDeclineStateOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnApproveDeclineStateOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "return-approve-decline-declined-20260625013318@example.com",
+            "note": "return approve decline state precondition capture declined 20260625013318",
+            "tags": ["return-approve-decline", "declined", "20260625013318"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Return",
+              "lastName": "State",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "Return approve decline declined item 20260625013318",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8857458082098",
+                  "name": "#1565",
+                  "createdAt": "2026-06-25T01:33:20Z",
+                  "updatedAt": "2026-06-25T01:33:20Z",
+                  "displayFinancialStatus": null,
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/LineItem/19592136327474",
+                        "title": "Return approve decline declined item 20260625013318",
+                        "quantity": 1
+                      }
+                    ]
+                  },
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9793856241970",
+                        "status": "OPEN",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19760836477234",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19592136327474",
+                                "title": "Return approve decline declined item 20260625013318"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "returns": {
+                    "nodes": []
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 58,
+                "actualQueryCost": 25,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1971,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "fulfillmentCreate": {
+        "query": "mutation ReturnApproveDeclineStateFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "fulfillment": {
+            "notifyCustomer": false,
+            "trackingInfo": {
+              "number": "RETURN-APPROVE-DECLINE-declined-20260625013318",
+              "url": "https://example.com/track/return-approve-decline-declined-20260625013318",
+              "company": "Hermes Carrier"
+            },
+            "lineItemsByFulfillmentOrder": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9793856241970",
+                "fulfillmentOrderLineItems": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19760836477234",
+                    "quantity": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "message": "return approve decline state precondition fulfillment declined 20260625013318"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentCreate": {
+                "fulfillment": {
+                  "id": "gid://shopify/Fulfillment/8006701449522",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17371653538098",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19592136327474",
+                          "title": "Return approve decline declined item 20260625013318"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 18,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "orderReadAfterFulfillment": {
+        "query": "#graphql\n  fragment ReturnApproveDeclineStateOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnApproveDeclineStateOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnApproveDeclineStateOrderFields\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8857458082098"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8857458082098",
+                "name": "#1565",
+                "createdAt": "2026-06-25T01:33:20Z",
+                "updatedAt": "2026-06-25T01:33:21Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "FULFILLED",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19592136327474",
+                      "title": "Return approve decline declined item 20260625013318",
+                      "quantity": 1
+                    }
+                  ]
+                },
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/8006701449522",
+                    "status": "SUCCESS",
+                    "displayStatus": "FULFILLED",
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/17371653538098",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19592136327474",
+                            "title": "Return approve decline declined item 20260625013318"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9793856241970",
+                      "status": "CLOSED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19760836477234",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 0,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19592136327474",
+                              "title": "Return approve decline declined item 20260625013318"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 49,
+                "actualQueryCost": 20,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1980,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "declineRequest": {
+    "declineInput": {
+      "declineReason": "OTHER",
+      "declineNote": "return approve decline state precondition 20260625013318",
+      "notifyCustomer": false
+    }
+  },
+  "openCase": {
+    "returnRequest": {
+      "query": "mutation ReturnRequestRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "orderId": "gid://shopify/Order/8857458049330",
+          "returnLineItems": [
+            {
+              "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17371653505330",
+              "quantity": 1,
+              "returnReason": "OTHER"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnRequest": {
+              "return": {
+                "id": "gid://shopify/Return/14776434994",
+                "name": "#1564-R1",
+                "status": "REQUESTED",
+                "totalQuantity": 1,
+                "returnLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ReturnLineItem/22540517682",
+                      "quantity": 1,
+                      "processedQuantity": 0,
+                      "unprocessedQuantity": 1
+                    }
+                  ]
+                },
+                "reverseFulfillmentOrders": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "returnApproveRequest": {
+      "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776434994"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnApproveRequest": {
+              "return": {
+                "id": "gid://shopify/Return/14776434994",
+                "name": "#1564-R1",
+                "status": "OPEN",
+                "totalQuantity": 1,
+                "returnLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ReturnLineItem/22540517682",
+                      "quantity": 1,
+                      "processedQuantity": 0,
+                      "unprocessedQuantity": 1
+                    }
+                  ]
+                },
+                "reverseFulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ReverseFulfillmentOrder/14382694706",
+                      "status": "OPEN",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21763588402",
+                            "totalQuantity": 1,
+                            "fulfillmentLineItem": {
+                              "id": "gid://shopify/FulfillmentLineItem/17371653505330",
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19592136294706",
+                                "title": "Return approve decline open item 20260625013318"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "approveOpenInvalid": {
+      "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776434994"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnApproveRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "declineOpenInvalid": {
+      "query": "mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {\n  returnDeclineRequest(input: $input) {\n    return {\n      id\n      status\n      decline {\n        reason\n        note\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776434994",
+          "declineReason": "OTHER",
+          "declineNote": "return approve decline state precondition 20260625013318",
+          "notifyCustomer": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnDeclineRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "declinedCase": {
+    "returnRequest": {
+      "query": "mutation ReturnRequestRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "orderId": "gid://shopify/Order/8857458082098",
+          "returnLineItems": [
+            {
+              "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17371653538098",
+              "quantity": 1,
+              "returnReason": "OTHER"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnRequest": {
+              "return": {
+                "id": "gid://shopify/Return/14776467762",
+                "name": "#1565-R1",
+                "status": "REQUESTED",
+                "totalQuantity": 1,
+                "returnLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ReturnLineItem/22540550450",
+                      "quantity": 1,
+                      "processedQuantity": 0,
+                      "unprocessedQuantity": 1
+                    }
+                  ]
+                },
+                "reverseFulfillmentOrders": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "returnDeclineRequest": {
+      "query": "mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {\n  returnDeclineRequest(input: $input) {\n    return {\n      id\n      status\n      decline {\n        reason\n        note\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776467762",
+          "declineReason": "OTHER",
+          "declineNote": "return approve decline state precondition 20260625013318",
+          "notifyCustomer": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnDeclineRequest": {
+              "return": {
+                "id": "gid://shopify/Return/14776467762",
+                "status": "DECLINED",
+                "decline": {
+                  "reason": "OTHER",
+                  "note": "return approve decline state precondition 20260625013318"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "approveDeclinedInvalid": {
+      "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776467762"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnApproveRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "declineDeclinedInvalid": {
+      "query": "mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {\n  returnDeclineRequest(input: $input) {\n    return {\n      id\n      status\n      decline {\n        reason\n        note\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/14776467762",
+          "declineReason": "OTHER",
+          "declineNote": "return approve decline state precondition 20260625013318",
+          "notifyCustomer": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnDeclineRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "The return is already declined.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownIdCase": {
+    "approveMissing": {
+      "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/999999999991"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnApproveRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "Return not found.",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "declineMissing": {
+      "query": "mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {\n  returnDeclineRequest(input: $input) {\n    return {\n      id\n      status\n      decline {\n        reason\n        note\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/999999999992",
+          "declineReason": "OTHER",
+          "declineNote": "return approve decline state precondition 20260625013318",
+          "notifyCustomer": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnDeclineRequest": {
+              "return": null,
+              "userErrors": [
+                {
+                  "field": ["input", "id"],
+                  "message": "Return not found.",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "open": {
+      "query": "mutation ReturnApproveDeclineStateOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8857458049330",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/fce9a2f5-a4f8-4e44-9183-b73d5f1dd03a"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "declined": {
+      "query": "mutation ReturnApproveDeclineStateOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8857458082098",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/fce9a2f5-a4f8-4e44-9183-b73d5f1dd03a"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8857458049330"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8857458049330",
+              "name": "#1564",
+              "createdAt": "2026-06-25T01:33:18Z",
+              "updatedAt": "2026-06-25T01:33:19Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19592136294706",
+                    "title": "Return approve decline open item 20260625013318",
+                    "quantity": 1
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8006701416754",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-25T01:33:19Z",
+                  "updatedAt": "2026-06-25T01:33:19Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17371653505330",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19592136294706",
+                          "title": "Return approve decline open item 20260625013318",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8857458082098"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8857458082098",
+              "name": "#1565",
+              "createdAt": "2026-06-25T01:33:20Z",
+              "updatedAt": "2026-06-25T01:33:21Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19592136327474",
+                    "title": "Return approve decline declined item 20260625013318",
+                    "quantity": 1
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8006701449522",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-25T01:33:21Z",
+                  "updatedAt": "2026-06-25T01:33:21Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17371653538098",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19592136327474",
+                          "title": "Return approve decline declined item 20260625013318",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

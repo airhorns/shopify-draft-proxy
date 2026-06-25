@@ -36,6 +36,7 @@ mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {
     userErrors {
       field
       message
+      code
     }
   }
 }

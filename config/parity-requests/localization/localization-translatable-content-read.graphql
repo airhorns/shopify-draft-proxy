@@ -1,0 +1,12 @@
+query LocalizationTranslatableContentRead($resourceId: ID!) {
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+}

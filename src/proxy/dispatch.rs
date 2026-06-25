@@ -217,6 +217,10 @@ impl DraftProxy {
             "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
             "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
+                let selection_errors = functions_output_selection_errors(query, variables, &fields);
+                if !selection_errors.is_empty() {
+                    return ok_json(json!({ "errors": selection_errors }));
+                }
                 if let Some(data) = self.local_node_query_data(&fields, false) {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
@@ -455,7 +459,11 @@ impl DraftProxy {
         }))
     }
 
-    fn local_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+    pub(in crate::proxy) fn local_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
@@ -506,6 +514,24 @@ impl DraftProxy {
                     .unwrap_or(Value::Null),
             );
         }
+        if let Some(validation) = self.store.staged.function_validations.get(id) {
+            return Some(selected_json(
+                &validation_record_for_selection(validation, selection),
+                selection,
+            ));
+        }
+        if let Some(validation) = self
+            .store
+            .staged
+            .function_validation
+            .as_ref()
+            .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
+        {
+            return Some(selected_json(
+                &validation_record_for_selection(validation, selection),
+                selection,
+            ));
+        }
         if let Some(cart_transform) = self.store.staged.function_cart_transforms.get(id) {
             return Some(selected_json(cart_transform, selection));
         }
@@ -524,7 +550,10 @@ impl DraftProxy {
             .function_fulfillment_constraint_rules
             .get(id)
         {
-            return Some(selected_json(rule, selection));
+            return Some(selected_json(
+                &fulfillment_constraint_rule_record_for_selection(rule, selection),
+                selection,
+            ));
         }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
@@ -939,6 +968,7 @@ impl DraftProxy {
                         root_field,
                         "inventoryAdjustQuantities"
                             | "inventorySetQuantities"
+                            | "inventorySetOnHandQuantities"
                             | "inventoryMoveQuantities"
                             | "inventoryActivate"
                             | "inventoryDeactivate"
@@ -1718,8 +1748,11 @@ impl DraftProxy {
                     (self.upstream_transport)(request.clone())
                 } else {
                     let fields = try_root_fields!(&query, &variables);
-                    let selection_errors =
+                    let mut selection_errors =
                         cart_transform_selection_errors(&query, &variables, &fields);
+                    selection_errors.extend(functions_output_selection_errors(
+                        &query, &variables, &fields,
+                    ));
                     if selection_errors.is_empty() {
                         ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
                     } else {

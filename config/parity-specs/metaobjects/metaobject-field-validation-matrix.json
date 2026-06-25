@@ -342,6 +342,90 @@
         }
       },
       {
+        "name": "create-money-invalid",
+        "capturePath": "$.invalidCreateCases.money-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.money-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-money-invalid",
+        "capturePath": "$.invalidUpdateCases.money-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.money-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-link-invalid",
+        "capturePath": "$.invalidCreateCases.link-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.link-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-link-invalid",
+        "capturePath": "$.invalidUpdateCases.link-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.link-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-power-invalid",
+        "capturePath": "$.invalidCreateCases.power-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.power-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-power-invalid",
+        "capturePath": "$.invalidUpdateCases.power-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.power-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "create-product-reference-invalid",
         "capturePath": "$.invalidCreateCases.product-reference-invalid.response.data.metaobjectCreate.userErrors",
         "proxyPath": "$.data.metaobjectCreate.userErrors",
@@ -482,6 +566,34 @@
         }
       },
       {
+        "name": "create-file-reference-invalid",
+        "capturePath": "$.invalidCreateCases.file-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.file-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-file-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.file-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.file-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "create-metaobject-reference-invalid",
         "capturePath": "$.invalidCreateCases.metaobject-reference-invalid.response.data.metaobjectCreate.userErrors",
         "proxyPath": "$.data.metaobjectCreate.userErrors",
@@ -504,6 +616,34 @@
             },
             "metaobject": {
               "fromCapturePath": "$.invalidUpdateCases.metaobject-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-mixed-reference-invalid",
+        "capturePath": "$.invalidCreateCases.mixed-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.mixed-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-mixed-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.mixed-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.mixed-reference-invalid.request.variables.metaobject"
             }
           },
           "apiVersion": "2026-04"

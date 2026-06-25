@@ -1421,8 +1421,22 @@ impl DraftProxy {
         let expected_currency = payment_money_currency(&parent_amount_set, "presentmentMoney")
             .or_else(|| payment_money_currency(&parent_amount_set, "shopMoney"))
             .unwrap_or_else(|| "CAD".to_string());
+        let shop_currency = order["currencyCode"]
+            .as_str()
+            .map(str::to_string)
+            .or_else(|| payment_money_currency(&parent_amount_set, "shopMoney"))
+            .unwrap_or_else(|| expected_currency.clone());
+        let expected_currency = order["presentmentCurrencyCode"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .or_else(|| payment_money_currency(&parent_amount_set, "presentmentMoney"))
+            .unwrap_or(expected_currency);
+        let requires_currency = expected_currency != shop_currency;
         let currency = resolved_string_field(input, "currency");
-        if currency.as_deref() != Some(expected_currency.as_str()) {
+        if (requires_currency || currency.is_some())
+            && currency.as_deref() != Some(expected_currency.as_str())
+        {
             return Some((
                 Value::Null,
                 order.clone(),
@@ -1441,7 +1455,7 @@ impl DraftProxy {
                 vec![payment_user_error(
                     Value::Null,
                     "Amount must be greater than zero for capture transactions",
-                    Some("INVALID_AMOUNT"),
+                    None,
                 )],
                 Vec::new(),
             ));

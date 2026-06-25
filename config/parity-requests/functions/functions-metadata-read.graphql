@@ -2,9 +2,8 @@ query ReadFunctionMetadata($validationId: ID!) {
   validation(id: $validationId) {
     id
     title
-    enable
+    enabled
     blockOnFailure
-    functionHandle
     shopifyFunction {
       id
       title
@@ -16,7 +15,7 @@ query ReadFunctionMetadata($validationId: ID!) {
     nodes {
       id
       title
-      enable
+      enabled
       blockOnFailure
     }
     pageInfo {

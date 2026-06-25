@@ -130,10 +130,8 @@
       "validation": {
         "id": "gid://shopify/Validation/2",
         "title": "Owned validation renamed",
-        "enable": false,
+        "enabled": false,
         "blockOnFailure": false,
-        "functionId": "gid://shopify/ShopifyFunction/validation-owned",
-        "functionHandle": "validation-owned",
         "shopifyFunction": {
           "id": "gid://shopify/ShopifyFunction/validation-owned",
           "title": "Owned validation function",
