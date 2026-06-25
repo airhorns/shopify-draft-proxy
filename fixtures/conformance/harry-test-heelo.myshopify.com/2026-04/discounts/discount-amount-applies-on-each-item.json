@@ -1,0 +1,669 @@
+{
+  "capturedAt": "2026-06-25T02:00:11.834Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "product": {
+      "query": "mutation DiscountAmountAppliesOnEachItemProductSetup($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Discount amount entitlement 1782352808847"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10220862636338"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "codeTrueCreate": {
+      "query": "mutation DiscountAmountAppliesOnEachItemCodeCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount amount AMTEACH1782352808847",
+          "code": "AMTEACH1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": true
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10220862636338"]
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountCodeBasicCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1656404836658",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Discount amount AMTEACH1782352808847",
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": true
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeTrueRead": {
+      "query": "query DiscountAmountAppliesOnEachItemRead($id: ID!) {\n  discountNode(id: $id) {\n    id\n    discount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        customerGets {\n          value {\n            __typename\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1656404836658"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1656404836658",
+            "discount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "Discount amount AMTEACH1782352808847",
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountAmount",
+                  "amount": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "appliesOnEachItem": true
+                }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeFalseCreate": {
+      "query": "mutation DiscountAmountAppliesOnEachItemCodeCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount amount AMTACROSS1782352808847",
+          "code": "AMTACROSS1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountCodeBasicCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1656404869426",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Discount amount AMTACROSS1782352808847",
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": false
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreate": {
+      "query": "mutation DiscountAmountAppliesOnEachItemAutomaticCreate($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount amount automatic each 1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": true
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10220862636338"]
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountAutomaticBasicCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1656404902194",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "Discount amount automatic each 1782352808847",
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": true
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdate": {
+      "query": "mutation DiscountAmountAppliesOnEachItemAutomaticUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1656404902194",
+        "input": {
+          "title": "Discount amount automatic across 1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountAutomaticBasicUpdate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1656404902194",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "Discount amount automatic across 1782352808847",
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": false
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deprecatedEach": {
+      "query": "mutation DiscountAmountAppliesOnEachItemCodeCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount amount AMTEACHOLD1782352808847",
+          "code": "AMTEACHOLD1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": true,
+                "each": true
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerGets.value.discountAmount.each (Field is not defined on DiscountAmountInput)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 52
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Discount amount AMTEACHOLD1782352808847",
+                "code": "AMTEACHOLD1782352808847",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": {
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "discountAmount": {
+                      "amount": "10.00",
+                      "appliesOnEachItem": true,
+                      "each": true
+                    }
+                  },
+                  "items": {
+                    "all": true
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountAmount", "each"],
+                  "explanation": "Field is not defined on DiscountAmountInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "deprecatedUseEach": {
+      "query": "mutation DiscountAmountAppliesOnEachItemCodeCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount amount AMTUSEEACH1782352808847",
+          "code": "AMTUSEEACH1782352808847",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "10.00",
+                "appliesOnEachItem": true,
+                "useEach": true
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerGets.value.discountAmount.useEach (Field is not defined on DiscountAmountInput)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 52
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Discount amount AMTUSEEACH1782352808847",
+                "code": "AMTUSEEACH1782352808847",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": {
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "discountAmount": {
+                      "amount": "10.00",
+                      "appliesOnEachItem": true,
+                      "useEach": true
+                    }
+                  },
+                  "items": {
+                    "all": true
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountAmount", "useEach"],
+                  "explanation": "Field is not defined on DiscountAmountInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "#graphql\n  mutation DiscountAmountAppliesOnEachItemAutomaticCleanup($id: ID!) {\n    discountAutomaticDelete(id: $id) {\n      deletedAutomaticDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1656404902194"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1656404902194",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\n  mutation DiscountAmountAppliesOnEachItemCodeCleanup($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1656404869426"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1656404869426",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\n  mutation DiscountAmountAppliesOnEachItemCodeCleanup($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1656404836658"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1656404836658",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\n  mutation DiscountAmountAppliesOnEachItemProductCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10220862636338"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10220862636338",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

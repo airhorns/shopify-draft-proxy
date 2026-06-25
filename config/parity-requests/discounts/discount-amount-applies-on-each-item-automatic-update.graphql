@@ -1,0 +1,31 @@
+mutation DiscountAmountAppliesOnEachItemAutomaticUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          customerGets {
+            value {
+              __typename
+              ... on DiscountAmount {
+                amount {
+                  amount
+                  currencyCode
+                }
+                appliesOnEachItem
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
