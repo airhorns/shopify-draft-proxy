@@ -1959,11 +1959,16 @@ pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
     field: &str,
     message: &str,
 ) -> Value {
-    json!({
-        "field": ["paymentCustomization", "metafields", index.to_string(), field],
-        "code": "INVALID_METAFIELDS",
-        "message": message
-    })
+    user_error(
+        json!([
+            "paymentCustomization",
+            "metafields",
+            index.to_string(),
+            field
+        ]),
+        message,
+        Some("INVALID_METAFIELDS"),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
@@ -2709,11 +2714,7 @@ pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Opti
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     json!({
         "success": null,
-        "userErrors": [{
-            "field": null,
-            "message": message,
-            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-        }]
+        "userErrors": [user_error(Value::Null, message, Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"))]
     })
 }
 
@@ -2898,10 +2899,7 @@ impl DraftProxy {
                         let value = selected_json(
                             &json!({
                                 "abandonment": Value::Null,
-                                "userErrors": [{
-                                    "field": ["abandonmentId"],
-                                    "message": "abandonment_not_found"
-                                }]
+                                "userErrors": [user_error_omit_code(["abandonmentId"], "abandonment_not_found", None)]
                             }),
                             &field.selection,
                         );
@@ -2917,25 +2915,25 @@ impl DraftProxy {
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
-                            "message": "invalid",
-                            "code": "NOT_FOUND"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "marketingActivityId"],
+                            "invalid",
+                            Some("NOT_FOUND"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else if delivered_at.starts_with("2099-") {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveredAt"],
-                            "message": "invalid",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveredAt"],
+                            "invalid",
+                            Some("INVALID"),
+                        ));
                         ("SENDING".to_string(), Value::Null)
                     } else if status == "SENDING" {
-                        user_errors.push(json!({
-                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
-                            "message": "invalid_transition",
-                            "code": "INVALID"
-                        }));
+                        user_errors.push(user_error(
+                            ["deliveryStatuses", "0", "deliveryStatus"],
+                            "invalid_transition",
+                            Some("INVALID"),
+                        ));
                         ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
                     } else {
                         (status, Value::String(delivered_at.clone()))
@@ -3167,10 +3165,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["id"],
-                                            "message": "The order does not exist."
-                                        }]
+                                        "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
                                     }),
                                     &field.selection
                                 )
@@ -3183,10 +3178,7 @@ impl DraftProxy {
                                 field.response_key: selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [{
-                                            "field": ["base"],
-                                            "message": "not_editable"
-                                        }]
+                                        "userErrors": [user_error_omit_code(["base"], "not_editable", None)]
                                     }),
                                     &field.selection
                                 )

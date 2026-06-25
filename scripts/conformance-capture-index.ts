@@ -1964,6 +1964,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields/metafields-set-parity.json',
+      'config/parity-specs/products/metafieldsSet-missing-namespace.json',
+      'config/parity-specs/products/metafieldsSet-owner-expansion.json',
+      'config/parity-specs/products/metafieldsSet-parity-plan.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
@@ -10202,7 +10205,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'gift-card-recipient-validation',
     scriptPath: 'scripts/capture-gift-card-recipient-validation-conformance.ts',
     purpose:
-      'Gift-card create/update recipientAttributes validation for required recipient id, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
+      'Gift-card create/update recipientAttributes validation for required recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-recipient-validation.json`,
