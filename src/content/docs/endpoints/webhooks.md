@@ -57,6 +57,7 @@ Validation and no-side-effect behavior:
 - Unknown update/delete IDs return captured userErrors and leave local state unchanged.
 - Whitespace-only `uri` is treated as blank; leading/trailing whitespace around a valid HTTPS URI is trimmed before storage.
 - Callback address byte-size validation uses Shopify's MySQL text-column maximum of 65,535 bytes.
+- Filter byte-size validation uses the same 65,535-byte maximum and takes precedence over filter syntax validation.
 - Shop-owned callback host validation uses effective shop state or a LiveHybrid upstream shop baseline when available. The proxy rejects the effective non-static `primaryDomain.host` as shop-owned and keeps exact-host matching only.
 
 Supported create/update/delete operations do not deliver webhook payloads and do not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.

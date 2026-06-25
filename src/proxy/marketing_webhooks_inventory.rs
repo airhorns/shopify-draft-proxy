@@ -48,6 +48,7 @@ const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
 const INVENTORY_ITEM_WEIGHT_UNITS: &[&str] = &["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"];
 const COMMON_MISSING_INVENTORY_ID_TAILS: &[&str] = &["999999999999", "missing", "unknown"];
 const INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS: &[&str] = &["999999999998", "999999999999999"];
+const WEBHOOK_FILTER_MAX_BYTE_SIZE: usize = 65_535;
 const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "AC", "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AR", "AT", "AU", "AW", "AX", "AZ",
     "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
@@ -705,7 +706,12 @@ impl DraftProxy {
             }
         }
         if let Some(filter) = record["filter"].as_str() {
-            if webhook_filter_is_invalid(filter) {
+            if webhook_filter_exceeds_byte_size_limit(filter) {
+                errors.push(json!({
+                    "field": ["webhookSubscription"],
+                    "message": "The specified filter exceeds the maximum allowed size."
+                }));
+            } else if webhook_filter_is_invalid(filter) {
                 errors.push(json!({
                     "field": ["webhookSubscription"],
                     "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
@@ -6127,6 +6133,10 @@ fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&s
 /// field via `field:value` syntax. A non-empty filter that names no field
 /// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
 /// mean "no filter" and are accepted.
+fn webhook_filter_exceeds_byte_size_limit(filter: &str) -> bool {
+    filter.len() > WEBHOOK_FILTER_MAX_BYTE_SIZE
+}
+
 fn webhook_filter_is_invalid(filter: &str) -> bool {
     let trimmed = filter.trim();
     if trimmed.is_empty() {
