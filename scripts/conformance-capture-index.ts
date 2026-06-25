@@ -3813,6 +3813,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translatable-content-product',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translatable-content-conformance.mts',
+    purpose:
+      'Product translatableResource.translatableContent key/value/digest/locale/type read parity for fully populated source fields.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translatable-content-product.json`,
+      'config/parity-specs/localization/localization-translatable-content-product.json',
+      'config/parity-requests/localization/localization-translatable-content-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable Product with title, body HTML, handle, product type, and SEO source fields populated, validates translatableContent digests, then deletes the Product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',

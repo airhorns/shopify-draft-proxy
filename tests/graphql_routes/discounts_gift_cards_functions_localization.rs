@@ -3385,6 +3385,194 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
 }
 
 #[test]
+fn localization_translatable_content_uses_modeled_source_values_and_round_trips_digests() {
+    let mut proxy = snapshot_proxy();
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalizedProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Localized product",
+                "handle": "localized-product",
+                "descriptionHtml": "<p>Source body</p>",
+                "productType": "Widget",
+                "seo": {
+                    "title": "Localized SEO title",
+                    "description": "Localized SEO description"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let collection_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalizedCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Localized Collection",
+                "handle": "localized-collection",
+                "descriptionHtml": "<p>Collection body</p>"
+            }
+        }),
+    ));
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadTranslatableContent($productId: ID!, $collectionId: ID!) {
+          product: translatableResource(resourceId: $productId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+          collection: translatableResource(resourceId: $collectionId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+          theme: translatableResource(resourceId: "gid://shopify/OnlineStoreTheme/123") {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+          products: translatableResources(first: 5, resourceType: PRODUCT) {
+            nodes { resourceId }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["translatableContent"],
+        json!([
+            { "key": "title", "value": "Localized product", "digest": localization_content_digest("Localized product"), "locale": "en", "type": "SINGLE_LINE_TEXT_FIELD" },
+            { "key": "body_html", "value": "<p>Source body</p>", "digest": localization_content_digest("<p>Source body</p>"), "locale": "en", "type": "HTML" },
+            { "key": "handle", "value": "localized-product", "digest": localization_content_digest("localized-product"), "locale": "en", "type": "URI" },
+            { "key": "product_type", "value": "Widget", "digest": localization_content_digest("Widget"), "locale": "en", "type": "SINGLE_LINE_TEXT_FIELD" },
+            { "key": "meta_title", "value": "Localized SEO title", "digest": localization_content_digest("Localized SEO title"), "locale": "en", "type": "MULTI_LINE_TEXT_FIELD" },
+            { "key": "meta_description", "value": "Localized SEO description", "digest": localization_content_digest("Localized SEO description"), "locale": "en", "type": "MULTI_LINE_TEXT_FIELD" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["translatableContent"],
+        json!([
+            { "key": "title", "value": "Localized Collection", "digest": localization_content_digest("Localized Collection"), "locale": "en", "type": "SINGLE_LINE_TEXT_FIELD" },
+            { "key": "body_html", "value": "<p>Collection body</p>", "digest": localization_content_digest("<p>Collection body</p>"), "locale": "en", "type": "HTML" },
+            { "key": "handle", "value": "localized-collection", "digest": localization_content_digest("localized-collection"), "locale": "en", "type": "URI" }
+        ])
+    );
+    assert_eq!(read.body["data"]["theme"]["translatableContent"], json!([]));
+    assert!(read.body["data"]["products"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|node| node["resourceId"] == json!(product_id)));
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation EnableFrench { shopLocaleEnable(locale: "fr") { userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let product_title_digest = content_digest(
+        &read.body["data"]["product"]["translatableContent"],
+        "title",
+    );
+    let product_body_digest = content_digest(
+        &read.body["data"]["product"]["translatableContent"],
+        "body_html",
+    );
+    let collection_handle_digest = content_digest(
+        &read.body["data"]["collection"]["translatableContent"],
+        "handle",
+    );
+    let registered = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RegisterFromReadDigests(
+          $productId: ID!
+          $collectionId: ID!
+          $productTitleDigest: String!
+          $productBodyDigest: String!
+          $collectionHandleDigest: String!
+        ) {
+          product: translationsRegister(
+            resourceId: $productId
+            translations: [
+              { locale: "fr", key: "title", value: "Produit localise", translatableContentDigest: $productTitleDigest }
+              { locale: "fr", key: "body_html", value: "Corps localise", translatableContentDigest: $productBodyDigest }
+            ]
+          ) {
+            translations { key value locale outdated market { id } }
+            userErrors { field message code }
+          }
+          collection: translationsRegister(
+            resourceId: $collectionId
+            translations: [
+              { locale: "fr", key: "handle", value: "collection-localisee", translatableContentDigest: $collectionHandleDigest }
+            ]
+          ) {
+            translations { key value locale outdated market { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "collectionId": collection_id,
+            "productTitleDigest": product_title_digest,
+            "productBodyDigest": product_body_digest,
+            "collectionHandleDigest": collection_handle_digest
+        }),
+    ));
+    assert_eq!(registered.body["data"]["product"]["userErrors"], json!([]));
+    assert_eq!(
+        registered.body["data"]["product"]["translations"],
+        json!([
+            { "key": "title", "value": "Produit localise", "locale": "fr", "outdated": false, "market": null },
+            { "key": "body_html", "value": "Corps localise", "locale": "fr", "outdated": false, "market": null }
+        ])
+    );
+    assert_eq!(
+        registered.body["data"]["collection"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        registered.body["data"]["collection"]["translations"],
+        json!([
+            { "key": "handle", "value": "collection-localisee", "locale": "fr", "outdated": false, "market": null }
+        ])
+    );
+}
+
+#[test]
 fn localization_translations_register_rejects_invalid_product_key_without_staging_it() {
     let mut proxy = snapshot_proxy();
     let resource_id = "gid://shopify/Product/9801098789170";
@@ -7773,6 +7961,19 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
 
 fn fallback_product_title_digest() -> String {
     localization_content_digest("The Inventory Not Tracked Snowboard")
+}
+
+fn content_digest(content: &Value, key: &str) -> String {
+    content
+        .as_array()
+        .unwrap_or_else(|| panic!("translatableContent should be an array, got {content}"))
+        .iter()
+        .find(|entry| entry["key"] == json!(key))
+        .unwrap_or_else(|| panic!("translatableContent should include {key}, got {content}"))
+        ["digest"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{key} digest should be a string, got {content}"))
+        .to_string()
 }
 
 fn localization_content_digest(value: &str) -> String {
