@@ -11,6 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const supportedNonCaCountryCode = 'AE';
 const supportedUsCountryCode = 'US';
+const supportedOutsideOldTableCountryCode = 'JP';
 const baselineCountryCode = 'CA';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -22,6 +23,10 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const outputPath = path.join(outputDir, 'admin-platform-backup-region-update-extended.json');
 const backupRegionUpdateUsMutation = await readFile(
   'config/parity-requests/admin-platform/admin-platform-backup-region-update-us.graphql',
+  'utf8',
+);
+const backupRegionUpdateOutsideOldTableMutation = await readFile(
+  'config/parity-requests/admin-platform/admin-platform-backup-region-update-jp.graphql',
   'utf8',
 );
 
@@ -67,6 +72,47 @@ const backupRegionQuery = `#graphql
     }
   }
 `;
+
+const backupRegionAccessScopesQuery =
+  'query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }';
+
+const backupRegionCurrentHydrateQuery = `query BackupRegionCurrentHydrate {
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+}`;
+
+const backupRegionMarketsHydrateQuery = `query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+      conditions {
+        conditionTypes
+        regionsCondition {
+          regions(first: $regionsFirst) {
+            nodes {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
 
 const backupRegionUpdateRestoreMutation = `#graphql
   mutation BackupRegionUpdateRestore {
@@ -190,8 +236,28 @@ function assertNoUserErrors(name, capture, root) {
   }
 }
 
+function assertAccessScopesIncludeMarkets(name, capture) {
+  assertNoTopLevelErrors(name, capture);
+  const handles = captureData(capture).currentAppInstallation?.accessScopes?.map((scope) => scope?.handle) ?? [];
+  if (!handles.includes('read_markets') || !handles.includes('write_markets')) {
+    throw new Error(`${name} expected read_markets and write_markets scopes, got ${JSON.stringify(handles)}`);
+  }
+}
+
 function createdMarketId(capture) {
   return captureData(capture).marketCreate?.market?.id ?? null;
+}
+
+function upstreamCall(operationName, query, variables, capture) {
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: capture.result.status,
+      body: capture.result.payload,
+    },
+  };
 }
 
 const captures = {};
@@ -279,6 +345,25 @@ try {
     baselineCountryCode,
   );
 
+  captures.upstreamBackupRegionAccessScopes = {
+    query: backupRegionAccessScopesQuery,
+    result: await runGraphqlCapture(backupRegionAccessScopesQuery),
+  };
+  assertAccessScopesIncludeMarkets(
+    'upstreamBackupRegionAccessScopes',
+    captures.upstreamBackupRegionAccessScopes.result,
+  );
+
+  captures.upstreamBackupRegionCurrentHydrate = {
+    query: backupRegionCurrentHydrateQuery,
+    result: await runGraphqlCapture(backupRegionCurrentHydrateQuery),
+  };
+  assertBackupRegionReadCode(
+    'upstreamBackupRegionCurrentHydrate',
+    captures.upstreamBackupRegionCurrentHydrate.result,
+    baselineCountryCode,
+  );
+
   captures.backupRegionUpdateOmittedLive = {
     query: backupRegionUpdateOmittedMutation,
     result: await runGraphqlCapture(backupRegionUpdateOmittedMutation),
@@ -325,6 +410,30 @@ try {
     captures.backupRegionAfterUsUpdate.result,
     supportedUsCountryCode,
   );
+
+  await captureSuccessfulCountryUpdate(
+    'backupRegionUpdateOutsideOldTable',
+    supportedOutsideOldTableCountryCode,
+    backupRegionUpdateOutsideOldTableMutation,
+    'createTemporaryOutsideOldTableMarket',
+  );
+
+  captures.backupRegionAfterOutsideOldTableUpdate = {
+    query: backupRegionQuery,
+    result: await runGraphqlCapture(backupRegionQuery),
+  };
+  assertBackupRegionReadCode(
+    'backupRegionAfterOutsideOldTableUpdate',
+    captures.backupRegionAfterOutsideOldTableUpdate.result,
+    supportedOutsideOldTableCountryCode,
+  );
+
+  captures.upstreamBackupRegionMarketsHydrate = {
+    query: backupRegionMarketsHydrateQuery,
+    variables: { first: 250, regionsFirst: 250 },
+    result: await runGraphqlCapture(backupRegionMarketsHydrateQuery, { first: 250, regionsFirst: 250 }),
+  };
+  assertNoTopLevelErrors('upstreamBackupRegionMarketsHydrate', captures.upstreamBackupRegionMarketsHydrate.result);
 
   captures.backupRegionUpdateInvalid = {
     query: backupRegionUpdateInvalidMutation,
@@ -374,11 +483,12 @@ const captureOutput = {
   apiVersion,
   supportedNonCaCountryCode,
   supportedUsCountryCode,
+  supportedOutsideOldTableCountryCode,
   baselineCountryCode,
   restoredCountryCode: cleanupCountryCode,
   temporaryMarketIds,
   notes:
-    'HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to the original live backup region. HAR-1436 extends the capture to prove countryCode US succeeds by creating a temporary US region market when the live store does not already cover US; the recorder also creates a temporary CA baseline market when the live store no longer covers CA. Temporary markets are deleted after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.',
+    'Captures backupRegionUpdate current-region baseline, non-CA success, US success, JP success outside the old captured country table, read-after-write, unknown-region validation, and cleanup back to the original live backup region. The recorder creates temporary region markets when the live store does not already cover a target country and deletes them after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors.',
   captures,
   expected: {
     backupRegionUpdateOmitted: {
@@ -390,7 +500,62 @@ const captureOutput = {
       userErrors: emptyUserErrors,
     },
   },
-  upstreamCalls: [],
+  upstreamCalls: [
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionCurrentHydrate',
+      backupRegionCurrentHydrateQuery,
+      {},
+      captures.upstreamBackupRegionCurrentHydrate,
+    ),
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionMarketsHydrate',
+      backupRegionMarketsHydrateQuery,
+      { first: 250, regionsFirst: 250 },
+      captures.upstreamBackupRegionMarketsHydrate,
+    ),
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionAccessScopes',
+      backupRegionAccessScopesQuery,
+      {},
+      captures.upstreamBackupRegionAccessScopes,
+    ),
+    upstreamCall(
+      'BackupRegionMarketsHydrate',
+      backupRegionMarketsHydrateQuery,
+      { first: 250, regionsFirst: 250 },
+      captures.upstreamBackupRegionMarketsHydrate,
+    ),
+  ],
 };
 
 await mkdir(outputDir, { recursive: true });

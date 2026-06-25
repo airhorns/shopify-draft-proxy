@@ -51,18 +51,13 @@ class CatalogImporterTest < Minitest::Test
   def test_products_query_reflects_staged_writes
     @importer.import(SAMPLE_CATALOG)
 
-    # The staged products are all visible to a `products` read — the overlay
-    # surfaces uncommitted writes, which is the behavior an importer relies on.
+    # The staged products are visible through Shopify-like product search
+    # filters, so an importer can rely on read-after-write filtered checks.
     titles = @importer.search("vendor:Northwind").map { |p| p.fetch("title") }.sort
-    assert_equal ["Aurora Tee", "Borealis Mug", "Tundra Beanie"], titles
+    assert_equal ["Aurora Tee", "Borealis Mug"], titles
 
-    # NOTE / known limitation: the twin does not yet evaluate Admin search-query
-    # syntax, so the `query:` argument is effectively ignored and every staged
-    # product is returned regardless of the filter. A real shop would return
-    # only the two Northwind products here. This assertion pins the *current*
-    # behavior so a future filtering implementation flips the test loudly.
     glacier = @importer.search("vendor:Glacier Goods").map { |p| p.fetch("title") }.sort
-    assert_equal ["Aurora Tee", "Borealis Mug", "Tundra Beanie"], glacier
+    assert_equal ["Tundra Beanie"], glacier
   end
 
   def test_surfaces_user_errors_as_import_error
@@ -150,7 +145,9 @@ class CatalogImporterTest < Minitest::Test
     restored_importer = CatalogImporter.new(client: ProxyHarness.client)
 
     titles = restored_importer.search("vendor:Northwind").map { |p| p.fetch("title") }.sort
-    assert_equal ["Aurora Tee", "Borealis Mug", "Tundra Beanie"], titles
+    assert_equal ["Aurora Tee", "Borealis Mug"], titles
+    glacier = restored_importer.search("vendor:Glacier Goods").map { |p| p.fetch("title") }.sort
+    assert_equal ["Tundra Beanie"], glacier
 
     aurora_id = restored_importer.search("vendor:Northwind")
       .find { |p| p.fetch("title") == "Aurora Tee" }.fetch("id")
