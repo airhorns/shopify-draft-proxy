@@ -1046,7 +1046,7 @@ fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_ow
 }
 
 #[test]
-fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locally() {
+fn backup_region_update_uses_staged_market_region_and_computed_coercion_locations() {
     let mut proxy = snapshot_proxy();
 
     let omitted = proxy.process_request(json_graphql_request(
@@ -1063,12 +1063,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
     assert_eq!(
         omitted.body["data"]["backupRegionUpdate"],
         json!({
-            "backupRegion": {
-                "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/4062110417202",
-                "name": "Canada",
-                "code": "CA"
-            },
+            "backupRegion": null,
             "userErrors": []
         })
     );
@@ -1086,173 +1081,10 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
     ));
     assert_eq!(null_region.body, omitted.body);
 
-    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
-    let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"] = json!({
-        "id": "gid://shopify/Shop/92891250994",
-        "name": "harry-test-heelo",
-        "myshopifyDomain": "harry-test-heelo.myshopify.com",
-        "primaryDomain": {
-            "id": "gid://shopify/Domain/157391388978",
-            "host": "harry-test-heelo.myshopify.com",
-            "url": "https://harry-test-heelo.myshopify.com",
-            "sslEnabled": true
-        },
-        "currencyCode": "USD"
-    });
-    let restore = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &restored.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
-
-    let captured_countries = [
-        (
-            "AE",
-            "gid://shopify/MarketRegionCountry/4062110482738",
-            "United Arab Emirates",
-        ),
-        (
-            "AT",
-            "gid://shopify/MarketRegionCountry/4062110515506",
-            "Austria",
-        ),
-        (
-            "AU",
-            "gid://shopify/MarketRegionCountry/4062110548274",
-            "Australia",
-        ),
-        (
-            "BE",
-            "gid://shopify/MarketRegionCountry/4062110581042",
-            "Belgium",
-        ),
-        (
-            "CA",
-            "gid://shopify/MarketRegionCountry/4062110417202",
-            "Canada",
-        ),
-        (
-            "CH",
-            "gid://shopify/MarketRegionCountry/4062110613810",
-            "Switzerland",
-        ),
-        (
-            "CZ",
-            "gid://shopify/MarketRegionCountry/4062110646578",
-            "Czechia",
-        ),
-        (
-            "DE",
-            "gid://shopify/MarketRegionCountry/4062110679346",
-            "Germany",
-        ),
-        (
-            "DK",
-            "gid://shopify/MarketRegionCountry/4062110712114",
-            "Denmark",
-        ),
-        (
-            "ES",
-            "gid://shopify/MarketRegionCountry/4062110744882",
-            "Spain",
-        ),
-        (
-            "FI",
-            "gid://shopify/MarketRegionCountry/4062110777650",
-            "Finland",
-        ),
-        (
-            "MX",
-            "gid://shopify/MarketRegionCountry/4062111334706",
-            "Mexico",
-        ),
-        (
-            "US",
-            "gid://shopify/MarketRegionCountry/4062110449970",
-            "United States",
-        ),
-    ];
-
-    for (code, id, name) in captured_countries {
-        let update = proxy.process_request(json_graphql_request(
-            &format!(
-                r#"
-                mutation BackupRegionUpdateCaptured {{
-                  backupRegionUpdate(region: {{ countryCode: {code} }}) {{
-                    backupRegion {{ __typename id name ... on MarketRegionCountry {{ code }} }}
-                    userErrors {{ field message code }}
-                  }}
-                }}
-                "#
-            ),
-            json!({}),
-        ));
-        assert_eq!(
-            update.body["data"]["backupRegionUpdate"],
-            json!({
-                "backupRegion": {
-                    "__typename": "MarketRegionCountry",
-                    "id": id,
-                    "name": name,
-                    "code": code
-                },
-                "userErrors": []
-            })
-        );
-    }
-
-    let read = proxy.process_request(json_graphql_request(
+    let valid_country_without_market = proxy.process_request(json_graphql_request(
         r#"
-        query BackupRegionRead {
-          backupRegion { __typename id name ... on MarketRegionCountry { code } }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        read.body["data"]["backupRegion"],
-        json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110449970",
-            "name": "United States",
-            "code": "US"
-        })
-    );
-
-    let node = proxy.process_request(json_graphql_request(
-        r#"
-        query BackupRegionNode($ids: [ID!]!) {
-          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
-        }
-        "#,
-        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110482738"] }),
-    ));
-    assert_eq!(node.body["data"]["nodes"][0], json!(null));
-
-    let staged_node = proxy.process_request(json_graphql_request(
-        r#"
-        query BackupRegionNode($ids: [ID!]!) {
-          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
-        }
-        "#,
-        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110449970"] }),
-    ));
-    assert_eq!(
-        staged_node.body["data"]["nodes"][0],
-        json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110449970",
-            "name": "United States",
-            "code": "US"
-        })
-    );
-
-    let invalid = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BackupRegionUpdateInvalid {
-          backupRegionUpdate(region: { countryCode: ZZ }) {
+        mutation BackupRegionUpdateValidCountryWithoutMarket {
+          backupRegionUpdate(region: { countryCode: JP }) {
             backupRegion { id }
             userErrors { field message code }
           }
@@ -1261,7 +1093,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!({}),
     ));
     assert_eq!(
-        invalid.body["data"]["backupRegionUpdate"],
+        valid_country_without_market.body["data"]["backupRegionUpdate"],
         json!({
             "backupRegion": null,
             "userErrors": [{
@@ -1272,7 +1104,110 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         })
     );
 
-    let invalid_with_typename = proxy.process_request(json_graphql_request(
+    let created_market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateJapanMarket {
+          marketCreate(input: { name: "Japan", enabled: true, regions: [{ countryCode: "JP" }] }) {
+            market {
+              id
+              name
+              enabled
+              status
+              type
+              conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_market.body["data"]["marketCreate"]["market"]["conditions"]["regionsCondition"]
+            ["regions"]["nodes"],
+        json!([{ "code": "JP" }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateJapan {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let updated_region = update.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+    assert_eq!(
+        update.body["data"]["backupRegionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(updated_region["__typename"], json!("MarketRegionCountry"));
+    assert_eq!(updated_region["name"], json!("Japan"));
+    assert_eq!(updated_region["code"], json!("JP"));
+    let region_id = updated_region["id"]
+        .as_str()
+        .expect("backup region id is selected")
+        .to_string();
+    assert!(
+        region_id.starts_with("gid://shopify/MarketRegionCountry/local-"),
+        "locally staged market region ids must be synthetic, got {region_id}"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionRead {
+          backupRegion { __typename id name ... on MarketRegionCountry { code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["backupRegion"], updated_region);
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [
+            "gid://shopify/MarketRegionCountry/4062110482738",
+            region_id
+        ] }),
+    ));
+    assert_eq!(node.body["data"]["nodes"][0], json!(null));
+    assert_eq!(node.body["data"]["nodes"][1], updated_region);
+
+    let valid_uncovered_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateUncoveredValidCountry {
+          backupRegionUpdate(region: { countryCode: ZZ }) {
+            backupRegion { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid_uncovered_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let uncovered_with_typename = proxy.process_request(json_graphql_request(
         r#"
         mutation BackupRegionUpdateValidationTypename {
           backupRegionUpdate(region: { countryCode: ZZ }) {
@@ -1284,7 +1219,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!({}),
     ));
     assert_eq!(
-        invalid_with_typename.body["data"]["backupRegionUpdate"]["userErrors"][0]["__typename"],
+        uncovered_with_typename.body["data"]["backupRegionUpdate"]["userErrors"][0]["__typename"],
         json!("MarketUserError")
     );
 
@@ -1340,39 +1275,279 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         );
     }
 
-    let missing_country_code = proxy.process_request(json_graphql_request(
+    let invalid_country_location_query = r#"
+        mutation BackupRegionUpdateInvalidCountryLocation {
+          backupRegionUpdate(
+            region: {
+              countryCode: XX
+            }
+          ) { backupRegion { id } userErrors { field code } }
+        }
+        "#;
+    let expected_line = invalid_country_location_query
+        .lines()
+        .position(|line| line.contains("region: {"))
+        .map(|index| index + 1)
+        .unwrap();
+    let expected_column = invalid_country_location_query
+        .lines()
+        .find(|line| line.contains("region: {"))
+        .and_then(|line| line.find('{'))
+        .map(|index| index + 1)
+        .unwrap();
+    let invalid_country_location = proxy.process_request(json_graphql_request(
+        invalid_country_location_query,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_country_location.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        invalid_country_location.body["errors"][0]["locations"][0],
+        json!({ "line": expected_line, "column": expected_column })
+    );
+    assert_ne!(
+        invalid_country_location.body["errors"][0]["locations"][0],
+        json!({ "line": 2, "column": 30 })
+    );
+}
+
+#[test]
+fn backup_region_update_uses_delegate_token_scopes_for_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let created_market = proxy.process_request(json_graphql_request(
         r#"
-        mutation BackupRegionUpdateMissingCountryCode {
-          backupRegionUpdate(region: {}) { backupRegion { id } userErrors { field code } }
+        mutation CreateJapanMarketForScopedBackupRegion {
+          marketCreate(input: { name: "Japan", enabled: true, regions: [{ countryCode: "JP" }] }) {
+            market { id }
+            userErrors { field message code }
+          }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
-        missing_country_code.body["errors"][0]["extensions"]["code"],
-        json!("missingRequiredInputObjectAttribute")
+        created_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
     );
 
-    let mut access_request = json_graphql_request(
+    let markets_delegate = proxy.process_request(json_graphql_request(
         r#"
-        mutation BackupRegionUpdateIdempotent {
-          backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { field message code } }
+        mutation CreateMarketsDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_markets", "write_markets"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        markets_delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let markets_token = markets_delegate.body["data"]["delegateAccessTokenCreate"]
+        ["delegateAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(markets_token, "shpat_delegate_proxy_1");
+
+    let mut allowed_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateAllowedDelegate {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
         }
         "#,
         json!({}),
     );
-    access_request.headers.insert(
-        "X-Shopify-Access-Token".to_string(),
-        "shpat_delegate_proxy_1".to_string(),
-    );
-    let access_denied = proxy.process_request(access_request);
+    allowed_request
+        .headers
+        .insert("X-Shopify-Access-Token".to_string(), markets_token);
+    let allowed = proxy.process_request(allowed_request);
     assert_eq!(
-        access_denied.body["data"]["backupRegionUpdate"],
-        json!(null)
+        allowed.body["data"]["backupRegionUpdate"]["userErrors"],
+        json!([])
     );
     assert_eq!(
-        access_denied.body["errors"][0]["extensions"]["code"],
+        allowed.body["data"]["backupRegionUpdate"]["backupRegion"]["code"],
+        json!("JP")
+    );
+
+    let product_delegate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductOnlyDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        product_delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let product_token = product_delegate.body["data"]["delegateAccessTokenCreate"]
+        ["delegateAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(product_token, "shpat_delegate_proxy_2");
+
+    let mut denied_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateDeniedDelegate {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    denied_request
+        .headers
+        .insert("X-Shopify-Access-Token".to_string(), product_token);
+    let denied = proxy.process_request(denied_request);
+    assert_eq!(denied.body["data"]["backupRegionUpdate"], json!(null));
+    assert_eq!(
+        denied.body["errors"][0]["extensions"]["code"],
         json!("ACCESS_DENIED")
+    );
+}
+
+#[test]
+fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body =
+                serde_json::from_str::<Value>(&request.body).expect("upstream GraphQL body parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str() {
+                Some("BackupRegionAccessScopes") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "currentAppInstallation": {
+                                "accessScopes": [
+                                    { "handle": "read_markets" },
+                                    { "handle": "write_markets" }
+                                ]
+                            }
+                        }
+                    }),
+                },
+                Some("BackupRegionMarketsHydrate") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "markets": {
+                                "nodes": [{
+                                    "id": "gid://shopify/Market/97997685042",
+                                    "name": "Japan",
+                                    "handle": "japan",
+                                    "status": "ACTIVE",
+                                    "enabled": true,
+                                    "type": "REGION",
+                                    "conditions": {
+                                        "regionsCondition": {
+                                            "regions": {
+                                                "nodes": [{
+                                                    "__typename": "MarketRegionCountry",
+                                                    "id": "gid://shopify/MarketRegionCountry/shop-jp",
+                                                    "name": "Japan",
+                                                    "code": "JP"
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        }
+                    }),
+                },
+                other => panic!("unexpected upstream operation: {other:?} body={body}"),
+            }
+        });
+
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateHydratedJapan {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    update_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "parent-live-token".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/shop-jp",
+                "name": "Japan",
+                "code": "JP"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionReadAfterHydrate {
+          backupRegion { __typename id name ... on MarketRegionCountry { code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["backupRegion"],
+        update.body["data"]["backupRegionUpdate"]["backupRegion"]
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNodeAfterHydrate {
+          nodes(ids: ["gid://shopify/MarketRegionCountry/shop-jp"]) {
+            __typename
+            ... on MarketRegionCountry { id name code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        node.body["data"]["nodes"][0],
+        update.body["data"]["backupRegionUpdate"]["backupRegion"]
+    );
+    assert_eq!(
+        upstream_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|body| body["operationName"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>(),
+        vec![
+            "BackupRegionAccessScopes".to_string(),
+            "BackupRegionMarketsHydrate".to_string()
+        ]
     );
 }
 

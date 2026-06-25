@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-737 executable parity for backupRegionUpdate omitted/null current-state semantics, a harry-test-heelo non-CA success branch using AE, read-after-write, and REGION_NOT_FOUND validation. HAR-1436 extends this scenario with a recorded US success branch; the capture creates temporary CA/US region markets when the live store does not already cover those countries, restores the original live backup region, and deletes temporary markets after recording. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on the test store/API, so omitted/null expected envelopes are derived from the captured CA baseline backupRegion plus the captured empty userErrors shape, matching HAR-737's source resolver contract.",
+  "notes": "Executable parity for backupRegionUpdate omitted/null current-state semantics, AE and US success branches, JP success outside the old captured country table, read-after-write, and REGION_NOT_FOUND validation. The capture creates temporary region markets when the live store does not already cover a target country, restores the original live backup region, and deletes temporary markets after recording. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on the test store/API, so omitted/null expected envelopes are derived from the captured baseline backupRegion plus the captured empty userErrors shape.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -72,6 +72,26 @@
       {
         "name": "read-after-write-us",
         "capturePath": "$.captures.backupRegionAfterUsUpdate.result.payload.data.backupRegion",
+        "proxyPath": "$.data.backupRegion",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "outside-old-table-supported-country",
+        "capturePath": "$.captures.backupRegionUpdateOutsideOldTable.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-jp.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-write-outside-old-table",
+        "capturePath": "$.captures.backupRegionAfterOutsideOldTableUpdate.result.payload.data.backupRegion",
         "proxyPath": "$.data.backupRegion",
         "upstreamCapturePath": null,
         "proxyRequest": {

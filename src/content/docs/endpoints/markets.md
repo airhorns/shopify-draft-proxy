@@ -92,7 +92,9 @@ list/publication IDs, duplicate or taken relations where captured, remove-only
 context updates, and delete-detach behavior for linked price lists. Captured
 Admin API 2026-04 behavior returns `MARKET_NOT_FOUND` at
 `["input", "context", "marketIds", <index>]` when `catalogCreate` references an
-unknown context market ID.
+unknown context market ID. Catalog relation IDs must resolve from staged
+price-list/publication state, or from read-only upstream hydration in
+non-snapshot modes; hardcoded relation IDs are not treated as owned records.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
@@ -108,8 +110,11 @@ validation failures while leaving the staged price list unchanged.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
-primary-domain-delete, and relation scenarios. Market-localization slices stage
-and remove localized content for captured localizable resources, including
+primary-domain-delete, and relation scenarios. Documents that co-select
+price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
+`webPresenceDelete`, or `quantityRulesDelete` use the same staged stores and
+payload validation as the standalone local paths. Market-localization slices
+stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
