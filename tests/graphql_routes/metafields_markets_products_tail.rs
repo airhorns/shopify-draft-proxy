@@ -301,10 +301,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     );
 
     let missing_id = "gid://shopify/Metafield/170099";
-    let log_len_before_missing = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_missing = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let missing = proxy.process_request(json_graphql_request(
         delete_query,
         json!({"input": {"id": missing_id}}),
@@ -320,7 +317,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
         .unwrap()
         .contains_key("code"));
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), log_len_before_missing);
     assert_eq!(entries.len(), 4);
