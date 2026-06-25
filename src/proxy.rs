@@ -1058,6 +1058,15 @@ impl Store {
             .to_string()
     }
 
+    fn shop_money_format(&self) -> Option<String> {
+        self.base
+            .shop
+            .pointer("/currencyFormats/moneyFormat")
+            .and_then(Value::as_str)
+            .filter(|format| !format.is_empty())
+            .map(str::to_string)
+    }
+
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
         effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
     }

@@ -144,12 +144,19 @@ impl DraftProxy {
 
         let id = self.next_proxy_synthetic_gid("SellingPlanGroup");
         let created_at = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let selling_plans = resolved_object_list_field(&input, "sellingPlansToCreate")
             .into_iter()
             .enumerate()
             .map(|(index, plan_input)| {
                 let plan_id = self.next_proxy_synthetic_gid("SellingPlan");
-                selling_plan_record_from_input(plan_id, &created_at, index, &plan_input)
+                selling_plan_record_from_input(
+                    plan_id,
+                    &created_at,
+                    index,
+                    &plan_input,
+                    &shop_currency_code,
+                )
             })
             .collect::<Vec<_>>();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
@@ -247,6 +254,7 @@ impl DraftProxy {
                 deleted_plan_ids.push(group.selling_plans.remove(index).id);
             }
         }
+        let shop_currency_code = self.store.shop_currency_code();
         for plan_input in resolved_object_list_field(&input, "sellingPlansToUpdate") {
             let Some(plan_id) = resolved_string_field(&plan_input, "id") else {
                 continue;
@@ -256,7 +264,7 @@ impl DraftProxy {
                 .iter_mut()
                 .find(|plan| plan.id == plan_id)
             {
-                apply_selling_plan_update(plan, &plan_input);
+                apply_selling_plan_update(plan, &plan_input, &shop_currency_code);
             }
         }
         let created_at = group.created_at.clone();
@@ -268,6 +276,7 @@ impl DraftProxy {
                 &created_at,
                 index,
                 &plan_input,
+                &shop_currency_code,
             ));
         }
         self.store.stage_selling_plan_group(group.clone());
@@ -709,7 +718,10 @@ impl DraftProxy {
             "description" => Some(json!(group.description)),
             "options" => Some(json!(group.options)),
             "position" => Some(json!(group.position)),
-            "summary" => Some(json!(selling_plan_group_summary(group))),
+            "summary" => Some(json!(selling_plan_group_summary(
+                group,
+                self.store.shop_money_format().as_deref(),
+            ))),
             "createdAt" => Some(json!(group.created_at)),
             "productsCount" => Some(product_count_json(
                 group.product_ids.len(),
@@ -1225,6 +1237,7 @@ fn selling_plan_record_from_input(
     created_at: &str,
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> SellingPlanRecord {
     SellingPlanRecord {
         id,
@@ -1237,16 +1250,17 @@ fn selling_plan_record_from_input(
         billing_policy: billing_policy_json(&resolved_object_field(input, "billingPolicy")),
         delivery_policy: delivery_policy_json(&resolved_object_field(input, "deliveryPolicy")),
         inventory_policy: inventory_policy_json(&resolved_object_field(input, "inventoryPolicy")),
-        pricing_policies: pricing_policies_json(&resolved_object_list_field(
-            input,
-            "pricingPolicies",
-        )),
+        pricing_policies: pricing_policies_json(
+            &resolved_object_list_field(input, "pricingPolicies"),
+            shop_currency_code,
+        ),
     }
 }
 
 fn apply_selling_plan_update(
     plan: &mut SellingPlanRecord,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) {
     if let Some(name) = resolved_string_field(input, "name") {
         plan.name = name;
@@ -1272,8 +1286,10 @@ fn apply_selling_plan_update(
     if let Some(policy) = resolved_object_field(input, "inventoryPolicy") {
         plan.inventory_policy = inventory_policy_json(&Some(policy));
     }
-    plan.pricing_policies =
-        pricing_policies_json(&resolved_object_list_field(input, "pricingPolicies"));
+    plan.pricing_policies = pricing_policies_json(
+        &resolved_object_list_field(input, "pricingPolicies"),
+        shop_currency_code,
+    );
 }
 
 fn billing_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Value {
@@ -1318,7 +1334,10 @@ fn inventory_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Va
     })
 }
 
-fn pricing_policies_json(policies: &[BTreeMap<String, ResolvedValue>]) -> Vec<Value> {
+fn pricing_policies_json(
+    policies: &[BTreeMap<String, ResolvedValue>],
+    shop_currency_code: &str,
+) -> Vec<Value> {
     policies
         .iter()
         .filter_map(|policy| {
@@ -1331,7 +1350,7 @@ fn pricing_policies_json(policies: &[BTreeMap<String, ResolvedValue>]) -> Vec<Va
                     json!({
                         "__typename": "MoneyV2",
                         "amount": fixed_value,
-                        "currencyCode": "USD"
+                        "currencyCode": shop_currency_code
                     })
                 } else {
                     json!({
@@ -1371,7 +1390,10 @@ fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> 
     })
 }
 
-fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
+fn selling_plan_group_summary(
+    group: &SellingPlanGroupRecord,
+    shop_money_format: Option<&str>,
+) -> String {
     let plan_count = group.selling_plans.len();
     if plan_count == 0 {
         return String::new();
@@ -1379,6 +1401,7 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
 
     let mut percentages = Vec::new();
     let mut fixed_values = Vec::new();
+    let mut fixed_currency_code = None::<String>;
     for policy in group
         .selling_plans
         .iter()
@@ -1395,6 +1418,12 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
             .and_then(json_number_value)
         {
             fixed_values.push(fixed_value);
+            if fixed_currency_code.is_none() {
+                fixed_currency_code = policy
+                    .pointer("/adjustmentValue/currencyCode")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+            }
         }
     }
 
@@ -1402,7 +1431,11 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
     if let Some(piece) = percentage_summary_piece(&percentages) {
         discount_pieces.push(piece);
     }
-    if let Some(piece) = fixed_value_summary_piece(&fixed_values) {
+    if let Some(piece) = fixed_value_summary_piece(
+        &fixed_values,
+        fixed_currency_code.as_deref(),
+        shop_money_format,
+    ) {
         discount_pieces.push(piece);
     }
     let discount = discount_pieces.join("·");
@@ -1461,15 +1494,23 @@ fn percentage_summary_piece(values: &[f64]) -> Option<String> {
     }
 }
 
-fn fixed_value_summary_piece(values: &[f64]) -> Option<String> {
+fn fixed_value_summary_piece(
+    values: &[f64],
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> Option<String> {
     let (min, max) = min_max(values)?;
     if (min - max).abs() < f64::EPSILON {
-        Some(format_summary_currency(min))
+        Some(format_summary_currency(
+            min,
+            currency_code,
+            shop_money_format,
+        ))
     } else {
         Some(format!(
             "{}-{}",
-            format_summary_currency(min),
-            format_summary_currency(max)
+            format_summary_currency(min, currency_code, shop_money_format),
+            format_summary_currency(max, currency_code, shop_money_format)
         ))
     }
 }
@@ -1494,8 +1535,25 @@ fn format_summary_percentage(value: f64) -> String {
     formatted
 }
 
-fn format_summary_currency(value: f64) -> String {
-    format!("${:.0}", value.round())
+fn format_summary_currency(
+    value: f64,
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> String {
+    let formatted_amount = format!("{:.0}", value.round());
+    if let Some(format) = shop_money_format {
+        let rendered = format
+            .replace("{{amount}}", &formatted_amount)
+            .replace("{{ amount }}", &formatted_amount);
+        if rendered != format {
+            return rendered;
+        }
+    }
+    match currency_code {
+        Some("USD") => format!("${formatted_amount}"),
+        Some(code) if !code.is_empty() => format!("{formatted_amount} {code}"),
+        _ => formatted_amount,
+    }
 }
 
 fn selling_plan_group_summary_json(

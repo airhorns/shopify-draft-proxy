@@ -83,9 +83,10 @@ impl DraftProxy {
                         &field.selection,
                     )
                 }
-                "giftCardConfiguration" => {
-                    selected_json(&gift_card_configuration_record(), &field.selection)
-                }
+                "giftCardConfiguration" => selected_json(
+                    &gift_card_configuration_record(&self.store.shop_currency_code()),
+                    &field.selection,
+                ),
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
@@ -224,11 +225,12 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let mut card = gift_card_lifecycle_base_card(&id);
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
         card["lastCharacters"] = json!(last_characters);
         card["maskedCode"] = json!(format!("•••• •••• •••• {}", last_characters));
         card["giftCardCode"] = json!(code);
-        card["initialValue"] = money_value(&amount, "CAD");
+        card["initialValue"] = money_value(&amount, &shop_currency_code);
         card["balance"] = card["initialValue"].clone();
         card["notify"] = json!(notify);
         card["source"] = json!("api_client");
@@ -312,7 +314,9 @@ impl DraftProxy {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
 
-        let mut card = existing.unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut card =
+            existing.unwrap_or_else(|| gift_card_lifecycle_base_card(&id, &shop_currency_code));
         if input.contains_key("note") {
             card["note"] = resolved_nullable_string_field(&input, "note");
         }
@@ -431,7 +435,7 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(existing) = card.as_ref() {
-                let card_currency = gift_card_currency(existing);
+                let card_currency = gift_card_currency(existing, &self.store.shop_currency_code());
                 let requested_currency = resolved_string_field(&money, "currencyCode")
                     .unwrap_or_else(|| card_currency.clone());
                 if requested_currency != card_currency {
@@ -476,10 +480,10 @@ impl DraftProxy {
             );
         }
 
-        let mut card = card
-            .take()
-            .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
-        let currency = gift_card_currency(&card);
+        let mut card = card.take().unwrap_or_else(|| {
+            gift_card_lifecycle_base_card(&id, &self.store.shop_currency_code())
+        });
+        let currency = gift_card_currency(&card, &self.store.shop_currency_code());
         let current_balance = gift_card_balance_amount(&card);
         let next_balance = if is_credit {
             current_balance + requested_amount_number
@@ -536,9 +540,9 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
-        let mut card = card
-            .take()
-            .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+        let mut card = card.take().unwrap_or_else(|| {
+            gift_card_lifecycle_base_card(&id, &self.store.shop_currency_code())
+        });
         card["enabled"] = json!(false);
         card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
         card["updatedAt"] = json!("2026-04-29T09:31:13Z");
@@ -665,7 +669,7 @@ impl DraftProxy {
             .gift_cards
             .get(id)
             .cloned()
-            .or_else(|| gift_card_seed_record(id))
+            .or_else(|| gift_card_seed_record(id, &self.store.shop_currency_code()))
     }
 
     /// A gift-card notification is unavailable when the shop is on a trial plan.
@@ -700,7 +704,7 @@ impl DraftProxy {
     }
 
     fn gift_card_issue_limit_amount(&self) -> f64 {
-        gift_card_configuration_record()["issueLimit"]["amount"]
+        gift_card_configuration_record(&self.store.shop_currency_code())["issueLimit"]["amount"]
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
@@ -873,8 +877,8 @@ impl DraftProxy {
     }
 }
 
-fn gift_card_seed_record(id: &str) -> Option<Value> {
-    let mut card = gift_card_lifecycle_base_card(id);
+fn gift_card_seed_record(id: &str, shop_currency_code: &str) -> Option<Value> {
+    let mut card = gift_card_lifecycle_base_card(id, shop_currency_code);
     match id {
         "gid://shopify/GiftCard/har694-active"
         | "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
@@ -903,7 +907,7 @@ fn gift_card_seed_record(id: &str) -> Option<Value> {
             Some(card)
         }
         "gid://shopify/GiftCard/654867595570" => {
-            card["initialValue"] = money_value("3000.0", "CAD");
+            card["initialValue"] = money_value("3000.0", shop_currency_code);
             card["balance"] = card["initialValue"].clone();
             Some(card)
         }
@@ -1138,11 +1142,11 @@ fn gift_card_is_deactivated(card: &Value) -> bool {
             .is_some_and(|value| !value.is_null())
 }
 
-fn gift_card_currency(card: &Value) -> String {
+fn gift_card_currency(card: &Value, shop_currency_code: &str) -> String {
     card["balance"]["currencyCode"]
         .as_str()
         .or_else(|| card["initialValue"]["currencyCode"].as_str())
-        .unwrap_or("CAD")
+        .unwrap_or(shop_currency_code)
         .to_string()
 }
 
