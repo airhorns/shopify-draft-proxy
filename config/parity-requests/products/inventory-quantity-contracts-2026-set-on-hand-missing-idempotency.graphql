@@ -1,0 +1,12 @@
+#graphql
+mutation InventoryQuantityContractSetOnHandMissingIdempotency($input: InventorySetOnHandQuantitiesInput!) {
+  inventorySetOnHandQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

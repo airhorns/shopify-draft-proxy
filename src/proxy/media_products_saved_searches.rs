@@ -1426,7 +1426,7 @@ impl DraftProxy {
     /// any variant is tracked. Mirrors the `productSet` recompute so bulk-variant
     /// mutations keep `product.totalInventory`/`tracksInventory` consistent with the
     /// staged variants for downstream reads.
-    fn sync_product_inventory_aggregates(&mut self, product_id: &str) {
+    pub(in crate::proxy) fn sync_product_inventory_aggregates(&mut self, product_id: &str) {
         let final_variants = self.store.product_variants_for_product(product_id);
         let Some(mut product) = self.store.product_by_id(product_id).cloned() else {
             return;

@@ -1613,6 +1613,398 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
+#[test]
+fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
+    use shopify_draft_proxy::proxy::UnsupportedMutationMode;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![inventory_activation_base_product()])
+    .with_upstream_transport({
+        let calls = calls.clone();
+        move |_request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            shopify_draft_proxy::proxy::Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"unexpectedUpstream": true}),
+            }
+        }
+    });
+
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "SET-ON-HAND",
+        "10.00",
+    );
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let location_id = "gid://shopify/Location/1";
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let set_on_hand = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          setOnHand: inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes {
+                name
+                delta
+                quantityAfterChange
+                item { id }
+                location { id name }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-local-staging", "input": {"reason": "correction", "referenceDocumentUri": "logistics://inventory/set-on-hand", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 10, "changeFromQuantity": 2}
+        ]}}),
+    ));
+    assert_eq!(set_on_hand.status, 200);
+    assert_eq!(
+        set_on_hand.body["data"]["setOnHand"]["userErrors"],
+        json!([])
+    );
+    let adjustment_group = &set_on_hand.body["data"]["setOnHand"]["inventoryAdjustmentGroup"];
+    assert!(adjustment_group["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/InventoryAdjustmentGroup/")));
+    assert_eq!(
+        adjustment_group["createdAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(adjustment_group["reason"], json!("correction"));
+    assert_eq!(
+        adjustment_group["referenceDocumentUri"],
+        json!("logistics://inventory/set-on-hand")
+    );
+    assert_eq!(
+        adjustment_group["changes"],
+        json!([
+            {
+                "name": "available",
+                "delta": 8,
+                "quantityAfterChange": null,
+                "item": { "id": inventory_item_id },
+                "location": { "id": location_id, "name": "Source location" }
+            },
+            {
+                "name": "on_hand",
+                "delta": 8,
+                "quantityAfterChange": null,
+                "item": { "id": inventory_item_id },
+                "location": { "id": location_id, "name": "Source location" }
+            }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SetOnHandRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { id inventoryQuantity product { id totalInventory tracksInventory } }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt }
+              }
+            }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(10)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 10, "updatedAt": "2024-01-01T00:00:01.000Z"},
+            {"name": "on_hand", "quantity": 10, "updatedAt": null},
+            {"name": "damaged", "quantity": 0, "updatedAt": null}
+        ])
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SetOnHandProductRead($variantId: ID!, $productId: ID!) {
+          productVariant(id: $variantId) { inventoryQuantity }
+          product(id: $productId) {
+            totalInventory
+            hasOutOfStockVariants
+            variants(first: 5) { nodes { inventoryQuantity inventoryItem { tracked } } }
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        product_read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(10)
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["totalInventory"],
+        json!(10)
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["hasOutOfStockVariants"],
+        json!(false)
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let log = proxy.get_log_snapshot();
+    let log_entries = log["entries"].as_array().unwrap();
+    let set_on_hand_log = log_entries
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["operationName"] == json!("inventorySetOnHandQuantities")
+        })
+        .expect("inventorySetOnHandQuantities should be logged for commit replay");
+    assert_eq!(set_on_hand_log["status"], json!("staged"));
+    assert_eq!(
+        set_on_hand_log["query"],
+        json!(
+            r#"
+        mutation SetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          setOnHand: inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes {
+                name
+                delta
+                quantityAfterChange
+                item { id }
+                location { id name }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#
+        )
+    );
+    assert!(set_on_hand_log["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("inventorySetOnHandQuantities")));
+}
+
+#[test]
+fn inventory_set_on_hand_quantities_validation_errors_are_local() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/store-backed";
+    let location_id = "gid://shopify/Location/1";
+
+    let missing_idempotent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingSetOnHandIdempotency($input: InventorySetOnHandQuantitiesInput!) {
+          inventorySetOnHandQuantities(input: $input) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_idempotent.body["errors"][0]["message"],
+        json!("The @idempotent directive is required for this mutation but was not provided.")
+    );
+    assert_eq!(
+        missing_idempotent.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        missing_idempotent.body["data"]["inventorySetOnHandQuantities"],
+        Value::Null
+    );
+
+    let missing_change_from = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingSetOnHandChangeFrom($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-missing-change-from", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_change_from.body["errors"][0]["message"],
+        json!("InventorySetQuantityInput must include the following argument: changeFromQuantity.")
+    );
+    assert_eq!(
+        missing_change_from.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+    assert_eq!(
+        missing_change_from.body["data"]["inventorySetOnHandQuantities"],
+        Value::Null
+    );
+
+    let unknown_item = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownItemSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-unknown-item", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/999999999999", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_item.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
+    );
+
+    let unknown_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-unknown-location", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_location.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+
+    let negative_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NegativeQuantitySetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-negative", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        negative_quantity.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }]
+        })
+    );
+
+    let too_high_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TooHighQuantitySetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-too-high", "input": {"reason": "correction", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1000000001, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        too_high_quantity.body["data"]["inventorySetOnHandQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "setQuantities", "0", "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }]
+        })
+    );
+
+    let invalid_reason = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidReasonSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "set-on-hand-invalid-reason", "input": {"reason": "not_a_reason", "setQuantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        invalid_reason.body["data"]["inventorySetOnHandQuantities"]["userErrors"][0]["code"],
+        json!("INVALID_REASON")
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
 fn inventory_activation_base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
