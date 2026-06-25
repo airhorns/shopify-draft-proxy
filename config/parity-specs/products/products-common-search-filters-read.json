@@ -1,0 +1,27 @@
+{
+  "scenarioId": "products-common-search-filters-read",
+  "operationNames": ["products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-common-search-filters.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-common-search-filters-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "status-active-and-vendor-product-type-products-count",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Live capture proves plain `status:ACTIVE` products/productsCount plus a paired vendor/product_type filter against the current conformance store. The proxy request reuses the captured variables and strict-compares the full selected data payload."
+}

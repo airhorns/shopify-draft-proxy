@@ -59,6 +59,10 @@ const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str =
 /// keyed on the de-duplicated product ids.
 const FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }";
 
+const CATALOG_RELATION_PRICE_LIST_PREFLIGHT_QUERY: &str = "query CatalogRelationPriceListHydrate($id: ID!) { priceList(id: $id) { __typename id name currency parent { adjustment { type value } } catalog { id } } }";
+
+const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelationPublicationHydrate($id: ID!) { publication(id: $id) { __typename id name autoPublish } }";
+
 /// Web-presence mutations (`webPresenceCreate`/`Update`/`Delete`) hydrate the
 /// shop's baseline web presences from a recorded preflight keyed on this sentinel
 /// query plus the mutation's own variables, mirroring the variant-level fixed-price
@@ -1036,8 +1040,8 @@ impl DraftProxy {
         let mut touched_ids = Vec::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "catalogCreate" => self.catalog_create_response(field),
-                "catalogUpdate" => self.catalog_update_response(field),
+                "catalogCreate" => self.catalog_create_response(field, request),
+                "catalogUpdate" => self.catalog_update_response(field, request),
                 "catalogDelete" => self.catalog_delete_response(field),
                 "catalogContextUpdate" => self.catalog_context_update_response(field),
                 _ => Value::Null,
@@ -1059,6 +1063,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn catalog_create_response(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
@@ -1135,6 +1140,7 @@ impl DraftProxy {
         }
         let price_list_id = resolved_string_field(&input, "priceListId");
         if let Some(price_list_id) = price_list_id.as_deref() {
+            self.catalog_relation_price_list_preflight(request, price_list_id);
             if !self.catalog_relation_price_list_exists(price_list_id) {
                 return selected_json(
                     &catalog_payload_error(
@@ -1158,6 +1164,7 @@ impl DraftProxy {
         }
         let publication_id = resolved_string_field(&input, "publicationId");
         if let Some(publication_id) = publication_id.as_deref() {
+            self.catalog_relation_publication_preflight(request, publication_id);
             if !self.catalog_relation_publication_exists(publication_id) {
                 return selected_json(
                     &catalog_payload_error(
@@ -1202,6 +1209,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn catalog_update_response(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&id).cloned() else {
@@ -1219,6 +1227,7 @@ impl DraftProxy {
         let mut updated_catalog = existing_catalog;
 
         if let Some(price_list_id) = resolved_string_field(&input, "priceListId") {
+            self.catalog_relation_price_list_preflight(request, &price_list_id);
             if !self.catalog_relation_price_list_exists(&price_list_id) {
                 return selected_json(
                     &catalog_payload_error(
@@ -1250,6 +1259,7 @@ impl DraftProxy {
         }
 
         if let Some(publication_id) = resolved_string_field(&input, "publicationId") {
+            self.catalog_relation_publication_preflight(request, &publication_id);
             if !self.catalog_relation_publication_exists(&publication_id) {
                 return selected_json(
                     &catalog_payload_error(
@@ -1401,6 +1411,14 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         self.fixed_price_mutation_preflight(fields, request, variables);
+        if fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
+            )
+        }) {
+            self.web_presence_mutation_preflight(variables, request);
+        }
         let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
         let mut touched_ids = Vec::new();
@@ -1427,10 +1445,10 @@ impl DraftProxy {
                     self.quantity_rules_delete_price_list_response(field),
                 ),
                 "webPresenceCreate" => PriceListFieldOutcome::payload(
-                    self.web_presence_create_price_list_response(field),
+                    self.web_presence_create_price_list_response(field, request, query, variables),
                 ),
                 "webPresenceUpdate" => PriceListFieldOutcome::payload(
-                    self.web_presence_update_price_list_response(field),
+                    self.web_presence_update_price_list_response(field, request, query, variables),
                 ),
                 "webPresenceDelete" => PriceListFieldOutcome::payload(
                     self.web_presence_delete_price_list_response(field),
@@ -1439,6 +1457,7 @@ impl DraftProxy {
             };
             if let Some(id) = outcome.value["priceList"]["id"]
                 .as_str()
+                .or_else(|| outcome.value["webPresence"]["id"].as_str())
                 .or_else(|| outcome.value["deletedId"].as_str())
             {
                 touched_ids.push(id.to_string());
@@ -2103,46 +2122,60 @@ impl DraftProxy {
     ) -> Value {
         let price_list_id =
             resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
-        let payload = if price_list_id == "gid://shopify/PriceList/0" {
+        let variant_ids = resolved_string_list_arg(&field.arguments, "variantIds");
+        let payload = if !self
+            .store
+            .staged
+            .price_lists
+            .contains_key(price_list_id.as_str())
+        {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
+        } else if variant_ids
+            .iter()
+            .any(|id| id == "gid://shopify/ProductVariant/0")
+        {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
         } else {
-            json!({"deletedQuantityRulesVariantIds": [], "userErrors": []})
+            json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
         };
         selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn web_presence_create_price_list_response(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let subfolder_suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
-        let payload = if subfolder_suffix.len() < 2 {
-            json!({"webPresence": null, "userErrors": [market_user_error(vec!["input", "subfolderSuffix"], "Subfolder suffix must be at least 2 letters", json!("SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS"))]})
-        } else {
-            json!({"webPresence": {"id": "gid://shopify/MarketWebPresence/1"}, "userErrors": []})
-        };
+        let payload =
+            self.web_presence_helper_create_payload_inner(&input, request, query, variables, false);
         selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn web_presence_update_price_list_response(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        selected_json(
-            &json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]}),
-            &field.selection,
-        )
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let payload = self.web_presence_helper_update_payload_inner(
+            &id, &input, request, query, variables, false,
+        );
+        selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn web_presence_delete_price_list_response(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        selected_json(
-            &json!({"deletedId": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]}),
-            &field.selection,
-        )
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let payload = self.web_presence_delete_payload(&id);
+        selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn web_presence_helper_query(&self, query: &str) -> Response {
@@ -2292,6 +2325,17 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        self.web_presence_helper_create_payload_inner(input, request, query, variables, true)
+    }
+
+    fn web_presence_helper_create_payload_inner(
+        &mut self,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        record_log: bool,
+    ) -> Value {
         let mut errors = Vec::new();
         let mut draft = web_presence_draft_from_input(input, None, &mut errors, true);
         web_presence_validate_routing_and_uniqueness(
@@ -2316,7 +2360,15 @@ impl DraftProxy {
             .staged
             .web_presences
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, "webPresenceCreate", vec![id]);
+        if record_log {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "webPresenceCreate",
+                vec![id],
+            );
+        }
         json!({"webPresence": record, "userErrors": []})
     }
 
@@ -2327,6 +2379,18 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        self.web_presence_helper_update_payload_inner(id, input, request, query, variables, true)
+    }
+
+    fn web_presence_helper_update_payload_inner(
+        &mut self,
+        id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        record_log: bool,
     ) -> Value {
         let Some(existing) = self.store.staged.web_presences.get(id).cloned() else {
             return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
@@ -2350,13 +2414,15 @@ impl DraftProxy {
             .staged
             .web_presences
             .insert(id.to_string(), record.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "webPresenceUpdate",
-            vec![id.to_string()],
-        );
+        if record_log {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "webPresenceUpdate",
+                vec![id.to_string()],
+            );
+        }
         json!({"webPresence": record, "userErrors": []})
     }
 
@@ -2429,17 +2495,58 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn catalog_relation_price_list_exists(&self, price_list_id: &str) -> bool {
         self.store.staged.price_lists.contains_key(price_list_id)
-            || matches!(
-                price_list_id,
-                "gid://shopify/PriceList/1" | "gid://shopify/PriceList/attached"
-            )
     }
 
     pub(in crate::proxy) fn catalog_relation_publication_exists(
         &self,
         publication_id: &str,
     ) -> bool {
-        matches!(publication_id, "gid://shopify/Publication/1")
+        self.store.has_publication_id(publication_id)
+    }
+
+    fn catalog_relation_price_list_preflight(&mut self, request: &Request, price_list_id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || self.catalog_relation_price_list_exists(price_list_id)
+        {
+            return;
+        }
+        let body = json!({
+            "query": CATALOG_RELATION_PRICE_LIST_PREFLIGHT_QUERY,
+            "variables": {"id": price_list_id},
+            "operationName": "CatalogRelationPriceListHydrate",
+        });
+        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
+    }
+
+    fn catalog_relation_publication_preflight(&mut self, request: &Request, publication_id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || self.catalog_relation_publication_exists(publication_id)
+        {
+            return;
+        }
+        let body = json!({
+            "query": CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY,
+            "variables": {"id": publication_id},
+            "operationName": "CatalogRelationPublicationHydrate",
+        });
+        self.run_markets_preflight(request, body, Self::stage_catalog_publication_preflight);
+    }
+
+    fn stage_catalog_publication_preflight(&mut self, body: &Value) {
+        let Some(publication) = body
+            .get("data")
+            .and_then(|data| data.get("publication"))
+            .filter(|publication| publication.is_object())
+        else {
+            return;
+        };
+        if let Some(id) = record_gid(publication, "gid://shopify/Publication/") {
+            self.store.staged.publication_ids.insert(id.clone());
+            self.store
+                .staged
+                .publications
+                .insert(id, publication.clone());
+        }
     }
 
     pub(in crate::proxy) fn catalog_price_list_taken(
