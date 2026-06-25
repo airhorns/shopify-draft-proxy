@@ -1,0 +1,21 @@
+mutation PaymentTermsDueStateUpdate($input: PaymentTermsUpdateInput!) {
+  paymentTermsUpdate(input: $input) {
+    paymentTerms {
+      id
+      due
+      overdue
+      paymentSchedules(first: 10) {
+        nodes {
+          dueAt
+          completedAt
+          due
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

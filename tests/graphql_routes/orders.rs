@@ -4487,6 +4487,192 @@ fn payment_terms_omitted_template_id_create_coerces_update_defaults() {
 }
 
 #[test]
+fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
+    let create_query = r#"
+        mutation PaymentTermsDueStateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation PaymentTermsDueStateUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query PaymentTermsDueStateDraftRead($id: ID!) {
+          draftOrder(id: $id) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes {
+                  dueAt
+                  completedAt
+                  due
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+
+    let past_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+        "paymentSchedules": [{ "dueAt": "2020-01-01T00:00:00Z" }]
+    });
+    let future_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+        "paymentSchedules": [{ "dueAt": "2099-01-01T00:00:00Z" }]
+    });
+
+    let past_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/past-due",
+            "attrs": past_attrs.clone()
+        }),
+    ));
+    assert_eq!(past_create.status, 200);
+    assert_eq!(
+        past_create.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &past_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let past_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/DraftOrder/past-due" }),
+    ));
+    assert_eq!(past_read.status, 200);
+    assert_payment_terms_due_state(
+        &past_read.body["data"]["draftOrder"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let future_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/future-due",
+            "attrs": future_attrs.clone()
+        }),
+    ));
+    assert_eq!(future_create.status, 200);
+    assert_eq!(
+        future_create.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &future_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2099-01-01T00:00:00Z",
+    );
+    let payment_terms_id = future_create.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+        .as_str()
+        .expect("payment terms id")
+        .to_string();
+
+    let past_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": payment_terms_id,
+                "paymentTermsAttributes": past_attrs
+            }
+        }),
+    ));
+    assert_eq!(past_update.status, 200);
+    assert_eq!(
+        past_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &past_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let past_update_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/DraftOrder/future-due" }),
+    ));
+    assert_eq!(past_update_read.status, 200);
+    assert_payment_terms_due_state(
+        &past_update_read.body["data"]["draftOrder"]["paymentTerms"],
+        true,
+        "2020-01-01T00:00:00Z",
+    );
+
+    let terms_id_after_past_update = past_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]
+        ["id"]
+        .as_str()
+        .expect("payment terms id after past update")
+        .to_string();
+    let future_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": terms_id_after_past_update,
+                "paymentTermsAttributes": future_attrs
+            }
+        }),
+    ));
+    assert_eq!(future_update.status, 200);
+    assert_eq!(
+        future_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &future_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        false,
+        "2099-01-01T00:00:00Z",
+    );
+}
+
+fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_due_at: &str) {
+    assert_eq!(terms["due"], json!(expected_due));
+    assert_eq!(terms["overdue"], json!(expected_due));
+    let schedule = &terms["paymentSchedules"]["nodes"][0];
+    assert_eq!(schedule["dueAt"], json!(expected_due_at));
+    assert_eq!(schedule["completedAt"], Value::Null);
+    assert_eq!(schedule["due"], json!(expected_due));
+}
+
+#[test]
 fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
