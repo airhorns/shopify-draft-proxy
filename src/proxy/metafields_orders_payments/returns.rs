@@ -12,8 +12,32 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
-fn return_status_invalid_error() -> Value {
-    user_error(["id"], "return_request_status_invalid", Some("INVALID"))
+fn return_request_not_found_error() -> Value {
+    user_error(["input", "id"], "Return not found.", Some("NOT_FOUND"))
+}
+
+fn return_not_approvable_error() -> Value {
+    user_error(
+        ["input", "id"],
+        "Return is not approvable. Only returns with status REQUESTED can be approved.",
+        Some("INVALID_STATE"),
+    )
+}
+
+fn return_not_declinable_error() -> Value {
+    user_error(
+        ["input", "id"],
+        "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+        Some("INVALID_STATE"),
+    )
+}
+
+fn return_already_declined_error() -> Value {
+    user_error(
+        ["input", "id"],
+        "The return is already declined.",
+        Some("INVALID_STATE"),
+    )
 }
 
 fn blank_return_line_string(value: Option<String>) -> bool {
@@ -624,21 +648,21 @@ impl DraftProxy {
     }
 
     /// `returnApproveRequest`: a REQUESTED return transitions to OPEN and
-    /// acquires its reverse fulfillment order. Any other status returns the
-    /// `return_request_status_invalid` user error on `id` (INVALID) and leaves
-    /// state untouched.
+    /// acquires its reverse fulfillment order. Any other status returns
+    /// Shopify's INVALID_STATE `ReturnNotApprovable` shape and leaves state
+    /// untouched.
     fn approve_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return self.return_payload(
                 Value::Null,
-                vec![return_status_invalid_error()],
+                vec![return_request_not_found_error()],
                 &field.selection,
             );
         };
         if record["status"].as_str() != Some("REQUESTED") {
             return self.return_payload(
                 Value::Null,
-                vec![return_status_invalid_error()],
+                vec![return_not_approvable_error()],
                 &field.selection,
             );
         }
@@ -654,7 +678,8 @@ impl DraftProxy {
     /// `returnDeclineRequest`: validate the decline input (reason enum, note
     /// length, notify email) before touching state; a REQUESTED return then
     /// transitions to DECLINED carrying `decline { reason, note }`. A non-
-    /// REQUESTED return returns `return_request_status_invalid` on `id`.
+    /// REQUESTED return returns Shopify's INVALID_STATE decline guard shape,
+    /// with a distinct message for already DECLINED returns.
     fn decline_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let reason = match validate_return_decline_input(&input) {
@@ -666,14 +691,22 @@ impl DraftProxy {
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return self.return_payload(
                 Value::Null,
-                vec![return_status_invalid_error()],
+                vec![return_request_not_found_error()],
                 &field.selection,
             );
         };
-        if record["status"].as_str() != Some("REQUESTED") {
+        let status = record["status"].as_str();
+        if status == Some("DECLINED") {
             return self.return_payload(
                 Value::Null,
-                vec![return_status_invalid_error()],
+                vec![return_already_declined_error()],
+                &field.selection,
+            );
+        }
+        if status != Some("REQUESTED") {
+            return self.return_payload(
+                Value::Null,
+                vec![return_not_declinable_error()],
                 &field.selection,
             );
         }

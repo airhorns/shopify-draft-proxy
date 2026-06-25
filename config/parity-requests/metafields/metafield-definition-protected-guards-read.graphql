@@ -1,0 +1,13 @@
+query MetafieldDefinitionProtectedGuardsRead($identifier: MetafieldDefinitionIdentifierInput!) {
+  metafieldDefinition(identifier: $identifier) {
+    name
+    namespace
+    key
+    ownerType
+    description
+    validations {
+      name
+      value
+    }
+  }
+}

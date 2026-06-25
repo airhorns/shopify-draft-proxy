@@ -1,0 +1,50 @@
+{
+  "scenarioId": "bulk-operation-storage-byte-limit",
+  "operationNames": ["bulkOperationRunQuery", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-storage-byte-limit.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-storage-byte-limit-query.graphql",
+    "variablesCapturePath": "$.cases.query.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "run-query-oversized-storage-user-errors",
+        "capturePath": "$.cases.query.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "run-query-oversized-storage-bulk-operation-null",
+        "capturePath": "$.cases.query.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation"
+      },
+      {
+        "name": "run-mutation-oversized-storage-user-errors",
+        "capturePath": "$.cases.mutation.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-storage-byte-limit-mutation.graphql",
+          "variablesCapturePath": "$.cases.mutation.variables"
+        }
+      },
+      {
+        "name": "run-mutation-oversized-storage-bulk-operation-null",
+        "capturePath": "$.cases.mutation.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-storage-byte-limit-mutation.graphql",
+          "variablesCapturePath": "$.cases.mutation.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin GraphQL 2026-04 rejecting exactly 65,536 escaped UTF-8 bytes for both bulkOperationRunQuery(query:) and bulkOperationRunMutation(mutation:). Both validation branches return a null BulkOperation and a query-fielded storage-limit userError before any bulk job is created. The run-query message is prefixed `Query is too large`; the run-mutation model validation message is `is too large`."
+}

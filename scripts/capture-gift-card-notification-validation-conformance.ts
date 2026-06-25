@@ -340,10 +340,10 @@ try {
   const contactCustomer = await createCustomer(
     'contactCustomerCreate',
     {
-      email: `har688-contact-${stamp}@example.com`,
-      firstName: 'HAR688',
+      email: `gift-card-notification-contact-${stamp}@example.com`,
+      firstName: 'GiftCardNotification',
       lastName: 'Notification Contact',
-      note: 'Disposable HAR-688 gift-card notification validation customer.',
+      note: 'Disposable gift-card notification validation customer.',
     },
     setupIds,
   );
@@ -353,9 +353,9 @@ try {
   const noContactCustomer = await createCustomer(
     'noContactCustomerCreate',
     {
-      firstName: 'HAR688',
+      firstName: 'GiftCardNotification',
       lastName: 'Notification No Contact',
-      note: 'Disposable HAR-688 no-contact recipient validation customer.',
+      note: 'Disposable no-contact recipient validation customer.',
     },
     setupIds,
   );
@@ -370,8 +370,8 @@ try {
     'cardADeactivatedCreate',
     {
       initialValue: '5.00',
-      code: `HAR688A${String(stamp).slice(-8)}`,
-      note: 'HAR-688 deactivated notification validation.',
+      code: `GCNVA${String(stamp).slice(-8)}`,
+      note: 'Deactivated notification validation.',
       customerId: contactCustomerId,
     },
     setupIds,
@@ -388,11 +388,11 @@ try {
     'cardBNoCustomerCreate',
     {
       initialValue: '5.00',
-      code: `HAR688B${String(stamp).slice(-8)}`,
-      note: 'HAR-688 no-customer notification validation.',
+      code: `GCNVB${String(stamp).slice(-8)}`,
+      note: 'No-customer notification validation.',
       recipientAttributes: {
         id: contactCustomerId,
-        preferredName: 'HAR-688 recipient',
+        preferredName: 'Notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -409,11 +409,11 @@ try {
     'cardCNoContactRecipientCreate',
     {
       initialValue: '5.00',
-      code: `HAR688C${String(stamp).slice(-8)}`,
-      note: 'HAR-688 no-contact recipient notification validation.',
+      code: `GCNVC${String(stamp).slice(-8)}`,
+      note: 'No-contact recipient notification validation.',
       recipientAttributes: {
         id: noContactCustomerId,
-        preferredName: 'HAR-688 no-contact recipient',
+        preferredName: 'No-contact notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -430,13 +430,13 @@ try {
     'cardEExpiredCreate',
     {
       initialValue: '5.00',
-      code: `HAR688E${String(stamp).slice(-8)}`,
-      note: 'HAR-688 expired notification validation.',
+      code: `GCNVE${String(stamp).slice(-8)}`,
+      note: 'Expired notification validation.',
       expiresOn: '2026-04-28',
       customerId: contactCustomerId,
       recipientAttributes: {
         id: contactCustomerId,
-        preferredName: 'HAR-688 expired recipient',
+        preferredName: 'Expired notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -483,9 +483,9 @@ await writeFile(
       apiVersion,
       scenarioId: 'gift-card-notification-validation',
       notes: [
-        'HAR-688 captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
+        'Captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
         'The expired notification branches use an ordinary recent-past expiresOn date instead of a fixture-coupled sentinel year.',
-        'Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null; runtime tests keep the HAR-688 requested local field ["base"] contract for those branches.',
+        'Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null, and the local runtime matches that public Admin GraphQL shape.',
         'Public Admin GraphQL 2025-01 does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.',
       ],
       proxyVariables,

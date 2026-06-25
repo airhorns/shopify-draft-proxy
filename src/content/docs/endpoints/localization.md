@@ -79,6 +79,19 @@ behavior validates locale and market gates before translation-record value and
 digest validation, so the local first `userErrors` entry follows that
 precedence.
 
+For modeled Product resources, `translatableResource`,
+`translatableResources`, and `translatableResourcesByIds` project
+`translatableContent` from the effective Product record instead of from a
+placeholder. Product content includes title, handle, product type, and populated
+body HTML / SEO source fields, with Shopify key names such as `body_html`,
+`product_type`, `meta_title`, and `meta_description`; each entry carries the
+shop primary locale, the modeled `LocalizableContentType`, the source value, and
+`sha256(value)` as the digest. The digest emitted by these reads is accepted by
+the local `translationsRegister(translatableContentDigest:)` guard for the same
+resource and key. Modeled Collection resources use the same source-backed
+projection for title, handle, body HTML, and SEO fields that exist in local
+state.
+
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has
 runtime coverage for guardrails that the generic parity replay cannot isolate
@@ -95,8 +108,8 @@ cleanly.
   product-metafield evidence. Product existence checks use localization baseline
   resources and normalized product state; collection and product-metafield
   translation scenarios remain fixture-backed. Other resource families return
-  null/empty results or remain unsupported until local lifecycle behavior is
-  modeled.
+  null/empty results and do not emit synthetic `title` content until local
+  lifecycle behavior is modeled.
 - Validation-only localization specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make unmodeled translation or
   resource families generally supported.
@@ -113,10 +126,13 @@ cleanly.
 - Runtime coverage: `tests/graphql_routes.rs`, including store-backed
   `availableLocales` / `shopLocales` catalog reads without ported document-name
   markers
+- Product translatable-content parity:
+  `config/parity-specs/localization/localization-translatable-content-product.json`
 - Parity specs: `config/parity-specs/localization/*.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 
 ### Validation
 
 - `corepack pnpm lint`
+- `corepack pnpm parity -- --spec config/parity-specs/localization/localization-translatable-content-product.json`
 - `corepack pnpm rust:test`

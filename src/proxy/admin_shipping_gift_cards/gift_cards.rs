@@ -569,7 +569,7 @@ impl DraftProxy {
         if user_errors.is_empty() && self.gift_card_notification_is_trial_shop(&id) {
             user_errors.push(gift_card_user_error(
                 &field.name,
-                json!(["base"]),
+                Value::Null,
                 Some("INVALID"),
                 "Notifications are not available on trial shops.",
             ));
@@ -610,7 +610,7 @@ impl DraftProxy {
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
-                        json!(["base"]),
+                        Value::Null,
                         Some("INVALID"),
                         "The gift card has no customer.",
                     ));
@@ -619,7 +619,7 @@ impl DraftProxy {
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
-                        json!(["base"]),
+                        Value::Null,
                         Some("INVALID"),
                         "The recipient has no contact information (e.g. email address or phone number).",
                     ));
@@ -690,7 +690,7 @@ impl DraftProxy {
         if disabled_by_id {
             vec![gift_card_user_error(
                 &field.name,
-                json!(["base"]),
+                Value::Null,
                 None,
                 "Gift cards are unavailable on your plan.",
             )]

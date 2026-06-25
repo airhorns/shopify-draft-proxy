@@ -1,6 +1,7 @@
 use super::*;
 
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
+const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
 
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
@@ -758,14 +759,103 @@ fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> 
     }
 
     if errors.is_empty() {
-        None
-    } else {
-        Some(errors)
+        if let Some(user_error) = bulk_operation_query_storage_byte_limit_user_error(
+            query_text,
+            "Query is too large",
+            Some("INVALID"),
+        ) {
+            return Some(vec![user_error]);
+        }
+        return None;
     }
+
+    Some(errors)
 }
 
 fn bulk_operation_run_query_user_error(message: &str) -> Value {
     user_error(["query"], message, Some("INVALID"))
+}
+
+fn bulk_operation_query_storage_byte_limit_user_error(
+    query_text: &str,
+    message_prefix: &str,
+    code: Option<&str>,
+) -> Option<Value> {
+    let byte_len = escaped_single_quoted_newlines_byte_len(query_text);
+    if byte_len <= BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT {
+        return None;
+    }
+
+    Some(user_error(
+        ["query"],
+        &format!(
+            "{message_prefix} ({byte_len} bytes; maximum is {BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT} bytes)"
+        ),
+        code,
+    ))
+}
+
+fn escaped_single_quoted_newlines_byte_len(query_text: &str) -> usize {
+    let mut byte_len = 0;
+    let mut index = 0;
+    let mut inside_string = false;
+    let mut inside_block_string = false;
+
+    while index < query_text.len() {
+        let remaining = &query_text[index..];
+        if !inside_string && remaining.starts_with("\"\"\"") {
+            inside_block_string = !inside_block_string;
+            byte_len += 3;
+            index += 3;
+            continue;
+        }
+        if remaining.starts_with("\\\"") {
+            byte_len += 2;
+            index += 2;
+            continue;
+        }
+
+        let Some(character) = remaining.chars().next() else {
+            break;
+        };
+        match character {
+            '"' if !inside_block_string => {
+                inside_string = !inside_string;
+                byte_len += 1;
+                index += 1;
+            }
+            '\n' | '\r' if inside_string => {
+                byte_len += 2;
+                index += character.len_utf8();
+            }
+            _ => {
+                byte_len += character.len_utf8();
+                index += character.len_utf8();
+            }
+        }
+    }
+
+    byte_len
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escaped_single_quoted_newlines_byte_len_counts_escaped_regular_string_newlines() {
+        assert_eq!(escaped_single_quoted_newlines_byte_len("\"a\nb\""), 6);
+        assert_eq!(escaped_single_quoted_newlines_byte_len("\"a\rb\""), 6);
+        assert_eq!(escaped_single_quoted_newlines_byte_len("\"é\""), 4);
+    }
+
+    #[test]
+    fn escaped_single_quoted_newlines_byte_len_preserves_block_string_newlines() {
+        assert_eq!(
+            escaped_single_quoted_newlines_byte_len("\"\"\"a\nb\"\"\""),
+            9
+        );
+    }
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -852,6 +942,13 @@ fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Opti
             "You must use an allowed mutation name.",
             None,
         )]);
+    }
+    if let Some(user_error) = bulk_operation_query_storage_byte_limit_user_error(
+        mutation_text,
+        "is too large",
+        Some("INVALID_MUTATION"),
+    ) {
+        return Some(vec![user_error]);
     }
     None
 }

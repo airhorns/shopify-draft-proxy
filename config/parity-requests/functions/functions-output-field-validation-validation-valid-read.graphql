@@ -1,0 +1,13 @@
+query FunctionOutputFieldValidationValidRead($id: ID!) {
+  validation(id: $id) {
+    id
+    title
+    enabled
+    blockOnFailure
+    shopifyFunction {
+      id
+      handle
+      apiType
+    }
+  }
+}

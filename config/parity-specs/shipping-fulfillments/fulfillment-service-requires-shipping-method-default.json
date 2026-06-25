@@ -1,0 +1,151 @@
+{
+  "scenarioId": "fulfillment-service-requires-shipping-method-default",
+  "operationNames": [
+    "fulfillmentService",
+    "fulfillmentServiceCreate",
+    "fulfillmentServiceUpdate",
+    "fulfillmentServiceDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-requires-shipping-method-default.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-omitted.graphql",
+    "variablesCapturePath": "$.createOmitted.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "requires-shipping-method-omitted-create-payload",
+        "capturePath": "$.createOmitted.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "requires-shipping-method-omitted-create-read",
+        "capturePath": "$.readAfterCreateOmitted.response.payload.data.fulfillmentService",
+        "proxyPath": "$.data.fulfillmentService",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "requires-shipping-method-omitted-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service location ID."
+          }
+        ]
+      },
+      {
+        "name": "requires-shipping-method-explicit-false-setup-payload",
+        "capturePath": "$.setupExplicitFalse.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-create-false.graphql",
+          "variablesCapturePath": "$.setupExplicitFalse.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "requires-shipping-method-omitted-update-after-false-payload",
+        "capturePath": "$.updateOmittedAfterFalse.response.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-update-omitted.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "requires-shipping-method-explicit-false-setup-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "name": {
+              "fromCapturePath": "$.updateOmittedAfterFalse.variables.name"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The update runs against the proxy-created synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The update preserves the proxy-created synthetic location ID."
+          }
+        ]
+      },
+      {
+        "name": "requires-shipping-method-omitted-update-read",
+        "capturePath": "$.readAfterUpdateOmitted.response.payload.data.fulfillmentService",
+        "proxyPath": "$.data.fulfillmentService",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-requires-shipping-default-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "requires-shipping-method-explicit-false-setup-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service location ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 public evidence shows fulfillmentServiceCreate applies the GraphQL default requiresShippingMethod: true when the argument is omitted. The same default is re-applied on fulfillmentServiceUpdate, so updating a record that was previously created with requiresShippingMethod: false and omitting the argument resets the stored value to true. Strict payload/read targets compare the selected fulfillment-service resource, with only live-vs-synthetic IDs carved out."
+}

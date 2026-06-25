@@ -1,0 +1,9 @@
+query FunctionOutputFieldValidationInvalidRead($id: ID!) {
+  validation(id: $id) {
+    functionId
+    functionHandle
+    createdAt
+    updatedAt
+    enable
+  }
+}
