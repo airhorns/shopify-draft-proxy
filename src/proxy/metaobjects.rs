@@ -1405,12 +1405,55 @@ fn metaobject_value_is_valid_date_time(value: &str) -> bool {
     })
 }
 
-fn metaobject_value_is_valid_measurement(value: &str) -> bool {
+const METAOBJECT_MONEY_INVALID_MESSAGE: &str = "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.";
+const METAOBJECT_LINK_SCHEME_INVALID_MESSAGE: &str =
+    "Value must be one of the following URL schemes: http, https, mailto, sms, tel.";
+const METAOBJECT_LINK_DOMAIN_INVALID_MESSAGE: &str =
+    "Value must conform to the domain restriction you set.";
+const METAOBJECT_MEASUREMENT_OBJECT_INVALID_MESSAGE: &str =
+    "Value must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.";
+
+struct MetaobjectFieldValueValidationContext<'a> {
+    proxy: &'a DraftProxy,
+    existing_id: Option<&'a str>,
+    validate_existing_values: bool,
+}
+
+struct MetaobjectFieldValueError {
+    message: String,
+    code: &'static str,
+    element_index: Value,
+}
+
+impl MetaobjectFieldValueError {
+    fn invalid_value(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: "INVALID_VALUE",
+            element_index: Value::Null,
+        }
+    }
+
+    fn with_element_index(mut self, element_index: Value) -> Self {
+        self.element_index = element_index;
+        self
+    }
+
+    fn taken(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: "TAKEN",
+            element_index: Value::Null,
+        }
+    }
+}
+
+fn metaobject_classic_measurement_value_error(field_type: &str, value: &str) -> Option<String> {
     let Ok(parsed) = serde_json::from_str::<Value>(value) else {
-        return false;
+        return Some("Value must contain unit and value.".to_string());
     };
     let Some(object) = parsed.as_object() else {
-        return false;
+        return Some("Value must contain unit and value.".to_string());
     };
     let has_numeric_value = object.get("value").is_some_and(|value| {
         value.is_number()
@@ -1418,11 +1461,17 @@ fn metaobject_value_is_valid_measurement(value: &str) -> bool {
                 .as_str()
                 .is_some_and(|value| value.parse::<f64>().is_ok())
     });
-    let has_unit = object
-        .get("unit")
-        .and_then(Value::as_str)
-        .is_some_and(|unit| !unit.is_empty());
-    has_numeric_value && has_unit
+    if !has_numeric_value {
+        return Some("Value must contain unit and value.".to_string());
+    }
+    let Some(unit) = object.get("unit").and_then(Value::as_str) else {
+        return Some("Value must contain unit and value.".to_string());
+    };
+    if unit.is_empty() {
+        return Some("Value must contain unit and value.".to_string());
+    }
+    (!measurement_unit_is_supported(field_type, unit))
+        .then(|| "Value must be a supported unit.".to_string())
 }
 
 fn metaobject_value_is_hex_color(value: &str) -> bool {
@@ -1439,11 +1488,200 @@ fn metaobject_value_is_valid_url(value: &str) -> bool {
         .any(|scheme| lowercased.starts_with(scheme))
 }
 
-fn metaobject_reference_value_error(value: &str, gid_type: &str, message: &str) -> Option<String> {
-    if value.starts_with(&shopify_gid(gid_type, "")) {
+fn metaobject_reference_value_error(
+    value: &str,
+    gid_types: &[&str],
+    message: &str,
+) -> Option<String> {
+    if shopify_gid_resource_type(value).is_some_and(|resource_type| {
+        gid_types
+            .iter()
+            .any(|gid_type| resource_type.eq_ignore_ascii_case(gid_type))
+    }) {
         None
     } else {
         Some(message.to_string())
+    }
+}
+
+fn metaobject_validation_string_list(validations: &[Value], name: &str) -> Vec<String> {
+    let Some(value) = metaobject_field_validation_value(validations, name) else {
+        return Vec::new();
+    };
+    match serde_json::from_str::<Value>(&value) {
+        Ok(Value::Array(items)) => items
+            .into_iter()
+            .filter_map(|item| item.as_str().map(str::to_string))
+            .collect(),
+        Ok(Value::String(value)) => vec![value],
+        _ => vec![value],
+    }
+}
+
+fn metaobject_link_url(value: &Value) -> Option<&str> {
+    value.as_object()?.get("url")?.as_str()
+}
+
+fn metaobject_link_allowed_domains_match(url: &str, validations: &[Value]) -> bool {
+    let allowed_domains = metaobject_validation_string_list(validations, "allowed_domains")
+        .into_iter()
+        .filter_map(|domain| {
+            let trimmed = domain.trim().trim_start_matches("*.").to_ascii_lowercase();
+            if trimmed.is_empty() {
+                None
+            } else if let Ok(parsed) = url::Url::parse(&trimmed) {
+                parsed.host_str().map(|host| host.to_ascii_lowercase())
+            } else {
+                Some(trimmed)
+            }
+        })
+        .collect::<Vec<_>>();
+    if allowed_domains.is_empty() {
+        return true;
+    }
+    let Some(host) = url::Url::parse(url)
+        .ok()
+        .and_then(|url| url.host_str().map(|host| host.to_ascii_lowercase()))
+    else {
+        return false;
+    };
+    allowed_domains
+        .iter()
+        .any(|domain| host == *domain || host.ends_with(&format!(".{domain}")))
+}
+
+fn metaobject_link_value_error(value: &str, validations: &[Value]) -> Option<String> {
+    let Ok(parsed) = serde_json::from_str::<Value>(value) else {
+        return Some("Value must be a valid link.".to_string());
+    };
+    if !is_shopify_link_value(&parsed) {
+        if let Some(url) = metaobject_link_url(&parsed) {
+            if !is_shopify_metafield_url(url) {
+                return Some(METAOBJECT_LINK_SCHEME_INVALID_MESSAGE.to_string());
+            }
+        }
+        return Some("Value must be a valid link.".to_string());
+    }
+    let Some(url) = metaobject_link_url(&parsed) else {
+        return Some("Value must be a valid link.".to_string());
+    };
+    if metaobject_link_allowed_domains_match(url, validations) {
+        None
+    } else {
+        Some(METAOBJECT_LINK_DOMAIN_INVALID_MESSAGE.to_string())
+    }
+}
+
+fn metaobject_structured_measurement_value_error(field_type: &str, value: &str) -> Option<String> {
+    let Ok(parsed) = serde_json::from_str::<Value>(value) else {
+        return Some(METAOBJECT_MEASUREMENT_OBJECT_INVALID_MESSAGE.to_string());
+    };
+    if !parsed.is_object() {
+        return Some(METAOBJECT_MEASUREMENT_OBJECT_INVALID_MESSAGE.to_string());
+    }
+    shopify_measurement_value_error(field_type, &parsed).map(|message| {
+        if matches!(
+            message.as_str(),
+            "Value must contain unit and value." | "Value must be a non-negative number."
+        ) {
+            METAOBJECT_MEASUREMENT_OBJECT_INVALID_MESSAGE.to_string()
+        } else {
+            message
+        }
+    })
+}
+
+fn metaobject_language_value_error(value: &str) -> Option<String> {
+    if default_available_locales().contains_key(value) {
+        None
+    } else {
+        Some("Value must be in ISO 639-1 format.".to_string())
+    }
+}
+
+fn metaobject_id_value_error(
+    context: Option<&MetaobjectFieldValueValidationContext<'_>>,
+    field_key: &str,
+    value: &str,
+) -> Option<MetaobjectFieldValueError> {
+    if value.is_empty() {
+        return None;
+    }
+    let context = context?;
+    let taken = context
+        .proxy
+        .store
+        .staged
+        .metaobjects
+        .values()
+        .any(|record| {
+            record.get("id").and_then(Value::as_str) != context.existing_id
+                && record["fields"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|field| {
+                        field.get("key").and_then(Value::as_str) == Some(field_key)
+                            && field.get("type").and_then(Value::as_str) == Some("id")
+                            && field.get("value").and_then(Value::as_str) == Some(value)
+                    })
+        });
+    taken.then(|| {
+        MetaobjectFieldValueError::taken(
+            "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+        )
+    })
+}
+
+fn metaobject_mixed_reference_value_error(
+    context: Option<&MetaobjectFieldValueValidationContext<'_>>,
+    value: &str,
+    validations: &[Value],
+) -> Option<String> {
+    if shopify_gid_resource_type(value) != Some("Metaobject") {
+        return Some(
+            "Value must belong to one of the specified metaobject definitions.".to_string(),
+        );
+    }
+    let allowed_definition_ids = {
+        let mut values =
+            metaobject_validation_string_list(validations, "metaobject_definition_ids");
+        values.extend(metaobject_validation_string_list(
+            validations,
+            "metaobject_definition_id",
+        ));
+        values
+    };
+    if allowed_definition_ids.is_empty() {
+        return None;
+    }
+    let context = context?;
+    let Some(record) = context.proxy.metaobject_by_id(value) else {
+        return Some(
+            "Value must belong to one of the specified metaobject definitions.".to_string(),
+        );
+    };
+    let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
+        return Some(
+            "Value must belong to one of the specified metaobject definitions.".to_string(),
+        );
+    };
+    let Some(definition) = context
+        .proxy
+        .metaobject_definition_by_type(meta_type)
+        .or_else(|| metaobject_definition_from_record(&record))
+    else {
+        return Some(
+            "Value must belong to one of the specified metaobject definitions.".to_string(),
+        );
+    };
+    let target_definition_id = definition.get("id").and_then(Value::as_str);
+    if target_definition_id
+        .is_some_and(|id| allowed_definition_ids.iter().any(|allowed| allowed == id))
+    {
+        None
+    } else {
+        Some("Value must belong to one of the specified metaobject definitions.".to_string())
     }
 }
 
@@ -1452,28 +1690,40 @@ fn metaobject_reference_value_error(value: &str, gid_type: &str, message: &str) 
 /// value is unacceptable. `is_update` captures create/update asymmetry (a
 /// malformed boolean is tolerated on create but rejected on update).
 fn metaobject_scalar_value_error(
+    context: Option<&MetaobjectFieldValueValidationContext<'_>>,
+    field_key: &str,
     field_type: &str,
     value: &str,
     validations: &[Value],
     is_update: bool,
-) -> Option<String> {
-    match field_type {
+) -> Option<MetaobjectFieldValueError> {
+    if field_type == "id" {
+        return metaobject_id_value_error(context, field_key, value);
+    }
+
+    let message = match field_type {
         "number_integer" => {
             let Ok(parsed) = value.parse::<i64>() else {
-                return Some("Value must be an integer.".to_string());
+                return Some(MetaobjectFieldValueError::invalid_value(
+                    "Value must be an integer.",
+                ));
             };
             if let Some(max) = metaobject_field_validation_value(validations, "max")
                 .and_then(|max| max.parse::<i64>().ok())
             {
                 if parsed > max {
-                    return Some(format!("Value has a maximum of {max}."));
+                    return Some(MetaobjectFieldValueError::invalid_value(format!(
+                        "Value has a maximum of {max}."
+                    )));
                 }
             }
             if let Some(min) = metaobject_field_validation_value(validations, "min")
                 .and_then(|min| min.parse::<i64>().ok())
             {
                 if parsed < min {
-                    return Some(format!("Value has a minimum of {min}."));
+                    return Some(MetaobjectFieldValueError::invalid_value(format!(
+                        "Value has a minimum of {min}."
+                    )));
                 }
             }
             None
@@ -1506,12 +1756,17 @@ fn metaobject_scalar_value_error(
                 Some("Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00".to_string())
             }
         }
+        "money" => serde_json::from_str::<Value>(value)
+            .ok()
+            .as_ref()
+            .filter(|parsed| is_shopify_money_value(parsed))
+            .map(|_| ())
+            .is_none()
+            .then(|| METAOBJECT_MONEY_INVALID_MESSAGE.to_string()),
+        "link" => metaobject_link_value_error(value, validations),
+        "language" => metaobject_language_value_error(value),
         "dimension" | "volume" | "weight" => {
-            if metaobject_value_is_valid_measurement(value) {
-                None
-            } else {
-                Some("Value must contain unit and value.".to_string())
-            }
+            metaobject_classic_measurement_value_error(field_type, value)
         }
         "rating" => {
             let parsed = serde_json::from_str::<Value>(value).ok()?;
@@ -1526,7 +1781,9 @@ fn metaobject_scalar_value_error(
                     .ok()
                     .is_some_and(|max| rating > max)
                 {
-                    return Some(format!("Value has a maximum of {scale_max}."));
+                    return Some(MetaobjectFieldValueError::invalid_value(format!(
+                        "Value has a maximum of {scale_max}."
+                    )));
                 }
             }
             if let Some(scale_min) = metaobject_field_validation_value(validations, "scale_min") {
@@ -1535,7 +1792,9 @@ fn metaobject_scalar_value_error(
                     .ok()
                     .is_some_and(|min| rating < min)
                 {
-                    return Some(format!("Value has a minimum of {scale_min}."));
+                    return Some(MetaobjectFieldValueError::invalid_value(format!(
+                        "Value has a minimum of {scale_min}."
+                    )));
                 }
             }
             None
@@ -1556,46 +1815,85 @@ fn metaobject_scalar_value_error(
         }
         "product_reference" => metaobject_reference_value_error(
             value,
-            "Product",
+            &["Product"],
             "Value must be a valid product reference.",
         ),
         "variant_reference" => metaobject_reference_value_error(
             value,
-            "ProductVariant",
+            &["ProductVariant"],
             "Value must be a valid product variant reference.",
         ),
         "collection_reference" => metaobject_reference_value_error(
             value,
-            "Collection",
+            &["Collection"],
             "Value must be a valid collection reference.",
         ),
         "customer_reference" => metaobject_reference_value_error(
             value,
-            "Customer",
+            &["Customer"],
             "Value must be a valid customer reference.",
         ),
         "company_reference" => metaobject_reference_value_error(
             value,
-            "Company",
+            &["Company"],
             "Value must be a valid company reference.",
         ),
         "metaobject_reference" => metaobject_reference_value_error(
             value,
-            "Metaobject",
+            &["Metaobject"],
             "Value require that you select a metaobject.",
         ),
+        "file_reference" => metaobject_reference_value_error(
+            value,
+            &[
+                "MediaImage",
+                "GenericFile",
+                "Video",
+                "ExternalVideo",
+                "Model3d",
+                "File",
+            ],
+            "Value must be a file reference string.",
+        ),
+        "page_reference" => metaobject_reference_value_error(
+            value,
+            &["Page"],
+            "Value must be a valid page reference.",
+        ),
+        "order_reference" => metaobject_reference_value_error(
+            value,
+            &["Order"],
+            "Value must be a valid order reference.",
+        ),
+        "article_reference" => metaobject_reference_value_error(
+            value,
+            &["Article"],
+            "Value must be a valid article reference.",
+        ),
+        "product_taxonomy_value_reference" => metaobject_reference_value_error(
+            value,
+            &["ProductTaxonomyValue", "TaxonomyValue"],
+            "Value require that you select a product taxonomy value.",
+        ),
+        "mixed_reference" => metaobject_mixed_reference_value_error(context, value, validations),
         "single_line_text_field" | "multi_line_text_field" => {
             if let Some(max) = metaobject_field_validation_value(validations, "max")
                 .and_then(|max| max.parse::<usize>().ok())
             {
                 if value.chars().count() > max {
-                    return Some(format!("Value has a maximum length of {max}."));
+                    return Some(MetaobjectFieldValueError::invalid_value(format!(
+                        "Value has a maximum length of {max}."
+                    )));
                 }
             }
             None
         }
+        _ if is_measurement_metafield_type_name(field_type) => {
+            metaobject_structured_measurement_value_error(field_type, value)
+        }
         _ => None,
-    }
+    };
+    message.map(MetaobjectFieldValueError::invalid_value)
 }
 
 /// Validates a metaobject field value (scalar or `list.<type>`), returning the
@@ -1608,11 +1906,13 @@ fn metaobject_value_uses_generic_fallback(field_type: &str) -> bool {
 }
 
 fn metaobject_field_value_error(
+    context: Option<&MetaobjectFieldValueValidationContext<'_>>,
+    field_key: &str,
     field_type: &str,
     value: &str,
     validations: &[Value],
     is_update: bool,
-) -> Option<(String, Value)> {
+) -> Option<MetaobjectFieldValueError> {
     if let Some(base_type) = field_type.strip_prefix("list.") {
         let parsed = serde_json::from_str::<Value>(value).ok()?;
         let elements = parsed.as_array()?;
@@ -1621,16 +1921,27 @@ fn metaobject_field_value_error(
                 Value::String(text) => text.clone(),
                 other => other.to_string(),
             };
-            if let Some(message) =
-                metaobject_scalar_value_error(base_type, &element_value, validations, is_update)
-            {
-                return Some((message, json!(index)));
+            if let Some(error) = metaobject_scalar_value_error(
+                context,
+                field_key,
+                base_type,
+                &element_value,
+                validations,
+                is_update,
+            ) {
+                return Some(error.with_element_index(json!(index)));
             }
         }
         None
     } else {
-        metaobject_scalar_value_error(field_type, value, validations, is_update)
-            .map(|message| (message, Value::Null))
+        metaobject_scalar_value_error(
+            context,
+            field_key,
+            field_type,
+            value,
+            validations,
+            is_update,
+        )
     }
 }
 
@@ -1750,6 +2061,7 @@ fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Va
 }
 
 fn metaobject_create_validation_errors(
+    context: Option<&MetaobjectFieldValueValidationContext<'_>>,
     input: &BTreeMap<String, ResolvedValue>,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
@@ -1762,6 +2074,7 @@ fn metaobject_create_validation_errors(
         .flatten()
         .filter_map(|field| field.get("key").and_then(Value::as_str))
         .collect::<BTreeSet<_>>();
+    let mut provided_keys = BTreeSet::new();
 
     if let Some(ResolvedValue::List(fields)) = input.get("fields") {
         for (index, field) in fields.iter().enumerate() {
@@ -1769,6 +2082,7 @@ fn metaobject_create_validation_errors(
                 continue;
             };
             let key = resolved_string_field(field, "key").unwrap_or_default();
+            provided_keys.insert(key.clone());
             if !definition_keys.contains(key.as_str()) {
                 errors.push(metaobject_user_error(
                     vec!["metaobject", "fields", &index.to_string()],
@@ -1793,15 +2107,20 @@ fn metaobject_create_validation_errors(
                     .as_array()
                     .map(Vec::as_slice)
                     .unwrap_or(&[]);
-                if let Some((message, element_index)) =
-                    metaobject_field_value_error(field_type, &value, validations, is_update)
-                {
+                if let Some(error) = metaobject_field_value_error(
+                    context,
+                    &key,
+                    field_type,
+                    &value,
+                    validations,
+                    is_update,
+                ) {
                     errors.push(metaobject_user_error(
                         vec!["metaobject", "fields", &index.to_string()],
-                        &message,
-                        "INVALID_VALUE",
+                        &error.message,
+                        error.code,
                         json!(key),
-                        element_index,
+                        error.element_index,
                     ));
                 } else if metaobject_value_uses_generic_fallback(field_type)
                     && !metaobject_value_matches_type(field_type, &value)
@@ -1834,6 +2153,46 @@ fn metaobject_create_validation_errors(
             .get("key")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if context.is_some_and(|context| context.validate_existing_values)
+            && !provided_keys.contains(key)
+        {
+            let Some(value) = input_values.get(key).filter(|value| !value.is_empty()) else {
+                continue;
+            };
+            let field_type = field_definition["type"]["name"]
+                .as_str()
+                .unwrap_or_default();
+            let validations = field_definition["validations"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            if let Some(error) = metaobject_field_value_error(
+                context,
+                key,
+                field_type,
+                value,
+                validations,
+                is_update,
+            ) {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject"],
+                    &error.message,
+                    error.code,
+                    json!(key),
+                    error.element_index,
+                ));
+            } else if metaobject_value_uses_generic_fallback(field_type)
+                && !metaobject_value_matches_type(field_type, value)
+            {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject"],
+                    &format!("Value is invalid for field \"{key}\"."),
+                    "INVALID_VALUE",
+                    json!(key),
+                    Value::Null,
+                ));
+            }
+        }
         if field_definition
             .get("required")
             .and_then(Value::as_bool)
@@ -2806,8 +3165,18 @@ impl DraftProxy {
             );
         }
         let input_values = metaobject_create_input_values(input);
-        let mut validation_errors =
-            metaobject_create_validation_errors(input, &definition, &input_values, false);
+        let validation_context = MetaobjectFieldValueValidationContext {
+            proxy: self,
+            existing_id: None,
+            validate_existing_values: false,
+        };
+        let mut validation_errors = metaobject_create_validation_errors(
+            Some(&validation_context),
+            input,
+            &definition,
+            &input_values,
+            false,
+        );
         if upsert_required_errors {
             validation_errors =
                 metaobject_required_field_errors_for_upsert(validation_errors, &definition);
@@ -2956,8 +3325,18 @@ impl DraftProxy {
         };
 
         let input_values = metaobject_merged_input_values(&existing, input);
-        let mut validation_errors =
-            metaobject_create_validation_errors(input, &definition, &input_values, true);
+        let validation_context = MetaobjectFieldValueValidationContext {
+            proxy: self,
+            existing_id: Some(&id),
+            validate_existing_values: true,
+        };
+        let mut validation_errors = metaobject_create_validation_errors(
+            Some(&validation_context),
+            input,
+            &definition,
+            &input_values,
+            true,
+        );
         let requested_handle = resolved_string_field(input, "handle");
         let (next_handle, handle_display_source) = if let Some(handle) = requested_handle.as_deref()
         {
@@ -3087,8 +3466,19 @@ impl DraftProxy {
                 update_input.insert("handle".to_string(), ResolvedValue::String(handle));
             }
             let input_values = metaobject_merged_input_values(&existing, &update_input);
+            let existing_id = existing
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let validation_context = MetaobjectFieldValueValidationContext {
+                proxy: self,
+                existing_id: Some(&existing_id),
+                validate_existing_values: true,
+            };
             let mut validation_errors = metaobject_required_field_errors_for_upsert(
                 metaobject_create_validation_errors(
+                    Some(&validation_context),
                     &update_input,
                     &definition,
                     &input_values,
@@ -3096,11 +3486,6 @@ impl DraftProxy {
                 ),
                 &definition,
             );
-            let existing_id = existing
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
             let (next_handle, handle_display_source) =
                 if let Some(handle) = resolved_string_field(&update_input, "handle") {
                     validation_errors.extend(metaobject_handle_validation_errors(

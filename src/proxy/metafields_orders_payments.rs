@@ -185,7 +185,7 @@ const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
     "weight",
 ];
 
-fn is_measurement_metafield_type_name(type_name: &str) -> bool {
+pub(in crate::proxy) fn is_measurement_metafield_type_name(type_name: &str) -> bool {
     !measurement_units_for_type(type_name).is_empty()
 }
 
@@ -1108,7 +1108,7 @@ fn is_shopify_date(value: &str) -> bool {
     (1..=days_in_month(year, month)).contains(&day)
 }
 
-fn is_shopify_metafield_url(value: &str) -> bool {
+pub(in crate::proxy) fn is_shopify_metafield_url(value: &str) -> bool {
     let lowered = value.to_ascii_lowercase();
     if lowered.starts_with("http://") || lowered.starts_with("https://") {
         return url::Url::parse(value)
@@ -1125,7 +1125,7 @@ fn is_shopify_metafield_url(value: &str) -> bool {
     false
 }
 
-fn is_shopify_money_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_money_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1144,7 +1144,7 @@ fn is_shopify_money_value(value: &Value) -> bool {
         && currency_code.chars().all(|ch| ch.is_ascii_uppercase())
 }
 
-fn is_shopify_link_value(value: &Value) -> bool {
+pub(in crate::proxy) fn is_shopify_link_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
         return false;
     };
@@ -1161,7 +1161,10 @@ fn is_shopify_link_value(value: &Value) -> bool {
     !label.trim().is_empty() && is_shopify_metafield_url(url)
 }
 
-fn shopify_measurement_value_error(type_name: &str, value: &Value) -> Option<String> {
+pub(in crate::proxy) fn shopify_measurement_value_error(
+    type_name: &str,
+    value: &Value,
+) -> Option<String> {
     let Some(fields) = value.as_object() else {
         return Some("Value must contain unit and value.".to_string());
     };
@@ -1245,7 +1248,7 @@ fn json_f64_value_with_original(value: &Value) -> Option<(f64, String)> {
     }
 }
 
-fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
+pub(in crate::proxy) fn measurement_unit_is_supported(type_name: &str, unit: &str) -> bool {
     let normalized = measurement_unit_alias(unit);
     measurement_units_for_type(type_name).contains(&normalized.as_str())
 }
@@ -1270,7 +1273,7 @@ fn measurement_unit_alias(unit: &str) -> String {
     }
 }
 
-fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
+pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static [&'static str] {
     match type_name {
         "antenna_gain" => &["DECIBELS_ISOTROPIC"],
         "area" => &[
