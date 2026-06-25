@@ -204,10 +204,18 @@ impl DraftProxy {
         let fields = try_root_fields!(query, variables);
         match root_field {
             "backupRegion" => {
+                if self.store.staged.backup_region.is_null()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    self.hydrate_current_backup_region_from_upstream(request);
+                }
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     if field.name == "backupRegion" {
-                        data.insert(field.response_key, self.store.staged.backup_region.clone());
+                        data.insert(
+                            field.response_key,
+                            selected_json(&self.store.staged.backup_region, &field.selection),
+                        );
                     }
                 }
                 ok_json(json!({ "data": Value::Object(data) }))
