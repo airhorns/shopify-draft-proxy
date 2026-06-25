@@ -1,0 +1,16 @@
+#graphql
+mutation CatalogCreatePublicationRelation($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+      publication {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

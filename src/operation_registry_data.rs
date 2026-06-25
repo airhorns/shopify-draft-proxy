@@ -391,7 +391,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("inventoryShipmentDelete", Mutation, Products, StageLocally, true, ["tests/graphql_routes.rs"]),
         entry!("metafieldsSet", Mutation, Products, StageLocally, true, []),
         entry!("metafieldsDelete", Mutation, Products, StageLocally, true, []),
-        entry!("metafieldDelete", Mutation, Products, StageLocally, false, []),
+        entry!("metafieldDelete", Mutation, Products, StageLocally, true, []),
         entry!("metafieldDefinition", Query, Metafields, OverlayRead, true, []),
         entry!("metafieldDefinitions", Query, Metafields, OverlayRead, true, []),
         entry!("standardMetafieldDefinitionTemplates", Query, Metafields, OverlayRead, false, []),

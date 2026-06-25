@@ -1640,7 +1640,7 @@ That keeps downstream `product.metafield(...)` and `product.metafields(...)` rea
 
 ## 18b. Live Admin GraphQL currently exposes `metafieldsDelete`, not `metafieldDelete`
 
-Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model:
+Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model. Follow-up schema probes on 2026-04 and unstable showed the same public-root boundary:
 
 - `metafieldsSet` is present and capturable live
 - the singular compatibility root `metafieldDelete` is **not** present in the live schema
