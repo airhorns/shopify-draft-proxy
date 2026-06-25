@@ -4611,8 +4611,8 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "status": "ARCHIVED" }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 }

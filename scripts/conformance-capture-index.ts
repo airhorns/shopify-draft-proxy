@@ -822,6 +822,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'products-common-search-filters',
+    scriptPath: 'scripts/capture-products-common-search-filters-conformance.ts',
+    purpose:
+      'Products/productsCount common search filters for status, vendor, and product_type against live Shopify catalog data.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}products-common-search-filters.json`,
+      'config/parity-specs/products/products-common-search-filters-read.json',
+      'config/parity-requests/products/products-common-search-filters-read.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records the exact products/productsCount read as an upstream cassette for cold live-hybrid replay; local store-state filtering is covered by focused Rust tests.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
