@@ -1614,7 +1614,7 @@ impl DraftProxy {
         let identifier = function_id.as_deref().or(function_handle.as_deref());
         let Some(identifier) = identifier else {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!("functionHandle")],
+                [input_arg, "functionHandle"],
                 "Function id can't be blank.",
                 Some("MISSING_FUNCTION_IDENTIFIER"),
             ));
@@ -1641,7 +1641,7 @@ impl DraftProxy {
             });
         let Some(function) = function else {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!(field_name)],
+                [input_arg, field_name],
                 &format!(
                     "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
                 ),
@@ -1650,7 +1650,7 @@ impl DraftProxy {
         };
         if !app_discount_function_api_type_is_supported(&function) {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!(field_name)],
+                [input_arg, field_name],
                 "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
                 None,
             ));
@@ -2354,7 +2354,7 @@ fn app_discount_input_user_errors(
     let mut errors = Vec::new();
     let Some(input) = input else {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg)],
+            [input_arg],
             "Input is required.",
             Some("REQUIRED"),
         ));
@@ -2365,7 +2365,7 @@ fn app_discount_input_user_errors(
     if validate_title {
         match resolved_string_path(input, &["title"]) {
             Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 if code_app {
                     "can't be blank"
                 } else {
@@ -2374,13 +2374,13 @@ fn app_discount_input_user_errors(
                 Some("INVALID"),
             )),
             Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 "is too long (maximum is 255 characters)",
                 Some("INVALID"),
             )),
             Some(_) => {}
             None => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 if code_app {
                     "Required argument not found."
                 } else {
@@ -2393,25 +2393,25 @@ fn app_discount_input_user_errors(
     if code_app {
         match resolved_string_path(input, &["code"]) {
             Some(code) if code.trim().is_empty() => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
             )),
             Some(code) if code.contains('\n') || code.contains('\r') => {
                 errors.push(app_discount_user_error(
-                    vec![json!(input_arg), json!("code")],
+                    [input_arg, "code"],
                     "Code cannot contain newline characters.",
                     Some("INVALID"),
                 ))
             }
             Some(code) if code.chars().count() > 255 => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Code is too long (maximum is 255 characters)",
                 Some("INVALID"),
             )),
             Some(_) => {}
             None if create => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
             )),
@@ -2420,7 +2420,7 @@ fn app_discount_input_user_errors(
     }
     if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("startsAt")],
+            [input_arg, "startsAt"],
             "Starts at can't be blank.",
             Some("INVALID"),
         ));
@@ -2430,28 +2430,28 @@ fn app_discount_input_user_errors(
         Some(ResolvedValue::List(values)) if values.is_empty()
     ) {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("discountClasses")],
+            [input_arg, "discountClasses"],
             "Discount classes can't be empty.",
             Some("INVALID"),
         ));
     }
     if discount_context_customer_selection_user_error(input, input_arg).is_some() {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("context")],
+            [input_arg, "context"],
             DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
             Some("INVALID"),
         ));
     }
     if app_discount_empty_customer_selection(input) {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("customerSelection")],
+            [input_arg, "customerSelection"],
             "a minimum of one prerequisite segment or prerequisite customer must be provided",
             Some("INVALID"),
         ));
     }
     if typename == "DiscountAutomaticApp" && input.contains_key("channelIds") {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("channelIds")],
+            [input_arg, "channelIds"],
             "Channel IDs are not supported for automatic app discounts.",
             Some("INVALID"),
         ));
@@ -2460,7 +2460,7 @@ fn app_discount_input_user_errors(
         && !resolved_string_list_path(input, &["markets", "add"]).is_empty()
     {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("markets")],
+            [input_arg, "markets"],
             "Cannot add markets while removeAllMarkets is true.",
             Some("INVALID"),
         ));
@@ -2469,12 +2469,12 @@ fn app_discount_input_user_errors(
     let function_handle = resolved_non_blank_string_field(input, "functionHandle");
     match (function_id.is_some(), function_handle.is_some()) {
         (false, false) => errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("functionHandle")],
+            [input_arg, "functionHandle"],
             "Function id can't be blank.",
             Some("MISSING_FUNCTION_IDENTIFIER"),
         )),
         (true, true) => errors.push(app_discount_user_error(
-            vec![json!(input_arg)],
+            [input_arg],
             "Only one of functionId or functionHandle is allowed.",
             Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
         )),
@@ -2499,7 +2499,11 @@ fn app_discount_empty_customer_selection(input: &BTreeMap<String, ResolvedValue>
     )
 }
 
-fn app_discount_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
+fn app_discount_user_error(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
     user_error_with_extra_info(field, message, code, Value::Null)
 }
 
