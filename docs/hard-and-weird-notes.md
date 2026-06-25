@@ -3799,3 +3799,27 @@ Practical rule:
   `read_mobile_platform_applications` and `write_mobile_platform_applications`,
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
+
+## 88. Standard metafield-definition immutable fields return field-specific public errors
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records `metafieldDefinitionUpdate` on the standard product subtitle definition
+rejecting simultaneous `name`, `description`, and `validations` changes with
+three separate `INVALID_INPUT` userErrors:
+
+- `["definition", "name"]` with `Name cannot be changed in a standard definition.`
+- `["definition", "description"]` with `Description cannot be changed in a standard definition.`
+- `["definition", "validations"]` with `Validations cannot be changed in a standard definition.`
+
+The same capture records app-reserved namespace definition deletes without
+`deleteAllAssociatedMetafields: true` returning
+`RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
+`Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
+
+Practical rule:
+
+- model the public field-specific metafieldDefinitionUpdate errors for standard
+  definitions rather than collapsing them into a single internal/core-style
+  `["definition"]` error
+- keep the app-reserved namespace delete message aligned with the public
+  2026-04 capture, not older/internal wording

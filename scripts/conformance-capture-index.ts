@@ -2190,6 +2190,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-protected-guards',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-protected-guards-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate standard-template immutable field guard and metafieldDefinitionDelete app-reserved namespace orphaned-metafields guard.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-protected-guards.json`,
+      'config/parity-specs/metafields/metafield-definition-protected-guards.json',
+      'config/parity-requests/metafields/metafield-definition-protected-guards-delete-no-flag.graphql',
+      'config/parity-requests/metafields/metafield-definition-protected-guards-delete-with-flag.graphql',
+      'config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql',
+      'config/parity-requests/metafields/metafield-definition-protected-guards-standard-enable.graphql',
+      'config/parity-requests/metafields/metafield-definition-protected-guards-standard-update.graphql',
+    ],
+    cleanupBehavior:
+      'Enables the standard product subtitle definition, creates a disposable product and app-reserved product definition/value, deletes the app definition with deleteAllAssociatedMetafields, deletes the product, and deletes the standard definition only when this capture created it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-delete-type-guard-no-metafields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-delete-type-guard-no-metafields-conformance.mts',
