@@ -1,0 +1,448 @@
+{
+  "scenarioId": "publishable-resource-existence-current-channel",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-25T04:30:38.249Z",
+  "setup": {
+    "product": {
+      "id": "gid://shopify/Product/10220908249394",
+      "title": "Publishable resource existence mqt07u44",
+      "status": "ACTIVE"
+    },
+    "publications": [
+      {
+        "id": "gid://shopify/Publication/268039389490",
+        "name": "Online Store"
+      },
+      {
+        "id": "gid://shopify/Publication/268039455026",
+        "name": "Point of Sale"
+      },
+      {
+        "id": "gid://shopify/Publication/268039487794",
+        "name": "Shop"
+      },
+      {
+        "id": "gid://shopify/Publication/273897881906",
+        "name": "Shopify GraphiQL App"
+      },
+      {
+        "id": "gid://shopify/Publication/292074258738",
+        "name": "example.com"
+      }
+    ]
+  },
+  "cases": {
+    "publishUnknownId": {
+      "variables": {
+        "id": "gid://shopify/Product/999999999999",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublish": {
+              "publishable": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Resource does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishUnknownId": {
+      "variables": {
+        "id": "gid://shopify/Product/999999999999",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublish": {
+              "publishable": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Resource does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishCurrentUnknownId": {
+      "variables": {
+        "id": "gid://shopify/Product/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublishToCurrentChannel": {
+              "publishable": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Resource does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishCurrentUnknownId": {
+      "variables": {
+        "id": "gid://shopify/Product/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublishToCurrentChannel": {
+              "publishable": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Resource does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishCurrentMembership": {
+      "variables": {
+        "id": "gid://shopify/Product/10220908249394"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10220908249394",
+                "publishedOnCurrentPublication": true,
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/299574427954"
+                      },
+                      "isPublished": true,
+                      "publishable": {
+                        "id": "gid://shopify/Product/10220908249394"
+                      }
+                    },
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/292074258738"
+                      },
+                      "isPublished": true,
+                      "publishable": {
+                        "id": "gid://shopify/Product/10220908249394"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishCurrentMembership": {
+      "variables": {
+        "id": "gid://shopify/Product/10220908249394"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10220908249394",
+                "publishedOnCurrentPublication": false,
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/299574427954"
+                      },
+                      "isPublished": true,
+                      "publishable": {
+                        "id": "gid://shopify/Product/10220908249394"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10220908249394",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live Admin API capture for generic publishable top-level id resource-existence validation.",
+    "Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product.",
+    "The available conformance credential resolves a current channel; no-current-channel live evidence requires a separate app/client with no publishable channel binding."
+  ],
+  "blockers": {
+    "noCurrentChannel": "No current-channel-negative app credential is available in this workspace; local runtime tests cover the no-current-channel branch until that store/app setup exists."
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10220908249394"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10220908249394",
+                "title": "Publishable resource existence mqt07u44",
+                "handle": "publishable-resource-existence-mqt07u44",
+                "status": "ACTIVE",
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/299574427954"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

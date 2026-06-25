@@ -4396,8 +4396,7 @@ impl DraftProxy {
             if field.name != root_field {
                 continue;
             }
-            let product_id = resolved_string_field(&field.arguments, "id")
-                .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+            let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
                 return response;
             }
@@ -4406,18 +4405,47 @@ impl DraftProxy {
                 .as_deref()
                 .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
             {
-                self.hydrate_publishable_payload_shop(&product_id, request);
+                self.hydrate_publishable_payload_shop(&resource_id, request);
             }
             let publishable_selection =
                 selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
-            let user_errors = publishable_publication_input_errors(
+            let to_current = root_field == "publishablePublishToCurrentChannel"
+                || root_field == "publishableUnpublishToCurrentChannel";
+            let publish = root_field == "publishablePublish"
+                || root_field == "publishablePublishToCurrentChannel";
+            let mut user_errors = Vec::new();
+            let resource_exists = self.publishable_resource_exists(&resource_id, request);
+            if !resource_exists {
+                user_errors.push(user_error_omit_code(
+                    ["id"],
+                    "Resource does not exist",
+                    Some("RESOURCE_DOES_NOT_EXIST"),
+                ));
+            }
+            user_errors.extend(publishable_publication_input_errors(
                 field.arguments.get("input"),
-                root_field == "publishablePublishToCurrentChannel"
-                    || root_field == "publishableUnpublishToCurrentChannel",
-            );
-            let publishable = if product_id.starts_with("gid://shopify/Collection/") {
-                let published = root_field == "publishablePublish";
-                let collection = collection_publication_record(product_id, published);
+                to_current,
+            ));
+            let current_channel_id = self.current_channel_publication_id();
+            if resource_exists && to_current && current_channel_id.is_none() {
+                user_errors.push(user_error_omit_code(
+                    Value::Null,
+                    "Channel does not exist",
+                    Some("CHANNEL_DOES_NOT_EXIST"),
+                ));
+            }
+            let null_publishable = user_errors.iter().any(|error| {
+                error
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .is_some_and(|code| {
+                        matches!(code, "RESOURCE_DOES_NOT_EXIST" | "CHANNEL_DOES_NOT_EXIST")
+                    })
+            });
+            let publishable = if null_publishable {
+                Value::Null
+            } else if resource_id.starts_with("gid://shopify/Collection/") {
+                let collection = collection_publication_record(resource_id.clone(), publish);
                 if user_errors.is_empty() {
                     if let Some(id) = collection.get("id").and_then(Value::as_str) {
                         self.store
@@ -4426,17 +4454,56 @@ impl DraftProxy {
                             .insert(id.to_string(), collection.clone());
                     }
                 }
-                collection
+                selected_json(&collection, &publishable_selection)
             } else {
-                json!({
-                    "id": product_id,
-                    "publishedOnCurrentPublication": false,
-                    "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-                    "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-                })
+                self.publishable_resource_value(&resource_id, &publishable_selection)
             };
             if user_errors.is_empty() {
+                let publication_ids = if to_current {
+                    current_channel_id
+                        .map(|id| vec![id.to_string()])
+                        .unwrap_or_default()
+                } else {
+                    publishable_input_publication_ids(&field.arguments)
+                };
+                let set = self
+                    .store
+                    .staged
+                    .resource_publications
+                    .entry(resource_id.clone())
+                    .or_default();
+                for publication_id in publication_ids {
+                    if publish {
+                        set.insert(publication_id);
+                    } else {
+                        set.remove(&publication_id);
+                    }
+                }
+                let publishable = if resource_id.starts_with("gid://shopify/Collection/") {
+                    let collection = collection_publication_record(resource_id.clone(), publish);
+                    if let Some(id) = collection.get("id").and_then(Value::as_str) {
+                        self.store
+                            .staged
+                            .collections
+                            .insert(id.to_string(), collection);
+                    }
+                    self.publishable_resource_value(&resource_id, &publishable_selection)
+                } else {
+                    self.publishable_resource_value(&resource_id, &publishable_selection)
+                };
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
+                let shop = self.store.effective_shop();
+                data.insert(
+                    field.response_key,
+                    publishable_payload_json(
+                        publishable,
+                        shop,
+                        &payload_selection,
+                        &publishable_selection,
+                        user_errors,
+                    ),
+                );
+                continue;
             }
             let shop = self.store.effective_shop();
             data.insert(
@@ -4482,6 +4549,17 @@ impl DraftProxy {
         );
         if !(200..300).contains(&response.status) {
             return;
+        }
+        if let Some(id) = response
+            .body
+            .pointer("/data/publishable/id")
+            .and_then(Value::as_str)
+        {
+            self.store
+                .staged
+                .resource_publications
+                .entry(id.to_string())
+                .or_default();
         }
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
     }
