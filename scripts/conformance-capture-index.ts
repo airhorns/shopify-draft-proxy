@@ -7724,6 +7724,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json',
+      `${LOCAL_RUNTIME_ROOT}functions-metadata-flow.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-owner-metadata-flow.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-validation-create-validation.json`,
       'config/parity-specs/functions/functions-cart-transform-create-validation.json',
       'config/parity-specs/functions/functions-create-guardrails.json',
       'config/parity-specs/functions/functions-validation-create-validation.json',
@@ -7736,6 +7739,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-unknown-handle.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-unknown-id.graphql',
+      'config/parity-requests/functions/functions-metadata-read.graphql',
+      'config/parity-requests/functions/functions-owner-metadata-read.graphql',
+      'config/parity-requests/functions/functions-validation-create-validation-read.graphql',
     ],
     cleanupBehavior:
       'Deletes pre-existing cartTransforms before capture, captures unresolved identifier branches with empty readbacks, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
@@ -7820,6 +7826,36 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Captures deterministic userErrors and an empty read only; no live fulfillment constraint rule is created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-output-field-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-output-field-validation-conformance.ts',
+    purpose:
+      'Validation and FulfillmentConstraintRule public output field sets plus undefined-field rejection for local-only fabricated fields.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/delete lifecycle capture',
+      'read_fulfillment_constraint_rules for valid empty fulfillmentConstraintRules read',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-output-field-validation.json`,
+      'config/parity-specs/functions/functions-output-field-validation.json',
+      'config/parity-requests/functions/functions-output-field-validation-create.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-validation-invalid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-validations-invalid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-validation-valid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-validation-node-invalid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-validation-node-valid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-fcr-invalid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-fcr-node-invalid-read.graphql',
+      'config/parity-requests/functions/functions-output-field-validation-fcr-valid-empty-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable Validation through conformance-validation, captures invalid and valid Validation/FulfillmentConstraintRule reads, then deletes the disposable Validation. FulfillmentConstraintRule negative selection validation does not create a rule.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
