@@ -3,14 +3,14 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10170511687986",
+          "ownerId": "gid://shopify/Product/10221143818546",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas"
         },
         {
-          "ownerId": "gid://shopify/Product/10170511687986",
+          "ownerId": "gid://shopify/Product/10221143818546",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -23,20 +23,18 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/42952770224434",
+              "id": "gid://shopify/Metafield/44540190392626",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
-              "value": "Canvas",
-              "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
+              "value": "Canvas"
             },
             {
-              "id": "gid://shopify/Metafield/42952770257202",
+              "id": "gid://shopify/Metafield/44540190425394",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
-              "value": "VN",
-              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+              "value": "VN"
             }
           ],
           "userErrors": []
@@ -56,53 +54,49 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10170511687986"
+    "id": "gid://shopify/Product/10221143818546"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10170511687986",
+        "id": "gid://shopify/Product/10221143818546",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/42952770224434",
+          "id": "gid://shopify/Metafield/44540190392626",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
-          "value": "Canvas",
-          "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
+          "value": "Canvas"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/42952770257202",
+          "id": "gid://shopify/Metafield/44540190425394",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
-          "value": "VN",
-          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+          "value": "VN"
         },
         "season": null,
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/42952770224434",
+              "id": "gid://shopify/Metafield/44540190392626",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
-              "value": "Canvas",
-              "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
+              "value": "Canvas"
             },
             {
-              "id": "gid://shopify/Metafield/42952770257202",
+              "id": "gid://shopify/Metafield/44540190425394",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
-              "value": "VN",
-              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+              "value": "VN"
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+            "startCursor": "eyJsYXN0X2lkIjo0NDU0MDE5MDM5MjYyNiwibGFzdF92YWx1ZSI6IjQ0NTQwMTkwMzkyNjI2In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NDU0MDE5MDQyNTM5NCwibGFzdF92YWx1ZSI6IjQ0NTQwMTkwNDI1Mzk0In0="
           }
         }
       }
@@ -121,9 +115,9 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10170511687986"]
+        "ids": ["gid://shopify/Product/10221143818546"]
       },
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
       "response": {
@@ -132,52 +126,88 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10170511687986",
-                "primarySpec": {
-                  "id": "gid://shopify/Metafield/42952770224434",
-                  "namespace": "custom",
-                  "key": "material",
-                  "type": "single_line_text_field",
-                  "value": "Canvas",
-                  "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
-                },
-                "origin": {
-                  "id": "gid://shopify/Metafield/42952770257202",
-                  "namespace": "details",
-                  "key": "origin",
-                  "type": "single_line_text_field",
-                  "value": "VN",
-                  "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
-                },
-                "season": null,
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10221143818546",
+                "title": "Hermes Metafield Non-CAS set-parity 1782391456150",
+                "handle": "hermes-metafield-non-cas-set-parity-1782391456150",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-06-25T12:44:16Z",
+                "updatedAt": "2026-06-25T12:44:16Z",
                 "metafields": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Metafield/42952770224434",
+                      "id": "gid://shopify/Metafield/44540190392626",
                       "namespace": "custom",
                       "key": "material",
                       "type": "single_line_text_field",
                       "value": "Canvas",
-                      "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
+                      "jsonValue": "Canvas",
+                      "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                      "createdAt": "2026-06-25T12:44:16Z",
+                      "updatedAt": "2026-06-25T12:44:16Z",
+                      "ownerType": "PRODUCT"
                     },
                     {
-                      "id": "gid://shopify/Metafield/42952770257202",
+                      "id": "gid://shopify/Metafield/44540190425394",
                       "namespace": "details",
                       "key": "origin",
                       "type": "single_line_text_field",
                       "value": "VN",
-                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+                      "jsonValue": "VN",
+                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                      "createdAt": "2026-06-25T12:44:16Z",
+                      "updatedAt": "2026-06-25T12:44:16Z",
+                      "ownerType": "PRODUCT"
                     }
                   ],
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
-                    "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+                    "startCursor": "eyJsYXN0X2lkIjo0NDU0MDE5MDM5MjYyNiwibGFzdF92YWx1ZSI6IjQ0NTQwMTkwMzkyNjI2In0=",
+                    "endCursor": "eyJsYXN0X2lkIjo0NDU0MDE5MDQyNTM5NCwibGFzdF92YWx1ZSI6IjQ0NTQwMTkwNDI1Mzk0In0="
                   }
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51369036382514",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53473878901042",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
                 }
               }
             ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

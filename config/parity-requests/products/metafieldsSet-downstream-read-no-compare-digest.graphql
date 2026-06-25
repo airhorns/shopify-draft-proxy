@@ -1,0 +1,41 @@
+query MetafieldsSetDownstreamReadNoCompareDigest($id: ID!) {
+  product(id: $id) {
+    id
+    primarySpec: metafield(namespace: "custom", key: "material") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    origin: metafield(namespace: "details", key: "origin") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    season: metafield(namespace: "details", key: "season") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}
