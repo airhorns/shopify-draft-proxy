@@ -1142,6 +1142,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-metafield-delete-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-metafield-delete-local-runtime.ts',
+    purpose:
+      'Executable product-owner local-runtime parity for singular metafieldDelete success, downstream read-after-delete, and not-found payloads.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}metafield-delete-product-owner-local-runtime.json`,
+      'config/parity-specs/products/metafieldDelete-product-owner-local-runtime.json',
+      'config/parity-requests/products/metafieldDelete-product-owner-setup.graphql',
+      'config/parity-requests/products/metafieldDelete-product-owner.graphql',
+      'config/parity-requests/products/metafieldDelete-product-owner-read.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live public Admin GraphQL 2026-04 and unstable expose plural metafieldsDelete but not singular metafieldDelete, so the singular compatibility alias is covered by local-runtime parity plus live plural-root evidence.',
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:
@@ -1985,6 +2005,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
       'config/parity-specs/products/metafieldsSet-parity-plan.json',
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
