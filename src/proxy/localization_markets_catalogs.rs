@@ -6,6 +6,33 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
+const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+      conditions {
+        conditionTypes
+        regionsCondition {
+          regions(first: $regionsFirst) {
+            nodes {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}"#;
+
 fn market_relation_connection<'a>(
     records: impl Iterator<Item = &'a Value>,
     market_id: &str,
@@ -964,31 +991,38 @@ impl DraftProxy {
             .collect()
     }
 
-    /// Whether the given country code is covered by an active, non-legacy
-    /// REGION-type market. Ported from Gleam
-    /// `markets.backup_region_country_has_region_market` (markets.gleam:209):
-    /// when no markets are hydrated, fall back to the per-shop captured region
-    /// coverage list; otherwise inspect the effective (staged) markets directly.
-    pub(in crate::proxy) fn backup_region_country_has_region_market(
+    /// Resolve the given country from active, non-legacy REGION-type market
+    /// data. There is no captured per-shop fallback; callers hydrate real
+    /// market data first when running outside snapshot mode.
+    pub(in crate::proxy) fn backup_region_country_for_code(
         &self,
         country_code: &str,
-    ) -> bool {
+    ) -> Option<Value> {
         let normalized = country_code.to_ascii_uppercase();
-        if self.store.staged.markets.is_empty() {
-            let shop = self.store.effective_shop();
-            let domain = shop
-                .get("myshopifyDomain")
-                .and_then(Value::as_str)
-                .unwrap_or("harry-test-heelo.myshopify.com")
-                .to_ascii_lowercase();
-            return captured_region_market_for_country(&domain, &normalized);
+        self.store
+            .staged
+            .markets
+            .values()
+            .filter(|market| market_record_is_active_region_non_legacy(market))
+            .find_map(|market| market_record_country_region(market, &normalized))
+    }
+
+    pub(in crate::proxy) fn hydrate_backup_region_markets_from_upstream(
+        &mut self,
+        request: &Request,
+    ) -> Response {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": BACKUP_REGION_MARKETS_HYDRATE_QUERY,
+                "operationName": "BackupRegionMarketsHydrate",
+                "variables": { "first": 250, "regionsFirst": 250 }
+            }),
+        );
+        if response.status < 400 {
+            self.hydrate_markets_from_upstream(&response.body);
         }
-        self.store.staged.markets.values().any(|market| {
-            market_record_is_active_region_non_legacy(market)
-                && market_record_country_codes(market)
-                    .iter()
-                    .any(|code| code.to_ascii_uppercase() == normalized)
-        })
+        response
     }
 
     pub(in crate::proxy) fn catalog_mutation_data(
@@ -3929,34 +3963,6 @@ fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 
         + 1
 }
 
-/// Per-shop region coverage used when no markets are hydrated yet, ported from
-/// Gleam `markets.captured_region_market_for_country` (markets.gleam:271). These
-/// lists encode the captured baseline region markets each test shop ships with.
-/// `US` extends the Gleam baseline for harry-test-heelo per HAR-1436, whose
-/// capture records a US backup-region success branch on this shop's default
-/// (no markets read) state.
-fn captured_region_market_for_country(domain: &str, code: &str) -> bool {
-    match domain {
-        "very-big-test-store.myshopify.com" => code == "CA",
-        "harry-test-heelo.myshopify.com" => matches!(
-            code,
-            "CA" | "AE"
-                | "AT"
-                | "AU"
-                | "BE"
-                | "CH"
-                | "CZ"
-                | "DE"
-                | "DK"
-                | "ES"
-                | "FI"
-                | "MX"
-                | "US"
-        ),
-        _ => code == "CA",
-    }
-}
-
 /// A market participates in backup-region coverage when it is enabled, of REGION
 /// type, and not a legacy market. Ported from Gleam
 /// `markets.market_record_is_active_region_non_legacy` (markets.gleam:227).
@@ -4084,6 +4090,55 @@ fn region_code_from_node(node: &Value) -> Option<String> {
         .and_then(Value::as_str)
         .or_else(|| node.get("countryCode").and_then(Value::as_str))
         .map(str::to_string)
+}
+
+fn market_record_country_region(market: &Value, country_code: &str) -> Option<Value> {
+    let regions = market
+        .get("conditions")
+        .and_then(|conditions| conditions.get("regionsCondition"))
+        .and_then(|regions_condition| regions_condition.get("regions"))?;
+    if let Some(region) = regions
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find_map(|node| market_region_country_from_node(node, country_code))
+    {
+        return Some(region);
+    }
+    regions
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node"))
+        .find_map(|node| market_region_country_from_node(node, country_code))
+}
+
+fn market_region_country_from_node(node: &Value, country_code: &str) -> Option<Value> {
+    let code = region_code_from_node(node)?;
+    if code.to_ascii_uppercase() != country_code {
+        return None;
+    }
+    let mut region = node.as_object()?.clone();
+    let id = node
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("gid://shopify/MarketRegionCountry/local-{country_code}"));
+    let name = node
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| country_name_for_code(&code).map(str::to_string))
+        .unwrap_or_else(|| code.clone());
+    region
+        .entry("__typename".to_string())
+        .or_insert_with(|| json!("MarketRegionCountry"));
+    region.insert("id".to_string(), json!(id));
+    region.insert("name".to_string(), json!(name));
+    region.insert("code".to_string(), json!(code));
+    Some(Value::Object(region))
 }
 
 fn localization_product_translatable_content(product: &ProductRecord, locale: &str) -> Vec<Value> {
