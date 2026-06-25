@@ -215,6 +215,227 @@ fn admin_platform_job_non_job_gid_returns_resource_not_found_error() {
 }
 
 #[test]
+fn domain_id_resolves_from_shop_domains() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored",
+        "name": "Restored shop",
+        "myshopifyDomain": "restored-shop.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        },
+        "currencyCode": "USD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainFromRestoredShop($id: ID!) {
+          domain(id: $id) {
+            id
+            host
+            url
+            sslEnabled
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/987654321" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownDomainFromRestoredShop($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/404404404" }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(unknown.body["data"]["domain"], Value::Null);
+}
+
+#[test]
+fn domain_id_resolves_after_live_hybrid_shop_hydration() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "id": "gid://shopify/Shop/live",
+                            "name": "Live hydrated shop",
+                            "myshopifyDomain": "live-hydrated.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/222333444",
+                                "host": "live-hydrated.example",
+                                "url": "https://live-hydrated.example",
+                                "sslEnabled": true
+                            },
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopDomain {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/222333444")
+    );
+
+    let domain = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainAfterShopHydrate($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/222333444" }),
+    ));
+
+    assert_eq!(domain.status, 200);
+    assert_eq!(
+        domain.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/222333444",
+            "host": "live-hydrated.example",
+            "url": "https://live-hydrated.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn domain_id_live_hybrid_forwards_cold_domain_reads() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "domain": {
+                            "id": "gid://shopify/Domain/777888999",
+                            "host": "cold-live.example",
+                            "url": "https://cold-live.example",
+                            "sslEnabled": true
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdDomainRead($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/777888999" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/777888999",
+            "host": "cold-live.example",
+            "url": "https://cold-live.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap()[0]["variables"],
+        json!({ "id": "gid://shopify/Domain/777888999" })
+    );
+}
+
+#[test]
+fn default_shop_json_uses_neutral_identity() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdShopIdentity {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/0",
+            "name": "Shopify Draft Proxy",
+            "myshopifyDomain": "shopify-draft-proxy.local",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/1000",
+                "host": "shopify-draft-proxy.local",
+                "url": "https://shopify-draft-proxy.local",
+                "sslEnabled": true
+            },
+            "currencyCode": "USD"
+        })
+    );
+}
+
+#[test]
 fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() {
     let mut proxy = snapshot_proxy();
     let (order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
@@ -864,6 +1085,27 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!({}),
     ));
     assert_eq!(null_region.body, omitted.body);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/92891250994",
+        "name": "harry-test-heelo",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/157391388978",
+            "host": "harry-test-heelo.myshopify.com",
+            "url": "https://harry-test-heelo.myshopify.com",
+            "sslEnabled": true
+        },
+        "currencyCode": "USD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let captured_countries = [
         (
@@ -4257,7 +4499,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     assert_eq!(policy["body"], json!("<p>Hi</p>"));
     assert_eq!(
         policy["url"],
-        json!("https://harry-test-heelo.myshopify.com/policies/1.html?locale=en")
+        json!("https://shopify-draft-proxy.local/policies/1.html?locale=en")
     );
     assert_eq!(policy["translations"], json!([]));
 

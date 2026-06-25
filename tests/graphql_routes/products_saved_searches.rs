@@ -7932,7 +7932,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["shop"],
-        json!({ "id": "gid://shopify/Shop/92891250994" })
+        json!({ "id": "gid://shopify/Shop/0" })
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["userErrors"],
@@ -7998,7 +7998,7 @@ fn collection_delete_payload_includes_shop_on_user_error() {
         missing.body["data"]["collectionDelete"],
         json!({
             "deletedCollectionId": null,
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Collection does not exist"

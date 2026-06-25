@@ -212,7 +212,15 @@ impl DraftProxy {
                 }
                 ok_json(json!({ "data": Value::Object(data) }))
             }
-            "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
+            "domain" => {
+                if self.config.read_mode != ReadMode::Snapshot
+                    && self.domain_query_needs_upstream(&fields)
+                {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    ok_json(json!({ "data": self.domain_query_data(&fields) }))
+                }
+            }
             "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
                 let selection_errors = functions_output_selection_errors(query, variables, &fields);
@@ -315,6 +323,16 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
+    fn domain_query_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| {
+            if field.name != "domain" {
+                return false;
+            }
+            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            !id.is_empty() && self.store.domain_by_id(&id).is_none()
+        })
+    }
+
     fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -322,19 +340,11 @@ impl DraftProxy {
                 continue;
             }
             let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let value = if id == "gid://shopify/Domain/1000" {
-                selected_json(
-                    &json!({
-                        "id": "gid://shopify/Domain/1000",
-                        "host": "acme.myshopify.com",
-                        "url": "https://acme.myshopify.com",
-                        "sslEnabled": true
-                    }),
-                    &field.selection,
-                )
-            } else {
-                Value::Null
-            };
+            let value = self
+                .store
+                .domain_by_id(&id)
+                .map(|domain| selected_json(&domain, &field.selection))
+                .unwrap_or(Value::Null);
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)

@@ -1018,9 +1018,9 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
-            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
-            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
+            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
 }
@@ -1093,9 +1093,9 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
-            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
-            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
+            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
 
@@ -1105,13 +1105,13 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     ));
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
-        json!({"id": "gid://shopify/Domain/1000", "host": "acme.myshopify.com", "url": "https://acme.myshopify.com", "sslEnabled": true})
+        json!({"id": "gid://shopify/Domain/1000", "host": "shopify-draft-proxy.local", "url": "https://shopify-draft-proxy.local", "sslEnabled": true})
     );
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://acme.myshopify.com/"},
-            {"locale": "fr", "url": "https://acme.myshopify.com/fr/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr/"}
         ])
     );
     assert_eq!(
@@ -1146,9 +1146,9 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en-US", "url": "https://harry-test-heelo.myshopify.com/en-us/"},
-            {"locale": "pt-BR", "url": "https://harry-test-heelo.myshopify.com/pt-us/"},
-            {"locale": "zh-Hant-TW", "url": "https://harry-test-heelo.myshopify.com/zh-us/"}
+            {"locale": "en-US", "url": "https://shopify-draft-proxy.local/en-us/"},
+            {"locale": "pt-BR", "url": "https://shopify-draft-proxy.local/pt-us/"},
+            {"locale": "zh-Hant-TW", "url": "https://shopify-draft-proxy.local/zh-us/"}
         ])
     );
 

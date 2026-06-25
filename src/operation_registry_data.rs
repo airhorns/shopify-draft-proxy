@@ -177,7 +177,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityDomain::AdminPlatform,
             CapabilityExecution::OverlayRead,
             true,
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "backupRegion",

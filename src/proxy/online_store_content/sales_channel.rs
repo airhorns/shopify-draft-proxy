@@ -1219,7 +1219,7 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [presence_user_error(["input", "title"], "Title")]}),
+                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [presence_user_error(["input", "title"], "Title")]}),
                 &field.selection,
             );
         }
@@ -1232,7 +1232,7 @@ impl DraftProxy {
             .count();
         if token_count >= 100 {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
+                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
                 &field.selection,
             );
         }
@@ -1252,7 +1252,7 @@ impl DraftProxy {
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
-            &json!({"storefrontAccessToken": record, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": []}),
+            &json!({"storefrontAccessToken": record, "shop": self.store.effective_shop(), "userErrors": []}),
             &field.selection,
         )
     }

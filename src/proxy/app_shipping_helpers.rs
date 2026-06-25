@@ -103,7 +103,7 @@ fn fulfillment_service_shop_origin_host(shopify_admin_origin: &str) -> Option<St
         .ok()
         .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
         .filter(|host| host.ends_with(".myshopify.com"));
-    host.or_else(|| Some("harry-test-heelo.myshopify.com".to_string()))
+    host.or_else(|| Some("shopify-draft-proxy.local".to_string()))
 }
 
 pub(in crate::proxy) fn delegate_access_token_create_payload_json(
