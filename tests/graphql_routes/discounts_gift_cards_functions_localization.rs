@@ -4189,7 +4189,7 @@ fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notification
     ));
 
     let trial_error = json!([{
-        "field": ["base"],
+        "field": null,
         "code": "INVALID",
         "message": "Notifications are not available on trial shops."
     }]);
@@ -4198,6 +4198,48 @@ fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notification
         json!({
             "customerNotification": { "giftCard": null, "userErrors": trial_error },
             "recipientNotification": { "giftCard": null, "userErrors": trial_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationBaseKeyedStateErrors {
+          noCustomer: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654904230194") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          noContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/654904262962") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "noCustomer": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": null,
+                    "code": "INVALID",
+                    "message": "The gift card has no customer."
+                }]
+            },
+            "noContact": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": null,
+                    "code": "INVALID",
+                    "message": "The recipient has no contact information (e.g. email address or phone number)."
+                }]
+            }
         })
     );
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
@@ -4220,9 +4262,9 @@ fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_ca
         json!({}),
     ));
 
-    let entitlement_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are unavailable on your plan." }]);
+    let entitlement_error = json!([{ "field": null, "code": null, "message": "Gift cards are unavailable on your plan." }]);
     let trial_error = json!([{
-        "field": ["base"],
+        "field": null,
         "code": "INVALID",
         "message": "Notifications are not available on trial shops."
     }]);
@@ -4273,7 +4315,7 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
     ));
 
     let trial_error = json!([{
-        "field": ["base"],
+        "field": null,
         "code": "INVALID",
         "message": "Notifications are not available on trial shops."
     }]);
@@ -5471,7 +5513,7 @@ fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
         json!({}),
     ));
 
-    let base_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are unavailable on your plan." }]);
+    let base_error = json!([{ "field": null, "code": null, "message": "Gift cards are unavailable on your plan." }]);
     assert_eq!(
         response.body["data"],
         json!({
