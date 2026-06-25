@@ -696,6 +696,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The capture also records null-only probes showing the public schema does not treat null-only keys as a uniform NO_INPUT branch.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-contact-missing-email-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-missing-email-validation-conformance.mts',
+    purpose:
+      'B2B companyContactCreate and nested companyCreate companyContact missing-email validation, including unchanged standalone company readback and empty nested company search evidence.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-missing-email-validation.json`,
+      'config/parity-specs/b2b/b2b-contact-missing-email-validation.json',
+      'config/parity-requests/b2b/b2b-contact-missing-email-validation-company-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-missing-email-validation-contact-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-missing-email-validation-company-read.graphql',
+      'config/parity-requests/b2b/b2b-contact-missing-email-validation-companies-search.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup company, records missing-email validation failures and readback/search no-op evidence, then deletes the setup company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The nested rejection has no returned company ID, so empty read-after-write evidence uses a companies query by the rejected company name.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',

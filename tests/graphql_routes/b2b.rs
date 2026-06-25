@@ -1624,6 +1624,152 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
 }
 
 #[test]
+fn b2b_company_contact_create_without_email_rejects_and_stages_nothing() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Missing Email Contact Co");
+    let state_before = proxy.get_state_snapshot();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactCreateMissingEmail($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id customer { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": {
+                "firstName": "Jane",
+                "lastName": "Doe"
+            }
+        }),
+    ));
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body["data"]["companyContactCreate"],
+        json!({
+            "companyContact": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Either the attribute email or customer_id must be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_before);
+
+    let b2b_read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactCreateMissingEmailReadAfter($companyId: ID!, $contactId: ID!) {
+          companyContact(id: $contactId) { id }
+          company(id: $companyId) { contacts(first: 5) { nodes { id } } }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "contactId": "gid://shopify/CompanyContact/1?shopify-draft-proxy=synthetic"
+        }),
+    ));
+    assert_eq!(b2b_read_after.body["data"]["companyContact"], Value::Null);
+    assert_eq!(
+        b2b_read_after.body["data"]["company"]["contacts"]["nodes"],
+        json!([])
+    );
+
+    let customer_read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactCreateMissingEmailCustomerReadAfter($customerId: ID!) {
+          customer(id: $customerId) { id }
+        }
+        "#,
+        json!({ "customerId": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(customer_read_after.body["data"]["customer"], Value::Null);
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    let rejected_entry = entries
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("companyContactCreate"))
+        .expect("companyContactCreate log entry");
+    assert_eq!(rejected_entry["status"], json!("failed"));
+    assert_eq!(rejected_entry["stagedResourceIds"], json!([]));
+}
+
+#[test]
+fn b2b_company_create_nested_contact_without_email_is_atomic() {
+    let mut proxy = snapshot_proxy();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompanyCreateNestedContactMissingEmail($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              locations(first: 5) { nodes { id } }
+              contacts(first: 5) { nodes { id } }
+              contactRoles(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Nested Missing Email Co" },
+                "companyContact": { "firstName": "Jane" }
+            }
+        }),
+    ));
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "companyContact"],
+                "message": "Either the attribute email or customer_id must be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+
+    let state = proxy.get_state_snapshot();
+    assert!(state["stagedState"].get("b2bCompanies").is_none());
+    assert!(state["stagedState"].get("b2bLocations").is_none());
+    assert!(state["stagedState"].get("b2bContacts").is_none());
+    assert!(state["stagedState"].get("b2bContactRoles").is_none());
+    assert!(state["stagedState"].get("b2bRoleAssignments").is_none());
+    assert_eq!(state["stagedState"]["customers"], json!({}));
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyCreateNestedContactMissingEmailReadAfter($companyId: ID!) {
+          company(id: $companyId) { id }
+        }
+        "#,
+        json!({ "companyId": "gid://shopify/Company/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(read_after.body["data"]["company"], Value::Null);
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("companyCreate")
+    );
+    assert_eq!(entries[0]["status"], json!("failed"));
+    assert_eq!(entries[0]["stagedResourceIds"], json!([]));
+}
+
+#[test]
 fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() {
     let mut proxy = snapshot_proxy();
     let company = proxy.process_request(json_graphql_request(
@@ -3035,16 +3181,29 @@ fn create_b2b_company(proxy: &mut DraftProxy, name: &str) -> String {
 }
 
 fn create_b2b_company_contact(proxy: &mut DraftProxy, company_id: &str, title: &str) -> String {
+    let local_part: String = title
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .map(|character| character.to_ascii_lowercase())
+        .collect();
+    let email = format!(
+        "{}@example.com",
+        if local_part.is_empty() {
+            "buyer"
+        } else {
+            local_part.as_str()
+        }
+    );
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation B2BCreateCompanyContact($companyId: ID!, $title: String!) {
-          companyContactCreate(companyId: $companyId, input: { title: $title }) {
+        mutation B2BCreateCompanyContact($companyId: ID!, $title: String!, $email: String!) {
+          companyContactCreate(companyId: $companyId, input: { title: $title, email: $email }) {
             companyContact { id }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "companyId": company_id, "title": title }),
+        json!({ "companyId": company_id, "title": title, "email": email }),
     ));
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -3063,7 +3222,7 @@ fn create_b2b_company_with_contact_and_role(proxy: &mut DraftProxy) -> String {
         mutation B2BCreateCompanyWithContact {
           companyCreate(input: {
             company: { name: "Role Co" },
-            companyContact: { title: "Buyer" },
+            companyContact: { title: "Buyer", email: "role-buyer@example.com" },
             companyContactRole: { name: "Location admin" }
           }) {
             company { id }
