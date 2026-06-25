@@ -2775,11 +2775,12 @@ impl DraftProxy {
         let mut staged = Vec::new();
         let mut user_errors = Vec::new();
         let mut has_null_translation_error = false;
+        let primary_locale = self.localization_primary_locale();
         for (index, translation_input) in translations.iter().enumerate() {
             let field_index = index.to_string();
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
-            if locale == "en" {
+            if locale == primary_locale {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
                     "message": "Locale cannot be the same as the shop's primary locale",
@@ -2820,7 +2821,7 @@ impl DraftProxy {
             }
             let key = resolved_object_string(translation_input, "key").unwrap_or_default();
             if self.localization_resource_has_modeled_translation_keys(&resource_id)
-                && !Self::localization_product_translation_key_is_valid(&key)
+                && !self.localization_translation_key_is_valid(&resource_id, &key)
             {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "key"],
@@ -2981,7 +2982,7 @@ impl DraftProxy {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "resourceId" => Some(json!(resource_id)),
             "translatableContent" => Some(Value::Array(
-                localization_translatable_content(resource_id)
+                self.localization_translatable_content(resource_id)
                     .iter()
                     .map(|content| selected_json(content, &selection.selection))
                     .collect(),
@@ -3471,8 +3472,109 @@ impl DraftProxy {
                         .base
                         .localization_product_ids
                         .insert(resource_id.to_string());
+                    self.stage_observed_localization_product_source(resource_id, resource);
+                } else if resource_id.starts_with("gid://shopify/Collection/") {
+                    self.stage_observed_localization_collection_source(resource_id, resource);
                 }
             }
+        }
+    }
+
+    fn stage_observed_localization_product_source(&mut self, resource_id: &str, resource: &Value) {
+        let Some(content) = resource
+            .get("translatableContent")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        let timestamp = default_product_timestamp(resource_id);
+        let mut product = self
+            .store
+            .product_staged_or_base(resource_id)
+            .unwrap_or_else(|| ProductRecord {
+                id: resource_id.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            });
+        let mut observed = false;
+        for entry in content {
+            let Some(key) = entry.get("key").and_then(Value::as_str) else {
+                continue;
+            };
+            let value = entry
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            match key {
+                "title" => product.title = value,
+                "body_html" => product.description_html = value,
+                "handle" => product.handle = value,
+                "product_type" => product.product_type = value,
+                "meta_title" => product.seo_title = value,
+                "meta_description" => product.seo_description = value,
+                _ => continue,
+            }
+            observed = true;
+        }
+        if observed {
+            self.store.stage_product(product);
+        }
+    }
+
+    fn stage_observed_localization_collection_source(
+        &mut self,
+        resource_id: &str,
+        resource: &Value,
+    ) {
+        let Some(content) = resource
+            .get("translatableContent")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        let mut collection = self
+            .store
+            .collection_by_id(resource_id)
+            .cloned()
+            .unwrap_or_else(|| json!({ "id": resource_id }));
+        let Some(object) = collection.as_object_mut() else {
+            return;
+        };
+        let mut observed = false;
+        for entry in content {
+            let Some(key) = entry.get("key").and_then(Value::as_str) else {
+                continue;
+            };
+            let value = entry
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            match key {
+                "title" => {
+                    object.insert("title".to_string(), json!(value));
+                }
+                "body_html" => {
+                    object.insert("descriptionHtml".to_string(), json!(value));
+                }
+                "handle" => {
+                    object.insert("handle".to_string(), json!(value));
+                }
+                "meta_title" => {
+                    collection_set_seo_field(object, "title", value);
+                }
+                "meta_description" => {
+                    collection_set_seo_field(object, "description", value);
+                }
+                _ => continue,
+            }
+            observed = true;
+        }
+        if observed {
+            self.store.stage_collection(Value::Object(object.clone()));
         }
     }
 
@@ -3489,6 +3591,15 @@ impl DraftProxy {
             .iter()
             .filter_map(|translation| translation["resourceId"].as_str().map(ToString::to_string))
             .collect::<Vec<_>>();
+        ids.extend(self.store.products().into_iter().map(|product| product.id));
+        ids.extend(self.store.base.localization_product_ids.iter().cloned());
+        ids.extend(
+            self.store
+                .staged
+                .collections
+                .iter()
+                .map(|(id, _)| id.clone()),
+        );
         ids.sort();
         ids.dedup();
         ids
@@ -3526,6 +3637,38 @@ impl DraftProxy {
         true
     }
 
+    fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
+        let locale = self.localization_primary_locale();
+        if resource_id.starts_with("gid://shopify/Product/") {
+            return self
+                .store
+                .product_staged_or_base(resource_id)
+                .map(|product| localization_product_translatable_content(&product, &locale))
+                .unwrap_or_default();
+        }
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            return self
+                .store
+                .collection_by_id(resource_id)
+                .map(|collection| localization_collection_translatable_content(collection, &locale))
+                .unwrap_or_default();
+        }
+        Vec::new()
+    }
+
+    fn localization_primary_locale(&self) -> String {
+        self.localization_shop_locales(None)
+            .into_iter()
+            .find(|locale| locale.get("primary").and_then(Value::as_bool) == Some(true))
+            .and_then(|locale| {
+                locale
+                    .get("locale")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "en".to_string())
+    }
+
     /// The current source-content value for a translatable resource field, when the
     /// proxy holds authoritative local state for it. Translatable content digests are
     /// `sha256(value)` of the source string (verified against live Shopify captures),
@@ -3534,31 +3677,75 @@ impl DraftProxy {
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
     /// is skipped — mirroring Gleam's "content not found → no digest error".
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
-        if !resource_id.starts_with("gid://shopify/Product/") {
-            return None;
+        if resource_id.starts_with("gid://shopify/Product/") {
+            let product = self.store.product_staged_or_base(resource_id)?;
+            let value = match key {
+                "title" => product.title.clone(),
+                "body_html" => product.description_html.clone(),
+                "handle" => product.handle.clone(),
+                "product_type" => product.product_type.clone(),
+                "meta_title" => product.seo_title.clone(),
+                "meta_description" => product.seo_description.clone(),
+                _ => return None,
+            };
+            return Some(value);
         }
-        let product = self.store.product_staged_or_base(resource_id)?;
-        let value = match key {
-            "title" => product.title.clone(),
-            "handle" => product.handle.clone(),
-            "body_html" => product.description_html.clone(),
-            "product_type" => product.product_type.clone(),
-            "meta_title" => product.seo_title.clone(),
-            "meta_description" => product.seo_description.clone(),
-            _ => return None,
-        };
-        Some(value)
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            let collection = self.store.collection_by_id(resource_id)?;
+            let value = match key {
+                "title" => collection
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "body_html" => collection
+                    .get("descriptionHtml")
+                    .or_else(|| collection.get("bodyHtml"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "handle" => collection
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "meta_title" => collection
+                    .pointer("/seo/title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                "meta_description" => collection
+                    .pointer("/seo/description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                _ => return None,
+            };
+            return Some(value.to_string());
+        }
+        None
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
         resource_id.starts_with("gid://shopify/Product/")
+            || (resource_id.starts_with("gid://shopify/Collection/")
+                && self.store.collection_by_id(resource_id).is_some())
     }
 
-    fn localization_product_translation_key_is_valid(key: &str) -> bool {
-        matches!(
-            key,
-            "title" | "handle" | "body_html" | "product_type" | "meta_title" | "meta_description"
-        )
+    fn localization_translation_key_is_valid(&self, resource_id: &str, key: &str) -> bool {
+        if resource_id.starts_with("gid://shopify/Product/") {
+            return matches!(
+                key,
+                "title"
+                    | "body_html"
+                    | "handle"
+                    | "product_type"
+                    | "meta_title"
+                    | "meta_description"
+            );
+        }
+        if resource_id.starts_with("gid://shopify/Collection/") {
+            return matches!(
+                key,
+                "title" | "body_html" | "handle" | "meta_title" | "meta_description"
+            );
+        }
+        false
     }
 
     /// Mirror Shopify's web-presence ↔ alternate-locale sync. When a non-primary
@@ -3919,15 +4106,121 @@ fn region_code_from_node(node: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-pub(in crate::proxy) fn localization_translatable_content(resource_id: &str) -> Vec<Value> {
-    let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("Product");
-    vec![json!({
-        "key": "title",
-        "value": format!("{resource_type} title"),
-        "digest": "digest",
-        "locale": "en",
-        "type": "SINGLE_LINE_TEXT_FIELD"
-    })]
+fn localization_product_translatable_content(product: &ProductRecord, locale: &str) -> Vec<Value> {
+    let mut content = vec![localization_content_entry(
+        "title",
+        &product.title,
+        locale,
+        "SINGLE_LINE_TEXT_FIELD",
+    )];
+    if !product.description_html.is_empty() {
+        content.push(localization_content_entry(
+            "body_html",
+            &product.description_html,
+            locale,
+            "HTML",
+        ));
+    }
+    content.push(localization_content_entry(
+        "handle",
+        &product.handle,
+        locale,
+        "URI",
+    ));
+    content.push(localization_content_entry(
+        "product_type",
+        &product.product_type,
+        locale,
+        "SINGLE_LINE_TEXT_FIELD",
+    ));
+    if !product.seo_title.is_empty() {
+        content.push(localization_content_entry(
+            "meta_title",
+            &product.seo_title,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    if !product.seo_description.is_empty() {
+        content.push(localization_content_entry(
+            "meta_description",
+            &product.seo_description,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    content
+}
+
+fn localization_collection_translatable_content(collection: &Value, locale: &str) -> Vec<Value> {
+    let mut content = Vec::new();
+    if let Some(title) = collection.get("title").and_then(Value::as_str) {
+        content.push(localization_content_entry(
+            "title",
+            title,
+            locale,
+            "SINGLE_LINE_TEXT_FIELD",
+        ));
+    }
+    if let Some(body) = collection
+        .get("descriptionHtml")
+        .or_else(|| collection.get("bodyHtml"))
+        .and_then(Value::as_str)
+    {
+        content.push(localization_content_entry(
+            "body_html",
+            body,
+            locale,
+            "HTML",
+        ));
+    }
+    if let Some(handle) = collection.get("handle").and_then(Value::as_str) {
+        content.push(localization_content_entry("handle", handle, locale, "URI"));
+    }
+    if let Some(meta_title) = collection.pointer("/seo/title").and_then(Value::as_str) {
+        content.push(localization_content_entry(
+            "meta_title",
+            meta_title,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    if let Some(meta_description) = collection
+        .pointer("/seo/description")
+        .and_then(Value::as_str)
+    {
+        content.push(localization_content_entry(
+            "meta_description",
+            meta_description,
+            locale,
+            "MULTI_LINE_TEXT_FIELD",
+        ));
+    }
+    content
+}
+
+fn localization_content_entry(key: &str, value: &str, locale: &str, content_type: &str) -> Value {
+    json!({
+        "key": key,
+        "value": value,
+        "digest": localization_content_digest(value),
+        "locale": locale,
+        "type": content_type
+    })
+}
+
+fn collection_set_seo_field(
+    object: &mut serde_json::Map<String, Value>,
+    field: &str,
+    value: String,
+) {
+    let seo = object.entry("seo".to_string()).or_insert_with(|| json!({}));
+    if !seo.is_object() {
+        *seo = json!({});
+    }
+    if let Some(seo_object) = seo.as_object_mut() {
+        seo_object.insert(field.to_string(), json!(value));
+    }
 }
 
 pub(in crate::proxy) fn localization_resource_type_matches(
