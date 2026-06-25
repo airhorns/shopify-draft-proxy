@@ -38,6 +38,18 @@ const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 // so activate/deactivate preserve its captured name/scope/state instead of
 // fabricating a synthetic record.
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+const BACKUP_REGION_ACCESS_SCOPES_QUERY: &str =
+    "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }";
+const BACKUP_REGION_CURRENT_HYDRATE_QUERY: &str = r#"query BackupRegionCurrentHydrate {
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+}"#;
 // Must byte-match the recorded `ShippingDeliveryProfileVariantsHydrate` upstream
 // call in the delivery-profile lifecycle captures (strict cassette compares
 // query text + variables). Issued so a created/updated profile's
@@ -217,35 +229,31 @@ impl DraftProxy {
         let response_key = root_field
             .map(|field| field.response_key.clone())
             .unwrap_or_else(|| "backupRegionUpdate".to_string());
-        if request.headers.iter().any(|(name, token)| {
-            name.eq_ignore_ascii_case("X-Shopify-Access-Token") && token == "shpat_delegate_proxy_1"
-        }) {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
-                    "locations": [{ "line": 2, "column": 3 }],
-                    "extensions": {
-                        "code": "ACCESS_DENIED",
-                        "documentation": "https://shopify.dev/api/usage/access-scopes",
-                        "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
-                    },
-                    "path": ["backupRegionUpdate"]
-                }],
-                "data": { response_key: null }
-            }));
-        }
         let operation_path = document
             .as_ref()
             .map(|document| document.operation_path.as_str())
             .unwrap_or("mutation");
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
-            BackupRegionCountryCodeInput::CountryCode(country_code) => Some(country_code),
+            BackupRegionCountryCodeInput::CountryCode(country_code) => {
+                if !location_country_code_is_valid(&country_code) {
+                    return ok_json(backup_region_country_code_coercion_error(
+                        &format!(
+                            "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value ({country_code}). Expected type 'CountryCode!'."
+                        ),
+                        operation_path,
+                        "argumentLiteralsIncompatible",
+                        backup_region_update_region_value_location(query, root_field),
+                    ));
+                }
+                Some(country_code.to_ascii_uppercase())
+            }
             BackupRegionCountryCodeInput::Missing => {
                 return ok_json(backup_region_country_code_coercion_error(
                     "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
                     operation_path,
                     "missingRequiredInputObjectAttribute",
+                    backup_region_update_region_value_location(query, root_field),
                 ));
             }
             BackupRegionCountryCodeInput::Invalid(value) => {
@@ -255,24 +263,65 @@ impl DraftProxy {
                     ),
                     operation_path,
                     "argumentLiteralsIncompatible",
+                    backup_region_update_region_value_location(query, root_field),
                 ));
             }
         };
+        if self.backup_region_update_lacks_markets_access(request) {
+            return ok_json(backup_region_update_access_denied_body(
+                &response_key,
+                root_field
+                    .map(|field| field.location)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
+            ));
+        }
 
-        let region = country_code.as_deref().and_then(backup_region_country);
-        match region {
-            None if country_code.is_none() => ok_json(json!({
-                "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
-            })),
-            // A known country only becomes the backup region when it is still
-            // covered by an active, non-legacy region market. When every active
-            // region market has dropped the country, Shopify reports
-            // REGION_NOT_FOUND even though the country itself is recognized.
-            Some(region)
-                if country_code
-                    .as_deref()
-                    .is_some_and(|code| self.backup_region_country_has_region_market(code)) =>
-            {
+        let region = match country_code.as_deref() {
+            None => {
+                if self.store.staged.backup_region.is_null()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    let hydrate = self.hydrate_current_backup_region_from_upstream(request);
+                    if backup_region_response_is_access_denied(&hydrate.body) {
+                        return ok_json(backup_region_update_access_denied_body(
+                            &response_key,
+                            root_field
+                                .map(|field| field.location)
+                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                        ));
+                    }
+                }
+                (!self.store.staged.backup_region.is_null())
+                    .then(|| self.store.staged.backup_region.clone())
+            }
+            Some(code) => {
+                if self.backup_region_country_for_code(code).is_none()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
+                    if backup_region_response_is_access_denied(&hydrate.body) {
+                        return ok_json(backup_region_update_access_denied_body(
+                            &response_key,
+                            root_field
+                                .map(|field| field.location)
+                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                        ));
+                    }
+                }
+                self.backup_region_country_for_code(code)
+            }
+        };
+        match (country_code.as_deref(), region) {
+            (None, region) => {
+                let backup_region = region
+                    .as_ref()
+                    .map(|region| selected_backup_region_value(region, root_field))
+                    .unwrap_or(Value::Null);
+                ok_json(json!({
+                    "data": { response_key: { "backupRegion": backup_region, "userErrors": [] } }
+                }))
+            }
+            (Some(_), Some(region)) => {
                 self.store.staged.backup_region = region.clone();
                 let staged_id = region
                     .get("id")
@@ -287,10 +336,10 @@ impl DraftProxy {
                     vec![staged_id],
                 );
                 ok_json(json!({
-                    "data": { response_key: { "backupRegion": region, "userErrors": [] } }
+                    "data": { response_key: { "backupRegion": selected_backup_region_value(&region, root_field), "userErrors": [] } }
                 }))
             }
-            _ => {
+            (Some(_), None) => {
                 let mut user_error = serde_json::Map::from_iter([
                     ("field".to_string(), json!(["region"])),
                     ("message".to_string(), json!("Region not found.")),
@@ -314,6 +363,53 @@ impl DraftProxy {
                 }))
             }
         }
+    }
+
+    fn backup_region_update_lacks_markets_access(&mut self, request: &Request) -> bool {
+        if let Some(token) = request_access_token(request) {
+            if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
+                let scopes = string_array_field(record, "accessScopes");
+                return !backup_region_scopes_include_markets(&scopes);
+            }
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": BACKUP_REGION_ACCESS_SCOPES_QUERY,
+                "operationName": "BackupRegionAccessScopes",
+                "variables": {}
+            }),
+        );
+        if backup_region_response_is_access_denied(&response.body) {
+            return true;
+        }
+        let Some(scopes) = current_app_installation_access_scopes(&response.body) else {
+            return false;
+        };
+        !backup_region_scopes_include_markets(&scopes)
+    }
+
+    pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
+        &mut self,
+        request: &Request,
+    ) -> Response {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": BACKUP_REGION_CURRENT_HYDRATE_QUERY,
+                "operationName": "BackupRegionCurrentHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status < 400 && !backup_region_response_is_access_denied(&response.body) {
+            if let Some(region) = response.body["data"].get("backupRegion") {
+                self.store.staged.backup_region = region.clone();
+            }
+        }
+        response
     }
 
     pub(in crate::proxy) fn location_mutation(
@@ -5742,6 +5838,145 @@ enum BackupRegionCountryCodeInput {
     Invalid(String),
 }
 
+fn selected_backup_region_value(region: &Value, root_field: Option<&RootFieldSelection>) -> Value {
+    let selection = root_field
+        .and_then(|field| selected_child_selection(&field.selection, "backupRegion"))
+        .unwrap_or_default();
+    selected_json(region, &selection)
+}
+
+fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {
+    json!({
+        "errors": [{
+            "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
+            },
+            "path": [response_key]
+        }],
+        "data": { response_key: null }
+    })
+}
+
+fn backup_region_scopes_include_markets(scopes: &[String]) -> bool {
+    scopes.iter().any(|scope| scope == "read_markets")
+        && scopes.iter().any(|scope| scope == "write_markets")
+}
+
+fn current_app_installation_access_scopes(body: &Value) -> Option<Vec<String>> {
+    let scopes = body
+        .get("data")?
+        .get("currentAppInstallation")?
+        .get("accessScopes")?
+        .as_array()?;
+    Some(
+        scopes
+            .iter()
+            .filter_map(|scope| {
+                scope
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .or_else(|| scope.as_str())
+                    .map(str::to_string)
+            })
+            .collect(),
+    )
+}
+
+fn string_array_field(record: &Value, field: &str) -> Vec<String> {
+    record
+        .get(field)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
+fn backup_region_response_is_access_denied(body: &Value) -> bool {
+    body.get("errors")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|error| error["extensions"]["code"].as_str() == Some("ACCESS_DENIED"))
+}
+
+fn backup_region_update_region_value_location(
+    query: &str,
+    root_field: Option<&RootFieldSelection>,
+) -> SourceLocation {
+    let fallback = root_field
+        .map(|field| field.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    let Some(field_offset) = source_location_byte_offset(query, fallback) else {
+        return fallback;
+    };
+    let Some(after_field) = query.get(field_offset..) else {
+        return fallback;
+    };
+    let Some(region_relative) = after_field.find("region") else {
+        return fallback;
+    };
+    let region_offset = field_offset + region_relative;
+    source_location_after_field_colon(query, region_offset, "region").unwrap_or(fallback)
+}
+
+fn source_location_after_field_colon(
+    query: &str,
+    field_offset: usize,
+    field_name: &str,
+) -> Option<SourceLocation> {
+    let after_field_name = field_offset + field_name.len();
+    let after_field = query.get(after_field_name..)?;
+    let colon_relative = after_field.find(':')?;
+    let mut value_offset = after_field_name + colon_relative + 1;
+    while query
+        .as_bytes()
+        .get(value_offset)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        value_offset += 1;
+    }
+    source_location_for_byte_offset(query, value_offset)
+}
+
+fn source_location_byte_offset(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut current_line = 1;
+    let mut line_start = 0;
+    for (index, byte) in query.bytes().enumerate() {
+        if current_line == location.line {
+            return Some(line_start + location.column.saturating_sub(1));
+        }
+        if byte == b'\n' {
+            current_line += 1;
+            line_start = index + 1;
+        }
+    }
+    (current_line == location.line).then_some(line_start + location.column.saturating_sub(1))
+}
+
+fn source_location_for_byte_offset(query: &str, byte_offset: usize) -> Option<SourceLocation> {
+    if byte_offset > query.len() {
+        return None;
+    }
+    let line = query[..byte_offset]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1;
+    let line_start = query[..byte_offset]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    Some(SourceLocation {
+        line,
+        column: byte_offset - line_start + 1,
+    })
+}
+
 fn backup_region_update_country_code(
     root_field: Option<&RootFieldSelection>,
 ) -> BackupRegionCountryCodeInput {
@@ -5874,7 +6109,7 @@ fn location_country_code_is_valid(country_code: &str) -> bool {
 /// address. Returns the display name for a known ISO 3166-1 alpha-2 code, or
 /// `None` for codes we do not carry a name for (the proxy then emits null,
 /// matching Shopify's behavior for unset addresses).
-fn country_name_for_code(country_code: &str) -> Option<&'static str> {
+pub(in crate::proxy) fn country_name_for_code(country_code: &str) -> Option<&'static str> {
     Some(match country_code {
         "US" => "United States",
         "CA" => "Canada",

@@ -45,8 +45,8 @@ because its outbound HTTP also runs in Ruby (see [Findings](#findings-surfaced-b
 
 ## What it exercises
 
-- **Read-after-write** — create products, then read them back by id and via a
-  `products(query:)` read, seeing staged writes.
+- **Read-after-write** — create products, then read them back by id and via
+  filtered `products(query:)` reads, seeing staged writes.
 - **`userErrors` handling** — a blank title round-trips to the twin, which
   returns a domain `userError` the importer surfaces as a structured error.
 - **GraphQL validation errors** — an invalid `status` enum surfaces as a
@@ -73,10 +73,11 @@ Driving the _real_ client through the twin turned up three things worth
 recording. The tests pin the current behavior so a future change flips them
 loudly rather than silently:
 
-- **`products(query:)` filtering is not evaluated.** The twin returns every
-  staged product regardless of the search query, so `search("vendor:Northwind")`
-  comes back with all products, not just the Northwind ones. An importer that
-  relies on server-side filtering would be surprised.
+- **`products(query:)` filtering is evaluated against staged products.** The
+  importer searches `vendor:Northwind` and `vendor:Glacier Goods` after staging
+  the sample catalog, proving the product search overlay follows Shopify-like
+  filtered read-after-write behavior instead of returning the full staged
+  catalog for every query.
 - **The log's top-level `operationName` is always `nil`.** It mirrors the
   request body's explicit `operationName` field, which the official client does
   not send. The parsed operation _is_ available under each log entry's

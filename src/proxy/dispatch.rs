@@ -16,13 +16,12 @@ macro_rules! try_root_fields {
 /// carrying one of these must be answered upstream against the full catalog —
 /// serving it from the overlay would fabricate wrong matches.
 ///
-/// Everything else is locally servable. The overlay applies the filters it does
-/// understand (`status:`, `sku:`, tag filters) and otherwise surfaces the staged
-/// products unfiltered. That "forgiving" behavior is intentional: it is the
-/// read-after-write contract an importer relies on (see examples/catalog-importer,
-/// where `products(query: "vendor:Northwind")` returns the staged products), and
-/// it matches HAR-549 live evidence that Shopify treats malformed search syntax
-/// (a bare leading `(`, a dangling `OR`) as forgiving rather than erroring.
+/// Everything else is locally servable. The overlay applies the modeled
+/// Shopify-style product search subset against observed/staged store state, and
+/// unsupported fielded filters resolve as explicit local no-matches instead of
+/// surfacing the full local catalog. Malformed search syntax stays forgiving for
+/// the cases covered by live evidence (for example a bare leading `(` or
+/// dangling `OR`) rather than returning top-level GraphQL errors.
 fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
     predicate.contains("inventory_total:")
 }
@@ -204,8 +203,14 @@ impl DraftProxy {
         let fields = try_root_fields!(query, variables);
         match root_field {
             "backupRegion" => {
+                if self.store.staged.backup_region.is_null()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    self.hydrate_current_backup_region_from_upstream(request);
+                }
                 let data = root_payload_json(&fields, |field| {
-                    (field.name == "backupRegion").then(|| self.store.staged.backup_region.clone())
+                    (field.name == "backupRegion")
+                        .then(|| selected_json(&self.store.staged.backup_region, &field.selection))
                 });
                 ok_json(json!({ "data": data }))
             }
