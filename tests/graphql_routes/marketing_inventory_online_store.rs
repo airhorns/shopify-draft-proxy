@@ -18,6 +18,37 @@ fn assert_core_metaobject_auto_handle(handle: &str, prefix: &str) {
     );
 }
 
+fn create_metaobject_definition_for_test(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    field_definitions: Vec<Value>,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinitionForTest($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": meta_type,
+            "name": meta_type,
+            "displayNameKey": "title",
+            "fieldDefinitions": field_definitions
+        }}),
+    ));
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
@@ -5767,6 +5798,357 @@ fn metaobject_create_validates_definition_fields_and_capabilities() {
     assert_eq!(
         invalid.body["data"]["metaobjectCreate"]["metaobject"],
         Value::Null
+    );
+}
+
+#[test]
+fn metaobject_create_update_and_upsert_reject_extended_field_value_types() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    let target_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "field_validation_target_type",
+        vec![title_field.clone()],
+    );
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "field_validation_matrix_type",
+        vec![
+            title_field,
+            json!({"key": "money", "name": "Money", "type": "money", "required": false}),
+            json!({"key": "link", "name": "Link", "type": "link", "required": false}),
+            json!({"key": "link_domain", "name": "Link Domain", "type": "link", "required": false, "validations": [{"name": "allowed_domains", "value": "[\"example.com\"]"}]}),
+            json!({"key": "language", "name": "Language", "type": "language", "required": false}),
+            json!({"key": "power", "name": "Power", "type": "power", "required": false}),
+            json!({"key": "file_reference", "name": "File", "type": "file_reference", "required": false}),
+            json!({"key": "page_reference", "name": "Page", "type": "page_reference", "required": false}),
+            json!({"key": "order_reference", "name": "Order", "type": "order_reference", "required": false}),
+            json!({"key": "article_reference", "name": "Article", "type": "article_reference", "required": false}),
+            json!({"key": "product_taxonomy_value_reference", "name": "Product Taxonomy Value", "type": "product_taxonomy_value_reference", "required": false, "validations": [{"name": "product_taxonomy_attribute_handle", "value": "material"}]}),
+            json!({"key": "mixed_reference", "name": "Mixed", "type": "mixed_reference", "required": false, "validations": [{"name": "metaobject_definition_ids", "value": json!([target_definition_id]).to_string()}]}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let setup = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "field_validation_matrix_type",
+            "handle": "field-validation-setup",
+            "fields": [{"key": "title", "value": "Validation setup"}]
+        }}),
+    ));
+    assert_eq!(
+        setup.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let setup_id = setup.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cases = [
+        (
+            "money",
+            "not-money".to_string(),
+            "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+        ),
+        (
+            "link",
+            json!({"text": "Docs", "url": "ftp://nope"}).to_string(),
+            "Value must be one of the following URL schemes: http, https, mailto, sms, tel.",
+        ),
+        (
+            "link_domain",
+            json!({"text": "Docs", "url": "https://not-example.com/path"}).to_string(),
+            "Value must conform to the domain restriction you set.",
+        ),
+        (
+            "language",
+            "not-a-language".to_string(),
+            "Value must be in ISO 639-1 format.",
+        ),
+        (
+            "power",
+            "10".to_string(),
+            "Value must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+        ),
+        (
+            "file_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a file reference string.",
+        ),
+        (
+            "page_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid page reference.",
+        ),
+        (
+            "order_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid order reference.",
+        ),
+        (
+            "article_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must be a valid article reference.",
+        ),
+        (
+            "product_taxonomy_value_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value require that you select a product taxonomy value.",
+        ),
+        (
+            "mixed_reference",
+            "gid://shopify/Product/1".to_string(),
+            "Value must belong to one of the specified metaobject definitions.",
+        ),
+    ];
+
+    for (index, (key, value, message)) in cases.iter().enumerate() {
+        let expected_error = json!([{
+            "field": ["metaobject", "fields", "0"],
+            "message": message,
+            "code": "INVALID_VALUE",
+            "elementKey": key,
+            "elementIndex": null
+        }]);
+        let handle = format!("field-validation-create-{index}");
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"metaobject": {
+                "type": "field_validation_matrix_type",
+                "handle": handle,
+                "fields": [{"key": key, "value": value}]
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["metaobjectCreate"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            create.body["data"]["metaobjectCreate"]["userErrors"],
+            expected_error
+        );
+
+        let update = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({"id": setup_id, "metaobject": {"fields": [{"key": key, "value": value}]}}),
+        ));
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["userErrors"],
+            expected_error
+        );
+
+        let upsert_create = proxy.process_request(json_graphql_request(
+            upsert_query,
+            json!({
+                "handle": {"type": "field_validation_matrix_type", "handle": format!("field-validation-upsert-{index}")},
+                "metaobject": {"fields": [{"key": key, "value": value}]}
+            }),
+        ));
+        assert_eq!(
+            upsert_create.body["data"]["metaobjectUpsert"]["metaobject"],
+            Value::Null
+        );
+        assert_eq!(
+            upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+            expected_error
+        );
+    }
+}
+
+#[test]
+fn metaobject_id_values_are_unique_and_merged_update_values_are_revalidated() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "id_validation_type",
+        vec![
+            title_field,
+            json!({"key": "custom_id", "name": "Custom ID", "type": "id", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-first",
+            "fields": [{"key": "custom_id", "value": "shared-id"}]
+        }}),
+    ));
+    assert_eq!(
+        first.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-second",
+            "fields": [{"key": "title", "value": "Second"}]
+        }}),
+    ));
+    let second_id = second.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let expected_taken = json!([{
+        "field": ["metaobject", "fields", "0"],
+        "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+        "code": "TAKEN",
+        "elementKey": "custom_id",
+        "elementIndex": null
+    }]);
+    let duplicate_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "id_validation_type",
+            "handle": "id-validation-duplicate",
+            "fields": [{"key": "custom_id", "value": "shared-id"}]
+        }}),
+    ));
+    assert_eq!(
+        duplicate_create.body["data"]["metaobjectCreate"]["userErrors"],
+        expected_taken
+    );
+
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": second_id, "metaobject": {"fields": [{"key": "custom_id", "value": "shared-id"}]}}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        expected_taken
+    );
+
+    let duplicate_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "id_validation_type", "handle": "id-validation-second"},
+            "metaobject": {"fields": [{"key": "custom_id", "value": "shared-id"}]}
+        }),
+    ));
+    assert_eq!(
+        duplicate_upsert.body["data"]["metaobjectUpsert"]["userErrors"],
+        expected_taken
+    );
+
+    let stale_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "stale_revalidation_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}),
+            json!({"key": "body", "name": "Body", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+    let stale = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "stale_revalidation_type",
+            "handle": "stale-revalidation",
+            "fields": [
+                {"key": "title", "value": "Stale row"},
+                {"key": "body", "value": "abcdef"}
+            ]
+        }}),
+    ));
+    let stale_id = stale.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": stale_definition_id, "definition": {
+            "fieldDefinitions": [{"update": {"key": "body", "validations": [{"name": "max", "value": "3"}]}}]
+        }}),
+    ));
+    assert_eq!(
+        update_definition.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    let stale_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": stale_id, "metaobject": {"fields": [{"key": "title", "value": "Still stale"}]}}),
+    ));
+    assert_eq!(
+        stale_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([{
+            "field": ["metaobject"],
+            "message": "Value has a maximum length of 3.",
+            "code": "INVALID_VALUE",
+            "elementKey": "body",
+            "elementIndex": null
+        }])
     );
 }
 
