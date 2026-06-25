@@ -1,29 +1,29 @@
 use super::*;
 
-pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
+const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        apiKey\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
         &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
-        // Any function mutation marks the session as having local function
-        // state, so later reads serve locally (read-after-write / -delete)
-        // instead of forwarding the cold read to the upstream.
-        self.store.staged.functions_dirty = true;
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "validationCreate" => self.function_validation_create_payload(field),
+                "validationCreate" => self.function_validation_create_payload(request, field),
                 "validationUpdate" => self.function_validation_update_payload(field),
                 "validationDelete" => self.function_validation_delete_payload(field),
-                "cartTransformCreate" => self.function_cart_transform_create_payload(field),
+                "cartTransformCreate" => {
+                    self.function_cart_transform_create_payload(request, field)
+                }
                 "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
                 "fulfillmentConstraintRuleCreate" => {
-                    self.function_fulfillment_constraint_rule_create_payload(field)
+                    self.function_fulfillment_constraint_rule_create_payload(request, field)
                 }
                 "fulfillmentConstraintRuleUpdate" => {
-                    self.function_fulfillment_constraint_rule_update_payload(field)
+                    self.function_fulfillment_constraint_rule_update_payload(request, field)
                 }
                 "fulfillmentConstraintRuleDelete" => {
                     self.function_fulfillment_constraint_rule_delete_payload(field)
@@ -43,6 +43,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn functions_metadata_read_data(
         &self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
         let mut data = serde_json::Map::new();
@@ -106,13 +107,14 @@ impl DraftProxy {
                         }
                         _ => "VALIDATION",
                     };
-                    json!({ "nodes": self.function_catalog_read_nodes(api_type) })
+                    json!({ "nodes": self.function_metadata_read_nodes(request, api_type) })
                 }
                 "shopifyFunction" => match resolved_field_string_arg(field, "id") {
-                    Some(id) => {
-                        function_by_id_or_handle(Some(id.as_str()), None).unwrap_or(Value::Null)
-                    }
-                    None => local_cart_transform_function(),
+                    Some(id) => self
+                        .function_metadata_by_id_or_handle(Some(id.as_str()), None)
+                        .filter(|function| function_belongs_to_request(function, request))
+                        .unwrap_or(Value::Null),
+                    None => Value::Null,
                 },
                 "node" => {
                     let id = resolved_field_string_arg(field, "id").unwrap_or_default();
@@ -179,9 +181,20 @@ impl DraftProxy {
         }
     }
 
-    fn function_catalog_read_nodes(&self, api_type: &str) -> Vec<Value> {
+    fn function_metadata_read_nodes(&self, request: &Request, api_type: &str) -> Vec<Value> {
         let mut seen = BTreeSet::new();
         let mut nodes = Vec::new();
+        for id in &self.store.staged.function_metadata_order {
+            let Some(function) = self.store.staged.function_metadata.get(id) else {
+                continue;
+            };
+            if function["apiType"].as_str() == Some(api_type)
+                && function_belongs_to_request(function, request)
+                && seen.insert(id.clone())
+            {
+                nodes.push(function.clone());
+            }
+        }
         for function in self
             .store
             .staged
@@ -209,7 +222,9 @@ impl DraftProxy {
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
-            if function["apiType"].as_str() == Some(api_type) {
+            if function["apiType"].as_str() == Some(api_type)
+                && function_belongs_to_request(function, request)
+            {
                 if let Some(id) = function["id"].as_str() {
                     if seen.insert(id.to_string()) {
                         nodes.push(function.clone());
@@ -217,11 +232,7 @@ impl DraftProxy {
                 }
             }
         }
-        if nodes.is_empty() {
-            function_catalog_by_api_type(api_type)
-        } else {
-            nodes
-        }
+        nodes
     }
 
     /// True when any function lifecycle has been staged locally (a validation or
@@ -232,6 +243,8 @@ impl DraftProxy {
     pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
         self.store.staged.functions_dirty
             || self.store.staged.function_validation.is_some()
+            || !self.store.staged.function_metadata.is_empty()
+            || !self.store.staged.function_metadata_order.is_empty()
             || !self.store.staged.function_validations.is_empty()
             || !self.store.staged.function_validation_order.is_empty()
             || !self.store.staged.function_cart_transforms.is_empty()
@@ -247,109 +260,238 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .is_empty()
     }
+
+    fn function_metadata_by_id_or_handle(
+        &self,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .function_metadata_order
+            .iter()
+            .filter_map(|id| self.store.staged.function_metadata.get(id))
+            .chain(
+                self.store
+                    .staged
+                    .function_validations
+                    .values()
+                    .filter_map(|record| record.get("shopifyFunction")),
+            )
+            .chain(
+                self.store
+                    .staged
+                    .function_cart_transforms
+                    .values()
+                    .filter_map(|record| record.get("shopifyFunction")),
+            )
+            .chain(
+                self.store
+                    .staged
+                    .function_fulfillment_constraint_rules
+                    .values()
+                    .filter_map(|record| record.get("shopifyFunction")),
+            )
+            .find(|function| {
+                id.is_some_and(|id| function["id"].as_str() == Some(id))
+                    || handle.is_some_and(|handle| function["handle"].as_str() == Some(handle))
+            })
+            .cloned()
+    }
+
+    fn resolve_function_metadata(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+        api_type: &str,
+    ) -> Option<Value> {
+        if let Some(function) = self.function_metadata_by_id_or_handle(id, handle) {
+            return function_belongs_to_request(&function, request).then_some(function);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let function = if let Some(id) = id {
+            self.hydrate_function_metadata_by_id(request, id)
+        } else {
+            handle.and_then(|handle| {
+                self.hydrate_function_metadata_by_handle(request, handle, api_type)
+            })
+        }?;
+        if !function_belongs_to_request(&function, request) {
+            return None;
+        }
+        self.stage_function_metadata(function.clone());
+        Some(function)
+    }
+
+    fn hydrate_function_metadata_by_id(&self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_HYDRATE_BY_ID_QUERY,
+                "operationName": "FunctionHydrateById",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        normalized_function_metadata(response.body["data"]["shopifyFunction"].clone())
+    }
+
+    fn hydrate_function_metadata_by_handle(
+        &self,
+        request: &Request,
+        handle: &str,
+        api_type: &str,
+    ) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_HYDRATE_BY_HANDLE_QUERY,
+                "operationName": "FunctionHydrateByHandle",
+                "variables": { "handle": handle, "apiType": api_type }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        let nodes = response.body["data"]["shopifyFunctions"]["nodes"].as_array()?;
+        let mut matches = nodes
+            .iter()
+            .filter(|function| function_metadata_matches_handle(function, handle))
+            .cloned()
+            .collect::<Vec<_>>();
+        let selected = matches
+            .iter()
+            .position(|function| {
+                function["apiType"]
+                    .as_str()
+                    .map(canonical_function_api_type)
+                    .as_deref()
+                    == Some(api_type)
+            })
+            .map(|index| matches.remove(index))
+            .or_else(|| matches.into_iter().next())?;
+        normalized_function_metadata_with_handle(selected, Some(handle))
+    }
+
+    fn stage_function_metadata(&mut self, function: Value) {
+        let Some(id) = function["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if !self.store.staged.function_metadata.contains_key(&id) {
+            self.store.staged.function_metadata_order.push(id.clone());
+        }
+        self.store.staged.function_metadata.insert(id, function);
+    }
+
+    pub(in crate::proxy) fn hydrate_function_metadata_from_response_data(&mut self, data: &Value) {
+        let mut functions = Vec::new();
+        collect_function_metadata_values(data, &mut functions);
+        for function in functions {
+            self.stage_function_metadata(function);
+        }
+    }
 }
 
-pub(in crate::proxy) fn function_by_id_or_handle(
-    id: Option<&str>,
+fn normalized_function_metadata(function: Value) -> Option<Value> {
+    normalized_function_metadata_with_handle(function, None)
+}
+
+fn normalized_function_metadata_with_handle(
+    mut function: Value,
     handle: Option<&str>,
 ) -> Option<Value> {
-    function_catalog().into_iter().find(|function| {
-        id.is_some_and(|id| function["id"].as_str() == Some(id))
-            || handle.is_some_and(|handle| function["handle"].as_str() == Some(handle))
-    })
+    function.get("id").and_then(Value::as_str)?;
+    let api_type = function
+        .get("apiType")
+        .and_then(Value::as_str)
+        .map(canonical_function_api_type)
+        .unwrap_or_default();
+    if api_type.is_empty() {
+        return None;
+    }
+    function["apiType"] = json!(api_type);
+    if let Some(handle) = handle {
+        if function.get("handle").is_none() {
+            function["handle"] = json!(handle);
+        }
+    }
+    if function.get("app").is_none() {
+        function["app"] = Value::Null;
+    }
+    if function.get("appKey").is_none() {
+        function["appKey"] = Value::Null;
+    }
+    if function.get("description").is_none() {
+        function["description"] = Value::Null;
+    }
+    Some(function)
 }
 
-pub(in crate::proxy) fn function_catalog_by_api_type(api_type: &str) -> Vec<Value> {
-    function_catalog()
-        .into_iter()
-        .filter(|function| function["apiType"].as_str() == Some(api_type))
-        .collect()
-}
-
-fn function_catalog() -> Vec<Value> {
-    vec![
-        local_validation_function(),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/validation-alpha",
-            "title": "Validation Alpha",
-            "handle": "validation-alpha",
-            "apiType": "VALIDATION"
-        }),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/validation-beta",
-            "title": "Validation Beta",
-            "handle": "validation-beta",
-            "apiType": "VALIDATION"
-        }),
-        json!({
-            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
-            "title": "t:name",
-            "handle": "conformance-validation",
-            "apiType": "VALIDATION"
-        }),
-        functions_owner_validation_function(),
-        local_cart_transform_function(),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/cart-beta",
-            "title": "Cart Beta",
-            "handle": "cart-beta",
-            "apiType": "CART_TRANSFORM"
-        }),
-        json!({
-            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
-            "title": "Conformance Cart Transform",
-            "handle": "conformance-cart-transform",
-            "apiType": "CART_TRANSFORM"
-        }),
-        json!({
-            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
-            "title": "Conformance Cart Transform",
-            "handle": "cart-transform-delete-shape",
-            "apiType": "CART_TRANSFORM"
-        }),
-        functions_owner_cart_function(),
-        local_fulfillment_constraint_rule_function(),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/guardrail-validation-plan",
-            "title": "Guardrail validation plan",
-            "handle": "guardrail-validation-plan",
-            "apiType": "VALIDATION",
-            "createGuardrailCode": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
-            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
-        }),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/guardrail-validation-required-input",
-            "title": "Guardrail validation required input",
-            "handle": "guardrail-validation-required-input",
-            "apiType": "VALIDATION",
-            "createGuardrailCode": "REQUIRED_INPUT_FIELD",
-            "createGuardrailMessage": "Required input field must be present."
-        }),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plan",
-            "title": "Guardrail cart transform plan",
-            "handle": "guardrail-cart-transform-plan",
-            "apiType": "CART_TRANSFORM",
-            "createGuardrailCode": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
-            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
-        }),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-pending-deletion",
-            "title": "Guardrail cart transform pending deletion",
-            "handle": "guardrail-cart-transform-pending-deletion",
-            "apiType": "CART_TRANSFORM",
-            "createGuardrailCode": "FUNCTION_PENDING_DELETION",
-            "createGuardrailMessage": "Function is pending deletion."
-        }),
-        json!({
-            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plus-only",
-            "title": "Guardrail cart transform Plus only",
-            "handle": "guardrail-cart-transform-plus-only",
-            "apiType": "CART_TRANSFORM",
-            "createGuardrailCode": "FUNCTION_IS_PLUS_ONLY",
-            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate this function."
-        }),
+fn function_metadata_matches_handle(function: &Value, handle: &str) -> bool {
+    [
+        function["handle"].as_str(),
+        function["title"].as_str(),
+        function["description"].as_str(),
     ]
+    .into_iter()
+    .flatten()
+    .any(|candidate| candidate == handle)
+}
+
+fn canonical_function_api_type(api_type: &str) -> String {
+    match api_type {
+        "VALIDATION" | "cart_checkout_validation" | "validation" => "VALIDATION".to_string(),
+        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM".to_string(),
+        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
+            "FULFILLMENT_CONSTRAINT_RULE".to_string()
+        }
+        other => other.to_string(),
+    }
+}
+
+fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
+    let Some(caller_api_client_id) = request
+        .headers
+        .get("x-shopify-draft-proxy-api-client-id")
+        .filter(|value| !value.is_empty())
+    else {
+        return true;
+    };
+    let function_api_key = function["app"]["apiKey"]
+        .as_str()
+        .or_else(|| function["appKey"].as_str());
+    let function_app_id = function["app"]["id"].as_str().map(resource_id_tail);
+    match (function_api_key, function_app_id) {
+        (None, None) => true,
+        (api_key, app_id) => {
+            api_key == Some(caller_api_client_id) || app_id == Some(caller_api_client_id)
+        }
+    }
+}
+
+fn collect_function_metadata_values(value: &Value, functions: &mut Vec<Value>) {
+    if let Some(function) = normalized_function_metadata(value.clone()) {
+        functions.push(function);
+        return;
+    }
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_function_metadata_values(value, functions);
+            }
+        }
+        Value::Object(object) => {
+            for value in object.values() {
+                collect_function_metadata_values(value, functions);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn function_identifier_input(
@@ -421,10 +563,11 @@ fn cart_transform_function_not_found_error(
     field_name: &str,
     function_id: &Option<String>,
     function_handle: &Option<String>,
+    current_app_id: &str,
 ) -> Value {
     let message = if let Some(id) = function_id {
         format!(
-            "Function {id} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+            "Function {id} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
         )
     } else if let Some(handle) = function_handle {
         format!("Could not find function with handle: {handle}.")
@@ -439,6 +582,8 @@ fn cart_transform_function_not_found_error(
 }
 
 fn validation_function_resolution_payload(
+    proxy: &mut DraftProxy,
+    request: &Request,
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Result<Value, Value> {
     if let Some(payload) = validation_identifier_error(input) {
@@ -446,7 +591,13 @@ fn validation_function_resolution_payload(
     }
     let (function_id, function_handle) = function_identifier_input(input);
     let field_name = function_payload_identifier_field(&function_id);
-    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+    let function = proxy
+        .resolve_function_metadata(
+            request,
+            function_id.as_deref(),
+            function_handle.as_deref(),
+            "VALIDATION",
+        )
         .ok_or_else(|| {
             validation_payload_error(function_user_error(
                 vec![json!("validation"), json!(field_name)],
@@ -474,6 +625,8 @@ fn validation_function_resolution_payload(
 }
 
 fn cart_transform_function_resolution_payload(
+    proxy: &mut DraftProxy,
+    request: &Request,
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Result<Value, Value> {
@@ -481,9 +634,20 @@ fn cart_transform_function_resolution_payload(
         return Err(payload);
     }
     let field_name = function_payload_identifier_field(function_id);
-    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+    let function = proxy
+        .resolve_function_metadata(
+            request,
+            function_id.as_deref(),
+            function_handle.as_deref(),
+            "CART_TRANSFORM",
+        )
         .ok_or_else(|| {
-            cart_transform_function_not_found_error(field_name, function_id, function_handle)
+            cart_transform_function_not_found_error(
+                field_name,
+                function_id,
+                function_handle,
+                &request_api_client_id(request),
+            )
         })?;
     if function["apiType"].as_str() != Some("CART_TRANSFORM") {
         let code = if function_id.is_some() {
@@ -601,6 +765,7 @@ fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<V
 }
 
 fn validation_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let now = proxy_now_timestamp();
     match input.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
@@ -610,7 +775,7 @@ fn validation_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> 
                     "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                     "type": resolved_string_field(metafield, "type").unwrap_or_default(),
                     "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": now.clone()
                 })),
                 _ => None,
             })
@@ -681,6 +846,12 @@ pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) 
     })
 }
 
+fn proxy_now_timestamp() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
 fn cart_transform_metafield_error(
     metafield: &BTreeMap<String, ResolvedValue>,
     index: usize,
@@ -747,37 +918,32 @@ fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &st
 }
 
 pub(in crate::proxy) fn cart_transform_metafields_from_field(
+    owner_id: &str,
     field: &RootFieldSelection,
-    ids: Vec<String>,
 ) -> Vec<Value> {
+    let now = proxy_now_timestamp();
     match field.arguments.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
-            .enumerate()
-            .filter_map(|(index, value)| match value {
+            .filter_map(|value| match value {
                 ResolvedValue::Object(metafield) => {
-                    let now = "2026-05-07T17:20:12Z";
+                    let namespace =
+                        resolved_string_field(metafield, "namespace").unwrap_or_default();
+                    let key = resolved_string_field(metafield, "key").unwrap_or_default();
+                    let metafield_type =
+                        resolved_string_field(metafield, "type").unwrap_or_default();
+                    let value = resolved_string_field(metafield, "value").unwrap_or_default();
+                    let compare_digest = metafield_compare_digest(&value);
                     Some(json!({
-                        "id": match index {
-                            0 => "gid://shopify/Metafield/43125986558258".to_string(),
-                            1 => "gid://shopify/Metafield/43125986591026".to_string(),
-                            _ => ids
-                                .get(index)
-                                .cloned()
-                                .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
-                        },
-                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
-                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
-                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
-                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                        "compareDigest": match index {
-                            0 => "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181".to_string(),
-                            1 => "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b".to_string(),
-                            _ => format!("proxy-digest-{}", index + 1),
-                        },
+                        "id": cart_transform_metafield_id(owner_id, &namespace, &key),
+                        "namespace": namespace,
+                        "key": key,
+                        "type": metafield_type,
+                        "value": value,
+                        "compareDigest": compare_digest,
                         "ownerType": "CARTTRANSFORM",
-                        "createdAt": now,
-                        "updatedAt": now
+                        "createdAt": now.clone(),
+                        "updatedAt": now.clone()
                     }))
                 }
                 _ => None,
@@ -785,6 +951,11 @@ pub(in crate::proxy) fn cart_transform_metafields_from_field(
             .collect(),
         _ => Vec::new(),
     }
+}
+
+fn cart_transform_metafield_id(owner_id: &str, namespace: &str, key: &str) -> String {
+    let digest = metafield_compare_digest(&format!("{owner_id}\n{namespace}\n{key}"));
+    shopify_gid("Metafield", &digest[..16])
 }
 
 pub(in crate::proxy) fn cart_transform_record_for_selection(
@@ -865,10 +1036,11 @@ fn fulfillment_constraint_rule_function_not_found_error(
     field_name: &str,
     function_id: &Option<String>,
     function_handle: &Option<String>,
+    current_app_id: &str,
 ) -> Value {
     let message = if let Some(identifier) = function_id.as_deref().or(function_handle.as_deref()) {
         format!(
-            "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+            "Function {identifier} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
         )
     } else {
         "Function not found.".to_string()
@@ -881,6 +1053,8 @@ fn fulfillment_constraint_rule_function_not_found_error(
 }
 
 fn fulfillment_constraint_rule_function_resolution_payload(
+    proxy: &mut DraftProxy,
+    request: &Request,
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Result<Value, Value> {
@@ -890,12 +1064,19 @@ fn fulfillment_constraint_rule_function_resolution_payload(
         return Err(payload);
     }
     let field_name = function_payload_identifier_field(function_id);
-    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+    let function = proxy
+        .resolve_function_metadata(
+            request,
+            function_id.as_deref(),
+            function_handle.as_deref(),
+            "FULFILLMENT_CONSTRAINT_RULE",
+        )
         .ok_or_else(|| {
             fulfillment_constraint_rule_function_not_found_error(
                 field_name,
                 function_id,
                 function_handle,
+                &request_api_client_id(request),
             )
         })?;
     if function["apiType"].as_str() != Some("FULFILLMENT_CONSTRAINT_RULE") {
@@ -925,13 +1106,15 @@ fn fulfillment_constraint_rule_metafields_from_field(
     field: &RootFieldSelection,
     ids: Vec<String>,
 ) -> Vec<Value> {
+    let now = proxy_now_timestamp();
     match field.arguments.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
             .enumerate()
             .filter_map(|(index, value)| match value {
                 ResolvedValue::Object(metafield) => {
-                    let now = "2026-05-07T17:20:12Z";
+                    let value = resolved_string_field(metafield, "value").unwrap_or_default();
+                    let compare_digest = metafield_compare_digest(&value);
                     Some(json!({
                         "id": ids
                             .get(index)
@@ -940,11 +1123,11 @@ fn fulfillment_constraint_rule_metafields_from_field(
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),
-                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                        "compareDigest": format!("proxy-fulfillment-constraint-digest-{}", index + 1),
+                        "value": value,
+                        "compareDigest": compare_digest,
                         "ownerType": "FULFILLMENTCONSTRAINTRULE",
-                        "createdAt": now,
-                        "updatedAt": now
+                        "createdAt": now.clone(),
+                        "updatedAt": now.clone()
                     }))
                 }
                 _ => None,
@@ -1310,6 +1493,7 @@ fn apply_metafield_for_selection(record: &mut Value, metafield_selection: &Selec
 impl DraftProxy {
     pub(in crate::proxy) fn function_validation_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let input = match field.arguments.get("validation") {
@@ -1322,7 +1506,7 @@ impl DraftProxy {
                 ));
             }
         };
-        let function = match validation_function_resolution_payload(input) {
+        let function = match validation_function_resolution_payload(self, request, input) {
             Ok(function) => function,
             Err(payload) => return payload,
         };
@@ -1338,15 +1522,9 @@ impl DraftProxy {
                 Some("MAX_VALIDATIONS_ACTIVATED"),
             ));
         }
-        let id = if self.store.staged.function_validation_order.is_empty() {
-            "gid://shopify/Validation/2".to_string()
-        } else {
-            format!(
-                "gid://shopify/Validation/{}",
-                self.store.staged.function_validation_order.len() + 2
-            )
-        };
+        let id = self.next_proxy_synthetic_gid("Validation");
         let metafields = validation_metafields_from_input(input);
+        let now = proxy_now_timestamp();
         let validation = json!({
             "id": id,
             "title": selected_title(input, &function),
@@ -1355,8 +1533,8 @@ impl DraftProxy {
             "blockOnFailure": resolved_bool_field(input, "blockOnFailure").unwrap_or(false),
             "functionId": function["id"].clone(),
             "functionHandle": function["handle"].clone(),
-            "createdAt": "2024-01-01T00:00:01.000Z",
-            "updatedAt": "2024-01-01T00:00:01.000Z",
+            "createdAt": now,
+            "updatedAt": now,
             "shopifyFunction": function,
             "metafields": validation_metafield_connection(metafields)
         });
@@ -1409,7 +1587,7 @@ impl DraftProxy {
         validation["enabled"] = json!(next_enable);
         validation["blockOnFailure"] =
             json!(resolved_bool_field(input, "blockOnFailure").unwrap_or(false));
-        validation["updatedAt"] = json!("2024-01-01T00:00:05.000Z");
+        validation["updatedAt"] = json!(proxy_now_timestamp());
         upsert_validation_metafields(&mut validation, validation_metafields_from_input(input));
         self.stage_function_validation(validation.clone());
         json!({ "validation": validation, "userErrors": [] })
@@ -1421,6 +1599,7 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
         if self.store.staged.function_validations.remove(&id).is_some() {
+            self.store.staged.functions_dirty = true;
             self.store
                 .staged
                 .function_validation_order
@@ -1455,6 +1634,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn function_cart_transform_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
@@ -1476,31 +1656,39 @@ impl DraftProxy {
                 ));
             }
         }
-        let function =
-            match cart_transform_function_resolution_payload(&function_id, &function_handle) {
-                Ok(function) => function,
-                Err(payload) => return payload,
-            };
+        let function = match cart_transform_function_resolution_payload(
+            self,
+            request,
+            &function_id,
+            &function_handle,
+        ) {
+            Ok(function) => function,
+            Err(payload) => return payload,
+        };
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
         }
-        let id = if self.store.staged.function_cart_transform_order.is_empty() {
-            "gid://shopify/CartTransform/3".to_string()
-        } else {
-            format!(
-                "gid://shopify/CartTransform/{}",
-                self.store.staged.function_cart_transform_order.len() + 3
-            )
-        };
-        let metafield_ids = match field.arguments.get("metafields") {
-            Some(ResolvedValue::List(metafields)) => metafields
-                .iter()
-                .map(|_| self.next_proxy_synthetic_gid("Metafield"))
-                .collect(),
-            _ => Vec::new(),
-        };
-        let metafields = cart_transform_metafields_from_field(field, metafield_ids);
+        let id = self.next_proxy_synthetic_gid("CartTransform");
+        let metafields = cart_transform_metafields_from_field(&id, field);
+        for metafield in &metafields {
+            if let (Some(namespace), Some(key)) = (
+                metafield.get("namespace").and_then(Value::as_str),
+                metafield.get("key").and_then(Value::as_str),
+            ) {
+                self.store.staged.deleted_owner_metafields.remove(&(
+                    id.clone(),
+                    namespace.to_string(),
+                    key.to_string(),
+                ));
+            }
+        }
+        if !metafields.is_empty() {
+            self.store
+                .staged
+                .owner_metafields
+                .insert(id.clone(), metafields.clone());
+        }
         let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
         let mut cart_transform = json!({
             "id": id,
@@ -1529,6 +1717,7 @@ impl DraftProxy {
             .remove(&id)
             .is_some()
         {
+            self.store.staged.functions_dirty = true;
             self.store
                 .staged
                 .function_cart_transform_order
@@ -1563,6 +1752,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn function_fulfillment_constraint_rule_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
@@ -1579,6 +1769,8 @@ impl DraftProxy {
             return payload;
         }
         let function = match fulfillment_constraint_rule_function_resolution_payload(
+            self,
+            request,
             &function_id,
             &function_handle,
         ) {
@@ -1621,6 +1813,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn function_fulfillment_constraint_rule_update_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
@@ -1654,6 +1847,8 @@ impl DraftProxy {
         };
         if function_id.is_some() || function_handle.is_some() {
             let function = match fulfillment_constraint_rule_function_resolution_payload(
+                self,
+                request,
                 &function_id,
                 &function_handle,
             ) {
@@ -1682,6 +1877,7 @@ impl DraftProxy {
             .remove(&id)
             .is_some()
         {
+            self.store.staged.functions_dirty = true;
             self.store
                 .staged
                 .function_fulfillment_constraint_rule_order
@@ -1709,13 +1905,14 @@ impl DraftProxy {
                 "id": "gid://shopify/TaxAppConfiguration/local",
                 "ready": ready,
                 "state": if ready { "READY" } else { "NOT_READY" },
-                "updatedAt": "2024-01-01T00:00:03.000Z"
+                "updatedAt": proxy_now_timestamp()
             },
             "userErrors": []
         })
     }
 
     fn stage_function_validation(&mut self, validation: Value) {
+        self.store.staged.functions_dirty = true;
         let Some(id) = validation["id"].as_str().map(str::to_string) else {
             return;
         };
@@ -1730,6 +1927,7 @@ impl DraftProxy {
     }
 
     fn stage_function_cart_transform(&mut self, cart_transform: Value) {
+        self.store.staged.functions_dirty = true;
         let Some(id) = cart_transform["id"].as_str().map(str::to_string) else {
             return;
         };
@@ -1747,6 +1945,7 @@ impl DraftProxy {
     }
 
     fn stage_function_fulfillment_constraint_rule(&mut self, rule: Value) {
+        self.store.staged.functions_dirty = true;
         let Some(id) = rule["id"].as_str().map(str::to_string) else {
             return;
         };
@@ -1766,33 +1965,6 @@ impl DraftProxy {
             .function_fulfillment_constraint_rules
             .insert(id, rule);
     }
-}
-
-pub(in crate::proxy) fn local_validation_function() -> Value {
-    json!({
-        "id": "gid://shopify/ShopifyFunction/validation-local",
-        "title": "Validation Local",
-        "handle": "validation-local",
-        "apiType": "VALIDATION"
-    })
-}
-
-pub(in crate::proxy) fn local_cart_transform_function() -> Value {
-    json!({
-        "id": "gid://shopify/ShopifyFunction/cart-transform-local",
-        "title": "Cart Transform Local",
-        "handle": "cart-transform-local",
-        "apiType": "CART_TRANSFORM"
-    })
-}
-
-pub(in crate::proxy) fn local_fulfillment_constraint_rule_function() -> Value {
-    json!({
-        "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
-        "title": "Fulfillment Constraint Local",
-        "handle": "fulfillment-constraint-local",
-        "apiType": "FULFILLMENT_CONSTRAINT_RULE"
-    })
 }
 
 /// Output fields defined on the `CartTransform` type (2026-04). A selection of
@@ -1900,40 +2072,4 @@ fn cart_transform_field_token_location(query: &str, field_name: &str) -> Option<
 
 fn is_cart_transform_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
-pub(in crate::proxy) fn functions_owner_validation_function() -> Value {
-    json!({
-        "id": "gid://shopify/ShopifyFunction/validation-owned",
-        "title": "Owned validation function",
-        "handle": "validation-owned",
-        "apiType": "VALIDATION",
-        "description": "Function metadata captured from the installed app",
-        "appKey": "validation-app-key",
-        "app": {
-            "__typename": "App",
-            "id": "gid://shopify/App/validation-app",
-            "title": "Validation App",
-            "handle": "validation-app",
-            "apiKey": "validation-app-key"
-        }
-    })
-}
-
-pub(in crate::proxy) fn functions_owner_cart_function() -> Value {
-    json!({
-        "id": "gid://shopify/ShopifyFunction/cart-owned",
-        "title": "Owned cart function",
-        "handle": "cart-owned",
-        "apiType": "CART_TRANSFORM",
-        "description": "Cart transform Function metadata captured from the installed app",
-        "appKey": "cart-app-key",
-        "app": {
-            "__typename": "App",
-            "id": "gid://shopify/App/cart-app",
-            "title": "Cart App",
-            "handle": "cart-app",
-            "apiKey": "cart-app-key"
-        }
-    })
 }

@@ -595,6 +595,12 @@ impl DraftProxy {
         if self.store.staged.localization_dirty {
             snapshot["stagedState"]["localizationDirty"] = json!(true);
         }
+        if !self.store.staged.function_metadata.is_empty() {
+            snapshot["stagedState"]["functionMetadata"] =
+                json!(self.store.staged.function_metadata.clone());
+            snapshot["stagedState"]["functionMetadataOrder"] =
+                json!(self.store.staged.function_metadata_order.clone());
+        }
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
@@ -1614,6 +1620,19 @@ impl DraftProxy {
         self.store.staged.localization_dirty = state["stagedState"]["localizationDirty"]
             .as_bool()
             .unwrap_or(false);
+        self.store.staged.function_metadata =
+            value_map_from_json(state["stagedState"].get("functionMetadata"));
+        self.store.staged.function_metadata_order = state["stagedState"]
+            .get("functionMetadataOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_metadata
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
