@@ -8153,6 +8153,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-due-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-due-state-conformance.ts',
+    purpose:
+      'paymentTermsCreate/paymentTermsUpdate due and overdue booleans for past-due and future-due fixed schedules.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-due-state.json`,
+      'config/parity-specs/payments/payment-terms-due-state.json',
+      'config/parity-requests/payments/payment-terms-due-state-draft-create.graphql',
+      'config/parity-requests/payments/payment-terms-due-state-create.graphql',
+      'config/parity-requests/payments/payment-terms-due-state-update.graphql',
+      'config/parity-requests/payments/payment-terms-due-state-draft-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable draft orders with fixed payment terms, records past/future due-state create/update/readback behavior, deletes payment terms, then deletes the draft orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-create-template-and-schedule-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-validation-conformance.ts',

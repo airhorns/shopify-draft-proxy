@@ -1,0 +1,529 @@
+{
+  "capturedAt": "2026-06-25T02:42:19.609Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "pastCreate": {
+      "setup": {
+        "draftOrderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsDueStateDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "email": "payment-terms-due-state-past-1782355336941@example.com",
+              "lineItems": [
+                {
+                  "title": "Payment terms due state past",
+                  "quantity": 1,
+                  "originalUnitPrice": "18.50"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1270585295154",
+                  "name": "#D256",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "query": "#graphql\n  mutation PaymentTermsDueStateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    paymentSchedules(first: 10) {\n      nodes {\n        dueAt\n        completedAt\n        due\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+        "variables": {
+          "referenceId": "gid://shopify/DraftOrder/1270585295154",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2020-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301880626",
+                "due": true,
+                "overdue": true,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2020-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": true
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readAfterCreate": {
+        "query": "#graphql\n  query PaymentTermsDueStateDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      paymentTerms {\n        id\n        due\n        overdue\n        paymentSchedules(first: 10) {\n          nodes {\n            dueAt\n            completedAt\n            due\n          }\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1270585295154"
+        },
+        "response": {
+          "data": {
+            "draftOrder": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301880626",
+                "due": true,
+                "overdue": true,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2020-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "futureUpdate": {
+      "setup": {
+        "draftOrderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsDueStateDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "email": "payment-terms-due-state-future-1782355336941@example.com",
+              "lineItems": [
+                {
+                  "title": "Payment terms due state future",
+                  "quantity": 1,
+                  "originalUnitPrice": "18.50"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1270585327922",
+                  "name": "#D257",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "query": "#graphql\n  mutation PaymentTermsDueStateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    paymentSchedules(first: 10) {\n      nodes {\n        dueAt\n        completedAt\n        due\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+        "variables": {
+          "referenceId": "gid://shopify/DraftOrder/1270585327922",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2099-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": false,
+                "overdue": false,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2099-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": false
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readAfterCreate": {
+        "query": "#graphql\n  query PaymentTermsDueStateDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      paymentTerms {\n        id\n        due\n        overdue\n        paymentSchedules(first: 10) {\n          nodes {\n            dueAt\n            completedAt\n            due\n          }\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1270585327922"
+        },
+        "response": {
+          "data": {
+            "draftOrder": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": false,
+                "overdue": false,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2099-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsUpdatePast": {
+        "query": "#graphql\n  mutation PaymentTermsDueStateUpdate($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    paymentSchedules(first: 10) {\n      nodes {\n        dueAt\n        completedAt\n        due\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "paymentTermsId": "gid://shopify/PaymentTerms/158301913394",
+            "paymentTermsAttributes": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+              "paymentSchedules": [
+                {
+                  "dueAt": "2020-01-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsUpdate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": true,
+                "overdue": true,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2020-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": true
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readAfterPastUpdate": {
+        "query": "#graphql\n  query PaymentTermsDueStateDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      paymentTerms {\n        id\n        due\n        overdue\n        paymentSchedules(first: 10) {\n          nodes {\n            dueAt\n            completedAt\n            due\n          }\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1270585327922"
+        },
+        "response": {
+          "data": {
+            "draftOrder": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": true,
+                "overdue": true,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2020-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsUpdateFuture": {
+        "query": "#graphql\n  mutation PaymentTermsDueStateUpdate($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    paymentSchedules(first: 10) {\n      nodes {\n        dueAt\n        completedAt\n        due\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "paymentTermsId": "gid://shopify/PaymentTerms/158301913394",
+            "paymentTermsAttributes": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+              "paymentSchedules": [
+                {
+                  "dueAt": "2099-01-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsUpdate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": false,
+                "overdue": false,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2099-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": false
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readAfterFutureUpdate": {
+        "query": "#graphql\n  query PaymentTermsDueStateDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      paymentTerms {\n        id\n        due\n        overdue\n        paymentSchedules(first: 10) {\n          nodes {\n            dueAt\n            completedAt\n            due\n          }\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1270585327922"
+        },
+        "response": {
+          "data": {
+            "draftOrder": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/158301913394",
+                "due": false,
+                "overdue": false,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "dueAt": "2099-01-01T00:00:00Z",
+                      "completedAt": null,
+                      "due": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "pastPaymentTermsDelete": {
+      "data": {
+        "paymentTermsDelete": {
+          "deletedId": "gid://shopify/PaymentTerms/158301880626",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "futurePaymentTermsDelete": {
+      "data": {
+        "paymentTermsDelete": {
+          "deletedId": "gid://shopify/PaymentTerms/158301913394",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "pastDraftOrderDelete": {
+      "data": {
+        "draftOrderDelete": {
+          "deletedId": "gid://shopify/DraftOrder/1270585295154",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "futureDraftOrderDelete": {
+      "data": {
+        "draftOrderDelete": {
+          "deletedId": "gid://shopify/DraftOrder/1270585327922",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "Captured on disposable draft orders. Shopify reports due/overdue true for non-completed fixed schedules with dueAt in the past, false for future schedules, and downstream draftOrder.paymentTerms reads preserve the same booleans after create and update."
+}
