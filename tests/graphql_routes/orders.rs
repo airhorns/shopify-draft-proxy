@@ -336,6 +336,40 @@ fn remove_from_return_for_test(
         .clone()
 }
 
+fn approve_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation ApproveReturnRequestForErrorShape($input: ReturnApproveRequestInput!) {
+              returnApproveRequest(input: $input) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "input": { "id": return_id } }),
+        ))
+        .body["data"]["returnApproveRequest"]
+        .clone()
+}
+
+fn decline_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation DeclineReturnRequestForErrorShape($input: ReturnDeclineRequestInput!) {
+              returnDeclineRequest(input: $input) {
+                return { id status decline { reason note } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "input": { "id": return_id, "declineReason": "OTHER" } }),
+        ))
+        .body["data"]["returnDeclineRequest"]
+        .clone()
+}
+
 fn read_return_removal_state(proxy: &mut DraftProxy, return_id: Value, order_id: Value) -> Value {
     proxy
         .process_request(json_graphql_request(
@@ -1029,6 +1063,82 @@ fn remove_from_return_allows_requested_returns() {
     assert_eq!(
         read_after["order"]["returns"]["nodes"][0],
         removed["return"]
+    );
+}
+
+#[test]
+fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes() {
+    let mut proxy = snapshot_proxy();
+    let open_return = stage_open_return_for_removal(&mut proxy);
+
+    let rejected_approval =
+        approve_return_request_for_test(&mut proxy, open_return.return_id.clone());
+    assert_eq!(rejected_approval["return"], Value::Null);
+    assert_eq!(
+        rejected_approval["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+            "code": "INVALID_STATE"
+        }])
+    );
+
+    let rejected_decline = decline_return_request_for_test(&mut proxy, open_return.return_id);
+    assert_eq!(rejected_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+            "code": "INVALID_STATE"
+        }])
+    );
+
+    let requested_return = stage_requested_return_for_removal(&mut proxy);
+    let first_decline =
+        decline_return_request_for_test(&mut proxy, requested_return.return_id.clone());
+    assert_eq!(first_decline["userErrors"], json!([]));
+    assert_eq!(first_decline["return"]["status"], json!("DECLINED"));
+
+    let rejected_second_decline =
+        decline_return_request_for_test(&mut proxy, requested_return.return_id);
+    assert_eq!(rejected_second_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_second_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "The return is already declined.",
+            "code": "INVALID_STATE"
+        }])
+    );
+}
+
+#[test]
+fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
+    let mut proxy = snapshot_proxy();
+
+    let rejected_approval =
+        approve_return_request_for_test(&mut proxy, json!("gid://shopify/Return/999999999991"));
+    assert_eq!(rejected_approval["return"], Value::Null);
+    assert_eq!(
+        rejected_approval["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let rejected_decline =
+        decline_return_request_for_test(&mut proxy, json!("gid://shopify/Return/999999999992"));
+    assert_eq!(rejected_decline["return"], Value::Null);
+    assert_eq!(
+        rejected_decline["userErrors"],
+        json!([{
+            "field": ["input", "id"],
+            "message": "Return not found.",
+            "code": "NOT_FOUND"
+        }])
     );
 }
 
