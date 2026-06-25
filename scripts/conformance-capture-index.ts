@@ -1926,6 +1926,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields/metafields-set-parity.json',
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       `${CAPTURE_ROOT}metafields-delete-parity.json`,
     ],

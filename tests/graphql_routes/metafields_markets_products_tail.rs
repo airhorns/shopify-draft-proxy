@@ -184,6 +184,217 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
 }
 
 #[test]
+fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SingularOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key value owner { __typename ... on Product { id } ... on ProductVariant { id } ... on Collection { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Product/170001", "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Cotton"},
+            {"ownerId": "gid://shopify/ProductVariant/170002", "namespace": "custom", "key": "care", "type": "single_line_text_field", "value": "Machine wash"},
+            {"ownerId": "gid://shopify/Collection/170003", "namespace": "custom", "key": "season", "type": "single_line_text_field", "value": "Summer"}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let product_metafield_id = set.body["data"]["metafieldsSet"]["metafields"][0]["id"]
+        .as_str()
+        .unwrap();
+    let variant_metafield_id = set.body["data"]["metafieldsSet"]["metafields"][1]["id"]
+        .as_str()
+        .unwrap();
+    let collection_metafield_id = set.body["data"]["metafieldsSet"]["metafields"][2]["id"]
+        .as_str()
+        .unwrap();
+
+    let delete_query = r#"
+        mutation SingularMetafieldDelete($input: MetafieldDeleteInput!) {
+          remove: metafieldDelete(input: $input) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for metafield_id in [
+        product_metafield_id,
+        variant_metafield_id,
+        collection_metafield_id,
+    ] {
+        let delete = proxy.process_request(json_graphql_request(
+            delete_query,
+            json!({"input": {"id": metafield_id}}),
+        ));
+        assert_eq!(delete.status, 200);
+        assert_eq!(
+            delete.body["data"]["remove"],
+            json!({"deletedId": metafield_id, "userErrors": []})
+        );
+    }
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query SingularMetafieldDeleteReadback($productId: ID!, $variantId: ID!, $collectionId: ID!) {
+          product(id: $productId) {
+            material: metafield(namespace: "custom", key: "material") { id value }
+            metafields(first: 10, namespace: "custom") { nodes { key } }
+          }
+          productVariant(id: $variantId) {
+            care: metafield(namespace: "custom", key: "care") { id value }
+            metafields(first: 10, namespace: "custom") { nodes { key } }
+          }
+          collection(id: $collectionId) {
+            season: metafield(namespace: "custom", key: "season") { id value }
+            metafields(first: 10, namespace: "custom") { nodes { key } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/170001",
+            "variantId": "gid://shopify/ProductVariant/170002",
+            "collectionId": "gid://shopify/Collection/170003"
+        }),
+    ));
+    assert_eq!(post_delete.status, 200);
+    assert_eq!(post_delete.body["data"]["product"]["material"], Value::Null);
+    assert_eq!(
+        post_delete.body["data"]["product"]["metafields"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        post_delete.body["data"]["productVariant"]["care"],
+        Value::Null
+    );
+    assert_eq!(
+        post_delete.body["data"]["productVariant"]["metafields"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        post_delete.body["data"]["collection"]["season"],
+        Value::Null
+    );
+    assert_eq!(
+        post_delete.body["data"]["collection"]["metafields"]["nodes"],
+        json!([])
+    );
+
+    let missing_id = "gid://shopify/Metafield/170099";
+    let log_len_before_missing = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+    let missing = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"input": {"id": missing_id}}),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(missing.body["data"]["remove"]["deletedId"], Value::Null);
+    assert_eq!(
+        missing.body["data"]["remove"]["userErrors"],
+        json!([{"field": ["id"], "message": "Metafield does not exist."}])
+    );
+    assert!(!missing.body["data"]["remove"]["userErrors"][0]
+        .as_object()
+        .unwrap()
+        .contains_key("code"));
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), log_len_before_missing);
+    assert_eq!(entries.len(), 4);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        "metafieldDelete"
+    );
+    assert_eq!(
+        entries[1]["stagedResourceIds"],
+        json!(["gid://shopify/Product/170001"])
+    );
+    assert!(entries.iter().all(|entry| {
+        !entry["stagedResourceIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id.as_str() == Some(missing_id))
+    }));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("SingularMetafieldDelete"));
+}
+
+#[test]
+fn singular_metafield_delete_live_hybrid_staged_id_does_not_passthrough() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_bodies.lock().unwrap().push(request.body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": []}}),
+            }
+        });
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridSingularMetafieldSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key value }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": "gid://shopify/Product/170101",
+            "namespace": "custom",
+            "key": "rollback",
+            "type": "single_line_text_field",
+            "value": "staged"
+        }]}),
+    ));
+    assert_eq!(set.status, 200);
+    let metafield_id = set.body["data"]["metafieldsSet"]["metafields"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upstream_calls_after_set = upstream_bodies.lock().unwrap().len();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridSingularMetafieldDelete($input: MetafieldDeleteInput!) {
+          metafieldDelete(input: $input) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": metafield_id}}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldDelete"],
+        json!({"deletedId": metafield_id, "userErrors": []})
+    );
+    let upstream_bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(upstream_bodies.len(), upstream_calls_after_set);
+    assert!(upstream_bodies
+        .iter()
+        .all(|body| !body.contains("metafieldDelete")));
+}
+
+#[test]
 fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
