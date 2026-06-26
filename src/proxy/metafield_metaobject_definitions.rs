@@ -1,4 +1,6 @@
 use super::*;
+use serde::Deserialize;
+use std::sync::OnceLock;
 
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 const PINNED_DEFINITION_LIMIT: usize = 20;
@@ -763,16 +765,16 @@ impl DraftProxy {
         let namespace = self.metafield_definition_namespace_from_input(
             request,
             input,
-            template.map(|template| template.namespace),
+            template.map(|template| template.namespace.as_str()),
         );
         let key = resolved_string_field(input, "key")
-            .or_else(|| template.map(|template| template.key.to_string()))
+            .or_else(|| template.map(|template| template.key.clone()))
             .unwrap_or_default();
         let name = resolved_string_field(input, "name")
-            .or_else(|| template.map(|template| template.name.to_string()))
+            .or_else(|| template.map(|template| template.name.clone()))
             .unwrap_or_default();
         let metafield_type = resolved_string_field(input, "type")
-            .or_else(|| template.map(|template| template.metafield_type.to_string()))
+            .or_else(|| template.map(|template| template.metafield_type.clone()))
             .unwrap_or_else(|| "single_line_text_field".to_string());
         let id = self.next_proxy_synthetic_gid("MetafieldDefinition");
         let mut definition = metafield_definition_value(&namespace, &key, &name, &id, Value::Null);
@@ -783,7 +785,7 @@ impl DraftProxy {
         definition["description"] = match input.get("description") {
             Some(ResolvedValue::String(description)) => json!(description),
             _ => template
-                .and_then(|template| template.description)
+                .and_then(|template| template.description.as_deref())
                 .map_or(Value::Null, |description| json!(description)),
         };
         definition["validations"] = if input.contains_key("validations") {
@@ -793,7 +795,8 @@ impl DraftProxy {
                 template
                     .validations
                     .iter()
-                    .map(|(name, value)| json!({"name": name, "value": value}))
+                    .chain(template.derived_validations.iter())
+                    .map(|validation| json!({"name": &validation.name, "value": &validation.value}))
                     .collect(),
             )
         } else {
@@ -812,14 +815,14 @@ impl DraftProxy {
         }
         apply_metafield_definition_capability_derived_fields(&mut definition);
         if let Some(template) = template {
-            definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(template.id);
+            definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(&template.id);
         }
         if let Some(constraints) = resolved_object_field(input, "constraints") {
             definition["constraints"] = metafield_definition_constraints(&constraints);
-        } else if template.is_some_and(|template| {
-            template.namespace == "shopify" && template.key == "color-pattern"
-        }) {
-            definition["constraints"] = metafield_definition_constraints_for_key("category");
+        } else if let Some(constraints) =
+            template.and_then(|template| template.constraints.as_ref())
+        {
+            definition["constraints"] = metafield_definition_constraints_from_template(constraints);
         }
         definition
     }
@@ -1562,7 +1565,7 @@ impl DraftProxy {
                 "userErrors": []
             });
         }
-        let mut definition = self.metafield_definition_from_input(request, &args, Some(&template));
+        let mut definition = self.metafield_definition_from_input(request, &args, Some(template));
         definition["ownerType"] = json!(owner_type);
         if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
             definition["access"] = json!({
@@ -1699,16 +1702,27 @@ impl DraftProxy {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StandardMetafieldDefinitionCatalog {
+    templates: Vec<StandardMetafieldDefinitionTemplate>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StandardMetafieldDefinitionTemplate {
-    id: &'static str,
-    namespace: &'static str,
-    key: &'static str,
-    name: &'static str,
-    description: Option<&'static str>,
-    owner_types: &'static [&'static str],
-    metafield_type: &'static str,
-    validations: &'static [(&'static str, &'static str)],
+    id: String,
+    namespace: String,
+    key: String,
+    name: String,
+    description: Option<String>,
+    owner_types: Vec<String>,
+    #[serde(rename = "type")]
+    metafield_type: String,
+    validations: Vec<StandardMetafieldDefinitionValidation>,
+    #[serde(default)]
+    derived_validations: Vec<StandardMetafieldDefinitionValidation>,
+    constraints: Option<StandardMetafieldDefinitionTemplateConstraints>,
 }
 
 struct StandardMetafieldDefinitionSelector<'a> {
@@ -1717,51 +1731,29 @@ struct StandardMetafieldDefinitionSelector<'a> {
     key: Option<&'a str>,
 }
 
-const STANDARD_METAFIELD_DEFINITION_TEMPLATES: &[StandardMetafieldDefinitionTemplate] = &[
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/1",
-        namespace: "descriptors",
-        key: "subtitle",
-        name: "Product subtitle",
-        description: Some("Used as a shorthand for a product name"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "single_line_text_field",
-        validations: &[("max", "70")],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/2",
-        namespace: "descriptors",
-        key: "care_guide",
-        name: "Care guide",
-        description: Some("Instructions for taking care of a product or apparel"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "multi_line_text_field",
-        validations: &[("max", "500")],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/3",
-        namespace: "facts",
-        key: "isbn",
-        name: "ISBN",
-        description: Some("International Standard Book Number"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "single_line_text_field",
-        validations: &[(
-            "regex",
-            r"^((\d{3})?([-\s])?(\d{1,5})([-\s])?(\d{1,7})([-\s])?(\d{6})([-\s])?(\d{1}))$",
-        )],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
-        namespace: "shopify",
-        key: "color-pattern",
-        name: "Color pattern",
-        description: None,
-        owner_types: &["PRODUCT"],
-        metafield_type: "list.metaobject_reference",
-        validations: &[],
-    },
-];
+#[derive(Deserialize)]
+struct StandardMetafieldDefinitionValidation {
+    name: String,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct StandardMetafieldDefinitionTemplateConstraints {
+    key: String,
+    values: Vec<String>,
+}
+
+static STANDARD_METAFIELD_DEFINITION_CATALOG: OnceLock<StandardMetafieldDefinitionCatalog> =
+    OnceLock::new();
+
+fn standard_metafield_definition_templates() -> &'static [StandardMetafieldDefinitionTemplate] {
+    &STANDARD_METAFIELD_DEFINITION_CATALOG
+        .get_or_init(|| {
+            serde_json::from_str(include_str!("standard_metafield_definition_templates.json"))
+                .expect("standard metafield definition template catalog must be valid JSON")
+        })
+        .templates
+}
 
 // Translates deprecated standardMetafieldDefinitionEnable arguments into their
 // modern structured equivalents: useAsCollectionCondition/useAsAdminFilter map
@@ -2304,18 +2296,24 @@ fn metafield_definition_type(name: &str) -> Value {
 }
 
 fn metafield_definition_type_category(name: &str) -> &'static str {
-    if name == "id" {
-        "ID"
-    } else if name.ends_with("_reference") || name.contains("_reference") {
-        "REFERENCE"
-    } else if name.contains("number") || matches!(name, "rating" | "money") {
-        "NUMBER"
-    } else if matches!(name, "json" | "rich_text_field") {
-        "JSON"
-    } else if matches!(name, "boolean") {
-        "TRUE_FALSE"
-    } else {
-        "TEXT"
+    if let Some(inner) = name.strip_prefix("list.") {
+        return metafield_definition_type_category(inner);
+    }
+    match name {
+        "id" => "ID",
+        value if value.ends_with("_reference") || value.contains("_reference") => "REFERENCE",
+        "number_integer" | "number_decimal" | "integer" | "float" => "NUMBER",
+        "date" | "date_time" => "DATE_TIME",
+        "rating" => "RATING",
+        "money" => "MONEY",
+        "color" => "COLOR",
+        "link" => "LINK",
+        "url" => "URL",
+        "json" => "JSON",
+        "language" => "LANGUAGE",
+        "boolean" => "TRUE_FALSE",
+        value if is_measurement_metafield_type_name(value) => "MEASUREMENT",
+        _ => "TEXT",
     }
 }
 
@@ -2520,10 +2518,19 @@ fn metafield_definition_constraints(input: &BTreeMap<String, ResolvedValue>) -> 
     })
 }
 
-fn metafield_definition_constraints_for_key(key: &str) -> Value {
+fn metafield_definition_constraints_from_template(
+    constraints: &StandardMetafieldDefinitionTemplateConstraints,
+) -> Value {
     json!({
-        "key": key,
-        "values": {"nodes": [], "pageInfo": empty_page_info()}
+        "key": &constraints.key,
+        "values": {
+            "nodes": constraints
+                .values
+                .iter()
+                .map(|value| json!({"value": value}))
+                .collect::<Vec<_>>(),
+            "pageInfo": empty_page_info()
+        }
     })
 }
 
@@ -2650,7 +2657,7 @@ fn standard_metafield_definition_template_by_selector(
     namespace: Option<&str>,
     key: Option<&str>,
     owner_type: &str,
-) -> Result<StandardMetafieldDefinitionTemplate, Value> {
+) -> Result<&'static StandardMetafieldDefinitionTemplate, Value> {
     if id.is_none() && (namespace.is_none() || key.is_none()) {
         return Err(metafield_definition_user_error(
             "StandardMetafieldDefinitionEnableUserError",
@@ -2660,13 +2667,15 @@ fn standard_metafield_definition_template_by_selector(
         ));
     }
     let template = if let Some(id) = id {
-        STANDARD_METAFIELD_DEFINITION_TEMPLATES
+        standard_metafield_definition_templates()
             .iter()
             .find(|template| template.id == id)
     } else {
-        STANDARD_METAFIELD_DEFINITION_TEMPLATES
+        standard_metafield_definition_templates()
             .iter()
-            .find(|template| Some(template.namespace) == namespace && Some(template.key) == key)
+            .find(|template| {
+                Some(template.namespace.as_str()) == namespace && Some(template.key.as_str()) == key
+            })
     };
     let Some(template) = template else {
         let (field, message) = if id.is_some() {
@@ -2687,7 +2696,11 @@ fn standard_metafield_definition_template_by_selector(
             "TEMPLATE_NOT_FOUND",
         ));
     };
-    if !template.owner_types.contains(&owner_type) {
+    if !template
+        .owner_types
+        .iter()
+        .any(|template_owner_type| template_owner_type == owner_type)
+    {
         return Err(metafield_definition_user_error(
             "StandardMetafieldDefinitionEnableUserError",
             json!(["id"]),
@@ -2695,5 +2708,5 @@ fn standard_metafield_definition_template_by_selector(
             "TEMPLATE_NOT_FOUND",
         ));
     }
-    Ok(*template)
+    Ok(template)
 }

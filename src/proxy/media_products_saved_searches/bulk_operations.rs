@@ -329,16 +329,17 @@ impl DraftProxy {
             7_000_000_000_000_u64 + self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let group_objects = resolved_bool_field(&arguments, "groupObjects").unwrap_or(false);
-        let count = if group_objects { "1432" } else { "1424" };
-        let created_at = if group_objects {
-            "2026-05-05T15:11:57Z"
-        } else {
-            "2026-04-27T20:34:58Z"
-        };
+        let created_at = self.next_product_timestamp();
         let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
-        let mut terminal_operation =
-            bulk_operation_record_with(&id, "COMPLETED", &query_text, count, created_at, "113499");
+        let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
+        let mut terminal_operation = bulk_operation_record_with(
+            &id,
+            "COMPLETED",
+            &query_text,
+            &object_count,
+            &created_at,
+            &file_size,
+        );
         terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
         self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
@@ -354,7 +355,7 @@ impl DraftProxy {
         );
 
         let payload = json!({
-            "bulkOperation": bulk_operation_record_with(&id, "CREATED", &query_text, "0", created_at, "113499"),
+            "bulkOperation": bulk_operation_record_with(&id, "CREATED", &query_text, "0", &created_at, "0"),
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -464,14 +465,14 @@ impl DraftProxy {
             7_000_000_000_000_u64 + self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let created_at = "2026-05-05T20:34:00Z";
+        let created_at = self.next_product_timestamp();
         let mut terminal_operation = bulk_operation_record_with_type(
             &id,
             "COMPLETED",
             "MUTATION",
             &mutation_text,
             "0",
-            created_at,
+            &created_at,
             "0",
         );
         terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
@@ -495,7 +496,7 @@ impl DraftProxy {
                 "MUTATION",
                 &mutation_text,
                 "0",
-                created_at,
+                &created_at,
                 "0"
             ),
             "userErrors": []
@@ -877,6 +878,10 @@ fn values_to_jsonl(rows: Vec<Value>) -> String {
         }
     }
     output
+}
+
+fn bulk_operation_result_metadata(jsonl: &str) -> (String, String) {
+    (jsonl.lines().count().to_string(), jsonl.len().to_string())
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but

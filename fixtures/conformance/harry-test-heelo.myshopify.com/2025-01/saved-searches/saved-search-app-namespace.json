@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-05-07T15:59:27.933Z",
+  "capturedAt": "2026-06-25T21:43:00.385Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "APPNS-movo8za0",
+  "token": "APPNS-mqu13ij0",
   "requestingApiClientId": "347082227713",
   "notes": [
     "Live Shopify evidence for SavedSearch $app metafield namespace resolution in query input.",
@@ -16,7 +16,7 @@
     "variables": {
       "input": {
         "resourceType": "PRODUCT",
-        "name": "App namespace APPNS-movo8za0",
+        "name": "App namespace APPNS-mqu13ij0",
         "query": "metafields.$app.tier:gold"
       }
     },
@@ -24,9 +24,9 @@
       "data": {
         "savedSearchCreate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4009092153650",
-            "legacyResourceId": "4009092153650",
-            "name": "App namespace APPNS-movo8za0",
+            "id": "gid://shopify/SavedSearch/4075634032946",
+            "legacyResourceId": "4075634032946",
+            "name": "App namespace APPNS-mqu13ij0",
             "query": "metafields.app--347082227713.tier:gold",
             "resourceType": "PRODUCT",
             "searchTerms": "",
@@ -61,8 +61,8 @@
         "productSavedSearches": {
           "nodes": [
             {
-              "id": "gid://shopify/SavedSearch/4009092153650",
-              "name": "App namespace APPNS-movo8za0",
+              "id": "gid://shopify/SavedSearch/4075634032946",
+              "name": "App namespace APPNS-mqu13ij0",
               "query": "metafields.app\\-\\-347082227713.tier:gold",
               "resourceType": "PRODUCT",
               "searchTerms": "",
@@ -93,7 +93,7 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-app-namespace-update.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4009092153650",
+        "id": "gid://shopify/SavedSearch/4075634032946",
         "query": "metafields.$app.vip:true"
       }
     },
@@ -101,9 +101,9 @@
       "data": {
         "savedSearchUpdate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4009092153650",
-            "legacyResourceId": "4009092153650",
-            "name": "App namespace APPNS-movo8za0",
+            "id": "gid://shopify/SavedSearch/4075634032946",
+            "legacyResourceId": "4075634032946",
+            "name": "App namespace APPNS-mqu13ij0",
             "query": "metafields.app--347082227713.vip:true",
             "resourceType": "PRODUCT",
             "searchTerms": "",
@@ -138,8 +138,8 @@
         "productSavedSearches": {
           "nodes": [
             {
-              "id": "gid://shopify/SavedSearch/4009092153650",
-              "name": "App namespace APPNS-movo8za0",
+              "id": "gid://shopify/SavedSearch/4075634032946",
+              "name": "App namespace APPNS-mqu13ij0",
               "query": "metafields.app\\-\\-347082227713.vip:true",
               "resourceType": "PRODUCT",
               "searchTerms": "",
@@ -170,13 +170,13 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4009092153650"
+        "id": "gid://shopify/SavedSearch/4075634032946"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009092153650",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4075634032946",
           "userErrors": []
         }
       },

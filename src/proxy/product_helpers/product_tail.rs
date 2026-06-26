@@ -68,7 +68,7 @@ impl DraftProxy {
                 ),
                 "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(&field)),
                 "bulkProductResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -83,7 +83,7 @@ impl DraftProxy {
                     ))
                 }
                 "shopResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -161,7 +161,7 @@ impl DraftProxy {
                     "staged",
                 )
             };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -205,7 +205,7 @@ impl DraftProxy {
             .as_deref()
             .and_then(|id| self.store.staged.publications.get(id).cloned());
         let (Some(id), Some(mut record)) = (id, record) else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -226,7 +226,7 @@ impl DraftProxy {
                 &publishables_to_add,
                 &publishables_to_remove,
             ) {
-                self.record_products_tail_log(
+                self.record_mutation_log_with_status(
                     request,
                     query,
                     variables,
@@ -269,7 +269,7 @@ impl DraftProxy {
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -315,7 +315,7 @@ impl DraftProxy {
             .staged
             .publications
             .insert(id.clone(), record.clone());
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -337,7 +337,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -353,7 +353,7 @@ impl DraftProxy {
         // Only publications staged this scenario can be deleted; the base/default
         // publication (and any unknown id) cannot be removed.
         if !self.store.staged.created_publication_ids.contains(&id) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -389,7 +389,7 @@ impl DraftProxy {
         for pubs in self.store.staged.resource_publications.values_mut() {
             pubs.remove(&id);
         }
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -530,7 +530,7 @@ impl DraftProxy {
         // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
         // values outside those enums at the resolver with a field-scoped INVALID userError.
         if !is_valid_product_feed_country(&country) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -547,7 +547,7 @@ impl DraftProxy {
             );
         }
         if !is_valid_product_feed_language(&language) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -566,7 +566,7 @@ impl DraftProxy {
         let id = shopify_gid("ProductFeed", format_args!("{country}-{language}"));
         // A feed is unique per country/language pair; re-creating an existing one is rejected.
         if self.has_products_tail_staged_resource_id(&id) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -595,7 +595,7 @@ impl DraftProxy {
             },
             "userErrors": []
         });
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -677,7 +677,7 @@ impl DraftProxy {
                 "staged",
             )
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -768,23 +768,6 @@ impl DraftProxy {
                     .as_array()
                     .is_some_and(|ids| ids.iter().any(|id| id == resource_id))
         })
-    }
-
-    pub(in crate::proxy) fn record_products_tail_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
     }
 }
 

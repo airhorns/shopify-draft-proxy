@@ -1,0 +1,157 @@
+mutation MetafieldsSetDefinitionValidationCreateDefinitions(
+  $quantityMin: MetafieldDefinitionInput!
+  $quantityMax: MetafieldDefinitionInput!
+  $sku: MetafieldDefinitionInput!
+  $color: MetafieldDefinitionInput!
+  $rating: MetafieldDefinitionInput!
+  $launchDate: MetafieldDefinitionInput!
+  $startsAt: MetafieldDefinitionInput!
+) {
+  quantityMin: metafieldDefinitionCreate(definition: $quantityMin) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  quantityMax: metafieldDefinitionCreate(definition: $quantityMax) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  sku: metafieldDefinitionCreate(definition: $sku) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  color: metafieldDefinitionCreate(definition: $color) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  rating: metafieldDefinitionCreate(definition: $rating) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  launchDate: metafieldDefinitionCreate(definition: $launchDate) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  startsAt: metafieldDefinitionCreate(definition: $startsAt) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

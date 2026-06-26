@@ -1080,6 +1080,12 @@ impl DraftProxy {
                     "Only one mediaId is allowed per media input.",
                     "TOO_MANY_MEDIA_PER_INPUT_PAIR",
                 ));
+            } else if media_ids.is_empty() {
+                user_errors.push(product_variant_media_user_error(
+                    &["variantMedia", &entry_index.to_string(), "mediaIds"],
+                    "The mediaIds list cannot be empty.",
+                    "BLANK",
+                ));
             }
         }
         if !user_errors.is_empty() {

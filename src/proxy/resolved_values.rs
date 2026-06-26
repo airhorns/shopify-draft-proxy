@@ -40,6 +40,49 @@ pub(in crate::proxy) fn resolved_list_arg(
     }
 }
 
+pub(in crate::proxy) fn resolved_list_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<Vec<ResolvedValue>> {
+    match input.get(field) {
+        Some(ResolvedValue::List(values)) => Some(values.clone()),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_list_len(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> usize {
+    input
+        .get(field)
+        .and_then(resolved_value_list)
+        .map_or(0, |values| values.len())
+}
+
+pub(in crate::proxy) fn resolved_field_is_null(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> bool {
+    matches!(input.get(field), Some(ResolvedValue::Null))
+}
+
+pub(in crate::proxy) fn resolved_value_object(
+    value: &ResolvedValue,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    match value {
+        ResolvedValue::Object(fields) => Some(fields.clone()),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_value_list(value: &ResolvedValue) -> Option<Vec<ResolvedValue>> {
+    match value {
+        ResolvedValue::List(values) => Some(values.clone()),
+        _ => None,
+    }
+}
+
 pub(in crate::proxy) fn resolved_string_list_arg(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,

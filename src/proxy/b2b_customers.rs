@@ -148,14 +148,11 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "customer" => match field.arguments.get("id") {
-                Some(ResolvedValue::String(id)) => {
-                    self.store.staged.customers.contains_key(id)
-                        || self.store.staged.customers.is_tombstoned(id)
-                        || self.store_credit_owner_has_accounts(id)
-                }
-                _ => false,
-            },
+            "customer" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.customers.contains_key(&id)
+                    || self.store.staged.customers.is_tombstoned(&id)
+                    || self.store_credit_owner_has_accounts(&id)
+            }),
             "customerByIdentifier" => !self.store.staged.customers.is_empty(),
             // A standalone `customers(query:)` / `customersCount` list read is
             // served from the staged overlay once this scenario has staged at
@@ -255,17 +252,17 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
-        let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return Value::Null;
         };
-        if self.store.staged.customers.is_tombstoned(id) {
+        if self.store.staged.customers.is_tombstoned(&id) {
             return Value::Null;
         }
         self.store
             .staged
             .customers
-            .get(id)
-            .map(|customer| self.customer_with_order_connection(id, customer, &field.selection))
+            .get(&id)
+            .map(|customer| self.customer_with_order_connection(&id, customer, &field.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -499,8 +496,8 @@ impl DraftProxy {
 
         let delta = if is_credit { amount } else { -amount };
         let balance_after = current_balance + delta;
-        let amount_display = shopify_decimal_text(delta);
-        let balance_display = shopify_decimal_text(balance_after);
+        let amount_display = format_money_amount(delta);
+        let balance_display = format_money_amount(balance_after);
         let transaction_id = self.next_store_credit_transaction_gid();
         let mut account = existing;
         account["balance"] = money_value(&balance_display, &currency);
@@ -819,7 +816,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
             return Value::Null;
         };
         // A merged-away / deleted customer must not resolve through identifier
@@ -831,8 +828,8 @@ impl DraftProxy {
                 .map(|id| !self.store.staged.customers.is_tombstoned(id))
                 .unwrap_or(true)
         };
-        let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
-            .or_else(|| resolved_string_field(identifier, "emailAddress"))
+        let customer = if let Some(raw_email) = resolved_string_field(&identifier, "email")
+            .or_else(|| resolved_string_field(&identifier, "emailAddress"))
         {
             let needle = normalize_customer_email(&raw_email);
             self.store.staged.customers.values().find(|customer| {
@@ -849,14 +846,14 @@ impl DraftProxy {
                     }
                 }
             })
-        } else if let Some(id) = resolved_string_field(identifier, "id") {
+        } else if let Some(id) = resolved_string_field(&identifier, "id") {
             self.store
                 .staged
                 .customers
                 .get(&id)
                 .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
-        } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
-            .or_else(|| resolved_string_field(identifier, "phoneNumber"))
+        } else if let Some(raw_phone) = resolved_string_field(&identifier, "phone")
+            .or_else(|| resolved_string_field(&identifier, "phoneNumber"))
         {
             let needle = normalize_customer_phone(&raw_phone);
             self.store.staged.customers.values().find(|customer| {
@@ -1917,10 +1914,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("email")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "email") {
             normalized.email = Some(None);
         }
 
@@ -1950,10 +1944,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("phone")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "phone") {
             normalized.phone = Some(None);
         }
 
@@ -1969,10 +1960,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("locale")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "locale") {
             normalized.locale = Some(None);
         }
 
@@ -1996,10 +1984,7 @@ impl DraftProxy {
                 } else {
                     normalized.last_name = Some(normalized_value);
                 }
-            } else if input
-                .get(field)
-                .is_some_and(|value| matches!(value, ResolvedValue::Null))
-            {
+            } else if resolved_field_is_null(input, field) {
                 if field == "firstName" {
                     normalized.first_name = Some(None);
                 } else {
@@ -2017,10 +2002,7 @@ impl DraftProxy {
                 ));
             }
             normalized.note = Some(Some(note));
-        } else if input
-            .get("note")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "note") {
             normalized.note = Some(None);
         }
 
@@ -2045,14 +2027,14 @@ impl DraftProxy {
         }
 
         if input.contains_key("taxExempt") {
-            match input.get("taxExempt") {
-                Some(ResolvedValue::Bool(value)) => normalized.tax_exempt = Some(*value),
-                Some(ResolvedValue::Null) if customer_set => errors.push(user_error_omit_code(
+            if let Some(value) = resolved_bool_field(input, "taxExempt") {
+                normalized.tax_exempt = Some(value);
+            } else if customer_set && resolved_field_is_null(input, "taxExempt") {
+                errors.push(user_error_omit_code(
                     json!(["input", "taxExempt"]),
                     "Tax exempt is of unexpected type NilClass",
                     None,
-                )),
-                _ => {}
+                ));
             }
         }
         if input.contains_key("taxExemptions") {
@@ -2061,9 +2043,9 @@ impl DraftProxy {
         if input.contains_key("metafields") {
             normalized.loyalty = Some(customer_loyalty_metafield(input));
         }
-        if let Some(ResolvedValue::List(address_values)) = input.get("addresses") {
+        if let Some(address_values) = resolved_list_field(input, "addresses") {
             let (addresses, address_errors) =
-                customer_mailing_addresses(address_values, customer_set);
+                customer_mailing_addresses(&address_values, customer_set);
             errors.extend(address_errors);
             normalized.addresses = Some(addresses);
         }
@@ -3004,9 +2986,9 @@ fn customer_record_from_parts(
 /// path matches Shopify's ordering when both are present.
 fn customer_create_nested_id_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     for (collection, label) in [("addresses", "address"), ("metafields", "metafield")] {
-        if let Some(ResolvedValue::List(entries)) = input.get(collection) {
+        if let Some(entries) = resolved_list_field(input, collection) {
             for (index, entry) in entries.iter().enumerate() {
-                if let ResolvedValue::Object(object) = entry {
+                if let Some(object) = resolved_value_object(entry) {
                     if object.contains_key("id") {
                         return Some(user_error_omit_code(
                             json!([collection, index.to_string(), "id"]),
@@ -3286,10 +3268,10 @@ fn customer_mailing_addresses(
     let mut errors = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, value) in values.iter().enumerate() {
-        let ResolvedValue::Object(input) = value else {
+        let Some(input) = resolved_value_object(value) else {
             continue;
         };
-        let (address, mut address_errors) = customer_mailing_address(input, index, customer_set);
+        let (address, mut address_errors) = customer_mailing_address(&input, index, customer_set);
         if !address_errors.is_empty() {
             errors.append(&mut address_errors);
             continue;
@@ -4136,11 +4118,11 @@ fn tax_exemption_invalid_variable(value: &RawArgumentValue) -> Option<InvalidTax
         return None;
     };
     let mut problems = Vec::new();
-    if let ResolvedValue::List(items) = resolved {
+    if let Some(items) = resolved_value_list(resolved) {
         for (index, item) in items.iter().enumerate() {
-            if let ResolvedValue::String(item) = item {
-                if !is_known_tax_exemption(item) {
-                    problems.push((index, item.clone()));
+            if let Some(item) = resolved_value_string(item) {
+                if !is_known_tax_exemption(&item) {
+                    problems.push((index, item));
                 }
             }
         }
@@ -4229,20 +4211,20 @@ pub(in crate::proxy) fn customer_sms_consent_invalid_enum_response(
         else {
             continue;
         };
-        let ResolvedValue::Object(input) = resolved else {
+        let Some(input) = resolved_value_object(resolved) else {
             continue;
         };
-        let Some(ResolvedValue::Object(consent)) = input.get("smsMarketingConsent") else {
+        let Some(consent) = resolved_object_field(&input, "smsMarketingConsent") else {
             continue;
         };
-        let Some(ResolvedValue::String(state)) = consent.get("marketingState") else {
+        let Some(state) = resolved_string_field(&consent, "marketingState") else {
             continue;
         };
         if SMS_MARKETING_STATES.contains(&state.as_str()) {
             continue;
         }
         return Some(sms_consent_invalid_variable_response(
-            query, name, resolved, state,
+            query, name, resolved, &state,
         ));
     }
     None
@@ -4851,13 +4833,10 @@ fn apply_customer_merge_overrides(
     } else if result["note"].is_null() && !source["note"].is_null() {
         result["note"] = source["note"].clone();
     }
-    if let Some(ResolvedValue::List(tags)) = override_fields.get("tags") {
+    if let Some(tags) = resolved_list_field(override_fields, "tags") {
         let mut tags = tags
             .iter()
-            .filter_map(|tag| match tag {
-                ResolvedValue::String(tag) => Some(tag.clone()),
-                _ => None,
-            })
+            .filter_map(resolved_value_string)
             .collect::<Vec<_>>();
         tags.sort();
         result["tags"] = json!(tags);
@@ -5089,19 +5068,6 @@ fn resolved_money_amount_text(
         Some(ResolvedValue::Int(value)) => Some(value.to_string()),
         Some(ResolvedValue::Float(value)) => Some(value.to_string()),
         _ => None,
-    }
-}
-
-/// Render an `f64` money amount the way Shopify serializes `MoneyV2.amount`:
-/// whole values keep a single trailing zero (`"10.0"`), fractional values drop
-/// trailing zeros beyond two decimal places (`"6.12"`, `"2.5"`).
-fn shopify_decimal_text(value: f64) -> String {
-    let rounded = (value * 100.0).round() / 100.0;
-    if rounded.fract().abs() < f64::EPSILON {
-        format!("{rounded:.1}")
-    } else {
-        let text = format!("{rounded:.2}");
-        text.trim_end_matches('0').to_string()
     }
 }
 

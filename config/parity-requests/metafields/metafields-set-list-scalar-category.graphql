@@ -1,0 +1,22 @@
+mutation MetafieldsSetListScalarCategory($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      fieldDefinitions {
+        key
+        type {
+          name
+          category
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

@@ -45,6 +45,11 @@
             "path": "$.webhookSubscription.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.callbackUrl",
+            "matcher": "exact-string:https://eventbridge.arn",
+            "reason": "Current parity requests include the deprecated top-level callbackUrl projection; the proxy intentionally exposes Shopify's EventBridge placeholder while the older capture did not select that field."
           }
         ]
       },
