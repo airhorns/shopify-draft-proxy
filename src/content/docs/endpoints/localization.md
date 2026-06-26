@@ -48,9 +48,11 @@ unsupported locale codes, duplicate enables, missing locales whenever
 `shopLocaleUpdate` supplies `published`, enables beyond Shopify's captured
 20-language shop limit, and disables for non-enabled locales with captured
 Shopify-like `userErrors`.
-Market-web-presence IDs are filtered to known local or captured WebPresence IDs,
-and accepted rows project selected
-`marketWebPresences`, `defaultLocale`, and locale scalar fields.
+Market-web-presence IDs are filtered to known local, staged, or upstream-hydrated
+WebPresence IDs, and accepted rows project selected `marketWebPresences`,
+`defaultLocale`, and locale scalar fields. In LiveHybrid mode, localization
+mutation preflight hydrates referenced `Market` and `MarketWebPresence` target
+IDs before local shop-locale and market-scoped translation validation.
 For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
 a non-null `published` value, whether `true` or `false`; primary-locale updates
 that only supply `marketWebPresenceIds` remain accepted by this slice.
@@ -78,6 +80,13 @@ For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation, so the local first `userErrors` entry follows that
 precedence.
+Market-scoped `translationsRegister` checks market existence from store state or
+upstream hydration and limits market-customizable translation keys to modeled
+resource/key pairs. Modeled Product keys include `title`, `body_html`, and
+`product_type`; modeled Collection keys include `title` and `body_html`.
+Unmodeled market-custom resources such as `PackingSlipTemplate.body` return
+`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. `translationsRemove` with an unknown
+market ID follows the captured Shopify no-op shape without staging removals.
 
 For modeled Product resources, `translatableResource`,
 `translatableResources`, and `translatableResourcesByIds` project
@@ -129,10 +138,13 @@ cleanly.
 - Product translatable-content parity:
   `config/parity-specs/localization/localization-translatable-content-product.json`
 - Parity specs: `config/parity-specs/localization/*.json`
+- Market-scoped translation parity:
+  `config/parity-specs/localization/localization-translations-market-scoped.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 
 ### Validation
 
 - `corepack pnpm lint`
 - `corepack pnpm parity -- --spec config/parity-specs/localization/localization-translatable-content-product.json`
+- `corepack pnpm parity -- localization-translations-market-scoped`
 - `corepack pnpm rust:test`

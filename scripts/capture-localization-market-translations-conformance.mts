@@ -179,6 +179,54 @@ const marketScopedReadQuery = `#graphql
   }
 `;
 
+const localizationMutationTargetsHydrateQuery = `query LocalizationMutationTargetsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Market {
+      id
+      name
+      handle
+      status
+      type
+    }
+    ... on MarketWebPresence {
+      id
+      subfolderSuffix
+      domain {
+        id
+        host
+        url
+        sslEnabled
+      }
+      rootUrls {
+        locale
+        url
+      }
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      alternateLocales {
+        locale
+        name
+        primary
+        published
+      }
+      markets(first: 250) {
+        nodes {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}`;
+
 const packingSlipResourceQuery = `#graphql
   query LocalizationTranslationsPackingSlipResourceRead {
     resources: translatableResources(first: 1, resourceType: PACKING_SLIP_TEMPLATE) {
@@ -442,9 +490,7 @@ let cleanup: JsonRecord = {};
 try {
   const initialShopLocales = await runGraphql(shopLocalesQuery);
   shouldDisableSpanishLocale = !shopLocaleIsEnabled(initialShopLocales, 'es');
-  const localeSetup = shouldDisableSpanishLocale
-    ? await runGraphql(shopLocaleEnableMutation, { locale: 'es' })
-    : initialShopLocales;
+  const localeSetup = await runGraphql(shopLocaleEnableMutation, { locale: 'es' });
   if (shouldDisableSpanishLocale) {
     assertNoUserErrors(payloadField(localeSetup, 'shopLocaleEnable'), 'shopLocaleEnable');
   }
@@ -471,7 +517,7 @@ try {
   const packingSlipResource = resourceNodeFromConnection(packingSlipResources, 'resources');
   const packingSlipResourceId = packingSlipResource['resourceId'] as string;
   const packingSlipDigest = contentDigest(packingSlipResource, 'body');
-  const fabricatedMarketId = 'gid://shopify/Market/999999999999';
+  const fabricatedMarketId = 'gid://shopify/Market/424242424242';
 
   const readVariables = {
     resourceId,
@@ -575,6 +621,14 @@ try {
     apiVersion,
     setup: {
       disposableProduct: product,
+      productCreate: {
+        variables: { product: productInput },
+        response: productCreate,
+      },
+      localeSetup: {
+        variables: { locale: 'es' },
+        response: localeSetup,
+      },
       market,
       marketSource,
       packingSlipResource,
@@ -615,6 +669,32 @@ try {
         response: {
           status: 200,
           body: readBeforeRegister,
+        },
+      },
+      {
+        operationName: 'LocalizationMutationTargetsHydrate',
+        variables: { ids: [fabricatedMarketId] },
+        query: localizationMutationTargetsHydrateQuery,
+        response: {
+          status: 200,
+          body: {
+            data: {
+              nodes: [null],
+            },
+          },
+        },
+      },
+      {
+        operationName: 'LocalizationMutationTargetsHydrate',
+        variables: { ids: [marketId] },
+        query: localizationMutationTargetsHydrateQuery,
+        response: {
+          status: 200,
+          body: {
+            data: {
+              nodes: [{ __typename: 'Market', ...market }],
+            },
+          },
         },
       },
     ],

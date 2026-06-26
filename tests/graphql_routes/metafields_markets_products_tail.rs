@@ -1869,24 +1869,37 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
             json!({"baseCurrency": {"currencyCode": code, "currencyName": name}, "localCurrencies": false, "roundingEnabled": false})
         );
     }
-    let unknown_currency = currency_proxy.process_request(json_graphql_request(
+    let unknown_currency = snapshot_proxy().process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Unknown Currency", "currencySettings": {"baseCurrency": "ZZZ"}}}),
     ));
+    assert_eq!(unknown_currency.body["data"]["marketCreate"], Value::Null);
     assert_eq!(
-        unknown_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
-        json!({"baseCurrency": {"currencyCode": "ZZZ", "currencyName": "Unknown Currency"}, "localCurrencies": false, "roundingEnabled": false})
+        unknown_currency.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(
+        unknown_currency.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Expected \"ZZZ\" to be one of"),
+        "unexpected invalid currency error: {:?}",
+        unknown_currency.body
     );
 
-    for input in [
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XAF"}}),
-    ] {
-        let response = snapshot_proxy()
-            .process_request(json_graphql_request(create_query, json!({"input": input})));
+    for code in ["XXX", "XAF"] {
+        let response = currency_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": format!("{code} Currency"), "currencySettings": {"baseCurrency": code}}}),
+        ));
         assert_eq!(
-            response.body["data"]["marketCreate"]["userErrors"][0],
-            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrency"], "message": "Base currency is invalid", "code": "INVALID"})
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["currencySettings"]["baseCurrency"]
+                ["currencyCode"],
+            json!(code)
         );
     }
     for input in [
@@ -3746,6 +3759,95 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         readback.body["data"]["priceLists"]["nodes"][0],
         json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD"})
+    );
+}
+
+#[test]
+fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
+    let mut proxy = snapshot_proxy();
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Cold Field Catalog",
+                "status": "ACTIVE",
+                "context": { "driverType": "MARKET", "marketIds": [market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsOverlayColdFieldsAfterWrite {
+          catalogsCount(type: MARKET, limit: 10) {
+            count
+            precision
+          }
+          marketsResolvedValues(buyerSignal: { countryCode: CA }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+            catalogs(first: 5) {
+              nodes { id title status }
+            }
+            webPresences(first: 5) {
+              edges { node { id } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("USD")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Cold Field Catalog", "status": "ACTIVE" }])
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
+        json!([])
     );
 }
 

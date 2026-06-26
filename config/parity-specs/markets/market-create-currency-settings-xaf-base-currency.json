@@ -1,0 +1,56 @@
+{
+  "scenarioId": "market-create-currency-settings-xaf-base-currency",
+  "operationNames": ["marketCreate", "market"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging", "graphql-coercion-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-create-currency-settings.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-currency-settings.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[7].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2025-01 capture creates a disposable market with currencySettings.baseCurrency: XAF. This proves a CurrencyCode enum value that the old local blocklist rejected is accepted by Shopify and stages locally without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "xaf-base-currency-market-create",
+        "capturePath": "$.cases[7].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.market.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The local proxy generates a deterministic synthetic Market id while the capture stores a disposable live Shopify Market id."
+          }
+        ]
+      },
+      {
+        "name": "xaf-base-currency-market-read",
+        "capturePath": "$.cases[8].response.payload.data.market",
+        "proxyPath": "$.data.market",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-currency-settings-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.marketCreate.market.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The local proxy reads the deterministic synthetic Market id created earlier in the parity replay."
+          }
+        ]
+      }
+    ]
+  }
+}

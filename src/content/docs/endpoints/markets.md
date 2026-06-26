@@ -83,7 +83,10 @@ enum value unchanged. `currencyName` is projected from a local ISO-4217
 display-name table for known codes, including the currencies observed in
 checked-in Markets conformance fixtures. If a future Shopify enum value is not
 yet mapped, the runtime returns `Unknown Currency` instead of echoing the ISO
-code as a misleading display name.
+code as a misleading display name. Base-currency input uses Shopify-style
+`CurrencyCode` variable coercion: public enum values such as `XAF` stage
+locally, while non-enum values such as `ZZZ` return top-level
+`INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for market-backed
@@ -95,6 +98,9 @@ Admin API 2026-04 behavior returns `MARKET_NOT_FOUND` at
 unknown context market ID. Catalog relation IDs must resolve from staged
 price-list/publication state, or from read-only upstream hydration in
 non-snapshot modes; hardcoded relation IDs are not treated as owned records.
+After a local catalog write, the Markets overlay serves `catalogsCount(type:
+MARKET)` from staged catalog state with `EXACT` precision instead of returning
+null or falling back to cold-only upstream data.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
@@ -148,6 +154,12 @@ derivations are not synthesized beyond the checked-in evidence.
 - Unsupported market country-region parity: `config/parity-specs/markets/market-create-unsupported-country-region.json`
 - Unsupported market country-region capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json`
 - Markets parity specs: `config/parity-specs/markets/*.json`
+- Currency coercion parity:
+  `config/parity-specs/markets/market-create-currency-settings-enum-coercion.json`
+  and
+  `config/parity-specs/markets/market-create-currency-settings-xaf-base-currency.json`
+- Catalog count after staged catalog parity:
+  `config/parity-specs/markets/catalog-context-update-removes-only.json`
 - Related product contextual-pricing parity: `config/parity-specs/products/product-contextual-pricing-price-list-read.json`
 - Related B2B quantity-rules parity: `config/parity-specs/b2b/quantity-rules-extended-validation.json`
 - Markets fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/*.json`
@@ -155,5 +167,6 @@ derivations are not synthesized beyond the checked-in evidence.
 ### Validation
 
 - `corepack pnpm parity -- market-create-unsupported-country-region`
+- `corepack pnpm parity -- market-create-currency-settings-enum-coercion market-create-currency-settings-xaf-base-currency catalog-context-update-removes-only`
 - `corepack pnpm lint`
 - `corepack pnpm rust:test`

@@ -5032,7 +5032,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
@@ -5144,7 +5144,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::Markets,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &[],
         ),
         registry_entry(
