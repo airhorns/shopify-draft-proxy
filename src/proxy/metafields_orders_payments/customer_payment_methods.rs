@@ -1,4 +1,3 @@
-use super::returns::return_connection;
 use super::*;
 
 pub(in crate::proxy) fn customer_payment_method_seed_record(
@@ -94,7 +93,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
-        if !fields.iter().all(|field| {
+        let customer_fields = fields
+            .iter()
+            .filter(|field| field.name != "paymentReminderSend");
+        if !customer_fields.clone().all(|field| {
             matches!(
                 field.name.as_str(),
                 "customer"
@@ -109,12 +111,11 @@ impl DraftProxy {
                     | "customerPaymentMethodPaypalBillingAgreementUpdate"
                     | "customerPaymentMethodRemoteCreate"
                     | "customerPaymentMethodRevoke"
-                    | "paymentReminderSend"
             )
         }) {
             return None;
         }
-        if !fields.iter().any(|field| {
+        if !customer_fields.clone().any(|field| {
             matches!(
                 field.name.as_str(),
                 "customerPaymentMethod"
@@ -127,7 +128,6 @@ impl DraftProxy {
                     | "customerPaymentMethodPaypalBillingAgreementUpdate"
                     | "customerPaymentMethodRemoteCreate"
                     | "customerPaymentMethodRevoke"
-                    | "paymentReminderSend"
             ) || is_customer_payment_method_customer_create_seed(field)
                 || (field.name == "customer"
                     && selection_contains_any(&field.selection, &["paymentMethods"]))
@@ -190,17 +190,6 @@ impl DraftProxy {
                         staged_ids.push(id);
                     }
                     payload
-                }
-                "paymentReminderSend" => {
-                    let reminder = payment_reminder_local_data(
-                        query,
-                        variables,
-                        &mut self.store.staged.payment_reminder_schedule_ids,
-                    )?;
-                    if reminder.get("errors").is_some() {
-                        return Some(reminder);
-                    }
-                    reminder["data"][field.response_key.as_str()].clone()
                 }
                 _ => continue,
             };
@@ -384,7 +373,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "id": customer_id,
-                "paymentMethods": return_connection(methods)
+                "paymentMethods": { "nodes": methods, "pageInfo": empty_page_info() }
             }),
             &field.selection,
         )

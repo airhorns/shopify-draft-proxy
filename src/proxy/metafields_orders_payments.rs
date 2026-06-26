@@ -1809,7 +1809,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
         .enumerate()
         .map(|(index, metafield)| {
             let namespace = resolved_string_field(&metafield, "namespace")
-                .map(|namespace| payment_customization_namespace(&namespace))
+                .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)))
                 .unwrap_or_default();
             json!({
                 "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
@@ -1838,13 +1838,6 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
     }
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
     record["metafields"] = connection;
-}
-
-pub(in crate::proxy) fn payment_customization_namespace(namespace: &str) -> String {
-    namespace
-        .strip_prefix("$app:")
-        .map(|suffix| format!("app--347082227713--{suffix}"))
-        .unwrap_or_else(|| namespace.to_string())
 }
 
 pub(in crate::proxy) fn payment_customization_payload(
@@ -2029,20 +2022,15 @@ pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, co
 }
 
 pub(in crate::proxy) fn payment_terms_payload_value(
-    root_field: &str,
     payment_terms: Value,
     user_errors: Vec<Value>,
     selections: &[SelectedField],
 ) -> Value {
-    let payload_key = match root_field {
-        "paymentTermsUpdate" => "paymentTermsUpdate",
-        _ => "paymentTermsCreate",
-    };
     let payload = json!({
         "paymentTerms": payment_terms,
         "userErrors": user_errors
     });
-    json!({ payload_key: selected_json(&payload, selections) })
+    selected_json(&payload, selections)
 }
 
 pub(in crate::proxy) fn payment_terms_success_record(
@@ -2354,7 +2342,7 @@ pub(in crate::proxy) fn payment_terms_delete_payload_value(
         "deletedId": deleted_id,
         "userErrors": user_errors
     });
-    json!({ "paymentTermsDelete": selected_json(&payload, selections) })
+    selected_json(&payload, selections)
 }
 
 pub(in crate::proxy) fn payment_terms_attrs_from_create_field(
@@ -2408,7 +2396,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
         return Err(payment_terms_payload_value(
-            "paymentTermsCreate",
             Value::Null,
             vec![payment_terms_user_error(
                 Value::Null,
@@ -2421,7 +2408,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     if let Some(id) = reference_id.strip_prefix("gid://shopify/Order/") {
         if id == "123" {
             return Err(payment_terms_payload_value(
-                "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
                     Value::Null,
@@ -2435,7 +2421,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     if let Some(id) = reference_id.strip_prefix("gid://shopify/DraftOrder/") {
         if id == "999999" {
             return Err(payment_terms_payload_value(
-                "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
                     Value::Null,
@@ -2450,7 +2435,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
         payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
     {
         return Err(payment_terms_payload_value(
-            "paymentTermsCreate",
             Value::Null,
             vec![error],
             &field.selection,
@@ -2491,7 +2475,6 @@ pub(in crate::proxy) fn payment_terms_update_value(
     };
     if let Some(error) = error {
         return Err(payment_terms_payload_value(
-            "paymentTermsUpdate",
             Value::Null,
             vec![error],
             &field.selection,
@@ -2706,6 +2689,45 @@ fn money_bag_currency(money_set: &Value) -> String {
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
     let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
     format!("{total:.1}")
+}
+
+fn resolved_money_pair(
+    money: Option<BTreeMap<String, ResolvedValue>>,
+    defaults: [&str; 2],
+) -> [String; 2] {
+    let money = money.unwrap_or_default();
+    [
+        resolved_string_field(&money, "amount").unwrap_or_else(|| defaults[0].to_string()),
+        resolved_string_field(&money, "currencyCode").unwrap_or_else(|| defaults[1].to_string()),
+    ]
+}
+
+fn line_item_price_set_values(
+    first_line: &BTreeMap<String, ResolvedValue>,
+    absent_price_set: [&str; 4],
+    shop_defaults: [&str; 2],
+    presentment_defaults: Option<[&str; 2]>,
+) -> [String; 4] {
+    let Some(price_set) = resolved_object_field(first_line, "priceSet") else {
+        return absent_price_set.map(str::to_string);
+    };
+    let [shop_amount, shop_currency] = resolved_money_pair(
+        resolved_object_field(&price_set, "shopMoney"),
+        shop_defaults,
+    );
+    let presentment_default = presentment_defaults
+        .map(|defaults| defaults.map(str::to_string))
+        .unwrap_or_else(|| [shop_amount.clone(), shop_currency.clone()]);
+    let [presentment_amount, presentment_currency] = resolved_money_pair(
+        resolved_object_field(&price_set, "presentmentMoney"),
+        [&presentment_default[0], &presentment_default[1]],
+    );
+    [
+        shop_amount,
+        shop_currency,
+        presentment_amount,
+        presentment_currency,
+    ]
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
@@ -3191,28 +3213,37 @@ impl DraftProxy {
         Some(json!({ "data": Value::Object(data) }))
     }
 
-    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+    fn staged_order_input_and_first_line(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (
+        String,
+        BTreeMap<String, ResolvedValue>,
+        BTreeMap<String, ResolvedValue>,
+    ) {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
         let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let line_items = resolved_object_list_field(&order_input, "lineItems");
-        let first_line = line_items.first().cloned().unwrap_or_default();
-        let price_set = resolved_object_field(&first_line, "priceSet").unwrap_or_default();
-        let shop_money = resolved_object_field(&price_set, "shopMoney").unwrap_or_default();
-        let presentment_money =
-            resolved_object_field(&price_set, "presentmentMoney").unwrap_or_default();
-        let shop_amount = resolved_string_field(&shop_money, "amount")
-            .map(|amount| normalize_money_amount(&amount))
-            .unwrap_or_else(|| "0.0".to_string());
-        let shop_currency =
-            resolved_string_field(&shop_money, "currencyCode").unwrap_or_else(|| {
-                resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string())
-            });
-        let presentment_amount = resolved_string_field(&presentment_money, "amount")
-            .map(|amount| normalize_money_amount(&amount))
-            .unwrap_or_else(|| shop_amount.clone());
-        let presentment_currency = resolved_string_field(&presentment_money, "currencyCode")
-            .unwrap_or_else(|| shop_currency.clone());
+        let first_line = resolved_object_list_field(&order_input, "lineItems")
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        (id, order_input, first_line)
+    }
+
+    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+        let (id, order_input, first_line) = self.staged_order_input_and_first_line(field);
+        let default_currency =
+            resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string());
+        let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+            line_item_price_set_values(
+                &first_line,
+                ["0.0", &default_currency, "0.0", &default_currency],
+                ["0.0", &default_currency],
+                None,
+            );
+        let shop_amount = normalize_money_amount(&shop_amount);
+        let presentment_amount = normalize_money_amount(&presentment_amount);
         let tax_amount = resolved_object_list_field(&first_line, "taxLines")
             .first()
             .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
@@ -3321,7 +3352,6 @@ impl DraftProxy {
                                 self.payment_terms_owner_money(request, &owner_id);
                             if self.payment_terms_owner_is_paid(&owner_id) {
                                 payment_terms_payload_value(
-                                    "paymentTermsCreate",
                                     Value::Null,
                                     vec![payment_terms_user_error(
                                         Value::Null,
@@ -3329,8 +3359,7 @@ impl DraftProxy {
                                         "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
                                     )],
                                     &field.selection,
-                                )["paymentTermsCreate"]
-                                    .clone()
+                                )
                             } else {
                                 let record = payment_terms_record_from_attrs(
                                     &terms_id, &attrs, &amount, &currency,
@@ -3346,16 +3375,10 @@ impl DraftProxy {
                                 self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(
-                                    "paymentTermsCreate",
-                                    record,
-                                    Vec::new(),
-                                    &field.selection,
-                                )["paymentTermsCreate"]
-                                    .clone()
+                                payment_terms_payload_value(record, Vec::new(), &field.selection)
                             }
                         }
-                        Err(payload) => payload["paymentTermsCreate"].clone(),
+                        Err(payload) => payload,
                     },
                     "paymentTermsUpdate" => match payment_terms_update_value(&field) {
                         Ok((terms_id, attrs)) => {
@@ -3367,7 +3390,6 @@ impl DraftProxy {
                                 && self.payment_terms_node_owner_paid(request, &terms_id)
                             {
                                 payment_terms_payload_value(
-                                    "paymentTermsUpdate",
                                     Value::Null,
                                     vec![payment_terms_user_error(
                                         Value::Null,
@@ -3375,8 +3397,7 @@ impl DraftProxy {
                                         "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
                                     )],
                                     &field.selection,
-                                )["paymentTermsUpdate"]
-                                    .clone()
+                                )
                             } else {
                                 let (amount, currency) = match owner_id.as_deref() {
                                     Some(owner) => self.payment_terms_owner_money(request, owner),
@@ -3399,16 +3420,10 @@ impl DraftProxy {
                                 }
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(
-                                    "paymentTermsUpdate",
-                                    record,
-                                    Vec::new(),
-                                    &field.selection,
-                                )["paymentTermsUpdate"]
-                                    .clone()
+                                payment_terms_payload_value(record, Vec::new(), &field.selection)
                             }
                         }
-                        Err(payload) => payload["paymentTermsUpdate"].clone(),
+                        Err(payload) => payload,
                     },
                     "paymentTermsDelete" => {
                         let input =
@@ -3433,8 +3448,7 @@ impl DraftProxy {
                                 json!(payment_terms_id),
                                 Vec::new(),
                                 &field.selection,
-                            )["paymentTermsDelete"]
-                                .clone()
+                            )
                         } else {
                             payment_terms_delete_payload_value(
                                 Value::Null,
@@ -3444,8 +3458,7 @@ impl DraftProxy {
                                     "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
                                 )],
                                 &field.selection,
-                            )["paymentTermsDelete"]
-                                .clone()
+                            )
                         }
                     }
                     "order" => {
@@ -3687,44 +3700,20 @@ impl DraftProxy {
     }
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
-        let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let price_set = order_arg
-            .get("lineItems")
-            .and_then(|_| {
-                resolved_object_list_field(&order_arg, "lineItems")
-                    .first()
-                    .cloned()
-            })
-            .and_then(|line| resolved_object_field(&line, "priceSet"))
-            .map(|price_set| {
-                let shop_money = resolved_object_field(&price_set, "shopMoney");
-                let shop_amount = shop_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "amount"))
-                    .unwrap_or_else(|| "42.50".to_string());
-                let shop_currency = shop_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "currencyCode"))
-                    .unwrap_or_else(|| "USD".to_string());
-                let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
-                let presentment_amount = presentment_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "amount"))
-                    .unwrap_or_else(|| "57.00".to_string());
-                let presentment_currency = presentment_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "currencyCode"))
-                    .unwrap_or_else(|| "CAD".to_string());
-                money_set_pair(
-                    &shop_amount,
-                    &shop_currency,
-                    &presentment_amount,
-                    &presentment_currency,
-                )
-            })
-            .unwrap_or_else(|| money_set_pair("57.00", "CAD", "57.00", "CAD"));
+        let (id, _, first_line) = self.staged_order_input_and_first_line(field);
+        let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+            line_item_price_set_values(
+                &first_line,
+                ["57.00", "CAD", "57.00", "CAD"],
+                ["42.50", "USD"],
+                Some(["57.00", "CAD"]),
+            );
+        let price_set = money_set_pair(
+            &shop_amount,
+            &shop_currency,
+            &presentment_amount,
+            &presentment_currency,
+        );
         let order = json!({
             "id": id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
