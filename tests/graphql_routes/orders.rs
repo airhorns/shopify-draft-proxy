@@ -8114,6 +8114,133 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
 }
 
 #[test]
+fn customer_payment_methods_remote_create_rejects_blank_gateway_required_fields() {
+    let cases = [
+        (
+            "braintree blank customer_id",
+            r#"braintreePaymentMethod: { customerId: "", paymentMethodToken: "tok_x" }"#,
+            [
+                "remote_reference",
+                "braintree_payment_method",
+                "customer_id",
+            ],
+            "INVALID",
+            "customer_id can't be blank",
+        ),
+        (
+            "braintree blank payment_method_token",
+            r#"braintreePaymentMethod: { customerId: "cus_x", paymentMethodToken: "" }"#,
+            [
+                "remote_reference",
+                "braintree_payment_method",
+                "payment_method_token",
+            ],
+            "INVALID",
+            "payment_method_token can't be blank",
+        ),
+        (
+            "authorize.net blank customer_profile_id",
+            r#"authorizeNetCustomerPaymentProfile: { customerProfileId: "", customerPaymentProfileId: "pay_x" }"#,
+            [
+                "remote_reference",
+                "authorize_net_customer_payment_profile",
+                "customer_profile_id",
+            ],
+            "INVALID",
+            "customer_profile_id can't be blank",
+        ),
+        (
+            "adyen blank shopper_reference",
+            r#"adyenPaymentMethod: { shopperReference: "", storedPaymentMethodId: "stored_x" }"#,
+            [
+                "remote_reference",
+                "adyen_payment_method",
+                "shopper_reference",
+            ],
+            "INVALID",
+            "shopper_reference can't be blank",
+        ),
+        (
+            "adyen blank stored_payment_method_id",
+            r#"adyenPaymentMethod: { shopperReference: "shopper_x", storedPaymentMethodId: "" }"#,
+            [
+                "remote_reference",
+                "adyen_payment_method",
+                "stored_payment_method_id",
+            ],
+            "INVALID",
+            "stored_payment_method_id can't be blank",
+        ),
+    ];
+
+    for (name, remote_reference, field_path, code, message) in cases {
+        let mut proxy = snapshot_proxy();
+        let query = format!(
+            r#"
+            mutation CustomerPaymentMethodRemoteCreateBlankGatewayField {{
+              customerPaymentMethodRemoteCreate(
+                customerId: "gid://shopify/Customer/1"
+                remoteReference: {{ {remote_reference} }}
+              ) {{
+                customerPaymentMethod {{ id }}
+                userErrors {{ field code message }}
+              }}
+            }}
+        "#
+        );
+
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
+
+        assert_eq!(response.status, 200, "{name}");
+        let payload = &response.body["data"]["customerPaymentMethodRemoteCreate"];
+        assert_eq!(payload["customerPaymentMethod"], Value::Null, "{name}");
+        assert_eq!(
+            payload["userErrors"],
+            json!([{
+                "field": field_path,
+                "code": code,
+                "message": message
+            }]),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardinality() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRemoteCreateTwoNonStripeGatewayObjects {
+          customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/1"
+            remoteReference: {
+              braintreePaymentMethod: { customerId: "cus_x", paymentMethodToken: "tok_x" }
+              authorizeNetCustomerPaymentProfile: { customerProfileId: "profile_x", customerPaymentProfileId: "pay_x" }
+            }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"]["customerPaymentMethodRemoteCreate"];
+    assert_eq!(payload["customerPaymentMethod"], Value::Null);
+    assert_eq!(
+        payload["userErrors"],
+        json!([{
+            "field": ["remote_reference"],
+            "code": "INVALID",
+            "message": "Remote reference must contain exactly one payment method."
+        }])
+    );
+}
+
+#[test]
 fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
