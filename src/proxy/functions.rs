@@ -511,10 +511,6 @@ fn function_payload_identifier_field(function_id: &Option<String>) -> &'static s
     }
 }
 
-fn function_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
-    user_error(field, message, code)
-}
-
 fn validation_payload_error(error: Value) -> Value {
     json!({ "validation": Value::Null, "userErrors": [error] })
 }
@@ -526,13 +522,13 @@ fn cart_transform_payload_error(error: Value) -> Value {
 fn validation_identifier_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let (function_id, function_handle) = function_identifier_input(input);
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(validation_payload_error(function_user_error(
-            vec![json!("validation"), json!("functionHandle")],
+        (false, false) => Some(validation_payload_error(user_error(
+            ["validation", "functionHandle"],
             "Either function_id or function_handle must be provided.",
             Some("MISSING_FUNCTION_IDENTIFIER"),
         ))),
-        (true, true) => Some(validation_payload_error(function_user_error(
-            vec![json!("validation")],
+        (true, true) => Some(validation_payload_error(user_error(
+            ["validation"],
             "Only one of function_id or function_handle can be provided, not both.",
             Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
         ))),
@@ -545,13 +541,13 @@ fn cart_transform_identifier_error(
     function_handle: &Option<String>,
 ) -> Option<Value> {
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(cart_transform_payload_error(function_user_error(
-            vec![json!("functionHandle")],
+        (false, false) => Some(cart_transform_payload_error(user_error(
+            ["functionHandle"],
             "Either function_id or function_handle must be provided.",
             Some("MISSING_FUNCTION_IDENTIFIER"),
         ))),
-        (true, true) => Some(cart_transform_payload_error(function_user_error(
-            vec![json!("functionHandle")],
+        (true, true) => Some(cart_transform_payload_error(user_error(
+            ["functionHandle"],
             "Only one of function_id or function_handle can be provided, not both.",
             Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
         ))),
@@ -574,8 +570,8 @@ fn cart_transform_function_not_found_error(
     } else {
         "Function not found.".to_string()
     };
-    cart_transform_payload_error(function_user_error(
-        vec![json!(field_name)],
+    cart_transform_payload_error(user_error(
+        [field_name],
         &message,
         Some("FUNCTION_NOT_FOUND"),
     ))
@@ -599,22 +595,22 @@ fn validation_function_resolution_payload(
             "VALIDATION",
         )
         .ok_or_else(|| {
-            validation_payload_error(function_user_error(
-                vec![json!("validation"), json!(field_name)],
+            validation_payload_error(user_error(
+                ["validation", field_name],
                 "Extension not found.",
                 Some("NOT_FOUND"),
             ))
         })?;
     if function["apiType"].as_str() != Some("VALIDATION") {
-        return Err(validation_payload_error(function_user_error(
-            vec![json!("validation"), json!(field_name)],
+        return Err(validation_payload_error(user_error(
+            ["validation", field_name],
             "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
             Some("FUNCTION_DOES_NOT_IMPLEMENT"),
         )));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(validation_payload_error(function_user_error(
-            vec![json!("validation"), json!(field_name)],
+        return Err(validation_payload_error(user_error(
+            ["validation", field_name],
             function["createGuardrailMessage"]
                 .as_str()
                 .unwrap_or_default(),
@@ -655,15 +651,15 @@ fn cart_transform_function_resolution_payload(
         } else {
             "FUNCTION_DOES_NOT_IMPLEMENT"
         };
-        return Err(cart_transform_payload_error(function_user_error(
-            vec![json!(field_name)],
+        return Err(cart_transform_payload_error(user_error(
+            [field_name],
             "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
             Some(code),
         )));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(cart_transform_payload_error(function_user_error(
-            vec![json!(field_name)],
+        return Err(cart_transform_payload_error(user_error(
+            [field_name],
             function["createGuardrailMessage"]
                 .as_str()
                 .unwrap_or_default(),
@@ -678,9 +674,9 @@ fn metafield_input_error(
     index: usize,
 ) -> Option<Value> {
     let field = vec![
-        json!("validation"),
-        json!("metafields"),
-        json!(index.to_string()),
+        "validation".to_string(),
+        "metafields".to_string(),
+        index.to_string(),
     ];
     let namespace = resolved_string_field(metafield, "namespace").unwrap_or_default();
     let key = resolved_string_field(metafield, "key");
@@ -688,20 +684,20 @@ fn metafield_input_error(
     let value = resolved_string_field(metafield, "value");
 
     if key.is_none() {
-        return Some(function_user_error(field, "presence", None));
+        return Some(user_error(field, "presence", None));
     }
     if type_name.as_deref().unwrap_or_default().is_empty() {
-        return Some(function_user_error(
+        return Some(user_error(
             field,
             "One or more required inputs are blank.",
             Some("BLANK"),
         ));
     }
     if value.is_none() {
-        return Some(function_user_error(field, "presence", None));
+        return Some(user_error(field, "presence", None));
     }
     if namespace == "shopify" {
-        return Some(function_user_error(
+        return Some(user_error(
             field,
             "ApiPermission metafields can only be created or updated by the app owner.",
             Some("APP_NOT_AUTHORIZED"),
@@ -710,7 +706,7 @@ fn metafield_input_error(
     match type_name.as_deref() {
         Some("single_line_text_field") => {
             if value.as_deref() == Some("") {
-                Some(function_user_error(
+                Some(user_error(
                     field,
                     "The value is invalid.",
                     Some("INVALID_VALUE"),
@@ -726,7 +722,7 @@ fn metafield_input_error(
             {
                 None
             } else {
-                Some(function_user_error(
+                Some(user_error(
                     field,
                     "The value is invalid.",
                     Some("INVALID_VALUE"),
@@ -734,7 +730,7 @@ fn metafield_input_error(
             }
         }
         Some("json") => None,
-        _ => Some(function_user_error(
+        _ => Some(user_error(
             field,
             "The type is invalid.",
             Some("INVALID_TYPE"),
@@ -749,11 +745,11 @@ fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<V
             .enumerate()
             .filter_map(|(index, value)| match value {
                 ResolvedValue::Object(metafield) => metafield_input_error(metafield, index),
-                _ => Some(function_user_error(
+                _ => Some(user_error(
                     vec![
-                        json!("validation"),
-                        json!("metafields"),
-                        json!(index.to_string()),
+                        "validation".to_string(),
+                        "metafields".to_string(),
+                        index.to_string(),
                     ],
                     "The value is invalid.",
                     Some("INVALID_VALUE"),
@@ -858,11 +854,11 @@ fn cart_transform_metafield_error(
 ) -> Option<Value> {
     let value = resolved_string_field(metafield, "value").unwrap_or_default();
     if value.is_empty() {
-        return Some(function_user_error(
+        return Some(user_error(
             vec![
-                json!("metafields"),
-                json!(index.to_string()),
-                json!("value"),
+                "metafields".to_string(),
+                index.to_string(),
+                "value".to_string(),
             ],
             "may not be empty",
             Some("INVALID_METAFIELDS"),
@@ -871,11 +867,11 @@ fn cart_transform_metafield_error(
     if resolved_string_field(metafield, "type").as_deref() == Some("json")
         && serde_json::from_str::<Value>(&value).is_err()
     {
-        return Some(function_user_error(
+        return Some(user_error(
             vec![
-                json!("metafields"),
-                json!(index.to_string()),
-                json!("value"),
+                "metafields".to_string(),
+                index.to_string(),
+                "value".to_string(),
             ],
             &format!(
                 "is invalid JSON: unexpected token '{}' at line 1 column 1.",
@@ -896,11 +892,11 @@ fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
                 ResolvedValue::Object(metafield) => {
                     cart_transform_metafield_error(metafield, index)
                 }
-                _ => Some(function_user_error(
+                _ => Some(user_error(
                     vec![
-                        json!("metafields"),
-                        json!(index.to_string()),
-                        json!("value"),
+                        "metafields".to_string(),
+                        index.to_string(),
+                        "value".to_string(),
                     ],
                     "may not be empty",
                     Some("INVALID_METAFIELDS"),
@@ -985,20 +981,16 @@ fn fulfillment_constraint_rule_identifier_error(
     function_handle: &Option<String>,
 ) -> Option<Value> {
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(fulfillment_constraint_rule_payload_error(
-            function_user_error(
-                vec![json!("functionHandle")],
-                "Either function_id or function_handle must be provided.",
-                Some("MISSING_FUNCTION_IDENTIFIER"),
-            ),
-        )),
-        (true, true) => Some(fulfillment_constraint_rule_payload_error(
-            function_user_error(
-                vec![json!("functionHandle")],
-                "Only one of function_id or function_handle can be provided, not both.",
-                Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
-            ),
-        )),
+        (false, false) => Some(fulfillment_constraint_rule_payload_error(user_error(
+            ["functionHandle"],
+            "Either function_id or function_handle must be provided.",
+            Some("MISSING_FUNCTION_IDENTIFIER"),
+        ))),
+        (true, true) => Some(fulfillment_constraint_rule_payload_error(user_error(
+            ["functionHandle"],
+            "Only one of function_id or function_handle can be provided, not both.",
+            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+        ))),
         _ => None,
     }
 }
@@ -1020,13 +1012,11 @@ fn fulfillment_constraint_rule_delivery_method_error(
     delivery_method_types: &[String],
 ) -> Option<Value> {
     if delivery_method_types.is_empty() {
-        Some(fulfillment_constraint_rule_payload_error(
-            function_user_error(
-                vec![json!("deliveryMethodTypes")],
-                "Delivery method types cannot be empty.",
-                Some("INPUT_INVALID"),
-            ),
-        ))
+        Some(fulfillment_constraint_rule_payload_error(user_error(
+            ["deliveryMethodTypes"],
+            "Delivery method types cannot be empty.",
+            Some("INPUT_INVALID"),
+        )))
     } else {
         None
     }
@@ -1045,8 +1035,8 @@ fn fulfillment_constraint_rule_function_not_found_error(
     } else {
         "Function not found.".to_string()
     };
-    fulfillment_constraint_rule_payload_error(function_user_error(
-        vec![json!(field_name)],
+    fulfillment_constraint_rule_payload_error(user_error(
+        [field_name],
         &message,
         Some("FUNCTION_NOT_FOUND"),
     ))
@@ -1081,23 +1071,21 @@ fn fulfillment_constraint_rule_function_resolution_payload(
         })?;
     if function["apiType"].as_str() != Some("FULFILLMENT_CONSTRAINT_RULE") {
         return Err(fulfillment_constraint_rule_payload_error(
-            function_user_error(
-                vec![json!(field_name)],
+            user_error(
+                [field_name],
                 "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.fulfillment-constraint-rule.run, cart.fulfillment-constraints.generate.run].",
                 Some("FUNCTION_DOES_NOT_IMPLEMENT"),
             ),
         ));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(fulfillment_constraint_rule_payload_error(
-            function_user_error(
-                vec![json!(field_name)],
-                function["createGuardrailMessage"]
-                    .as_str()
-                    .unwrap_or_default(),
-                Some(code),
-            ),
-        ));
+        return Err(fulfillment_constraint_rule_payload_error(user_error(
+            [field_name],
+            function["createGuardrailMessage"]
+                .as_str()
+                .unwrap_or_default(),
+            Some(code),
+        )));
     }
     Ok(function)
 }
@@ -1499,8 +1487,8 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return validation_payload_error(function_user_error(
-                    vec![json!("validation")],
+                return validation_payload_error(user_error(
+                    ["validation"],
                     "Required input field must be present.",
                     Some("REQUIRED_INPUT_FIELD"),
                 ));
@@ -1516,8 +1504,8 @@ impl DraftProxy {
         }
         let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && active_validation_count(&self.store.staged.function_validations, None) >= 25 {
-            return validation_payload_error(function_user_error(
-                Vec::new(),
+            return validation_payload_error(user_error(
+                Vec::<&str>::new(),
                 "Cannot have more than 25 active validation functions.",
                 Some("MAX_VALIDATIONS_ACTIVATED"),
             ));
@@ -1550,16 +1538,16 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return validation_payload_error(function_user_error(
-                    vec![json!("validation")],
+                return validation_payload_error(user_error(
+                    ["validation"],
                     "Required input field must be present.",
                     Some("REQUIRED_INPUT_FIELD"),
                 ));
             }
         };
         let Some(mut validation) = self.store.staged.function_validations.get(&id).cloned() else {
-            return validation_payload_error(function_user_error(
-                vec![json!("id")],
+            return validation_payload_error(user_error(
+                ["id"],
                 "Extension not found.",
                 Some("NOT_FOUND"),
             ));
@@ -1574,8 +1562,8 @@ impl DraftProxy {
         if next_enable
             && active_validation_count(&self.store.staged.function_validations, Some(&id)) >= 25
         {
-            return validation_payload_error(function_user_error(
-                Vec::new(),
+            return validation_payload_error(user_error(
+                Vec::<&str>::new(),
                 "Cannot have more than 25 active validation functions.",
                 Some("MAX_VALIDATIONS_ACTIVATED"),
             ));
@@ -1649,8 +1637,8 @@ impl DraftProxy {
                     function_id,
                 )
             {
-                return cart_transform_payload_error(function_user_error(
-                    vec![json!("functionId")],
+                return cart_transform_payload_error(user_error(
+                    ["functionId"],
                     "Could not enable cart transform because it is already registered",
                     Some("FUNCTION_ALREADY_REGISTERED"),
                 ));
@@ -1839,8 +1827,8 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return fulfillment_constraint_rule_payload_error(function_user_error(
-                vec![json!("id")],
+            return fulfillment_constraint_rule_payload_error(user_error(
+                ["id"],
                 &format!("Could not find FulfillmentConstraintRule with id: {id}"),
                 Some("NOT_FOUND"),
             ));

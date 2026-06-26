@@ -3,6 +3,7 @@ use super::*;
 use base64::Engine as _;
 
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
+const METAFIELD_DELETE_HYDRATE_QUERY: &str = "query MetafieldDeleteHydrateNode($id: ID!) { node(id: $id) { __typename ... on Metafield { id namespace key owner { __typename ... on Product { id } ... on ProductVariant { id } ... on Collection { id } ... on Customer { id } ... on Order { id } ... on Company { id } } } } }";
 
 impl DraftProxy {
     // metafieldsSet/metafieldsDelete read their `metafields` list from the
@@ -214,6 +215,119 @@ impl DraftProxy {
             ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
             LogDraft::staged("metafieldsDelete", "products", staged_owner_ids),
         )
+    }
+
+    pub(in crate::proxy) fn owner_metafield_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "metafieldDelete".to_string());
+        let id = metafield_delete_id(query, variables);
+        let Some((owner_id, namespace, key)) = self.owner_metafield_identity_by_id(request, &id)
+        else {
+            let payload = json!({
+                "deletedId": Value::Null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Metafield does not exist."
+                }]
+            });
+            return MutationOutcome::response(ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            ));
+        };
+
+        self.delete_owner_metafield_identity(&owner_id, &namespace, &key);
+        let payload = json!({"deletedId": id, "userErrors": []});
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("metafieldDelete", "products", vec![owner_id]),
+        )
+    }
+
+    fn owner_metafield_identity_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<(String, String, String)> {
+        if id.is_empty() {
+            return None;
+        }
+        self.staged_owner_metafield_identity_by_id(id)
+            .or_else(|| self.hydrate_metafield_delete_identity(request, id))
+    }
+
+    fn staged_owner_metafield_identity_by_id(&self, id: &str) -> Option<(String, String, String)> {
+        self.store
+            .staged
+            .owner_metafields
+            .iter()
+            .find_map(|(owner_id, metafields)| {
+                metafields.iter().find_map(|metafield| {
+                    if metafield.get("id").and_then(Value::as_str) != Some(id) {
+                        return None;
+                    }
+                    Some((
+                        owner_id.clone(),
+                        metafield.get("namespace")?.as_str()?.to_string(),
+                        metafield.get("key")?.as_str()?.to_string(),
+                    ))
+                })
+            })
+    }
+
+    fn hydrate_metafield_delete_identity(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<(String, String, String)> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || shopify_gid_resource_type(id) != Some("Metafield")
+        {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": METAFIELD_DELETE_HYDRATE_QUERY,
+                "operationName": "MetafieldDeleteHydrateNode",
+                "variables": { "id": id },
+            }),
+        );
+        if response.status >= 400 {
+            return None;
+        }
+        let node = &response.body["data"]["node"];
+        if node.get("__typename").and_then(Value::as_str) != Some("Metafield") {
+            return None;
+        }
+        let owner_id = node
+            .get("owner")
+            .and_then(|owner| owner.get("id"))
+            .and_then(Value::as_str)?
+            .to_string();
+        Some((
+            owner_id,
+            node.get("namespace")?.as_str()?.to_string(),
+            node.get("key")?.as_str()?.to_string(),
+        ))
+    }
+
+    fn delete_owner_metafield_identity(&mut self, owner_id: &str, namespace: &str, key: &str) {
+        if let Some(owner_metafields) = self.store.staged.owner_metafields.get_mut(owner_id) {
+            owner_metafields.retain(|existing| {
+                existing.get("namespace").and_then(Value::as_str) != Some(namespace)
+                    || existing.get("key").and_then(Value::as_str) != Some(key)
+            });
+        }
+        self.store.staged.deleted_owner_metafields.insert((
+            owner_id.to_string(),
+            namespace.to_string(),
+            key.to_string(),
+        ));
     }
 
     fn metafields_set_compare_digest_errors(
@@ -1336,6 +1450,20 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
         "__typename": metafield_owner_gid_resource_type(owner_id),
         "id": owner_id
     })
+}
+
+fn metafield_delete_id(query: &str, variables: &BTreeMap<String, ResolvedValue>) -> String {
+    root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == "metafieldDelete")
+        .and_then(|field| resolved_object_field(&field.arguments, "input"))
+        .and_then(|input| resolved_string_field(&input, "id"))
+        .or_else(|| {
+            resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "id"))
+        })
+        .unwrap_or_default()
 }
 
 fn base_owner_metafield(base: &Value, namespace: &str, key: &str) -> Option<Value> {
