@@ -533,23 +533,16 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let mut card = gift_card_lifecycle_base_card(&id);
-        card["lastCharacters"] = json!(last_characters);
-        card["maskedCode"] = json!(format!("•••• •••• •••• {}", last_characters));
-        card["giftCardCode"] = json!(code);
         let currency = self.gift_card_configuration_currency();
-        card["initialValue"] = money_value(&amount, &currency);
-        card["balance"] = card["initialValue"].clone();
-        card["notify"] = json!(notify);
-        card["source"] = json!("api_client");
+        let mut card =
+            gift_card_create_record(&id, &last_characters, &code, &amount, &currency, notify);
         card["note"] = resolved_nullable_string_field(&input, "note");
         card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
         card["recipientAttributes"] = Value::Null;
-        if input.contains_key("templateSuffix") {
-            card["templateSuffix"] = gift_card_template_suffix_json(
-                resolved_nullable_string_field(&input, "templateSuffix"),
-            );
-        }
+        card["templateSuffix"] = gift_card_template_suffix_json(resolved_nullable_string_field(
+            &input,
+            "templateSuffix",
+        ));
         if let Some(customer) = assigned_customer {
             card["customer"] = gift_card_customer_projection_json(&customer);
         } else {
@@ -630,7 +623,13 @@ impl DraftProxy {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
 
-        let mut card = existing.unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+        let Some(mut card) = existing else {
+            return gift_card_payload_json_nullable(
+                None,
+                &field.selection,
+                vec![gift_card_not_found_error(&field.name)],
+            );
+        };
         if input.contains_key("note") {
             card["note"] = resolved_nullable_string_field(&input, "note");
         }
@@ -782,9 +781,14 @@ impl DraftProxy {
             );
         }
 
-        let mut card = card
-            .take()
-            .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+        let Some(mut card) = card.take() else {
+            return gift_card_transaction_payload(
+                &field.selection,
+                spec.transaction_field,
+                None,
+                vec![gift_card_not_found_error(&field.name)],
+            );
+        };
         let currency = gift_card_currency(&card);
         let current_balance = gift_card_balance_amount(&card);
         let next_balance = if spec.is_credit {
@@ -843,9 +847,13 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
-        let mut card = card
-            .take()
-            .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+        let Some(mut card) = card.take() else {
+            return gift_card_payload_json_nullable(
+                None,
+                &field.selection,
+                vec![gift_card_not_found_error(&field.name)],
+            );
+        };
         card["enabled"] = json!(false);
         card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
         card["updatedAt"] = json!("2026-04-29T09:31:13Z");

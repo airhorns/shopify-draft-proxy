@@ -3567,25 +3567,35 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     }
 }
 
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
+pub(in crate::proxy) fn gift_card_create_record(
+    id: &str,
+    last_characters: &str,
+    code: &str,
+    amount: &str,
+    currency_code: &str,
+    notify: bool,
+) -> Value {
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "2053",
-        "maskedCode": "•••• •••• •••• 2053",
+        "lastCharacters": last_characters,
+        "maskedCode": format!("•••• •••• •••• {last_characters}"),
+        "giftCardCode": code,
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
-        "expiresOn": "2027-04-26",
+        "expiresOn": null,
         "note": null,
         "templateSuffix": null,
         "createdAt": "2026-04-29T09:31:02Z",
         "updatedAt": "2026-04-29T09:31:02Z",
-        "initialValue": money_value("5.0", "CAD"),
-        "balance": money_value("5.0", "CAD"),
+        "initialValue": money_value(amount, currency_code),
+        "balance": money_value(amount, currency_code),
         "customer": null,
         "recipientAttributes": null,
+        "notify": notify,
+        "source": "api_client",
         "transactions": {
             "nodes": [],
             "edges": [],
