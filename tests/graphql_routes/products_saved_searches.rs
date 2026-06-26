@@ -8520,6 +8520,158 @@ fn collection_create_rejects_client_supplied_id_without_staging() {
 }
 
 #[test]
+fn collection_create_rejects_unknown_initial_products_without_staging() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/known".to_string(),
+        title: "Known Product".to_string(),
+        handle: "known-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    }]);
+    let state_before = proxy.get_state_snapshot();
+    let log_before = proxy.get_log_snapshot();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateUnknownProduct($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id products(first: 10) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Rejected Product Collection",
+                "products": [
+                    "gid://shopify/Product/known",
+                    "gid://shopify/Product/missing"
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body["data"]["collectionCreate"],
+        json!({
+            "collection": null,
+            "userErrors": [{
+                "field": ["products", "1"],
+                "message": "Product does not exist"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_before);
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateKnownProduct($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id products(first: 10) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Accepted Product Collection",
+                "products": ["gid://shopify/Product/known"]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        accepted.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["collectionCreate"]["collection"]["products"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/known" }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .expect("log entries should be an array")
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn collection_create_accepts_empty_rules_as_custom_and_rejects_missing_rules_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let empty_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateEmptyRuleSet($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title ruleSet { appliedDisjunctively rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Empty Rules Custom Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": []
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(empty_rules.status, 200);
+    assert_eq!(
+        empty_rules.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        empty_rules.body["data"]["collectionCreate"]["collection"]["title"],
+        json!("Empty Rules Custom Collection")
+    );
+    assert_eq!(
+        empty_rules.body["data"]["collectionCreate"]["collection"]["ruleSet"],
+        Value::Null
+    );
+
+    let mut proxy = snapshot_proxy();
+    let state_before = proxy.get_state_snapshot();
+    let log_before = proxy.get_log_snapshot();
+    let missing_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionCreateMissingRuleSetRules($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Rejected Smart Collection",
+                "ruleSet": { "appliedDisjunctively": false }
+            }
+        }),
+    ));
+
+    assert_eq!(missing_rules.status, 200);
+    assert_eq!(
+        missing_rules.body["data"]["collectionCreate"],
+        json!({
+            "collection": null,
+            "userErrors": [{
+                "field": ["ruleSet", "rules"],
+                "message": "Rules cannot be an empty set"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_state_snapshot(), state_before);
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+}
+
+#[test]
 fn collection_update_missing_id_returns_top_level_bad_request_without_user_errors() {
     let mut proxy = snapshot_proxy();
 

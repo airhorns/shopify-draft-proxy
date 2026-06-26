@@ -952,6 +952,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-create-products-ruleset-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-create-products-ruleset-validation-conformance.ts',
+    purpose:
+      'collectionCreate behavior for unknown input.products, accepted empty ruleSet.rules, and omitted ruleSet.rules validation.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-create-products-ruleset-validation.json`,
+      'config/parity-specs/products/collectionCreate-unknown-products.json',
+      'config/parity-specs/products/collectionCreate-empty-ruleset-rules.json',
+      'config/parity-requests/products/collectionCreate-products-ruleset-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-first capture; unknown products and omitted ruleSet.rules must not create Shopify collections, while the accepted empty-rules custom collection is deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'collection-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-delete-shop-payload-conformance.ts',

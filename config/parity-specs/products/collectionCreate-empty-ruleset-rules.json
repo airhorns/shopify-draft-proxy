@@ -1,0 +1,42 @@
+{
+  "scenarioId": "collectionCreate-empty-ruleset-rules",
+  "operationNames": ["collectionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-create-products-ruleset-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionCreate-products-ruleset-validation.graphql",
+    "variablesCapturePath": "$.scenarios.emptyRuleSetRules.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL accepts collectionCreate when ruleSet.rules is an empty list as a custom collection with ruleSet: null, but rejects omitted ruleSet.rules using field [\"ruleSet\", \"rules\"] and message \"Rules cannot be an empty set\"; the local runtime must match both branches.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "collection-create-empty-ruleset-rules-custom-success",
+        "capturePath": "$.scenarios.emptyRuleSetRules.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local parity harness allocate collection identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "collection-create-missing-ruleset-rules-user-error",
+        "capturePath": "$.scenarios.missingRuleSetRules.response.data.collectionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-products-ruleset-validation.graphql",
+          "variablesCapturePath": "$.scenarios.missingRuleSetRules.variables"
+        },
+        "proxyPath": "$.data.collectionCreate"
+      }
+    ]
+  }
+}
