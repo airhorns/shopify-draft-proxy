@@ -2568,6 +2568,10 @@ fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
                 "variants".to_string(),
                 mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
             ),
+            (
+                "allowPartialUpdates".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
         ]),
     );
 }
