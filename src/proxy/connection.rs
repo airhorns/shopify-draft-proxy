@@ -103,25 +103,6 @@ pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
     connection["nodes"].as_array().cloned().unwrap_or_default()
 }
 
-pub(in crate::proxy) fn connection_edges_with_cursor<F>(
-    nodes: &[Value],
-    cursor_for: F,
-) -> Vec<Value>
-where
-    F: Fn(usize, &Value) -> String,
-{
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            json!({
-                "cursor": cursor_for(index, node),
-                "node": node
-            })
-        })
-        .collect()
-}
-
 pub(in crate::proxy) fn connection_json_with_cursor<F>(
     nodes: Vec<Value>,
     mut cursor_for: F,

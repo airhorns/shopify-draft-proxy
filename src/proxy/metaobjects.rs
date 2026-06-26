@@ -2731,13 +2731,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.metaobjects.is_tombstoned(id) {
-            return None;
-        }
-        if let Some(record) = self.store.staged.metaobjects.get(id) {
-            return Some(record.clone());
-        }
-        None
+        self.store.staged.metaobjects.get(id).cloned()
     }
 
     /// Resolve a linked metaobject reference (the gid stored in a product option's
@@ -4103,9 +4097,6 @@ impl DraftProxy {
     }
 
     fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.metaobject_definitions.is_tombstoned(id) {
-            return None;
-        }
         self.store.staged.metaobject_definitions.get(id).cloned()
     }
 
@@ -4114,15 +4105,7 @@ impl DraftProxy {
             .staged
             .metaobject_definitions
             .values()
-            .find(|definition| {
-                definition.get("type").and_then(Value::as_str) == Some(meta_type)
-                    && !self.store.staged.metaobject_definitions.is_tombstoned(
-                        definition
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
-            })
+            .find(|definition| definition.get("type").and_then(Value::as_str) == Some(meta_type))
             .cloned()
     }
 

@@ -72,6 +72,8 @@ Definition create/update/delete support extends beyond `PRODUCT` because definit
 
 Executable product-owned `metafieldsSet` set/read parity covers 96 Shopify custom-data value types in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json`, replayed by `config/parity-specs/metafields/custom-data-metafield-type-matrix.json`.
 
+Custom namespace keys that coincide with type names are ordinary merchant keys, not type-shape sentinels. `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafieldsSet-custom-namespace-typed-keys.json` and `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json` cover non-empty `custom.json`, `custom.rating`, and `custom.money` writes plus immediate product read-back. The local write path stages those records through the normal owner-metafield model so selected `value`, `jsonValue`, identity, owner type, timestamps, and non-empty compare digests are derived from the submitted value.
+
 The matrix covers scalar text, number, boolean, date/date-time, URL/color/language, JSON/rich text/link/money/rating, measurement types, supported `list.*` variants, and product/variant/collection reference values. The local model now normalizes captured Shopify value behavior for this slice: date-time values gain an explicit `+00:00` offset, decimal `jsonValue` stays string-shaped, measurement `value` JSON serializes uppercase units and integer measurement numbers as `.0`, list measurement `jsonValue` uses Shopify's lowercase or abbreviated units, and rating value strings use Shopify's key order.
 
 `metafieldsSet` value validation rejects invalid scalar and structured values before staging any input in the batch. Fixture-backed branches cover `number_decimal` bounds, `money` JSON object shape, URL/link scheme validation, date format validation, single-line/multi-line blank text and single-line newline rejection, rating bounds, measurement non-negative value and supported-unit checks, `list.*` array shape/128-element cap, and per-element coercion for list values such as `list.number_integer`. Product reference values, including `list.product_reference`, are checked against staged/base/hydrated resource state rather than a fixed sentinel GID. Missing references return Shopify's `INVALID_VALUE` field path and `Value references non-existent resource ...` message without staging the mutation.
@@ -80,14 +82,15 @@ The fixture documents excluded product-owned metafield types instead of adding p
 
 ### Standard metafield definition enablement
 
-`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json`, the 2026-04 read-only `standardMetafieldDefinitionTemplates(first: 100, excludeActivated: false)` probe noted in `fixtures/conformance/local-runtime/2026-04/metafields/standard-metafield-definition-enable-error-branches.json`, and the constrained-template evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-create-with-pin-guards.json`.
+`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the checked-in standard template catalog in `src/proxy/standard_metafield_definition_templates.json`. The catalog is captured from `standardMetafieldDefinitionTemplates(first: 250, excludeActivated: false)` on the 2025-01 conformance shop and supports both template `id` selectors and `namespace` / `key` selectors across the captured catalog.
 
 Successful local enablement:
 
 - creates a staged `MetafieldDefinition` record without sending the mutation to Shopify when no definition exists for the template's owner/namespace/key
 - re-enabling an already-present template returns the existing definition id and merges only supplied update params into that staged record
-- supports `id` or `namespace` / `key` template selection for the captured template slice
+- supports `id` or `namespace` / `key` template selection for the captured template catalog
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
+- derives standard-template validations and constraints from template metadata; Shopify product-attribute templates such as `shopify.material` stage a `list.metaobject_reference` definition with a synthetic `metaobject_definition_id` validation plus category constraints instead of a per-key hardcode
 - rejects ineligible capability inputs before staging, using the same captured `INVALID_CAPABILITY` branch as definition create/update but with standard-enable field paths
 - translates the deprecated local inputs `useAsCollectionCondition`, `useAsAdminFilter`, and `visibleToStorefrontApi` into the corresponding capability/access records before staging
 - rejects matching existing unstructured metafields with `UNSTRUCTURED_ALREADY_EXISTS` unless `forceEnable: true` is provided
@@ -112,6 +115,8 @@ That fixture scope is not a rule against live success captures. Normal supported
 The public Admin GraphQL 2026-04 schema on the current conformance shop exposes `capabilities` and `access`, but no longer exposes `forceEnable`, `useAsCollectionCondition`, `useAsAdminFilter`, or `visibleToStorefrontApi` on `standardMetafieldDefinitionEnable`. `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json` therefore combines live public captures for schema-exposed capability errors with local-runtime-backed contract targets for the deprecated/internal inputs required by this proxy fidelity slice.
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-reenable-idempotent.json` captures successful re-enable behavior for template `1` (`descriptors` / `subtitle`): enabling, re-enabling, and re-enabling with `pin: true` all return the same definition id. After the capture creates 20 disposable pinned definitions, `pin: true` re-enable still returns empty `userErrors` and assigns pinned position `21`; a downstream `metafieldDefinition(id:)` read by the original id resolves the same definition.
+
+`config/parity-specs/metafields/standard-metafield-definition-enable-material.json` captures successful enablement for the PRODUCT `shopify.material` template. The strict target compares the mutation payload shape, access defaults, `list.metaobject_reference` type, `metaobject_definition_id` validation presence, category constraint key, and the first five category constraint values while carving out live-store definition IDs.
 
 ### Metafield definition pinning
 
@@ -143,6 +148,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
 - `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
 - `config/parity-specs/metafields/metafields-set-validation-gaps.json`
+- `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json`
 - `config/parity-specs/metafields/metafields-set-input-validation.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
 - `config/parity-specs/metafield-definitions/validation-affects-values.json`
@@ -156,6 +162,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
 - `corepack pnpm conformance:capture -- --run metafield-definition-validation-affects-values`
+- `corepack pnpm conformance:capture -- --run metafields-custom-namespace-typed-keys`
 - `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
 
 ### Validation
@@ -165,7 +172,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 ### Unsupported and registry-only boundaries
 
-- `standardMetafieldDefinitionTemplates` remains registry-only declaration coverage; enabling a bounded template slice is modeled, but the catalog root itself should not be treated as locally supported until it has executable behavior and fixture-backed shape evidence.
+- `standardMetafieldDefinitionTemplates` remains registry-only declaration coverage; `standardMetafieldDefinitionEnable` consumes the checked-in captured catalog and models a bounded template slice, but the catalog query root itself should not be treated as locally supported until it has executable read behavior and fixture-backed shape evidence.
 - Product, product variant, collection, customer, order, and company are the current fixture-backed shared `metafieldsSet` owner surface for definition-backed set/read success paths. PAGE, LOCATION, MARKET, and ARTICLE owner type payloads are captured for shared `metafieldsSet`; additional owner-family read-after-set behavior still needs capture-backed evidence before being claimed beyond definition lifecycle staging.
 - Definition lifecycle parity covers product-owner behavior plus non-product owner create/update/delete/read evidence. App-owned definitions, owner-specific access/capability quirks, non-product delete cascade behavior, and non-product owner families outside CUSTOMER/ORDER/COMPANY still need fresh conformance before support expands beyond normalized definition records.
 - CAS/userError coverage for `metafieldsSet` is product-owned fixture evidence. Reuse the atomic validation and downstream-read expectations, but do not assume other owner families have identical validation branches without capture.

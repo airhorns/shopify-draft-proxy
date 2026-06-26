@@ -232,11 +232,8 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
         for node in nodes {
             let order_line_id = node["id"].as_str().unwrap_or_default();
             let tail = resource_id_tail(order_line_id);
-            let unit = oe_amount_to_cents(
-                node["originalUnitPriceSet"]["shopMoney"]["amount"]
-                    .as_str()
-                    .unwrap_or("0"),
-            );
+            let unit = (money_set_amount(&node["originalUnitPriceSet"]).unwrap_or(0.0) * 100.0)
+                .round() as i64;
             let historical = node["quantity"].as_i64().unwrap_or(0);
             let current = node["currentQuantity"].as_i64().unwrap_or(historical);
             lines.push(json!({
