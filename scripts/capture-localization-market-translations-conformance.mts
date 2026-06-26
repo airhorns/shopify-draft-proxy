@@ -665,7 +665,7 @@ try {
       {
         operationName: 'LocalizationTranslationsMarketScopedRead',
         variables: readVariables,
-        query: 'sha:hand-synthesized-from-readBeforeRegister-response',
+        query: marketScopedReadQuery,
         response: {
           status: 200,
           body: readBeforeRegister,

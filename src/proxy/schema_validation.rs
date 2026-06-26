@@ -2849,108 +2849,25 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
-    // MarketCreateInput/MarketUpdateInput are intentionally registered only for
-    // fields the local market handlers already model. This gives currencySettings
-    // Shopify-style CurrencyCode enum coercion without shifting unrelated market
-    // validations into schema preflight.
-    schema.input_objects.insert(
-        "MarketCurrencySettingsUpdateInput".to_string(),
-        BTreeMap::from([
-            (
-                "baseCurrency".to_string(),
-                input_field(named("CurrencyCode")),
-            ),
-            (
-                "baseCurrencyManualRate".to_string(),
-                input_field(named("Decimal")),
-            ),
-            ("localCurrencies".to_string(), input_field(named("Boolean"))),
-            ("roundingEnabled".to_string(), input_field(named("Boolean"))),
-        ]),
-    );
-    schema.input_objects.insert(
-        "MarketCreateInput".to_string(),
-        BTreeMap::from([
-            ("name".to_string(), input_field(named("String"))),
-            ("handle".to_string(), input_field(named("String"))),
-            ("enabled".to_string(), input_field(named("Boolean"))),
-            ("status".to_string(), input_field(named("MarketStatus"))),
-            (
-                "regions".to_string(),
-                input_field(list_of_non_null("MarketRegionInput")),
-            ),
-            (
-                "conditions".to_string(),
-                input_field(named("MarketConditionsInput")),
-            ),
-            (
-                "priceInclusions".to_string(),
-                input_field(named("MarketPriceInclusionsInput")),
-            ),
-            (
-                "currencySettings".to_string(),
-                input_field(named("MarketCurrencySettingsUpdateInput")),
-            ),
-        ]),
-    );
-    schema.input_objects.insert(
-        "MarketUpdateInput".to_string(),
-        BTreeMap::from([
-            ("name".to_string(), input_field(named("String"))),
-            ("handle".to_string(), input_field(named("String"))),
-            ("enabled".to_string(), input_field(named("Boolean"))),
-            ("status".to_string(), input_field(named("MarketStatus"))),
-            (
-                "regions".to_string(),
-                input_field(list_of_non_null("MarketRegionInput")),
-            ),
-            (
-                "conditions".to_string(),
-                input_field(named("MarketConditionsInput")),
-            ),
-            (
-                "priceInclusions".to_string(),
-                input_field(named("MarketPriceInclusionsInput")),
-            ),
-            (
-                "currencySettings".to_string(),
-                input_field(named("MarketCurrencySettingsUpdateInput")),
-            ),
-            (
-                "catalogsToAdd".to_string(),
-                input_field(list_of_non_null("ID")),
-            ),
-            (
-                "catalogsToDelete".to_string(),
-                input_field(list_of_non_null("ID")),
-            ),
-            (
-                "webPresencesToAdd".to_string(),
-                input_field(list_of_non_null("ID")),
-            ),
-            (
-                "webPresencesToDelete".to_string(),
-                input_field(list_of_non_null("ID")),
-            ),
-        ]),
-    );
-    schema.mutation_fields.insert(
-        "marketCreate".to_string(),
-        BTreeMap::from([(
-            "input".to_string(),
-            mutation_arg(non_null("MarketCreateInput")),
-        )]),
-    );
-    schema.mutation_fields.insert(
-        "marketUpdate".to_string(),
-        BTreeMap::from([
-            ("id".to_string(), mutation_arg(non_null("ID"))),
-            (
-                "input".to_string(),
-                mutation_arg(non_null("MarketUpdateInput")),
-            ),
-        ]),
-    );
+    let parsed: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+
+    for input_object_name in [
+        "MarketCurrencySettingsUpdateInput",
+        "MarketCreateInput",
+        "MarketUpdateInput",
+    ] {
+        if let Some((name, fields)) = captured_input_object_fields(&parsed, input_object_name) {
+            schema.input_objects.insert(name, fields);
+        }
+    }
+    for mutation_name in ["marketCreate", "marketUpdate"] {
+        if let Some((name, arguments)) = captured_mutation_arguments(&parsed, mutation_name) {
+            schema.mutation_fields.insert(name, arguments);
+        }
+    }
 
     // CatalogCreateInput on Admin API 2026-04: `context` is a required
     // (non-null) input field. Omitting it must surface a top-level
