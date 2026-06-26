@@ -606,11 +606,11 @@ pub(in crate::proxy) fn read_price_list_id(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
     if let Some(id) =
-        resolved_string_arg(arguments, "priceListId").filter(|value| !value.is_empty())
+        resolved_string_field(arguments, "priceListId").filter(|value| !value.is_empty())
     {
         return Some(id);
     }
-    if let Some(id) = resolved_string_arg(arguments, "id").filter(|value| !value.is_empty()) {
+    if let Some(id) = resolved_string_field(arguments, "id").filter(|value| !value.is_empty()) {
         return Some(id);
     }
     resolved_object_field(arguments, "input")

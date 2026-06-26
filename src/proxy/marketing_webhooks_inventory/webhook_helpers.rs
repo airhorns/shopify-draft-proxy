@@ -195,7 +195,7 @@ pub(in crate::proxy) fn webhook_subscription_matches_field_args(
     record: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
-    if let Some(format) = resolved_string_arg(arguments, "format") {
+    if let Some(format) = resolved_string_field(arguments, "format") {
         if !record["format"]
             .as_str()
             .is_some_and(|value| value.eq_ignore_ascii_case(&format))
@@ -204,7 +204,7 @@ pub(in crate::proxy) fn webhook_subscription_matches_field_args(
         }
     }
 
-    if let Some(uri) = resolved_string_arg(arguments, "uri") {
+    if let Some(uri) = resolved_string_field(arguments, "uri") {
         if record["uri"].as_str() != Some(uri.as_str())
             && record["callbackUrl"].as_str() != Some(uri.as_str())
         {
@@ -223,7 +223,7 @@ pub(in crate::proxy) fn webhook_subscription_matches_field_args(
         return false;
     }
 
-    if let Some(query) = resolved_string_arg(arguments, "query") {
+    if let Some(query) = resolved_string_field(arguments, "query") {
         if !webhook_subscription_matches_query(record, &query) {
             return false;
         }
