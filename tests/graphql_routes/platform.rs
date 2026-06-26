@@ -152,6 +152,96 @@ fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) ->
     (order, fulfillment_order)
 }
 
+fn create_inventory_item_for_location_test(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocationInventoryItem($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              variants(first: 1) {
+                nodes { inventoryItem { id } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn inventory_level_id_for_platform_test(inventory_item_id: &str, location_id: &str) -> String {
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(inventory_item_id)
+        .split('?')
+        .next()
+        .unwrap_or(inventory_item_id);
+    let location_tail = location_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(location_id)
+        .split('?')
+        .next()
+        .unwrap_or(location_id);
+    format!(
+        "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
+    )
+}
+
+fn create_location_for_platform_test(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePlatformLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": name, "address": { "countryCode": "CA" } } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn set_location_active_for_platform_test(proxy: &mut DraftProxy, location_id: &str, active: bool) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetPlatformLocationActive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "active": active } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["locationEdit"]["location"]["isActive"],
+        json!(active)
+    );
+}
+
 #[test]
 fn admin_platform_job_unknown_job_gid_returns_completed_job_shape() {
     let mut proxy = snapshot_proxy();
@@ -2222,7 +2312,8 @@ fn generic_location_add_stages_location_and_downstream_reads() {
         })
     );
 
-    let inventory_item_id = "gid://shopify/InventoryItem/generic-location-add";
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Generic location add inventory item");
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -2807,7 +2898,8 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
 
-    let inventory_item_id = "gid://shopify/InventoryItem/delete-cascade";
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Delete cascade inventory item");
     let seed_inventory = proxy.process_request(json_graphql_request(
         r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
@@ -3129,9 +3221,13 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
 #[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
     let mut proxy = snapshot_proxy();
-    let source_location_id = "gid://shopify/Location/1";
-    let destination_location_id = "gid://shopify/Location/2";
-    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
+    let destination_location_id =
+        create_location_for_platform_test(&mut proxy, "Destination location");
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation inventory item");
+    let destination_level_id =
+        inventory_level_id_for_platform_test(&inventory_item_id, &destination_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3209,7 +3305,7 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
             "inventoryLevel": null,
             "inventoryLevels": {
                 "nodes": [{
-                    "id": "gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                    "id": destination_level_id,
                     "location": { "id": destination_location_id, "name": "Destination location" },
                     "quantities": [
                         { "name": "available", "quantity": 14 },
@@ -3224,9 +3320,14 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
 #[test]
 fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
     let mut proxy = snapshot_proxy();
-    let source_location_id = "gid://shopify/Location/1";
-    let inactive_destination_location_id = "gid://shopify/Location/inactive";
-    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
+    let inactive_destination_location_id =
+        create_location_for_platform_test(&mut proxy, "Inactive destination location");
+    set_location_active_for_platform_test(&mut proxy, &inactive_destination_location_id, false);
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation guard inventory item");
+    let source_level_id =
+        inventory_level_id_for_platform_test(&inventory_item_id, &source_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3305,7 +3406,7 @@ fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
         json!({
             "locationsCount": { "count": 2, "precision": "EXACT" },
             "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/tracked-1?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                "id": source_level_id,
                 "location": { "id": source_location_id, "name": "Source location" },
                 "quantities": [
                     { "name": "available", "quantity": 5 },

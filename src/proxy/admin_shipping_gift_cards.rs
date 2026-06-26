@@ -2682,10 +2682,15 @@ impl DraftProxy {
 
     fn location_deactivate_source_location(&self, location_id: &str) -> Value {
         let mut location = self.location_source_record(location_id);
-        let has_active_inventory = location
-            .get("hasActiveInventory")
-            .and_then(Value::as_bool)
-            .unwrap_or_else(|| self.location_has_inventory(location_id));
+        let has_active_inventory = if self.store.staged.locations.contains_key(location_id) {
+            self.location_has_inventory(location_id)
+        } else {
+            location
+                .get("hasActiveInventory")
+                .and_then(Value::as_bool)
+                .unwrap_or_else(|| self.location_has_inventory(location_id))
+                || self.location_has_inventory(location_id)
+        };
         location["hasActiveInventory"] = json!(has_active_inventory);
         location
     }

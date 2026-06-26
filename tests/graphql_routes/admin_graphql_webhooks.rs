@@ -449,8 +449,8 @@ fn webhook_subscription_api_version_projects_and_survives_update() {
     let mut proxy = snapshot_proxy();
     let expected_api_version = json!({
         "handle": "2026-07",
-        "displayName": "2026-07 (Release candidate)",
-        "supported": false
+        "displayName": "2026-07",
+        "supported": true
     });
 
     let mut create_request = json_graphql_request(
@@ -1272,34 +1272,28 @@ fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
 }
 
 #[test]
-fn webhook_subscription_rejects_unknown_topic_before_staging() {
+fn webhook_subscription_accepts_future_topic_names_without_frozen_snapshot_rejection() {
     let mut proxy = snapshot_proxy();
 
-    let inline_unknown_topic = proxy.process_request(json_graphql_request(
+    let inline_future_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
-        mutation WebhookSubscriptionBogusTopic {
-          webhookSubscriptionCreate(topic: NOT_A_REAL_TOPIC, webhookSubscription: { uri: "https://hooks.example.com/bogus", format: JSON }) {
+        mutation WebhookSubscriptionFutureTopic {
+          webhookSubscriptionCreate(topic: FUTURE_SHOPIFY_TOPIC, webhookSubscription: { uri: "https://hooks.example.com/future", format: JSON }) {
             webhookSubscription { id topic uri }
             userErrors { field message }
           }
         }"#,
         json!({}),
     ));
-    assert_eq!(inline_unknown_topic.status, 200);
+    assert_eq!(inline_future_topic.status, 200);
     assert_eq!(
-        inline_unknown_topic.body,
-        json!({
-            "errors": [{
-                "message": "Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (NOT_A_REAL_TOPIC). Expected type 'WebhookSubscriptionTopic!'.",
-                "locations": [{ "line": 3, "column": 11 }],
-                "path": ["mutation WebhookSubscriptionBogusTopic", "webhookSubscriptionCreate", "topic"],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": "topic"
-                }
-            }]
-        })
+        inline_future_topic.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        inline_future_topic.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+            ["topic"],
+        json!("FUTURE_SHOPIFY_TOPIC")
     );
     let count = proxy.process_request(json_graphql_request(
         "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
@@ -1307,11 +1301,10 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
     ));
     assert_eq!(
         count.body["data"]["webhookSubscriptionsCount"],
-        json!({ "count": 0 })
+        json!({ "count": 1 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 
-    let variable_unknown_topic = proxy.process_request(json_graphql_request(
+    let variable_future_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
         mutation WebhookSubscriptionCreateParity(
           $topic: WebhookSubscriptionTopic!
@@ -1323,26 +1316,17 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
           }
         }"#,
         json!({
-            "topic": "NOT_A_REAL_TOPIC",
+            "topic": "ANOTHER_FUTURE_SHOPIFY_TOPIC",
             "webhookSubscription": {
-                "uri": "https://hooks.example.com/bogus-variable"
+                "uri": "https://hooks.example.com/future-variable"
             }
         }),
     ));
-    assert_eq!(variable_unknown_topic.status, 200);
+    assert_eq!(variable_future_topic.status, 200);
     assert_eq!(
-        variable_unknown_topic.body["errors"][0]["extensions"]["code"],
-        json!("INVALID_VARIABLE")
-    );
-    assert_eq!(
-        variable_unknown_topic.body["errors"][0]["extensions"]["value"],
-        json!("NOT_A_REAL_TOPIC")
-    );
-    assert!(
-        variable_unknown_topic.body["errors"][0]["extensions"]["problems"][0]["explanation"]
-            .as_str()
-            .is_some_and(|message| message.contains("SHOP_UPDATE")
-                && message.contains("CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE"))
+        variable_future_topic.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+            ["topic"],
+        json!("ANOTHER_FUTURE_SHOPIFY_TOPIC")
     );
     let count = proxy.process_request(json_graphql_request(
         "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
@@ -1350,9 +1334,19 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
     ));
     assert_eq!(
         count.body["data"]["webhookSubscriptionsCount"],
-        json!({ "count": 0 })
+        json!({ "count": 2 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| {
+                entry["interpreted"]["primaryRootField"] == json!("webhookSubscriptionCreate")
+            })
+            .count(),
+        2
+    );
 }
 
 #[test]

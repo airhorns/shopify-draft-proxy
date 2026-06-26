@@ -1,15 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "nodes": [],
-            "pageInfo": empty_page_info()
-        }),
-        selection,
-    )
-}
-
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
     pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
     pub inactive_levels: &'a BTreeSet<(String, String)>,
@@ -231,12 +221,6 @@ pub(in crate::proxy) fn inventory_change_json(
     })
 }
 
-pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static str {
-    match location_id {
-        "gid://shopify/Location/1" => "Source location",
-        "gid://shopify/Location/2" => "Destination location",
-        "gid://shopify/Location/106318430514" => "Shop location",
-        "gid://shopify/Location/106318463282" => "My Custom Location",
-        _ => "Shop location",
-    }
+pub(in crate::proxy) fn inventory_location_name(_location_id: &str) -> &'static str {
+    "Location"
 }
