@@ -2237,6 +2237,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'standard-metafield-definition-enable-material',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-standard-metafield-definition-enable-material.mts',
+    purpose: 'standardMetafieldDefinitionEnable success payload for the PRODUCT shopify.material standard template.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-material.json`,
+      'config/parity-specs/metafields/standard-metafield-definition-enable-material.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-material.graphql',
+    ],
+    cleanupBehavior:
+      'Re-enables the standard product material definition and records the idempotent success payload; the conformance shop may retain the standard definition because Shopify denied delete access for this protected standard definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-delete-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-delete-preconditions-conformance.mts',
