@@ -234,7 +234,7 @@ impl DraftProxy {
                 if !selection_errors.is_empty() {
                     return ok_json(json!({ "errors": selection_errors }));
                 }
-                if let Some(data) = self.local_node_query_data(&fields, false) {
+                if let Some(data) = self.local_node_query_data(&fields, false, Some(request)) {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
                     // Cold read: forward upstream and hydrate the observed
@@ -248,7 +248,7 @@ impl DraftProxy {
                     response
                 } else {
                     ok_json(
-                        json!({ "data": self.local_node_query_data(&fields, true).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
+                        json!({ "data": self.local_node_query_data(&fields, true, Some(request)).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
                     )
                 }
             }
@@ -361,13 +361,14 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
         allow_unknown_null: bool,
+        request: Option<&Request>,
     ) -> Option<Value> {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.local_node_value_by_id(&id, &field.selection)
+                    self.local_node_value_by_id_with_request(&id, &field.selection, request)
                         .or_else(|| allow_unknown_null.then_some(Value::Null))?
                 }
                 "nodes" => Value::Array(
@@ -378,7 +379,7 @@ impl DraftProxy {
                         .unwrap_or_default()
                         .into_iter()
                         .map(|id| {
-                            self.local_node_value_by_id(&id, &field.selection)
+                            self.local_node_value_by_id_with_request(&id, &field.selection, request)
                                 .or_else(|| allow_unknown_null.then_some(Value::Null))
                         })
                         .collect::<Option<Vec<_>>>()?,
@@ -479,6 +480,15 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Option<Value> {
+        self.local_node_value_by_id_with_request(id, selection, None)
+    }
+
+    fn local_node_value_by_id_with_request(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+        request: Option<&Request>,
+    ) -> Option<Value> {
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
@@ -511,7 +521,7 @@ impl DraftProxy {
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
             return Some(selected_json(abandonment, selection));
         }
-        if let Some(value) = self.app_node_value_by_id(id, selection) {
+        if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }
         if shopify_gid_resource_type(id) == Some("GiftCard") {
@@ -590,7 +600,18 @@ impl DraftProxy {
         None
     }
 
-    fn app_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+    fn app_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+        request: Option<&Request>,
+    ) -> Option<Value> {
+        let current_app_id = request
+            .map(request_app_id)
+            .unwrap_or_else(|| default_local_app_id().to_string());
+        let granted_access_scopes = request
+            .map(app_granted_access_scopes)
+            .unwrap_or_else(|| vec!["read_products".to_string(), "write_products".to_string()]);
         match id {
             "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
                 Some(Value::Null)
@@ -599,9 +620,13 @@ impl DraftProxy {
                 &self.store.staged.app_subscriptions,
                 &self.store.staged.app_one_time_purchases,
                 &self.store.staged.revoked_app_access_scopes,
+                &granted_access_scopes,
                 selection,
             )),
-            "gid://shopify/App/expected" => Some(selected_json(&local_app_json(), selection)),
+            id if id == default_local_app_id() || id == current_app_id => Some(selected_json(
+                &local_app_json_with_id(&current_app_id),
+                selection,
+            )),
             _ => self
                 .store
                 .staged
@@ -1054,7 +1079,7 @@ impl DraftProxy {
                 {
                     let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({
-                        "data": self.current_app_installation_read_data(&fields)
+                        "data": self.current_app_installation_read_data(request, &fields)
                     }))
                 } else {
                     (self.upstream_transport)(request.clone())

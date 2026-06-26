@@ -37,40 +37,41 @@ The app domain uses normalized local buckets for app identity, current app insta
 
 Read behavior:
 
-- `currentAppInstallation`, `appInstallation(id:)`, `app(id:)`, `appByHandle(handle:)`, and `appByKey(apiKey:)` project the local app model after staged app mutations or LiveHybrid hydration from an upstream app installation read.
+- `currentAppInstallation`, `appInstallation(id:)`, `app(id:)`, `appByHandle(handle:)`, and `appByKey(apiKey:)` project the local app model after staged app mutations or LiveHybrid hydration from an upstream app installation read. App ID reads resolve the proxy's default synthetic app identity and request-owned app IDs supplied through `x-shopify-draft-proxy-api-client-id`.
 - Snapshot reads return Shopify-like `null` or empty values when no app installation has been staged or hydrated.
 - `appInstallations(first:)` serializes the current staged/hydrated installation as a connection for local read-after-write checks. Authorized multi-installation catalog behavior remains outside current local support.
 - Generic `node(id:)` / `nodes(ids:)` resolves app-domain records already present in local state: `App`, `AppInstallation`, `AppSubscription`, `AppPurchaseOneTime`, and `AppUsageRecord`. Missing IDs return `null`. `AppSubscriptionLineItem` remains nested under `AppSubscription.lineItems` and is not claimed as a standalone Node implementor.
+- `currentAppInstallation.accessScopes` projects granted scope handles from `x-shopify-draft-proxy-access-scopes`, defaults to the local products pair when the header is omitted, and removes locally revoked optional scopes from downstream reads.
 
 Supported mutations stage locally, append the original raw mutation request to the meta log for ordered commit replay, and synthesize Shopify-like payloads without sending runtime writes to Shopify.
 
 Billing behavior:
 
 - Billing payloads serialize `MoneyV2.amount` strings with Shopify Decimal-style formatting: whole numbers keep one trailing zero and fractional amounts drop superfluous trailing zeros. The same normalized staged values are read back through `currentAppInstallation`, `node(id:)`, and `nodes(ids:)` app-domain reads.
-- `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL. Local validation covers missing/blank `returnUrl`, blank trimmed names, prices below the local minimum, and shop billing currency mismatches.
-- `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
+- `appPurchaseOneTimeCreate` stages an active one-time purchase with a unique synthetic ID, stores the input currency instead of forcing USD, computes missing-`returnUrl` error locations from the submitted document, and returns a confirmation URL derived from `returnUrl`.
+- `appSubscriptionCreate` stages a subscription with a unique synthetic ID, unique synthetic line-item IDs, usage/recurring line-item pricing details, trial days, a `currentPeriodEnd` derived from the synthetic app-domain clock plus `trialDays`, and a confirmation URL derived from `returnUrl`. Test subscriptions activate locally; non-test subscriptions remain pending.
 - `appSubscriptionCancel` stages cancellation only for cancellable subscription statuses. Non-cancellable and unknown subscriptions return Shopify-shaped userErrors without mutating local state.
-- `appSubscriptionLineItemUpdate` validates usage-pricing line items, rejects recurring/non-variable line items with the Core-source-derived base userError `field: null`, `message: "Only variable subscriptions can be updated."`, validates capped amount currency, increasing cap values, and approval behavior. Approval-required updates return a confirmation URL and keep downstream active line-item caps unchanged; internal/test callers can use the synchronous no-approval branch when explicitly modeled.
+- `appSubscriptionLineItemUpdate` validates usage-pricing line items, rejects recurring/non-variable line items with the Core-source-derived base userError `field: null`, `message: "Only variable subscriptions can be updated."`, validates capped amount currency, increasing cap values, and approval behavior. Approval-required updates return a confirmation URL derived from `x-shopify-draft-proxy-app-url` or the configured Admin origin and keep downstream active line-item caps unchanged; internal/test callers can use the synchronous no-approval branch when explicitly modeled.
 - `appSubscriptionTrialExtend` validates the supported day range, subscription existence, active status, and active trial window before mutating `trialDays`.
-- `appUsageRecordCreate` stages usage records for usage-pricing line items, enforces idempotency-key length, currency compatibility, capped amount limits, and idempotent reuse for repeated keys.
+- `appUsageRecordCreate` stages usage records with unique synthetic IDs for usage-pricing line items, enforces idempotency-key length, currency compatibility, capped amount limits, and idempotent reuse for repeated keys.
 
 Access and uninstall behavior:
 
-- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Unknown, non-granted, required, and implied scopes return Shopify-shaped userErrors without partial revocation. Local-runtime missing-source-app coverage is modeled through request-owned source-app context rather than the GraphQL operation name.
+- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Unknown, non-granted, required, and implied scopes return Shopify-shaped userErrors without partial revocation. Granted scopes come from `x-shopify-draft-proxy-access-scopes`; required scopes come from `x-shopify-draft-proxy-required-access-scopes` and default to `read_products` when omitted. Local-runtime missing-source-app coverage is modeled through request-owned source-app context rather than the GraphQL operation name.
 - The `appRevokeAccessScopes` missing-source-app branch is Core-source-derived, not real-Shopify-recorded: valid public Admin requests carry source app context, while unauthenticated requests fail before the mutation resolver. Local replay uses `x-shopify-draft-proxy-source-app-missing` and returns `MISSING_SOURCE_APP` on `["id"]` with `No app found on the access token.`.
 - `appUninstall` resolves the target app from `input.id` or the current installation, enforces current-installation visibility and the `apps` scope where needed, marks the target installation uninstalled on success, clears its active access grant, cancels locally staged active/pending subscriptions, and destroys stored delegated tokens.
 - Downstream `currentAppInstallation` reads return `null` when the current installation is uninstalled, and app-subscription Node reads show cancelled status for locally cancelled subscriptions.
 
 Delegated-token behavior:
 
-- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns validated scope handles through payload `accessScopes`, and stores only token hash, redacted preview, owning app ID, and parent-token hash in meta-visible state.
+- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, validates requested handles against the granted scopes on the request, returns validated scope handles through payload `accessScopes`, and stores only token hash, redacted preview, owning app ID, and parent-token hash in meta-visible state.
 - Empty scopes, non-positive `expiresIn`, unknown scope handles, active delegate-token parents, and delegated expiry beyond the parent token return Shopify-like userErrors without staging.
 - Request-owned parent-token context is modeled with `x-shopify-draft-proxy-access-token-expires-at`; permanent parent tokens omit that header.
 - `delegateAccessTokenDestroy` hashes the raw token, checks app ownership and parent/delegate hierarchy, marks allowed delegate tokens destroyed locally, and returns non-null shop payloads on success and user-error branches.
 - `delegateAccessTokenCreate` and `delegateAccessTokenDestroy` project selected `shop` payload fields from the effective shop state, including restored or hydrated shop identity, instead of using a helper-owned default shop record.
 - Unknown/repeated tokens, parent self-destroy, cross-app, and non-parent hierarchy attempts return captured userErrors and leave token state unchanged.
 
-Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. Delegated token raw values are returned only in mutation payloads and are intentionally absent from `__meta/state`.
+Synthetic confirmation URLs append `shopify_draft_proxy_confirmation=1` to the derived local confirmation target. Delegated token raw values are returned only in mutation payloads and are intentionally absent from `__meta/state`.
 
 ### Boundaries
 
