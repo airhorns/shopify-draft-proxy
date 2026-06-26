@@ -129,22 +129,21 @@ fn assert_product_media_type(
 }
 
 #[test]
-fn product_create_media_image_payload_is_uploaded_while_downstream_read_processes() {
+fn product_create_media_payload_product_connection_uses_uploaded_before_processing_readback() {
     let product_id = "gid://shopify/Product/media-status";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
         .with_base_products(vec![seed_product(product_id)])
-        .with_upstream_transport(|_| panic!("product media staging should not call upstream"));
+        .with_upstream_transport(|_| {
+            panic!("product media status staging should not call upstream")
+        });
 
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductCreateImageMediaStatus($productId: ID!, $media: [CreateMediaInput!]!) {
+        mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
           productCreateMedia(productId: $productId, media: $media) {
-            media { id mediaContentType status }
+            media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
             mediaUserErrors { field message }
-            product {
-              id
-              media(first: 10) { nodes { id mediaContentType status } }
-            }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
           }
         }
         "#,
@@ -152,29 +151,29 @@ fn product_create_media_image_payload_is_uploaded_while_downstream_read_processe
             "productId": product_id,
             "media": [{
                 "mediaContentType": "IMAGE",
-                "originalSource": "https://placehold.co/640x480/png",
+                "originalSource": "https://placehold.co/600x400/png",
                 "alt": "Front view"
             }]
         }),
     ));
     assert_eq!(create.status, 200);
+    let payload = &create.body["data"]["productCreateMedia"];
+    assert_eq!(payload["mediaUserErrors"], json!([]));
+    assert_eq!(payload["media"][0]["status"], json!("UPLOADED"));
     assert_eq!(
-        create.body["data"]["productCreateMedia"]["mediaUserErrors"],
-        json!([])
-    );
-    let created_media = &create.body["data"]["productCreateMedia"]["media"][0];
-    let media_id = created_media["id"].as_str().unwrap().to_string();
-    assert_eq!(created_media["status"], json!("UPLOADED"));
-    assert_eq!(
-        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
-        json!("UPLOADED")
+        payload["product"]["media"]["nodes"][0]["status"],
+        json!("UPLOADED"),
+        "the mutation payload product connection should mirror Shopify's immediate UPLOADED media node"
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query ProductCreateImageMediaDownstreamStatus($id: ID!) {
+        query ProductCreateMediaDownstreamRead($id: ID!) {
           product(id: $id) {
-            media(first: 10) { nodes { id mediaContentType status } }
+            id
+            media(first: 10) {
+              nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
+            }
           }
         }
         "#,
@@ -182,12 +181,9 @@ fn product_create_media_image_payload_is_uploaded_while_downstream_read_processe
     ));
     assert_eq!(read.status, 200);
     assert_eq!(
-        read.body["data"]["product"]["media"]["nodes"][0],
-        json!({
-            "id": media_id,
-            "mediaContentType": "IMAGE",
-            "status": "PROCESSING"
-        })
+        read.body["data"]["product"]["media"]["nodes"][0]["status"],
+        json!("PROCESSING"),
+        "the stored downstream read remains the async processing state"
     );
 }
 
@@ -4626,6 +4622,150 @@ fn products_connection_reflects_staged_creates_and_deletes() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn products_connection_and_count_filter_common_search_fields_from_store_state() {
+    let mut alpha = seed_product("gid://shopify/Product/alpha");
+    alpha.title = "Alpha status: ACTIVE Jacket".to_string();
+    alpha.handle = "alpha-jacket".to_string();
+    alpha.vendor = "Northwind".to_string();
+    alpha.product_type = "Jackets".to_string();
+    alpha.tags = vec!["featured".to_string(), "outerwear".to_string()];
+    alpha
+        .extra_fields
+        .insert("publishedAt".to_string(), json!("2024-01-02T00:00:00.000Z"));
+
+    let mut beta = seed_product("gid://shopify/Product/beta");
+    beta.title = "Beta Jacket".to_string();
+    beta.handle = "beta-jacket".to_string();
+    beta.status = "DRAFT".to_string();
+    beta.vendor = "Southwind".to_string();
+    beta.product_type = "Jackets".to_string();
+    beta.tags = vec!["clearance".to_string()];
+
+    let mut gamma = seed_product("gid://shopify/Product/gamma");
+    gamma.title = "Gamma Shirt".to_string();
+    gamma.handle = "gamma-shirt".to_string();
+    gamma.vendor = "Northwind".to_string();
+    gamma.product_type = "Shirts".to_string();
+    gamma.tags = vec!["featured".to_string()];
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![alpha, beta, gamma]);
+
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/alpha",
+        "ALPHA-FILTER-SKU",
+        "10.00",
+    );
+    assert!(variant["id"].as_str().is_some());
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCommonSearchFilters($status: String!, $vendorType: String!, $title: String!, $tag: String!, $sku: String!, $literalStatusText: String!, $published: String!, $boolean: String!, $negated: String!, $unknown: String!) {
+          active: products(first: 10, query: $status) { nodes { id title status vendor productType tags } }
+          activeCount: productsCount(query: $status) { count precision }
+          vendorType: products(first: 10, query: $vendorType) { nodes { id } }
+          vendorTypeCount: productsCount(query: $vendorType) { count precision }
+          title: products(first: 10, query: $title) { nodes { id } }
+          tag: products(first: 10, query: $tag) { nodes { id } }
+          sku: products(first: 10, query: $sku) { nodes { id } }
+          literalStatusText: products(first: 10, query: $literalStatusText) { nodes { id } }
+          published: products(first: 10, query: $published) { nodes { id } }
+          boolean: products(first: 10, query: $boolean) { nodes { id } }
+          negated: products(first: 10, query: $negated) { nodes { id } }
+          unknown: products(first: 10, query: $unknown) { nodes { id } }
+          unknownCount: productsCount(query: $unknown) { count precision }
+        }
+        "#,
+        json!({
+            "status": "status:ACTIVE",
+            "vendorType": "vendor:Northwind product_type:Jackets",
+            "title": "title:Alpha",
+            "tag": "tag:featured",
+            "sku": "sku:ALPHA-FILTER-SKU",
+            "literalStatusText": "\"status: ACTIVE\"",
+            "published": "published_status:published",
+            "boolean": "(vendor:Northwind OR vendor:Southwind) status:ACTIVE",
+            "negated": "tag:featured -product_type:Shirts",
+            "unknown": "warehouse:Northwind"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["active"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/alpha",
+                "title": "Alpha status: ACTIVE Jacket",
+                "status": "ACTIVE",
+                "vendor": "Northwind",
+                "productType": "Jackets",
+                "tags": ["featured", "outerwear"]
+            },
+            {
+                "id": "gid://shopify/Product/gamma",
+                "title": "Gamma Shirt",
+                "status": "ACTIVE",
+                "vendor": "Northwind",
+                "productType": "Shirts",
+                "tags": ["featured"]
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["vendorType"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["vendorTypeCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["title"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["tag"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/alpha" },
+            { "id": "gid://shopify/Product/gamma" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["sku"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["literalStatusText"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["published"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["boolean"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/alpha" },
+            { "id": "gid://shopify/Product/gamma" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["negated"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(read.body["data"]["unknown"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["unknownCount"],
+        json!({ "count": 0, "precision": "EXACT" })
     );
 }
 

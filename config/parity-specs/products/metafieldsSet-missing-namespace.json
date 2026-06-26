@@ -7,24 +7,14 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan.graphql",
+    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan-no-compare-digest.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace. Shopify compareDigest values are opaque CAS tokens, so the locally staged digest for the new app-namespace metafield is compared as a non-empty value rather than an exact captured hash.",
+  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace. This non-CAS scenario intentionally omits compareDigest from the selected payload; CAS token behavior is covered by the dedicated compareDigest scenarios.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
-      {
-        "path": "$.metafieldsSet.metafields[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.metafields.nodes[3].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
       {
         "path": "$.product.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",
@@ -46,7 +36,7 @@
         "name": "downstream-read-data",
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",
+          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read-no-compare-digest.graphql",
           "variablesCapturePath": "$.downstreamReadVariables"
         },
         "proxyPath": "$.data"

@@ -38,6 +38,18 @@ const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 // so activate/deactivate preserve its captured name/scope/state instead of
 // fabricating a synthetic record.
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+const BACKUP_REGION_ACCESS_SCOPES_QUERY: &str =
+    "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }";
+const BACKUP_REGION_CURRENT_HYDRATE_QUERY: &str = r#"query BackupRegionCurrentHydrate {
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+}"#;
 // Must byte-match the recorded `ShippingDeliveryProfileVariantsHydrate` upstream
 // call in the delivery-profile lifecycle captures (strict cassette compares
 // query text + variables). Issued so a created/updated profile's
@@ -217,35 +229,31 @@ impl DraftProxy {
         let response_key = root_field
             .map(|field| field.response_key.clone())
             .unwrap_or_else(|| "backupRegionUpdate".to_string());
-        if request.headers.iter().any(|(name, token)| {
-            name.eq_ignore_ascii_case("X-Shopify-Access-Token") && token == "shpat_delegate_proxy_1"
-        }) {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
-                    "locations": [{ "line": 2, "column": 3 }],
-                    "extensions": {
-                        "code": "ACCESS_DENIED",
-                        "documentation": "https://shopify.dev/api/usage/access-scopes",
-                        "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
-                    },
-                    "path": ["backupRegionUpdate"]
-                }],
-                "data": { response_key: null }
-            }));
-        }
         let operation_path = document
             .as_ref()
             .map(|document| document.operation_path.as_str())
             .unwrap_or("mutation");
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
-            BackupRegionCountryCodeInput::CountryCode(country_code) => Some(country_code),
+            BackupRegionCountryCodeInput::CountryCode(country_code) => {
+                if !location_country_code_is_valid(&country_code) {
+                    return ok_json(backup_region_country_code_coercion_error(
+                        &format!(
+                            "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value ({country_code}). Expected type 'CountryCode!'."
+                        ),
+                        operation_path,
+                        "argumentLiteralsIncompatible",
+                        backup_region_update_region_value_location(query, root_field),
+                    ));
+                }
+                Some(country_code.to_ascii_uppercase())
+            }
             BackupRegionCountryCodeInput::Missing => {
                 return ok_json(backup_region_country_code_coercion_error(
                     "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
                     operation_path,
                     "missingRequiredInputObjectAttribute",
+                    backup_region_update_region_value_location(query, root_field),
                 ));
             }
             BackupRegionCountryCodeInput::Invalid(value) => {
@@ -255,24 +263,81 @@ impl DraftProxy {
                     ),
                     operation_path,
                     "argumentLiteralsIncompatible",
+                    backup_region_update_region_value_location(query, root_field),
                 ));
             }
         };
+        if self.backup_region_update_lacks_markets_access(request) {
+            return ok_json(backup_region_update_access_denied_body(
+                &response_key,
+                root_field
+                    .map(|field| field.location)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
+            ));
+        }
 
-        let region = country_code.as_deref().and_then(backup_region_country);
-        match region {
-            None if country_code.is_none() => ok_json(json!({
-                "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
-            })),
-            // A known country only becomes the backup region when it is still
-            // covered by an active, non-legacy region market. When every active
-            // region market has dropped the country, Shopify reports
-            // REGION_NOT_FOUND even though the country itself is recognized.
-            Some(region)
-                if country_code
-                    .as_deref()
-                    .is_some_and(|code| self.backup_region_country_has_region_market(code)) =>
-            {
+        let region = match country_code.as_deref() {
+            None => {
+                if self.store.staged.backup_region.is_null()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    let hydrate = self.hydrate_current_backup_region_from_upstream(request);
+                    if backup_region_response_is_access_denied(&hydrate.body) {
+                        return ok_json(backup_region_update_access_denied_body(
+                            &response_key,
+                            root_field
+                                .map(|field| field.location)
+                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                        ));
+                    }
+                }
+                (!self.store.staged.backup_region.is_null())
+                    .then(|| self.store.staged.backup_region.clone())
+            }
+            Some(code) => {
+                let mut region = self.backup_region_country_for_code(code);
+                if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
+                    let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
+                    if backup_region_response_is_access_denied(&hydrate.body) {
+                        return ok_json(backup_region_update_access_denied_body(
+                            &response_key,
+                            root_field
+                                .map(|field| field.location)
+                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                        ));
+                    }
+                    region = self.backup_region_country_for_code(code);
+                }
+                if region.is_none() {
+                    if self.store.staged.backup_region.is_null()
+                        && self.config.read_mode != ReadMode::Snapshot
+                    {
+                        let hydrate = self.hydrate_current_backup_region_from_upstream(request);
+                        if backup_region_response_is_access_denied(&hydrate.body) {
+                            return ok_json(backup_region_update_access_denied_body(
+                                &response_key,
+                                root_field
+                                    .map(|field| field.location)
+                                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                            ));
+                        }
+                    }
+                    region = self.current_backup_region_for_code(code);
+                }
+                region
+            }
+        };
+        match (country_code.as_deref(), region) {
+            (None, region) => {
+                let backup_region = region
+                    .as_ref()
+                    .map(|region| selected_backup_region_value(region, root_field))
+                    .unwrap_or(Value::Null);
+                ok_json(json!({
+                    "data": { response_key: { "backupRegion": backup_region, "userErrors": [] } }
+                }))
+            }
+            (Some(_), Some(region)) => {
                 self.store.staged.backup_region = region.clone();
                 let staged_id = region
                     .get("id")
@@ -287,10 +352,10 @@ impl DraftProxy {
                     vec![staged_id],
                 );
                 ok_json(json!({
-                    "data": { response_key: { "backupRegion": region, "userErrors": [] } }
+                    "data": { response_key: { "backupRegion": selected_backup_region_value(&region, root_field), "userErrors": [] } }
                 }))
             }
-            _ => {
+            (Some(_), None) => {
                 let mut user_error = serde_json::Map::from_iter([
                     ("field".to_string(), json!(["region"])),
                     ("message".to_string(), json!("Region not found.")),
@@ -314,6 +379,78 @@ impl DraftProxy {
                 }))
             }
         }
+    }
+
+    fn backup_region_update_lacks_markets_access(&mut self, request: &Request) -> bool {
+        if let Some(token) = request_access_token(request) {
+            if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
+                let scopes = string_array_field(record, "accessScopes");
+                return !backup_region_scopes_include_markets(&scopes);
+            }
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": BACKUP_REGION_ACCESS_SCOPES_QUERY,
+                "operationName": "BackupRegionAccessScopes",
+                "variables": {}
+            }),
+        );
+        if backup_region_response_is_access_denied(&response.body) {
+            return true;
+        }
+        let Some(scopes) = current_app_installation_access_scopes(&response.body) else {
+            return false;
+        };
+        !backup_region_scopes_include_markets(&scopes)
+    }
+
+    fn current_backup_region_for_code(&self, country_code: &str) -> Option<Value> {
+        if !self.store.staged.backup_region.is_null() {
+            return (self.store.staged.backup_region["code"].as_str() == Some(country_code))
+                .then(|| self.store.staged.backup_region.clone());
+        }
+        let current_code = self.current_backup_region_country_code()?;
+        (current_code == country_code).then(|| backup_region_country_from_code(country_code))
+    }
+
+    fn current_backup_region_country_code(&self) -> Option<String> {
+        let shop = self.store.effective_shop();
+        shop.pointer("/shopAddress/countryCodeV2")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                shop.pointer("/shopAddress/countryCode")
+                    .and_then(Value::as_str)
+            })
+            .or_else(|| {
+                (shop.get("myshopifyDomain").and_then(Value::as_str)
+                    == Some("harry-test-heelo.myshopify.com"))
+                .then_some("CA")
+            })
+            .map(str::to_ascii_uppercase)
+    }
+
+    pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
+        &mut self,
+        request: &Request,
+    ) -> Response {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": BACKUP_REGION_CURRENT_HYDRATE_QUERY,
+                "operationName": "BackupRegionCurrentHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status < 400 && !backup_region_response_is_access_denied(&response.body) {
+            if let Some(region) = response.body["data"].get("backupRegion") {
+                self.store.staged.backup_region = region.clone();
+            }
+        }
+        response
     }
 
     pub(in crate::proxy) fn location_mutation(
@@ -464,10 +601,11 @@ impl DraftProxy {
                 delivery_profile_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Profile could not be updated."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Profile could not be updated.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -515,10 +653,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Cannot delete the default profile."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "Cannot delete the default profile.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -529,10 +668,11 @@ impl DraftProxy {
                     delivery_profile_remove_payload_json(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot delete the default profile."
-                        })],
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Cannot delete the default profile.",
+                            None,
+                        )],
                     ),
                     Vec::new(),
                 );
@@ -541,10 +681,11 @@ impl DraftProxy {
                 delivery_profile_remove_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "The Delivery Profile cannot be found for the shop."
-                    })],
+                    vec![user_error_omit_code(
+                        Value::Null,
+                        "The Delivery Profile cannot be found for the shop.",
+                        None,
+                    )],
                 ),
                 Vec::new(),
             );
@@ -1340,11 +1481,11 @@ impl DraftProxy {
             return location_errors;
         }
         if !local_pickup_time_is_standard(pickup_time) {
-            return vec![json!({
-                "field": ["localPickupSettings"],
-                "message": "Custom pickup time is not allowed for local pickup settings.",
-                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
-            })];
+            return vec![user_error(
+                ["localPickupSettings"],
+                "Custom pickup time is not allowed for local pickup settings.",
+                Some("CUSTOM_PICKUP_TIME_NOT_ALLOWED"),
+            )];
         }
         Vec::new()
     }
@@ -1357,18 +1498,18 @@ impl DraftProxy {
         if self.active_local_pickup_location(location_id).is_some() {
             return Vec::new();
         }
-        vec![json!({
-            "field": ["localPickupSettings"],
-            "message": format!(
+        vec![user_error_with_code_value(
+            ["localPickupSettings"],
+            &format!(
                 "Unable to find an active location for location ID {}",
                 resource_id_path_tail(location_id)
             ),
-            "code": if root_field == "locationLocalPickupEnable" {
+            json!(if root_field == "locationLocalPickupEnable" {
                 "ACTIVE_LOCATION_NOT_FOUND"
             } else {
                 "LOCATION_NOT_FOUND"
-            }
-        })]
+            }),
+        )]
     }
 
     pub(in crate::proxy) fn location_add(
@@ -1705,10 +1846,7 @@ impl DraftProxy {
                 .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
             let mut user_errors = Vec::new();
             if source_location.is_none() {
-                user_errors.push(json!({
-                    "field": ["id"],
-                    "message": "Location not found."
-                }));
+                user_errors.push(user_error_omit_code(["id"], "Location not found.", None));
             } else {
                 user_errors.extend(self.location_edit_user_errors(&location_id, &input));
             }
@@ -1853,50 +1991,50 @@ impl DraftProxy {
         let mut errors = Vec::new();
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Add a location name",
-                    "code": "BLANK"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Add a location name",
+                    Some("BLANK"),
+                ));
             } else if name.chars().count() > 100 {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "Use a shorter location name (up to 100 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "Use a shorter location name (up to 100 characters)",
+                    Some("TOO_LONG"),
+                ));
             } else if self.location_name_exists_except(&name, location_id) {
-                errors.push(json!({
-                    "field": ["input", "name"],
-                    "message": "You already have a location with this name",
-                    "code": "TAKEN"
-                }));
+                errors.push(user_error(
+                    ["input", "name"],
+                    "You already have a location with this name",
+                    Some("TAKEN"),
+                ));
             }
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "city")
                 .is_some_and(|city| city.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "city"],
-                    "message": "Use a shorter city name (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "city"],
+                    "Use a shorter city name (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -1905,16 +2043,14 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        // Shopify reports the metafield position as a 1-based
-                        // index in the error path (input index 0 → field "1").
-                        "field": ["input", "metafields", (index + 1).to_string(), "type"],
-                        "message": format!(
+                    errors.push(user_error(
+                        json!(["input", "metafields", (index + 1).to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
@@ -1923,11 +2059,7 @@ impl DraftProxy {
         if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
             && !self.has_other_online_order_fulfillment_location(location_id)
         {
-            errors.push(json!({
-                "field": ["input"],
-                "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
-                "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
-            }));
+            errors.push(user_error(["input"], "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT")));
         }
         errors
     }
@@ -2000,40 +2132,40 @@ impl DraftProxy {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
         if name.trim().is_empty() {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Add a location name",
-                "code": "BLANK"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Add a location name",
+                Some("BLANK"),
+            ));
         } else if name.chars().count() > 100 {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Use a shorter location name (up to 100 characters)",
-                "code": "TOO_LONG"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "Use a shorter location name (up to 100 characters)",
+                Some("TOO_LONG"),
+            ));
         } else if self.location_name_exists(&name) {
-            errors.push(json!({
-                "field": ["input", "name"],
-                "message": "You already have a location with this name",
-                "code": "TAKEN"
-            }));
+            errors.push(user_error(
+                ["input", "name"],
+                "You already have a location with this name",
+                Some("TAKEN"),
+            ));
         }
         if let Some(address) = resolved_object_field(input, "address") {
             if resolved_string_field(&address, "address1")
                 .is_some_and(|address1| address1.chars().count() > 255)
             {
-                errors.push(json!({
-                    "field": ["input", "address", "address1"],
-                    "message": "Use a shorter name for the street (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "address1"],
+                    "Use a shorter name for the street (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
             if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(json!({
-                    "field": ["input", "address", "zip"],
-                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
-                    "code": "TOO_LONG"
-                }));
+                errors.push(user_error(
+                    ["input", "address", "zip"],
+                    "Use a shorter postal / ZIP code (up to 255 characters)",
+                    Some("TOO_LONG"),
+                ));
             }
         }
         for (index, metafield) in resolved_object_list_field(input, "metafields")
@@ -2042,23 +2174,23 @@ impl DraftProxy {
         {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(json!({
-                        "field": ["input", "metafields", index.to_string(), "type"],
-                        "message": format!(
+                    errors.push(user_error(
+                        json!(["input", "metafields", index.to_string(), "type"]),
+                        &format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
                         ),
-                        "code": "INVALID_TYPE"
-                    }));
+                        Some("INVALID_TYPE"),
+                    ));
                 }
             }
         }
         if self.location_limit_reached() {
-            errors.push(json!({
-                "field": ["input"],
-                "code": "INVALID",
-                "message": "You have reached the maximum number of locations (200)"
-            }));
+            errors.push(user_error(
+                ["input"],
+                "You have reached the maximum number of locations (200)",
+                Some("INVALID"),
+            ));
         }
         errors
     }
@@ -2124,22 +2256,18 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ONGOING_RELOCATION",
-                "message": "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later.", Some("HAS_ONGOING_RELOCATION"))];
         }
         if location
             .get("isFulfillmentService")
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_NOT_FOUND",
-                "message": "Location not found."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Location not found.",
+                Some("LOCATION_NOT_FOUND"),
+            )];
         }
         if self.location_limit_reached()
             || location
@@ -2147,18 +2275,14 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(true)
         {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
-            })];
+            return vec![user_error(
+                ["locationId"],
+                "Your shop has reached its location limit.",
+                Some("LOCATION_LIMIT"),
+            )];
         }
         if self.location_has_non_unique_active_name(location) {
-            return vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_NON_UNIQUE_NAME",
-                "message": "This location currently cannot be activated because there exists an active location with the same name."
-            })];
+            return vec![user_error(["locationId"], "This location currently cannot be activated because there exists an active location with the same name.", Some("HAS_NON_UNIQUE_NAME"))];
         }
         Vec::new()
     }
@@ -2563,11 +2687,7 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match destination_location_id {
-            Some(destination_id) if destination_id == location_id => vec![json!({
-                "field": ["destinationLocationId"],
-                "code": "DESTINATION_LOCATION_IS_THE_SAME_LOCATION",
-                "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated."
-            })],
+            Some(destination_id) if destination_id == location_id => vec![user_error(["destinationLocationId"], "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.", Some("DESTINATION_LOCATION_IS_THE_SAME_LOCATION"))],
             Some(destination_id)
                 if destination_id.is_empty()
                     || self.location_deactivate_destination_is_inactive(destination_id) =>
@@ -2580,11 +2700,7 @@ impl DraftProxy {
                 .and_then(Value::as_bool)
                 == Some(false) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR",
-                    "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.", Some("PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR"))]
             }
             None if source_location
                 .get("fulfillsOnlineOrders")
@@ -2592,22 +2708,14 @@ impl DraftProxy {
                 == Some(true)
                 && !self.has_other_online_order_fulfillment_location(location_id) =>
             {
-                vec![json!({
-                    "field": ["locationId"],
-                    "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
-                    "message": "At least one location must fulfill online orders."
-                })]
+                vec![user_error(["locationId"], "At least one location must fulfill online orders.", Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"))]
             }
             None if source_location
                 .get("hasActiveInventory")
                 .and_then(Value::as_bool)
                 .unwrap_or_else(|| self.location_has_inventory(location_id)) =>
             {
-                vec![json!({
-                "field": ["locationId"],
-                "code": "HAS_ACTIVE_INVENTORY_ERROR",
-                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location."
-                })]
+                vec![user_error(["locationId"], "Location could not be deactivated without specifying where to relocate inventory stocked at the location.", Some("HAS_ACTIVE_INVENTORY_ERROR"))]
             }
             None => Vec::new(),
         }
@@ -3033,11 +3141,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold"],
-                            "message": "Fulfillment hold is required.",
-                            "code": "INVALID"
-                        })]
+                        vec![user_error(["fulfillmentHold"], "Fulfillment hold is required.", Some("INVALID"))]
                     )
                 }
             }));
@@ -3059,11 +3163,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "must contain unique line item ids",
-                            "code": "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "must contain unique line item ids", Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"))]
                     )
                 }
             }));
@@ -3080,11 +3180,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"],
-                            "message": "You must select at least one item to place on partial hold.",
-                            "code": "GREATER_THAN_ZERO"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"], "You must select at least one item to place on partial hold.", Some("GREATER_THAN_ZERO"))]
                     )
                 }
             }));
@@ -3105,11 +3201,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "handle"],
-                            "message": "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                            "code": "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "handle"], "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.", Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"))]
                     )
                 }
             }));
@@ -3122,11 +3214,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                            "code": "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"
-                        })]
+                        vec![user_error(["id"], "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.", Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"))]
                     )
                 }
             }));
@@ -3139,11 +3227,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
-                            "message": "The fulfillment order is not in a splittable state.",
-                            "code": "FULFILLMENT_ORDER_NOT_SPLITTABLE"
-                        })]
+                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "The fulfillment order is not in a splittable state.", Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"))]
                     )
                 }
             }));
@@ -3344,11 +3428,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.", None)]
                     )
                 }
             }));
@@ -3520,11 +3600,7 @@ impl DraftProxy {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": field,
-                            "message": message,
-                            "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                        })]
+                        vec![user_error(json!(field), message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                     )
                 }
             }));
@@ -3597,11 +3673,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": null,
-                            "message": "Fulfillment order is not in cancelable request state and can't be canceled.",
-                            "code": null
-                        })]
+                        vec![user_error(Value::Null, "Fulfillment order is not in cancelable request state and can't be canceled.", None)]
                     )
                 }
             }));
@@ -3613,11 +3685,7 @@ impl DraftProxy {
                         Value::Null,
                         Value::Null,
                         &payload_selection,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
-                            "code": null
-                        })]
+                        vec![user_error(["id"], "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.", None)]
                     )
                 }
             }));
@@ -3691,20 +3759,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             let deadline = resolved_string_field(&arguments, "fulfillmentDeadline")
@@ -3846,11 +3910,7 @@ impl DraftProxy {
                 response_key: fulfillment_orders_reroute_payload_json(
                     Vec::new(),
                     &payload_selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Fulfillment orders could not be rerouted locally.",
-                        "code": "NOT_IMPLEMENTED"
-                    })]
+                    vec![user_error(Value::Null, "Fulfillment orders could not be rerouted locally.", Some("NOT_IMPLEMENTED"))]
                 )
             }
         }))
@@ -4130,22 +4190,21 @@ impl DraftProxy {
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let new_location_id = resolved_string_field(&arguments, "newLocationId")
             .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
-        let (moved, original, errors) = if id
-            == "gid://shopify/FulfillmentOrder/move-assignment-submitted"
-        {
-            (
-                Value::Null,
-                Value::Null,
-                vec![json!({
-                    "field": null,
-                    "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                    "code": null
-                })],
-            )
-        } else {
-            let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
-            (order.clone(), order, vec![])
-        };
+        let (moved, original, errors) =
+            if id == "gid://shopify/FulfillmentOrder/move-assignment-submitted" {
+                (
+                    Value::Null,
+                    Value::Null,
+                    vec![user_error(
+                    Value::Null,
+                    "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                    None,
+                )],
+                )
+            } else {
+                let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
+                (order.clone(), order, vec![])
+            };
         if errors.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -4186,11 +4245,7 @@ impl DraftProxy {
                 response_key: fulfillment_order_simple_payload_json(
                     Value::Null,
                     &payload_selection,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": message,
-                        "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-                    })]
+                    vec![user_error(["id"], message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
                 )
             }
         }))
@@ -4220,20 +4275,16 @@ impl DraftProxy {
         let (success, errors) = if unknown {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment orders could not be found.",
-                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
-                })],
+                vec![user_error(
+                    ["base"],
+                    "The fulfillment orders could not be found.",
+                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                )],
             )
         } else if closed_or_cancelled {
             (
                 false,
-                vec![json!({
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                })],
+                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             for id in &ids {
@@ -5334,10 +5385,7 @@ impl DraftProxy {
                     fulfillment_service_delete_payload(
                         Value::Null,
                         &field.selection,
-                        vec![json!({
-                            "field": ["inventoryAction"],
-                            "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
-                        })],
+                        vec![user_error_omit_code(["inventoryAction"], "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.", None)],
                     ),
                     vec![],
                 );
@@ -5349,10 +5397,11 @@ impl DraftProxy {
                             fulfillment_service_delete_payload(
                                 Value::Null,
                                 &field.selection,
-                                vec![json!({
-                                    "field": Value::Null,
-                                    "message": "Invalid destination location."
-                                })],
+                                vec![user_error_omit_code(
+                                    Value::Null,
+                                    "Invalid destination location.",
+                                    None,
+                                )],
                             ),
                             vec![],
                         );
@@ -5704,7 +5753,7 @@ impl DraftProxy {
             .unwrap_or_else(|| (root_field.to_string(), BTreeMap::new()));
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return ok_json(
-                json!({ "data": { response_key: { "userErrors": [{ "field": ["id"], "message": "ID is required" }] } } }),
+                json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["id"], "ID is required", None)] } } }),
             );
         };
         let id = id.clone();
@@ -5723,7 +5772,7 @@ impl DraftProxy {
             "shippingPackageUpdate" => {
                 let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
                     return ok_json(
-                        json!({ "data": { response_key: { "userErrors": [{ "field": ["shippingPackage"], "message": "Shipping package input is required" }] } } }),
+                        json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
                 let mut package = self.effective_shipping_package(&id);
@@ -5731,11 +5780,7 @@ impl DraftProxy {
                     return ok_json(json!({
                         "data": {
                             response_key: {
-                                "userErrors": [{
-                                    "field": ["shippingPackage"],
-                                    "message": "Custom shipping box is not updatable",
-                                    "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
-                                }]
+                                "userErrors": [user_error(["shippingPackage"], "Custom shipping box is not updatable", Some("CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"))]
                             }
                         }
                     }));
@@ -5858,6 +5903,156 @@ enum BackupRegionCountryCodeInput {
     CountryCode(String),
     Missing,
     Invalid(String),
+}
+
+fn selected_backup_region_value(region: &Value, root_field: Option<&RootFieldSelection>) -> Value {
+    let selection = root_field
+        .and_then(|field| selected_child_selection(&field.selection, "backupRegion"))
+        .unwrap_or_default();
+    selected_json(region, &selection)
+}
+
+fn backup_region_country_from_code(country_code: &str) -> Value {
+    let code = country_code.to_ascii_uppercase();
+    let name = country_name_for_code(&code).unwrap_or(&code);
+    json!({
+        "__typename": "MarketRegionCountry",
+        "id": format!("gid://shopify/MarketRegionCountry/local-{code}"),
+        "name": name,
+        "code": code
+    })
+}
+
+fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {
+    json!({
+        "errors": [{
+            "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
+            },
+            "path": [response_key]
+        }],
+        "data": { response_key: null }
+    })
+}
+
+fn backup_region_scopes_include_markets(scopes: &[String]) -> bool {
+    scopes.iter().any(|scope| scope == "read_markets")
+        && scopes.iter().any(|scope| scope == "write_markets")
+}
+
+fn current_app_installation_access_scopes(body: &Value) -> Option<Vec<String>> {
+    let scopes = body
+        .get("data")?
+        .get("currentAppInstallation")?
+        .get("accessScopes")?
+        .as_array()?;
+    Some(
+        scopes
+            .iter()
+            .filter_map(|scope| {
+                scope
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .or_else(|| scope.as_str())
+                    .map(str::to_string)
+            })
+            .collect(),
+    )
+}
+
+fn string_array_field(record: &Value, field: &str) -> Vec<String> {
+    record
+        .get(field)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
+fn backup_region_response_is_access_denied(body: &Value) -> bool {
+    body.get("errors")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|error| error["extensions"]["code"].as_str() == Some("ACCESS_DENIED"))
+}
+
+fn backup_region_update_region_value_location(
+    query: &str,
+    root_field: Option<&RootFieldSelection>,
+) -> SourceLocation {
+    let fallback = root_field
+        .map(|field| field.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    let Some(field_offset) = source_location_byte_offset(query, fallback) else {
+        return fallback;
+    };
+    let Some(after_field) = query.get(field_offset..) else {
+        return fallback;
+    };
+    let Some(region_relative) = after_field.find("region") else {
+        return fallback;
+    };
+    let region_offset = field_offset + region_relative;
+    source_location_after_field_colon(query, region_offset, "region").unwrap_or(fallback)
+}
+
+fn source_location_after_field_colon(
+    query: &str,
+    field_offset: usize,
+    field_name: &str,
+) -> Option<SourceLocation> {
+    let after_field_name = field_offset + field_name.len();
+    let after_field = query.get(after_field_name..)?;
+    let colon_relative = after_field.find(':')?;
+    let mut value_offset = after_field_name + colon_relative + 1;
+    while query
+        .as_bytes()
+        .get(value_offset)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        value_offset += 1;
+    }
+    source_location_for_byte_offset(query, value_offset)
+}
+
+fn source_location_byte_offset(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut current_line = 1;
+    let mut line_start = 0;
+    for (index, byte) in query.bytes().enumerate() {
+        if current_line == location.line {
+            return Some(line_start + location.column.saturating_sub(1));
+        }
+        if byte == b'\n' {
+            current_line += 1;
+            line_start = index + 1;
+        }
+    }
+    (current_line == location.line).then_some(line_start + location.column.saturating_sub(1))
+}
+
+fn source_location_for_byte_offset(query: &str, byte_offset: usize) -> Option<SourceLocation> {
+    if byte_offset > query.len() {
+        return None;
+    }
+    let line = query[..byte_offset]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1;
+    let line_start = query[..byte_offset]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    Some(SourceLocation {
+        line,
+        column: byte_offset - line_start + 1,
+    })
 }
 
 fn backup_region_update_country_code(
@@ -5992,7 +6187,7 @@ fn location_country_code_is_valid(country_code: &str) -> bool {
 /// address. Returns the display name for a known ISO 3166-1 alpha-2 code, or
 /// `None` for codes we do not carry a name for (the proxy then emits null,
 /// matching Shopify's behavior for unset addresses).
-fn country_name_for_code(country_code: &str) -> Option<&'static str> {
+pub(in crate::proxy) fn country_name_for_code(country_code: &str) -> Option<&'static str> {
     Some(match country_code {
         "US" => "United States",
         "CA" => "Canada",
@@ -6826,30 +7021,34 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
         let publication_id = resolved_string_field(publication, "publicationId");
         match publication_id.as_deref() {
             Some("") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "PublicationId cannot be empty",
+                    None,
+                ));
                 continue;
             }
             Some("gid://shopify/Publication/999999999999") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "Publication does not exist or is not publishable",
+                    None,
+                ));
                 continue;
             }
             Some(id) if !seen.insert(id.to_string()) => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "The same publication was specified more than once"
-                }));
+                user_errors.push(user_error_omit_code(
+                    json!(["input", field_index, "publicationId"]),
+                    "The same publication was specified more than once",
+                    None,
+                ));
             }
             Some(_) => {}
-            None => user_errors.push(json!({
-                "field": ["input", field_index, "publicationId"],
-                "message": "PublicationId cannot be empty"
-            })),
+            None => user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publicationId"]),
+                "PublicationId cannot be empty",
+                None,
+            )),
         }
 
         if resolved_string_field(publication, "publishDate")
@@ -6857,10 +7056,11 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
             .map(publishable_publish_date_is_before_1970)
             .unwrap_or(false)
         {
-            user_errors.push(json!({
-                "field": ["input", field_index, "publishDate"],
-                "message": "Publish date must be a date after the year 1969"
-            }));
+            user_errors.push(user_error_omit_code(
+                json!(["input", field_index, "publishDate"]),
+                "Publish date must be a date after the year 1969",
+                None,
+            ));
         }
     }
     user_errors
@@ -6997,10 +7197,7 @@ impl DraftProxy {
                 &json!({
                     "signature": Value::Null,
                     "payload": Value::Null,
-                    "userErrors": [{
-                        "field": ["payload"],
-                        "message": "Payload must be valid JSON"
-                    }]
+                    "userErrors": [user_error_omit_code(["payload"], "Payload must be valid JSON", None)]
                 }),
                 &field.selection,
             );
@@ -7206,10 +7403,7 @@ fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value 
 fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &str) -> Value {
     selected_json(
         &json!({
-            "userErrors": [{
-                "field": [field_name],
-                "message": message
-            }]
+            "userErrors": [user_error_omit_code(json!([field_name]), message, None)]
         }),
         &field.selection,
     )

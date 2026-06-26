@@ -1,13 +1,14 @@
 {
-  "capturedAt": "2026-06-13T22:01:30.785Z",
+  "capturedAt": "2026-06-25T13:50:19.654Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "supportedNonCaCountryCode": "AE",
   "supportedUsCountryCode": "US",
+  "supportedOutsideOldTableCountryCode": "JP",
   "baselineCountryCode": "CA",
   "restoredCountryCode": "AE",
-  "temporaryMarketIds": ["gid://shopify/Market/98516336946", "gid://shopify/Market/98516369714"],
-  "notes": "HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to the original live backup region. HAR-1436 extends the capture to prove countryCode US succeeds by creating a temporary US region market when the live store does not already cover US; the recorder also creates a temporary CA baseline market when the live store no longer covers CA. Temporary markets are deleted after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.",
+  "temporaryMarketIds": ["gid://shopify/Market/98660942130", "gid://shopify/Market/98660974898"],
+  "notes": "Captures backupRegionUpdate current-region baseline, non-CA success, US success, JP success outside the old captured country table, read-after-write, unknown-region validation, and cleanup back to the original live backup region. The recorder creates temporary region markets when the live store does not already cover a target country and deletes them after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors.",
   "captures": {
     "originalBackupRegion": {
       "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
@@ -71,7 +72,7 @@
       "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketCreate($input: MarketCreateInput!) {\n    marketCreate(input: $input) {\n      market {\n        id\n        name\n        status\n        enabled\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "name": "Backup Region CA 1781388087012",
+          "name": "Backup Region CA 1782395415419",
           "status": "ACTIVE",
           "enabled": true,
           "conditions": {
@@ -91,8 +92,8 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/98516336946",
-                "name": "Backup Region CA 1781388087012",
+                "id": "gid://shopify/Market/98660942130",
+                "name": "Backup Region CA 1782395415419",
                 "status": "ACTIVE",
                 "enabled": true
               },
@@ -170,6 +171,319 @@
         }
       }
     },
+    "upstreamBackupRegionAccessScopes": {
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "upstreamBackupRegionCurrentHydrate": {
+      "query": "query BackupRegionCurrentHydrate {\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n}",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110417202",
+              "name": "Canada",
+              "code": "CA"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "backupRegionUpdateOmittedLive": {
       "query": "#graphql\n  mutation BackupRegionUpdateOmitted {\n    backupRegionUpdate {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "result": {
@@ -222,7 +536,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -322,7 +636,7 @@
       "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketCreate($input: MarketCreateInput!) {\n    marketCreate(input: $input) {\n      market {\n        id\n        name\n        status\n        enabled\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "name": "Backup Region US 1781388088719",
+          "name": "Backup Region US 1782395417301",
           "status": "ACTIVE",
           "enabled": true,
           "conditions": {
@@ -342,8 +656,8 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/98516369714",
-                "name": "Backup Region US 1781388088719",
+                "id": "gid://shopify/Market/98660974898",
+                "name": "Backup Region US 1782395417301",
                 "status": "ACTIVE",
                 "enabled": true
               },
@@ -421,6 +735,374 @@
         }
       }
     },
+    "backupRegionUpdateOutsideOldTable": {
+      "query": "mutation BackupRegionUpdateJp {\n  backupRegionUpdate(region: { countryCode: JP }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                "name": "Japan",
+                "code": "JP"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionAfterOutsideOldTableUpdate": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062111007026",
+              "name": "Japan",
+              "code": "JP"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "upstreamBackupRegionMarketsHydrate": {
+      "query": "query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          regions(first: $regionsFirst) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "first": 250,
+        "regionsFirst": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98660942130",
+                  "name": "Backup Region CA 1782395415419",
+                  "handle": "backup-region-ca-1782395415419",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                            "name": "Canada",
+                            "code": "CA"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98660974898",
+                  "name": "Backup Region US 1782395417301",
+                  "handle": "backup-region-us-1782395417301",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+                            "name": "United States",
+                            "code": "US"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                            "name": "United Arab Emirates",
+                            "code": "AE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                            "name": "Australia",
+                            "code": "AU"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                            "name": "Belgium",
+                            "code": "BE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                            "name": "Switzerland",
+                            "code": "CH"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                            "name": "Czechia",
+                            "code": "CZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                            "name": "Germany",
+                            "code": "DE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                            "name": "Denmark",
+                            "code": "DK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                            "name": "Spain",
+                            "code": "ES"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                            "name": "Finland",
+                            "code": "FI"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110810418",
+                            "name": "France",
+                            "code": "FR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110843186",
+                            "name": "United Kingdom",
+                            "code": "GB"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110875954",
+                            "name": "Hong Kong SAR",
+                            "code": "HK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110908722",
+                            "name": "Ireland",
+                            "code": "IE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110941490",
+                            "name": "Israel",
+                            "code": "IL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110974258",
+                            "name": "Italy",
+                            "code": "IT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                            "name": "Japan",
+                            "code": "JP"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111039794",
+                            "name": "South Korea",
+                            "code": "KR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111072562",
+                            "name": "Malaysia",
+                            "code": "MY"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111105330",
+                            "name": "Netherlands",
+                            "code": "NL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111138098",
+                            "name": "Norway",
+                            "code": "NO"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111170866",
+                            "name": "New Zealand",
+                            "code": "NZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111203634",
+                            "name": "Poland",
+                            "code": "PL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111236402",
+                            "name": "Portugal",
+                            "code": "PT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111269170",
+                            "name": "Sweden",
+                            "code": "SE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111301938",
+                            "name": "Singapore",
+                            "code": "SG"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                            "name": "Austria",
+                            "code": "AT"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                            "name": "Mexico",
+                            "code": "MX"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "backupRegionUpdateInvalid": {
       "query": "#graphql\n  mutation BackupRegionUpdateInvalid {\n    backupRegionUpdate(region: { countryCode: ZZ }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "result": {
@@ -474,7 +1156,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -485,14 +1167,14 @@
     "cleanupTemporaryMarket1": {
       "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketDelete($id: ID!) {\n    marketDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Market/98516336946"
+        "id": "gid://shopify/Market/98660942130"
       },
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98516336946",
+              "deletedId": "gid://shopify/Market/98660942130",
               "userErrors": []
             }
           },
@@ -513,14 +1195,14 @@
     "cleanupTemporaryMarket2": {
       "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketDelete($id: ID!) {\n    marketDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Market/98516369714"
+        "id": "gid://shopify/Market/98660974898"
       },
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98516369714",
+              "deletedId": "gid://shopify/Market/98660974898",
               "userErrors": []
             }
           },
@@ -559,5 +1241,2387 @@
       "userErrors": []
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionCurrentHydrate",
+      "variables": {},
+      "query": "query BackupRegionCurrentHydrate {\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110417202",
+              "name": "Canada",
+              "code": "CA"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionMarketsHydrate",
+      "variables": {
+        "first": 250,
+        "regionsFirst": 250
+      },
+      "query": "query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          regions(first: $regionsFirst) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98660942130",
+                  "name": "Backup Region CA 1782395415419",
+                  "handle": "backup-region-ca-1782395415419",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                            "name": "Canada",
+                            "code": "CA"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98660974898",
+                  "name": "Backup Region US 1782395417301",
+                  "handle": "backup-region-us-1782395417301",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+                            "name": "United States",
+                            "code": "US"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                            "name": "United Arab Emirates",
+                            "code": "AE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                            "name": "Australia",
+                            "code": "AU"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                            "name": "Belgium",
+                            "code": "BE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                            "name": "Switzerland",
+                            "code": "CH"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                            "name": "Czechia",
+                            "code": "CZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                            "name": "Germany",
+                            "code": "DE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                            "name": "Denmark",
+                            "code": "DK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                            "name": "Spain",
+                            "code": "ES"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                            "name": "Finland",
+                            "code": "FI"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110810418",
+                            "name": "France",
+                            "code": "FR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110843186",
+                            "name": "United Kingdom",
+                            "code": "GB"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110875954",
+                            "name": "Hong Kong SAR",
+                            "code": "HK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110908722",
+                            "name": "Ireland",
+                            "code": "IE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110941490",
+                            "name": "Israel",
+                            "code": "IL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110974258",
+                            "name": "Italy",
+                            "code": "IT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                            "name": "Japan",
+                            "code": "JP"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111039794",
+                            "name": "South Korea",
+                            "code": "KR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111072562",
+                            "name": "Malaysia",
+                            "code": "MY"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111105330",
+                            "name": "Netherlands",
+                            "code": "NL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111138098",
+                            "name": "Norway",
+                            "code": "NO"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111170866",
+                            "name": "New Zealand",
+                            "code": "NZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111203634",
+                            "name": "Poland",
+                            "code": "PL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111236402",
+                            "name": "Portugal",
+                            "code": "PT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111269170",
+                            "name": "Sweden",
+                            "code": "SE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111301938",
+                            "name": "Singapore",
+                            "code": "SG"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                            "name": "Austria",
+                            "code": "AT"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                            "name": "Mexico",
+                            "code": "MX"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionMarketsHydrate",
+      "variables": {
+        "first": 250,
+        "regionsFirst": 250
+      },
+      "query": "query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          regions(first: $regionsFirst) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98660942130",
+                  "name": "Backup Region CA 1782395415419",
+                  "handle": "backup-region-ca-1782395415419",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                            "name": "Canada",
+                            "code": "CA"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98660974898",
+                  "name": "Backup Region US 1782395417301",
+                  "handle": "backup-region-us-1782395417301",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+                            "name": "United States",
+                            "code": "US"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                            "name": "United Arab Emirates",
+                            "code": "AE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                            "name": "Australia",
+                            "code": "AU"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                            "name": "Belgium",
+                            "code": "BE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                            "name": "Switzerland",
+                            "code": "CH"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                            "name": "Czechia",
+                            "code": "CZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                            "name": "Germany",
+                            "code": "DE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                            "name": "Denmark",
+                            "code": "DK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                            "name": "Spain",
+                            "code": "ES"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                            "name": "Finland",
+                            "code": "FI"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110810418",
+                            "name": "France",
+                            "code": "FR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110843186",
+                            "name": "United Kingdom",
+                            "code": "GB"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110875954",
+                            "name": "Hong Kong SAR",
+                            "code": "HK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110908722",
+                            "name": "Ireland",
+                            "code": "IE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110941490",
+                            "name": "Israel",
+                            "code": "IL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110974258",
+                            "name": "Italy",
+                            "code": "IT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                            "name": "Japan",
+                            "code": "JP"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111039794",
+                            "name": "South Korea",
+                            "code": "KR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111072562",
+                            "name": "Malaysia",
+                            "code": "MY"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111105330",
+                            "name": "Netherlands",
+                            "code": "NL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111138098",
+                            "name": "Norway",
+                            "code": "NO"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111170866",
+                            "name": "New Zealand",
+                            "code": "NZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111203634",
+                            "name": "Poland",
+                            "code": "PL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111236402",
+                            "name": "Portugal",
+                            "code": "PT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111269170",
+                            "name": "Sweden",
+                            "code": "SE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111301938",
+                            "name": "Singapore",
+                            "code": "SG"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                            "name": "Austria",
+                            "code": "AT"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                            "name": "Mexico",
+                            "code": "MX"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -2,6 +2,7 @@ use crate::proxy::*;
 
 const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+const GIFT_CARD_NO_CONTACT_RECIPIENT_ID: &str = "gid://shopify/Customer/no-contact-recipient";
 const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -210,7 +211,7 @@ impl DraftProxy {
             }
         }
         if user_errors.is_empty() {
-            user_errors.extend(gift_card_recipient_errors(&input, "input"));
+            user_errors.extend(self.gift_card_recipient_errors(&field.name, &input, "input"));
         }
 
         if !user_errors.is_empty() {
@@ -306,7 +307,7 @@ impl DraftProxy {
             ));
         }
         if user_errors.is_empty() {
-            user_errors.extend(gift_card_recipient_errors(&input, "input"));
+            user_errors.extend(self.gift_card_recipient_errors(&field.name, &input, "input"));
         }
         if !user_errors.is_empty() {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
@@ -569,7 +570,7 @@ impl DraftProxy {
         if user_errors.is_empty() && self.gift_card_notification_is_trial_shop(&id) {
             user_errors.push(gift_card_user_error(
                 &field.name,
-                json!(["base"]),
+                Value::Null,
                 Some("INVALID"),
                 "Notifications are not available on trial shops.",
             ));
@@ -610,7 +611,7 @@ impl DraftProxy {
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
-                        json!(["base"]),
+                        Value::Null,
                         Some("INVALID"),
                         "The gift card has no customer.",
                     ));
@@ -619,7 +620,7 @@ impl DraftProxy {
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
-                        json!(["base"]),
+                        Value::Null,
                         Some("INVALID"),
                         "The recipient has no contact information (e.g. email address or phone number).",
                     ));
@@ -690,7 +691,7 @@ impl DraftProxy {
         if disabled_by_id {
             vec![gift_card_user_error(
                 &field.name,
-                json!(["base"]),
+                Value::Null,
                 None,
                 "Gift cards are unavailable on your plan.",
             )]
@@ -704,6 +705,109 @@ impl DraftProxy {
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
+    }
+
+    fn gift_card_recipient_errors(
+        &self,
+        root_field: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+        field_prefix: &str,
+    ) -> Vec<Value> {
+        let Some(recipient) = resolved_object_field(input, "recipientAttributes") else {
+            return Vec::new();
+        };
+        if !recipient.contains_key("id") {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "id"]),
+                Some("INVALID"),
+                "Recipient id is required.",
+            )];
+        }
+        if resolved_string_field(&recipient, "preferredName")
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "preferredName"]),
+                Some("INVALID"),
+                "Preferred name can't be blank",
+            )];
+        }
+        if resolved_string_field(&recipient, "message").is_some_and(|value| value.trim().is_empty())
+        {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "message"]),
+                Some("INVALID"),
+                "Message can't be blank",
+            )];
+        }
+        if resolved_string_field(&recipient, "preferredName").is_some_and(|value| value.len() > 255)
+        {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "preferredName"]),
+                Some("TOO_LONG"),
+                "preferredName is too long (maximum is 255)",
+            )];
+        }
+        if resolved_string_field(&recipient, "message").is_some_and(|value| value.len() > 200) {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "message"]),
+                Some("TOO_LONG"),
+                "message is too long (maximum is 200)",
+            )];
+        }
+        if resolved_string_field(&recipient, "preferredName")
+            .is_some_and(|value| b2b_contains_html_tags(&value))
+        {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "preferredName"]),
+                Some("INVALID"),
+                "Preferred name cannot contain HTML tags",
+            )];
+        }
+        if resolved_string_field(&recipient, "message")
+            .is_some_and(|value| b2b_contains_html_tags(&value))
+        {
+            return vec![gift_card_user_error(
+                root_field,
+                json!([field_prefix, "recipientAttributes", "message"]),
+                Some("INVALID"),
+                "Message cannot contain HTML tags",
+            )];
+        }
+        if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
+            let now = gift_card_synthetic_now_epoch_seconds();
+            let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
+            match parse_rfc3339_epoch_seconds(&send_at) {
+                Some(send_at) if send_at >= now && send_at <= max_send_at => {}
+                _ => {
+                    return vec![gift_card_user_error(
+                        root_field,
+                        json!([field_prefix, "recipientAttributes", "sendNotificationAt"]),
+                        Some("INVALID"),
+                        "Send notification at must be within 90 days from now",
+                    )];
+                }
+            }
+        }
+        if let Some(recipient_id) = resolved_string_field(&recipient, "id") {
+            if recipient_id != GIFT_CARD_NO_CONTACT_RECIPIENT_ID
+                && !self.store.staged.customers.contains_key(&recipient_id)
+            {
+                return vec![gift_card_user_error(
+                    root_field,
+                    json!([field_prefix, "recipientAttributes", "id"]),
+                    Some("RECIPIENT_NOT_FOUND"),
+                    "Recipient could not be found",
+                )];
+            }
+        }
+        Vec::new()
     }
 
     fn gift_card_is_expired(&self, card: &Value) -> bool {
@@ -815,7 +919,7 @@ fn gift_card_seed_record(id: &str) -> Option<Value> {
                 "message": null,
                 "preferredName": null,
                 "sendNotificationAt": null,
-                "recipient": { "id": "gid://shopify/Customer/no-contact-recipient" }
+                "recipient": { "id": GIFT_CARD_NO_CONTACT_RECIPIENT_ID }
             });
             Some(card)
         }
@@ -907,75 +1011,6 @@ fn gift_card_customer_assignment_is_trial_guarded(id: &str) -> bool {
 
 fn gift_card_recipient_assignment_is_trial_guarded(id: &str) -> bool {
     id == "gid://shopify/Customer/trial-recipient"
-}
-
-fn gift_card_recipient_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-    field_prefix: &str,
-) -> Vec<Value> {
-    let Some(recipient) = resolved_object_field(input, "recipientAttributes") else {
-        return Vec::new();
-    };
-    if !recipient.contains_key("id") {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "id"]),
-            Some("INVALID"),
-            "Recipient id is required.",
-        )];
-    }
-    if resolved_string_field(&recipient, "preferredName").is_some_and(|value| value.len() > 255) {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "preferredName"]),
-            Some("TOO_LONG"),
-            "preferredName is too long (maximum is 255)",
-        )];
-    }
-    if resolved_string_field(&recipient, "message").is_some_and(|value| value.len() > 200) {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "message"]),
-            Some("TOO_LONG"),
-            "message is too long (maximum is 200)",
-        )];
-    }
-    if resolved_string_field(&recipient, "preferredName")
-        .is_some_and(|value| b2b_contains_html_tags(&value))
-    {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "preferredName"]),
-            Some("INVALID"),
-            "Preferred name cannot contain HTML tags",
-        )];
-    }
-    if resolved_string_field(&recipient, "message")
-        .is_some_and(|value| b2b_contains_html_tags(&value))
-    {
-        return vec![gift_card_user_error(
-            "giftCardCreate",
-            json!([field_prefix, "recipientAttributes", "message"]),
-            Some("INVALID"),
-            "Message cannot contain HTML tags",
-        )];
-    }
-    if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
-        let now = gift_card_synthetic_now_epoch_seconds();
-        let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
-        match parse_rfc3339_epoch_seconds(&send_at) {
-            Some(send_at) if send_at >= now && send_at <= max_send_at => {}
-            _ => {
-                return vec![gift_card_user_error(
-                    "giftCardCreate",
-                    json!([field_prefix, "recipientAttributes", "sendNotificationAt"]),
-                    Some("INVALID"),
-                    "Send notification at must be within 90 days from now",
-                )];
-            }
-        }
-    }
-    Vec::new()
 }
 
 fn gift_card_processed_at_error(

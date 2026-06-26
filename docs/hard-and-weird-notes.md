@@ -1640,7 +1640,7 @@ That keeps downstream `product.metafield(...)` and `product.metafields(...)` rea
 
 ## 18b. Live Admin GraphQL currently exposes `metafieldsDelete`, not `metafieldDelete`
 
-Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model:
+Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model. Follow-up schema probes on 2026-04 and unstable showed the same public-root boundary:
 
 - `metafieldsSet` is present and capturable live
 - the singular compatibility root `metafieldDelete` is **not** present in the live schema
@@ -3400,6 +3400,14 @@ Practical rule:
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
 - credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
+
+## Current: Gift-card recipient validation uses public preferredName wording
+
+Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
+
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+
+Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

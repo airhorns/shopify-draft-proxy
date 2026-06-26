@@ -1,6 +1,6 @@
 {
   "scenarioId": "admin-platform-market-region-node-read",
-  "operationNames": ["backupRegion", "nodes"],
+  "operationNames": ["backupRegionUpdate", "nodes"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
   "liveCaptureFiles": [
@@ -8,12 +8,11 @@
   ],
   "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.graphql",
-    "variablesPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.variables.json",
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-idempotent.graphql",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-424 rework executable parity for generic Relay Node reads of the modeled backupRegion MarketRegionCountry record. The local node resolver intentionally covers the captured/effective backup region only; broader taxonomy/market-region catalogs remain unsupported.",
+  "notes": "HAR-424 rework executable parity for generic Relay Node reads of the modeled backupRegion MarketRegionCountry record. The proxy stages the current backup region through an idempotent public backupRegionUpdate request, then reads the proxy-derived local region ID through nodes(ids:). The local node resolver intentionally covers the effective backup region only; broader taxonomy/market-region catalogs remain unsupported.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -22,12 +21,19 @@
         "name": "backup-region-market-region-node",
         "capturePath": "$.captures.backupRegion.result.payload.data.backupRegion",
         "proxyPath": "$.data.nodes[0]",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketRegionCountry",
+            "reason": "The proxy reads its synthetic local current-region ID through nodes(ids:), while Shopify captured an opaque live-store MarketRegionCountry ID."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/admin-platform/admin-platform-market-region-node-read.graphql",
           "variables": {
             "ids": [
               {
-                "fromCapturePath": "$.captures.backupRegion.result.payload.data.backupRegion.id"
+                "fromPrimaryProxyPath": "$.data.backupRegionUpdate.backupRegion.id"
               }
             ]
           },

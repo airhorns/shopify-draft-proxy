@@ -717,7 +717,7 @@ impl DraftProxy {
     }
 
     fn stage_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
-        let timestamp = default_product_timestamp(product_id);
+        let timestamp = default_product_timestamp();
         let mut product = self
             .store
             .product_staged_or_base(product_id)
@@ -975,42 +975,8 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
     })
 }
 
-pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
-    if id != "gid://shopify/Product/10173064872242" {
-        return None;
-    }
-    let timestamp = default_product_timestamp(id);
-    Some(ProductRecord {
-        id: id.to_string(),
-        created_at: timestamp.clone(),
-        updated_at: timestamp,
-        title: "Hermes Product State Conformance 1777416213315".to_string(),
-        handle: "hermes-product-state-conformance-1777416213315".to_string(),
-        status: "DRAFT".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: vec![
-            "existing".to_string(),
-            "hermes-state-1777416213315".to_string(),
-        ],
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        total_inventory: 0,
-        tracks_inventory: false,
-        media: Vec::new(),
-        variants: Vec::new(),
-        collections: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    })
-}
-
-pub(in crate::proxy) fn default_product_timestamp(id: &str) -> String {
-    match id {
-        "gid://shopify/Product/10173064872242" => "2026-04-28T22:43:34Z".to_string(),
-        _ => "2024-01-01T00:00:00.000Z".to_string(),
-    }
+pub(in crate::proxy) fn default_product_timestamp() -> String {
+    "2024-01-01T00:00:00.000Z".to_string()
 }
 
 pub(in crate::proxy) fn product_mutation_timestamp(ordinal: u64) -> String {
@@ -1034,79 +1000,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.log_entries.len() as u64)
     }
-}
-
-pub(in crate::proxy) fn known_tags_product_seed(
-    id: &str,
-    root_field: &str,
-) -> Option<ProductRecord> {
-    let (title, handle, tags) = match (id, root_field) {
-        ("gid://shopify/Product/10173064872242", "tagsAdd") => (
-            "Hermes Product State Conformance 1777416213315",
-            "hermes-product-state-conformance-1777416213315",
-            vec!["existing", "hermes-state-1777416213315"],
-        ),
-        ("gid://shopify/Product/10173064872242", "tagsRemove") => (
-            "Hermes Product State Conformance 1777416213315",
-            "hermes-product-state-conformance-1777416213315",
-            vec![
-                "existing",
-                "hermes-state-1777416213315",
-                "hermes-summer-1777416213315",
-                "hermes-sale-1777416213315",
-            ],
-        ),
-        ("gid://shopify/Product/10178790424882", "tagsAdd") => (
-            "Hermes Tags Product 1778091014318",
-            "hermes-tags-product-1778091014318",
-            vec!["hermes-tags-base-1778091014318"],
-        ),
-        _ => return None,
-    };
-    let timestamp = default_product_timestamp(id);
-    Some(ProductRecord {
-        id: id.to_string(),
-        created_at: timestamp.clone(),
-        updated_at: timestamp,
-        title: title.to_string(),
-        handle: handle.to_string(),
-        status: "DRAFT".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: tags.into_iter().map(String::from).collect(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        total_inventory: 0,
-        tracks_inventory: false,
-        media: Vec::new(),
-        variants: Vec::new(),
-        collections: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    })
-}
-
-pub(in crate::proxy) fn known_tags_product_search_tags(
-    id: &str,
-    root_field: &str,
-) -> Option<BTreeSet<String>> {
-    let tags = match (id, root_field) {
-        ("gid://shopify/Product/10173064872242", "tagsAdd") => {
-            vec!["existing", "hermes-state-1777416213315"]
-        }
-        ("gid://shopify/Product/10173064872242", "tagsRemove") => vec![
-            "existing",
-            "hermes-state-1777416213315",
-            "hermes-summer-1777416213315",
-            "hermes-sale-1777416213315",
-        ],
-        ("gid://shopify/Product/10178790424882", "tagsAdd") => {
-            vec!["hermes-tags-base-1778091014318"]
-        }
-        _ => return None,
-    };
-    Some(tags.into_iter().map(String::from).collect())
 }
 
 pub(in crate::proxy) fn product_json(
@@ -1709,29 +1602,393 @@ pub(in crate::proxy) fn product_seo_json(
     })
 }
 
-pub(in crate::proxy) fn product_tag_query_value(query: &str) -> Option<&str> {
-    query
-        .strip_prefix("tag:")
-        .map(|tag| tag.strip_suffix(" OR").unwrap_or(tag))
-}
-
-pub(in crate::proxy) fn product_sku_query_value(query: &str) -> Option<&str> {
-    product_search_term_value(query, "sku:")
-}
-
-pub(in crate::proxy) fn product_matches_sku_query(
+pub(in crate::proxy) fn product_matches_search_query(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
+    search_tags: Option<&BTreeSet<String>>,
     query: &str,
 ) -> bool {
-    let Some(sku) = product_sku_query_value(query) else {
+    let query = query.trim();
+    if query.is_empty() {
         return true;
-    };
-    variants.iter().any(|variant| variant.sku == sku)
-        || product
-            .variants
-            .iter()
-            .any(|variant| variant.get("sku").and_then(Value::as_str) == Some(sku))
+    }
+    let tokens = product_search_tokens(query);
+    if tokens.is_empty() {
+        return true;
+    }
+    let mut parser = ProductSearchParser::new(tokens);
+    parser
+        .parse()
+        .map(|expression| expression.matches(product, variants, search_tags))
+        .unwrap_or(false)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProductSearchToken {
+    Term { value: String, quoted: bool },
+    LParen,
+    RParen,
+    Minus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProductSearchExpression {
+    Term(ProductSearchTerm),
+    Not(Box<ProductSearchExpression>),
+    And(Vec<ProductSearchExpression>),
+    Or(Vec<ProductSearchExpression>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProductSearchTerm {
+    field: Option<String>,
+    value: String,
+}
+
+struct ProductSearchParser {
+    tokens: Vec<ProductSearchToken>,
+    index: usize,
+}
+
+impl ProductSearchParser {
+    fn new(tokens: Vec<ProductSearchToken>) -> Self {
+        Self { tokens, index: 0 }
+    }
+
+    fn parse(&mut self) -> Option<ProductSearchExpression> {
+        let expression = self.parse_or()?;
+        Some(expression)
+    }
+
+    fn parse_or(&mut self) -> Option<ProductSearchExpression> {
+        let mut expressions = vec![self.parse_and()?];
+        while self.consume_operator("OR") {
+            let Some(right) = self.parse_and() else {
+                break;
+            };
+            expressions.push(right);
+        }
+        Some(if expressions.len() == 1 {
+            expressions.remove(0)
+        } else {
+            ProductSearchExpression::Or(expressions)
+        })
+    }
+
+    fn parse_and(&mut self) -> Option<ProductSearchExpression> {
+        let mut expressions = Vec::new();
+        while self.index < self.tokens.len() {
+            if self.peek_rparen() || self.peek_operator("OR") {
+                break;
+            }
+            self.consume_operator("AND");
+            if self.peek_rparen() || self.peek_operator("OR") {
+                break;
+            }
+            if let Some(expression) = self.parse_unary() {
+                expressions.push(expression);
+            } else {
+                break;
+            }
+        }
+        Some(if expressions.len() == 1 {
+            expressions.remove(0)
+        } else {
+            ProductSearchExpression::And(expressions)
+        })
+    }
+
+    fn parse_unary(&mut self) -> Option<ProductSearchExpression> {
+        if matches!(self.tokens.get(self.index), Some(ProductSearchToken::Minus)) {
+            self.index += 1;
+            return self
+                .parse_unary()
+                .map(|expression| ProductSearchExpression::Not(Box::new(expression)));
+        }
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Option<ProductSearchExpression> {
+        match self.tokens.get(self.index).cloned()? {
+            ProductSearchToken::Term { value, quoted } => {
+                self.index += 1;
+                Some(ProductSearchExpression::Term(ProductSearchTerm::new(
+                    value, quoted,
+                )))
+            }
+            ProductSearchToken::LParen => {
+                self.index += 1;
+                let expression = self.parse_or()?;
+                if self.peek_rparen() {
+                    self.index += 1;
+                }
+                Some(expression)
+            }
+            ProductSearchToken::RParen | ProductSearchToken::Minus => None,
+        }
+    }
+
+    fn peek_rparen(&self) -> bool {
+        matches!(
+            self.tokens.get(self.index),
+            Some(ProductSearchToken::RParen)
+        )
+    }
+
+    fn peek_operator(&self, operator: &str) -> bool {
+        matches!(
+            self.tokens.get(self.index),
+            Some(ProductSearchToken::Term { value, quoted: false })
+                if value.eq_ignore_ascii_case(operator)
+        )
+    }
+
+    fn consume_operator(&mut self, operator: &str) -> bool {
+        if self.peek_operator(operator) {
+            self.index += 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl ProductSearchExpression {
+    fn matches(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        search_tags: Option<&BTreeSet<String>>,
+    ) -> bool {
+        match self {
+            ProductSearchExpression::Term(term) => term.matches(product, variants, search_tags),
+            ProductSearchExpression::Not(expression) => {
+                !expression.matches(product, variants, search_tags)
+            }
+            ProductSearchExpression::And(expressions) => expressions
+                .iter()
+                .all(|expression| expression.matches(product, variants, search_tags)),
+            ProductSearchExpression::Or(expressions) => expressions
+                .iter()
+                .any(|expression| expression.matches(product, variants, search_tags)),
+        }
+    }
+}
+
+impl ProductSearchTerm {
+    fn new(value: String, quoted: bool) -> Self {
+        if !quoted {
+            if let Some((field, value)) = value.split_once(':') {
+                if !field.is_empty() && !value.is_empty() {
+                    return Self {
+                        field: Some(field.to_ascii_lowercase()),
+                        value: value.trim_matches('"').trim_matches('\'').to_string(),
+                    };
+                }
+            }
+        }
+        Self { field: None, value }
+    }
+
+    fn matches(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        search_tags: Option<&BTreeSet<String>>,
+    ) -> bool {
+        let value = self.value.trim();
+        if value.is_empty() {
+            return true;
+        }
+        match self.field.as_deref() {
+            Some("status") => product.status == value,
+            Some("vendor") => product_search_string_matches(&product.vendor, value),
+            Some("product_type") => product_search_string_matches(&product.product_type, value),
+            Some("title") => product_search_string_matches(&product.title, value),
+            Some("tag") => product_matches_search_tag(product, search_tags, value),
+            Some("tag_not") => !product_matches_search_tag(product, search_tags, value),
+            Some("sku") => product_matches_search_sku(product, variants, value),
+            Some("published_status") => product_matches_published_status(product, value),
+            Some("created_at") => product_matches_date_query(&product.created_at, value),
+            Some("updated_at") => product_matches_date_query(&product.updated_at, value),
+            Some(_) => false,
+            None => product_matches_free_text(product, variants, search_tags, value),
+        }
+    }
+}
+
+fn product_search_tokens(query: &str) -> Vec<ProductSearchToken> {
+    let mut tokens = Vec::new();
+    let chars = query.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            ch if ch.is_whitespace() => {
+                index += 1;
+            }
+            '(' => {
+                tokens.push(ProductSearchToken::LParen);
+                index += 1;
+            }
+            ')' => {
+                tokens.push(ProductSearchToken::RParen);
+                index += 1;
+            }
+            '-' => {
+                tokens.push(ProductSearchToken::Minus);
+                index += 1;
+            }
+            '"' | '\'' => {
+                let quote = chars[index];
+                index += 1;
+                let mut value = String::new();
+                while index < chars.len() && chars[index] != quote {
+                    value.push(chars[index]);
+                    index += 1;
+                }
+                if index < chars.len() {
+                    index += 1;
+                }
+                tokens.push(ProductSearchToken::Term {
+                    value,
+                    quoted: true,
+                });
+            }
+            _ => {
+                let mut value = String::new();
+                while index < chars.len()
+                    && !chars[index].is_whitespace()
+                    && chars[index] != '('
+                    && chars[index] != ')'
+                {
+                    if chars[index] == '"' || chars[index] == '\'' {
+                        let quote = chars[index];
+                        index += 1;
+                        while index < chars.len() && chars[index] != quote {
+                            value.push(chars[index]);
+                            index += 1;
+                        }
+                        if index < chars.len() {
+                            index += 1;
+                        }
+                    } else {
+                        value.push(chars[index]);
+                        index += 1;
+                    }
+                }
+                if !value.is_empty() {
+                    tokens.push(ProductSearchToken::Term {
+                        value,
+                        quoted: false,
+                    });
+                }
+            }
+        }
+    }
+    tokens
+}
+
+fn product_matches_free_text(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    search_tags: Option<&BTreeSet<String>>,
+    value: &str,
+) -> bool {
+    product_search_string_matches(&product.title, value)
+        || product_search_string_matches(&product.handle, value)
+        || product_search_string_matches(&product.vendor, value)
+        || product_search_string_matches(&product.product_type, value)
+        || product_matches_search_tag(product, search_tags, value)
+        || product_matches_search_sku(product, variants, value)
+}
+
+fn product_matches_search_tag(
+    product: &ProductRecord,
+    search_tags: Option<&BTreeSet<String>>,
+    value: &str,
+) -> bool {
+    search_tags
+        .map(|tags| {
+            tags.iter()
+                .any(|tag| product_search_string_matches(tag, value))
+        })
+        .unwrap_or_else(|| {
+            product
+                .tags
+                .iter()
+                .any(|tag| product_search_string_matches(tag, value))
+        })
+}
+
+fn product_matches_search_sku(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    value: &str,
+) -> bool {
+    variants
+        .iter()
+        .any(|variant| product_search_string_matches(&variant.sku, value))
+        || product.variants.iter().any(|variant| {
+            variant
+                .get("sku")
+                .and_then(Value::as_str)
+                .is_some_and(|sku| product_search_string_matches(sku, value))
+        })
+}
+
+fn product_search_string_matches(actual: &str, query_value: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+fn product_matches_published_status(product: &ProductRecord, value: &str) -> bool {
+    let published = product_is_published(product);
+    match value.to_ascii_lowercase().as_str() {
+        "published" => published,
+        "unpublished" => !published,
+        "any" => true,
+        _ => false,
+    }
+}
+
+fn product_is_published(product: &ProductRecord) -> bool {
+    product
+        .extra_fields
+        .get("publishedAt")
+        .is_some_and(|published_at| !published_at.is_null())
+        || !product_visible_publication_entries(product).is_empty()
+}
+
+fn product_matches_date_query(actual: &str, query_value: &str) -> bool {
+    let (operator, expected) = product_search_comparator(query_value);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn product_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
 }
 
 pub(in crate::proxy) fn product_variant_state_from_observed_json(
@@ -1868,14 +2125,6 @@ fn product_variant_state_from_json_parts(
     })
 }
 
-fn product_search_term_value<'a>(query: &'a str, prefix: &str) -> Option<&'a str> {
-    query
-        .split_ascii_whitespace()
-        .find_map(|term| term.strip_prefix(prefix))
-        .map(|value| value.trim_matches('"'))
-        .filter(|value| !value.is_empty())
-}
-
 pub(in crate::proxy) fn product_state_map_json(
     products: &BTreeMap<String, ProductRecord>,
 ) -> Value {
@@ -1906,7 +2155,7 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
         .get("createdAt")
         .and_then(Value::as_str)
         .map(str::to_string)
-        .unwrap_or_else(|| default_product_timestamp(&id));
+        .unwrap_or_else(default_product_timestamp);
     let updated_at = value
         .get("updatedAt")
         .and_then(Value::as_str)

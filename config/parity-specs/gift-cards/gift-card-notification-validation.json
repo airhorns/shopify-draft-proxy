@@ -213,14 +213,6 @@
         "capturePath": "$.operations.customerNoCustomer.response.payload.data.giftCardSendNotificationToCustomer",
         "proxyPath": "$.data.giftCardSendNotificationToCustomer",
         "selectedPaths": ["$.giftCard", "$.userErrors"],
-        "expectedDifferences": [
-          {
-            "path": "$.userErrors[0].field",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
-          }
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
           "variables": {
@@ -236,14 +228,6 @@
         "capturePath": "$.operations.recipientNoContact.response.payload.data.giftCardSendNotificationToRecipient",
         "proxyPath": "$.data.giftCardSendNotificationToRecipient",
         "selectedPaths": ["$.giftCard", "$.userErrors"],
-        "expectedDifferences": [
-          {
-            "path": "$.userErrors[0].field",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
-          }
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
           "variables": {
