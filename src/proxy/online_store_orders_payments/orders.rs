@@ -158,9 +158,9 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
     money_set_pair(
-        &format_order_amount(left_shop + right_shop),
+        &format_money_amount(left_shop + right_shop),
         &shop_currency,
-        &format_order_amount(left_presentment + right_presentment),
+        &format_money_amount(left_presentment + right_presentment),
         &presentment_currency,
     )
 }
@@ -335,27 +335,7 @@ pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, cod
 }
 
 pub(in crate::proxy) fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    money_set(&format_order_amount(amount), currency_code)
-}
-
-pub(in crate::proxy) fn order_create_money_bag(
-    amount: f64,
-    currency_code: &str,
-    presentment_currency_code: &str,
-) -> Value {
-    let amount = format_order_amount(amount);
-    money_set_pair(&amount, currency_code, &amount, presentment_currency_code)
-}
-
-pub(in crate::proxy) fn format_order_amount(amount: f64) -> String {
-    let rounded = (amount * 100.0).round() / 100.0;
-    let formatted = format!("{rounded:.2}");
-    let trimmed = formatted.trim_end_matches('0');
-    if trimmed.ends_with('.') {
-        format!("{trimmed}0")
-    } else {
-        trimmed.to_string()
-    }
+    money_set(&format_money_amount(amount), currency_code)
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -381,7 +361,7 @@ pub(in crate::proxy) fn money_input(
         Some(BTreeMap::from([
             (
                 "amount".to_string(),
-                ResolvedValue::String(format_order_amount(amount)),
+                ResolvedValue::String(format_money_amount(amount)),
             ),
             ("currencyCode".to_string(), ResolvedValue::String(currency)),
         ]))
@@ -703,11 +683,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .and_then(resolved_money_currency)
         .unwrap_or_else(|| presentment_currency_code.to_string());
     let tax_lines = order_create_tax_lines(input, "taxLines", currency_code);
-    let tax_total = tax_lines
-        .iter()
-        .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
-        .sum::<f64>();
+    let tax_total = sum_money_set(&tax_lines, "priceSet");
     let applied_discounts = resolved_object_list_field(input, "appliedDiscounts")
         .into_iter()
         .map(|discount| {
@@ -720,7 +696,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
             json!({
                 "title": resolved_string_field(&discount, "title").unwrap_or_default(),
                 "value": {
-                    "amount": format_order_amount(amount),
+                    "amount": format_money_amount(amount),
                     "currencyCode": currency
                 }
             })
@@ -768,21 +744,21 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
         "originalUnitPriceSet": json!({
             "shopMoney": {
-                "amount": format_order_amount(unit_amount),
+                "amount": format_money_amount(unit_amount),
                 "currencyCode": line_currency
             },
             "presentmentMoney": {
-                "amount": format_order_amount(presentment_amount),
+                "amount": format_money_amount(presentment_amount),
                 "currencyCode": presentment_currency
             }
         }),
         "priceSet": json!({
             "shopMoney": {
-                "amount": format_order_amount(unit_amount),
+                "amount": format_money_amount(unit_amount),
                 "currencyCode": currency_code
             },
             "presentmentMoney": {
-                "amount": format_order_amount(presentment_amount),
+                "amount": format_money_amount(presentment_amount),
                 "currencyCode": presentment_currency_code
             }
         }),
@@ -852,7 +828,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": money_set(&format_order_amount(amount), &currency)
+        "amountSet": money_set(&format_money_amount(amount), &currency)
     })
 }
 
@@ -874,8 +850,7 @@ pub(in crate::proxy) fn order_create_financial_status(
         .iter()
         .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
         .filter(|transaction| transaction["status"] == "SUCCESS")
-        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
+        .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
     if received <= 0.0 || received + 0.005 >= total {
         "PAID".to_string()
@@ -897,12 +872,10 @@ pub(in crate::proxy) fn order_create_payment_fields(
         .iter()
         .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
         .filter(|transaction| transaction["status"] == "SUCCESS")
-        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
+        .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
     let capturable = authorization
-        .and_then(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .and_then(|amount| amount.parse::<f64>().ok())
+        .and_then(|transaction| money_set_amount(&transaction["amountSet"]))
         .unwrap_or(0.0);
     let outstanding = if authorization.is_some() {
         0.0
@@ -910,7 +883,7 @@ pub(in crate::proxy) fn order_create_payment_fields(
         (total - received).max(0.0)
     };
     order["capturable"] = json!(capturable > 0.0);
-    order["totalCapturable"] = json!(format_order_amount(capturable));
+    order["totalCapturable"] = json!(format_money_amount(capturable));
     order["totalCapturableSet"] = order_create_money_set(capturable, currency_code);
     order["totalOutstandingSet"] = order_create_money_set(outstanding, currency_code);
     order["totalReceivedSet"] = order_create_money_set(received, currency_code);
@@ -1903,11 +1876,7 @@ impl DraftProxy {
                 let shipping_currency =
                     input_money_currency(&price_input).unwrap_or_else(|| currency_code.clone());
                 let tax_lines = order_create_tax_lines(&shipping_line, "taxLines", &currency_code);
-                tax_total += tax_lines
-                    .iter()
-                    .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
-                    .filter_map(|amount| amount.parse::<f64>().ok())
-                    .sum::<f64>();
+                tax_total += sum_money_set(&tax_lines, "priceSet");
                 json!({
                     "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
                     "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
@@ -1918,11 +1887,7 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
-        let shipping_total = shipping_lines
-            .iter()
-            .filter_map(|line| line["originalPriceSet"]["shopMoney"]["amount"].as_str())
-            .filter_map(|amount| amount.parse::<f64>().ok())
-            .sum::<f64>();
+        let shipping_total = sum_money_set(&shipping_lines, "originalPriceSet");
         let (discount_total, discount_codes) =
             order_create_discount_amount(order_input, &currency_code);
         let total = (subtotal + shipping_total + tax_total - discount_total).max(0.0);
@@ -1978,7 +1943,7 @@ impl DraftProxy {
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
             "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
             "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
-            "totalShippingPriceSet": order_create_money_bag(shipping_total, &currency_code, &presentment_currency_code),
+            "totalShippingPriceSet": money_bag_from_amount(shipping_total, &currency_code, &presentment_currency_code),
             "totalTaxSet": order_create_money_set(tax_total, &currency_code),
             "currentTotalTaxSet": order_create_money_set(tax_total, &currency_code),
             "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
@@ -1995,11 +1960,11 @@ impl DraftProxy {
         if let Some(object) = order.as_object_mut() {
             object.insert(
                 "currentTotalPriceSet".to_string(),
-                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             );
             object.insert(
                 "totalPriceSet".to_string(),
-                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             );
         }
         order_create_payment_fields(&mut order, &transactions, total, &currency_code);

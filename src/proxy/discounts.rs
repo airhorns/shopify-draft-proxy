@@ -3463,23 +3463,8 @@ fn resolved_decimal_text_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Option<String> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}
-
-fn shopify_decimal_text(value: &str) -> String {
-    let Ok(parsed) = value.parse::<f64>() else {
-        return value.to_string();
-    };
-    let mut formatted = parsed.to_string();
-    if !formatted.contains('.') {
-        formatted.push_str(".0");
-    }
-    formatted
+    let root = ResolvedValue::Object(input.clone());
+    resolved_decimal_text(resolved_object_path(Some(&root), path))
 }
 
 fn resolved_scalar_text_path(

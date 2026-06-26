@@ -33,11 +33,7 @@ pub(in crate::proxy) fn draft_order_base_record(
     let currency = draft_order_input_currency(input);
     let line_items = resolved_object_list_field(input, "lineItems");
     let line_item_nodes = draft_order_line_items(&line_items, id, &currency, variant_hydrations);
-    let original_subtotal = line_item_nodes
-        .iter()
-        .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
-        .sum::<f64>();
+    let original_subtotal = sum_money_set(&line_item_nodes, "originalTotalSet");
     json!({
         "id": id,
         "name": name,
@@ -80,17 +76,10 @@ pub(in crate::proxy) fn draft_order_calculated_record(
     let line_items = resolved_object_list_field(input, "lineItems");
     let line_item_nodes =
         draft_order_line_items(&line_items, "calculated", &currency, variant_hydrations);
-    let original_subtotal = line_item_nodes
-        .iter()
-        .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
-        .sum::<f64>();
+    let original_subtotal = sum_money_set(&line_item_nodes, "originalTotalSet");
     let line_discount_total = draft_order_line_discount_total(&line_item_nodes);
     let shipping_line = draft_order_shipping_line(input);
-    let shipping_total = shipping_line["originalPriceSet"]["shopMoney"]["amount"]
-        .as_str()
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0);
+    let shipping_total = money_set_amount(&shipping_line["originalPriceSet"]).unwrap_or(0.0);
     let applied_discount = draft_order_applied_discount(input, original_subtotal);
     let discount_total = line_discount_total + draft_order_discount_amount(&applied_discount);
     let subtotal = (original_subtotal - discount_total).max(0.0);
@@ -228,10 +217,7 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
 ) -> Value {
     let title = line["title"].as_str().unwrap_or("Order item").to_string();
     let quantity = line["quantity"].as_i64().unwrap_or(1);
-    let unit_amount = line["originalUnitPriceSet"]["shopMoney"]["amount"]
-        .as_str()
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0);
+    let unit_amount = money_set_amount(&line["originalUnitPriceSet"]).unwrap_or(0.0);
     let line_total = unit_amount * quantity as f64;
     json!({
         "id": format!(
@@ -258,10 +244,8 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
 }
 
 pub(in crate::proxy) fn draft_order_total_from_order(order: &Value) -> Option<f64> {
-    order["totalPriceSet"]["shopMoney"]["amount"]
-        .as_str()
-        .or_else(|| order["currentTotalPriceSet"]["shopMoney"]["amount"].as_str())
-        .and_then(|amount| amount.parse::<f64>().ok())
+    money_set_amount(&order["totalPriceSet"])
+        .or_else(|| money_set_amount(&order["currentTotalPriceSet"]))
         .filter(|amount| *amount > 0.0)
 }
 
@@ -370,18 +354,11 @@ pub(in crate::proxy) fn draft_order_discount_record(
 }
 
 pub(in crate::proxy) fn draft_order_discount_amount(discount: &Value) -> f64 {
-    discount["amountSet"]["shopMoney"]["amount"]
-        .as_str()
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0)
+    money_set_amount(&discount["amountSet"]).unwrap_or(0.0)
 }
 
 pub(in crate::proxy) fn draft_order_line_discount_total(line_items: &[Value]) -> f64 {
-    line_items
-        .iter()
-        .filter_map(|line| line["totalDiscountSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
-        .sum()
+    sum_money_set(line_items, "totalDiscountSet")
 }
 
 pub(in crate::proxy) fn draft_order_discount_amount_from_discount(
@@ -1652,11 +1629,7 @@ impl DraftProxy {
         }
         if input.contains_key("appliedDiscount") {
             let line_items = connection_nodes(&draft_order["lineItems"]);
-            let original_subtotal = line_items
-                .iter()
-                .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
-                .filter_map(|amount| amount.parse::<f64>().ok())
-                .sum::<f64>();
+            let original_subtotal = sum_money_set(&line_items, "originalTotalSet");
             draft_order["appliedDiscount"] = draft_order_applied_discount(input, original_subtotal);
         }
         if input.contains_key("taxExempt") {
@@ -1684,16 +1657,10 @@ impl DraftProxy {
     pub(super) fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
         let currency = draft_order_currency(draft_order);
         let line_items = connection_nodes(&draft_order["lineItems"]);
-        let original_subtotal = line_items
-            .iter()
-            .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
-            .filter_map(|amount| amount.parse::<f64>().ok())
-            .sum::<f64>();
+        let original_subtotal = sum_money_set(&line_items, "originalTotalSet");
         let line_discount_total = draft_order_line_discount_total(&line_items);
-        let shipping_total = draft_order["shippingLine"]["originalPriceSet"]["shopMoney"]["amount"]
-            .as_str()
-            .and_then(|amount| amount.parse::<f64>().ok())
-            .unwrap_or(0.0);
+        let shipping_total =
+            money_set_amount(&draft_order["shippingLine"]["originalPriceSet"]).unwrap_or(0.0);
         let discount_total =
             line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
         let subtotal = (original_subtotal - discount_total).max(0.0);
@@ -1856,10 +1823,9 @@ impl DraftProxy {
         }
         let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let amount = draft_order["totalPriceSet"]["shopMoney"]["amount"]
-            .as_str()
-            .unwrap_or("0.0")
-            .to_string();
+        let amount = money_set_amount(&draft_order["totalPriceSet"])
+            .map(format_money_amount)
+            .unwrap_or_else(|| "0.0".to_string());
         let currency_code = draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
             .as_str()
             .unwrap_or("CAD")
