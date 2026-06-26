@@ -872,8 +872,7 @@ impl Default for StagedState {
             function_fulfillment_constraint_rules: BTreeMap::new(),
             function_fulfillment_constraint_rule_order: Vec::new(),
             functions_dirty: false,
-            backup_region: backup_region_country("CA")
-                .expect("default backup region country must be captured"),
+            backup_region: Value::Null,
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
 
@@ -1903,8 +1902,8 @@ mod store_tests {
     fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
         ProductRecord {
             id: id.to_string(),
-            created_at: default_product_timestamp(id),
-            updated_at: default_product_timestamp(id),
+            created_at: default_product_timestamp(),
+            updated_at: default_product_timestamp(),
             title: title.to_string(),
             handle: handle.to_string(),
             status: "ACTIVE".to_string(),

@@ -822,6 +822,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'products-common-search-filters',
+    scriptPath: 'scripts/capture-products-common-search-filters-conformance.ts',
+    purpose:
+      'Products/productsCount common search filters for status, vendor, and product_type against live Shopify catalog data.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}products-common-search-filters.json`,
+      'config/parity-specs/products/products-common-search-filters-read.json',
+      'config/parity-requests/products/products-common-search-filters-read.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records the exact products/productsCount read as an upstream cassette for cold live-hybrid replay; local store-state filtering is covered by focused Rust tests.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
@@ -1069,6 +1086,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'config/parity-specs/products/tagsAdd-parity-plan.json',
       'config/parity-specs/products/tags-normalization-parity.json',
       'config/parity-requests/products/tags-normalization-setup.graphql',
       'config/parity-requests/products/tagsAdd-case-variant.graphql',
@@ -1121,6 +1139,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Live resolver capture is blocked by the conformance app resource-feedback access and sales-channel configuration, so this fixture records executable local-runtime evidence for the supported no-upstream mutation contract.',
+  },
+  {
+    domain: 'products',
+    captureId: 'product-metafield-delete-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-metafield-delete-local-runtime.ts',
+    purpose:
+      'Executable product-owner local-runtime parity for singular metafieldDelete success, downstream read-after-delete, and not-found payloads.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}metafield-delete-product-owner-local-runtime.json`,
+      'config/parity-specs/products/metafieldDelete-product-owner-local-runtime.json',
+      'config/parity-requests/products/metafieldDelete-product-owner-setup.graphql',
+      'config/parity-requests/products/metafieldDelete-product-owner.graphql',
+      'config/parity-requests/products/metafieldDelete-product-owner-read.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live public Admin GraphQL 2026-04 and unstable expose plural metafieldsDelete but not singular metafieldDelete, so the singular compatibility alias is covered by local-runtime parity plus live plural-root evidence.',
   },
   {
     domain: 'products',
@@ -1967,6 +2005,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
       'config/parity-specs/products/metafieldsSet-parity-plan.json',
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
@@ -1974,6 +2013,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}metafields-delete-parity.json`,
     ],
     cleanupBehavior: 'Creates disposable products/collections and removes them after metafield probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'product-metafields-set-non-cas',
+    scriptPath: 'scripts/capture-product-metafields-set-non-cas-conformance.mts',
+    purpose:
+      'Independent product-scoped metafieldsSet set/read, omitted namespace, and owner-expansion parity without selecting opaque compareDigest CAS tokens.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json',
+      'config/parity-specs/products/metafieldsSet-missing-namespace.json',
+      'config/parity-specs/products/metafieldsSet-owner-expansion.json',
+      'config/parity-specs/products/metafieldsSet-parity-plan.json',
+      'config/parity-requests/products/metafieldsSet-downstream-read-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-expansion-no-compare-digest.graphql',
+      'config/parity-requests/products/metafieldsSet-parity-plan-no-compare-digest.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product for each product-owned scenario plus one disposable collection for owner expansion; deletes all created owners after recording.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4194,20 +4256,41 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',
-    purpose: 'Catalog price-list/publication relation validation for unknown ids and one-catalog relation exclusivity.',
-    requiredAuthScopes: ['read_markets', 'write_markets'],
+    purpose:
+      'Catalog price-list/publication relation validation for unknown ids, one-catalog relation exclusivity, and freshly-created publication attachment.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_publications', 'write_publications'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}catalog-relation-validation.json`,
+      'config/parity-specs/markets/catalog-create-fresh-publication-relation.json',
       'config/parity-specs/markets/catalog-create-price-list-not-found.json',
       'config/parity-specs/markets/catalog-create-price-list-taken.json',
       'config/parity-specs/markets/catalog-update-publication-not-found.json',
+      'config/parity-requests/markets/catalog-create-publication-relation.graphql',
       'config/parity-requests/markets/catalog-relation-markets-read.graphql',
+      'config/parity-requests/markets/catalog-relation-publication-create.graphql',
       'config/parity-requests/markets/catalog-create-relation-validation.graphql',
       'config/parity-requests/markets/catalog-update-relation-validation.graphql',
       'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
     ],
     cleanupBehavior:
-      'Uses an existing market context, creates a disposable price list and setup catalogs, captures rejected relation validation branches, then deletes the disposable catalogs; attached price lists may already be removed by catalog cleanup.',
+      'Uses an existing market context, creates a disposable price list, publication, and setup catalogs, captures rejected and accepted relation branches, then deletes the disposable catalogs, price list, and publication when still present.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'bundled-price-list-web-presence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bundled-price-list-web-presence-conformance.mts',
+    purpose:
+      'Single-document priceListCreate plus webPresenceCreate payload parity for the bundled local-dispatch path.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bundled-price-list-web-presence.json`,
+      'config/parity-specs/markets/bundled-price-list-web-presence-create.json',
+      'config/parity-requests/markets/bundled-price-list-web-presence-create.graphql',
+    ],
+    cleanupBehavior:
+      'Reads baseline webPresences for the local preflight cassette, creates one disposable price list and subfolder web presence in a single GraphQL document, then deletes both resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8591,15 +8674,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
     purpose:
-      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA and US success, read-after-write, and REGION_NOT_FOUND validation.',
+      'backupRegionUpdate omitted/null current-state semantics, AE/US/JP success, read-after-write, and REGION_NOT_FOUND validation.',
     requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-backup-region-update-extended.json`,
       'config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json',
       'config/parity-requests/admin-platform/admin-platform-backup-region-update-us.graphql',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-jp.graphql',
     ],
     cleanupBehavior:
-      'Temporarily stages CA, AE, and US as the backup region; creates/deletes temporary CA/US region markets if needed; then restores the store backup region to its original country.',
+      'Temporarily stages CA, AE, US, and JP as the backup region; creates/deletes temporary region markets if needed; then restores the store backup region to its original country.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

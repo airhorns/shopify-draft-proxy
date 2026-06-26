@@ -716,10 +716,12 @@ impl DraftProxy {
                 "The delegate token can't expire after the parent token.",
                 Some("EXPIRES_AFTER_PARENT"),
             ));
-        } else if let Some(scope) = scopes
-            .iter()
-            .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-        {
+        } else if let Some(scope) = scopes.iter().find(|scope| {
+            !matches!(
+                scope.as_str(),
+                "read_products" | "write_products" | "read_markets" | "write_markets"
+            )
+        }) {
             user_errors.push(user_error(
                 Value::Null,
                 &format!("The access scope is invalid: {scope}"),
