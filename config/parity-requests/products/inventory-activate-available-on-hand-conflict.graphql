@@ -1,0 +1,22 @@
+mutation InventoryActivateAvailableOnHandConflict(
+  $inventoryItemId: ID!
+  $locationId: ID!
+  $available: Int
+  $onHand: Int
+  $idempotencyKey: String!
+) {
+  inventoryActivate(
+    inventoryItemId: $inventoryItemId
+    locationId: $locationId
+    available: $available
+    onHand: $onHand
+  ) @idempotent(key: $idempotencyKey) {
+    inventoryLevel {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

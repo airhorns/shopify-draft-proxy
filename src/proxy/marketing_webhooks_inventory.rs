@@ -3168,6 +3168,8 @@ impl DraftProxy {
         let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
         let has_available = field.arguments.contains_key("available");
         let available = resolved_int_field(&field.arguments, "available");
+        let has_on_hand = field.arguments.contains_key("onHand");
+        let on_hand = resolved_int_field(&field.arguments, "onHand");
         let inventory_level_selection =
             selected_child_selection(&field.selection, "inventoryLevel").unwrap_or_default();
         let mut user_errors = Vec::new();
@@ -3189,6 +3191,9 @@ impl DraftProxy {
                 "Available must be greater than or equal to 0",
             ));
         }
+        let on_hand_out_of_range = on_hand.is_some_and(|value| {
+            !(-INVENTORY_SET_QUANTITY_MAX..=INVENTORY_SET_QUANTITY_MAX).contains(&value)
+        });
         if !self.inventory_location_exists(&location_id) {
             user_errors.push(inventory_activate_user_error(
                 vec!["locationId"],
@@ -3211,6 +3216,30 @@ impl DraftProxy {
                 user_errors,
             ));
         }
+        let location_name = self.inventory_location_display_name(&location_id);
+        if has_available && has_on_hand {
+            let message = format!(
+                "The product couldn't be stocked at {location_name} because not allowed to set available and on_hand quantities at the same time."
+            );
+            user_errors.push(inventory_activate_user_error(vec!["available"], &message));
+            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                None,
+                &field.selection,
+                user_errors,
+            ));
+        }
+        if on_hand_out_of_range {
+            let message = format!(
+                "The product couldn't be stocked at {location_name} because the quantity needs to be between -1 billion and 1 billion."
+            );
+            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                None,
+                &field.selection,
+                user_errors,
+            ));
+        }
 
         let key = (inventory_item_id.clone(), location_id.clone());
         // The "already active" decision must be based on the level's state *before*
@@ -3225,6 +3254,22 @@ impl DraftProxy {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
+            ));
+            let level = self.inventory_level_for_payload(
+                &inventory_item_id,
+                &location_id,
+                &inventory_level_selection,
+            );
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                level,
+                &field.selection,
+                user_errors,
+            ));
+        }
+        if was_active && has_on_hand {
+            user_errors.push(inventory_activate_user_error(
+                vec!["onHand"],
+                "Not allowed to set an on_hand quantity when the item is already active at the location.",
             ));
             let level = self.inventory_level_for_payload(
                 &inventory_item_id,
@@ -3263,19 +3308,23 @@ impl DraftProxy {
             // on_hand to that value. Reactivating an existing (inactive) level must
             // preserve its prior quantities, so only seed on a brand-new level.
             if !existed_before {
-                if let Some(value) = available {
-                    if value >= 0 {
-                        let updated_at = self.next_inventory_quantity_timestamp();
-                        if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
-                            level.insert("available".to_string(), value);
-                            level.insert("on_hand".to_string(), value);
-                        }
-                        self.stamp_inventory_quantity(
-                            &inventory_item_id,
-                            &location_id,
-                            "available",
-                            &updated_at,
-                        );
+                let available_seed = available.filter(|value| *value >= 0);
+                let on_hand_seed = on_hand.filter(|value| {
+                    (-INVENTORY_SET_QUANTITY_MAX..=INVENTORY_SET_QUANTITY_MAX).contains(value)
+                });
+                if let Some(value) = available_seed.or(on_hand_seed) {
+                    let updated_at = self.next_inventory_quantity_timestamp();
+                    if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
+                        level.insert("available".to_string(), value);
+                        level.insert("on_hand".to_string(), value);
+                    }
+                    self.stamp_inventory_quantity(
+                        &inventory_item_id,
+                        &location_id,
+                        "available",
+                        &updated_at,
+                    );
+                    if available_seed.is_some() {
                         self.stamp_inventory_quantity(
                             &inventory_item_id,
                             &location_id,

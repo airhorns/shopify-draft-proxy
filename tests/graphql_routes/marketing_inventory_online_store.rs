@@ -2381,6 +2381,185 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
 }
 
 #[test]
+fn inventory_activate_on_hand_seeds_and_validates_locally() {
+    use shopify_draft_proxy::proxy::UnsupportedMutationMode;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![inventory_activation_base_product()])
+    .with_upstream_transport({
+        let calls = calls.clone();
+        move |_request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            shopify_draft_proxy::proxy::Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"unexpectedUpstream": true}),
+            }
+        }
+    });
+
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "INV-ACTIVATE-ON-HAND",
+        "10.00",
+    );
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let on_hand_location_id = "gid://shopify/Location/2";
+    let conflict_location_id = "gid://shopify/Location/3";
+    let out_of_range_location_id = "gid://shopify/Location/4";
+    let on_hand_level_id = inventory_level_id_for_test(&inventory_item_id, on_hand_location_id);
+    let conflict_level_id = inventory_level_id_for_test(&inventory_item_id, conflict_location_id);
+
+    let activate_on_hand = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateOnHand($inventoryItemId: ID!, $locationId: ID!, $onHand: Int) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, onHand: $onHand) {
+            inventoryLevel {
+              id
+              isActive
+              quantities(names: ["available", "on_hand"]) { name quantity updatedAt }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": on_hand_location_id, "onHand": 50}),
+    ));
+    assert_eq!(
+        activate_on_hand.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        activate_on_hand.body["data"]["inventoryActivate"]["inventoryLevel"]["quantities"],
+        json!([
+            {"name": "available", "quantity": 50, "updatedAt": "2024-01-01T00:00:01.000Z"},
+            {"name": "on_hand", "quantity": 50, "updatedAt": null}
+        ])
+    );
+
+    let downstream_on_hand = proxy.process_request(json_graphql_request(
+        r#"
+        query ActivatedOnHandRead($inventoryLevelId: ID!) {
+          inventoryLevel(id: $inventoryLevelId) {
+            isActive
+            quantities(names: ["on_hand"]) { name quantity }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": on_hand_level_id}),
+    ));
+    assert_eq!(
+        downstream_on_hand.body["data"]["inventoryLevel"],
+        json!({
+            "isActive": true,
+            "quantities": [{"name": "on_hand", "quantity": 50}]
+        })
+    );
+
+    let conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateConflict($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: 10, onHand: 20) {
+            inventoryLevel { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": conflict_location_id}),
+    ));
+    assert_eq!(
+        conflict.body["data"]["inventoryActivate"],
+        json!({
+            "inventoryLevel": null,
+            "userErrors": [
+                {
+                    "field": ["available"],
+                    "message": "The product couldn't be stocked at Shop location because not allowed to set available and on_hand quantities at the same time."
+                },
+                {
+                    "field": ["onHand"],
+                    "message": "The product couldn't be stocked at Shop location because not allowed to set available and on_hand quantities at the same time."
+                }
+            ]
+        })
+    );
+    let conflict_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ConflictLevelRead($inventoryLevelId: ID!) {
+          inventoryLevel(id: $inventoryLevelId) { id }
+        }
+        "#,
+        json!({"inventoryLevelId": conflict_level_id}),
+    ));
+    assert_eq!(
+        conflict_downstream.body["data"]["inventoryLevel"],
+        Value::Null
+    );
+
+    let already_active = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateOnHandAlreadyActive($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, onHand: 5) {
+            inventoryLevel { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": on_hand_location_id}),
+    ));
+    assert_eq!(
+        already_active.body["data"]["inventoryActivate"]["userErrors"],
+        json!([{
+            "field": ["onHand"],
+            "message": "Not allowed to set an on_hand quantity when the item is already active at the location."
+        }])
+    );
+    let unchanged_on_hand = proxy.process_request(json_graphql_request(
+        r#"
+        query AlreadyActiveOnHandRead($inventoryLevelId: ID!) {
+          inventoryLevel(id: $inventoryLevelId) {
+            quantities(names: ["on_hand"]) { name quantity }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": on_hand_level_id}),
+    ));
+    assert_eq!(
+        unchanged_on_hand.body["data"]["inventoryLevel"]["quantities"],
+        json!([{"name": "on_hand", "quantity": 50}])
+    );
+
+    let out_of_range = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateOnHandOutOfRange($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, onHand: 1000000001) {
+            inventoryLevel { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": out_of_range_location_id}),
+    ));
+    assert_eq!(
+        out_of_range.body["data"]["inventoryActivate"],
+        json!({
+            "inventoryLevel": null,
+            "userErrors": [{
+                "field": ["onHand"],
+                "message": "The product couldn't be stocked at Shop location because the quantity needs to be between -1 billion and 1 billion."
+            }]
+        })
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn inventory_activation_and_item_update_validation_errors_are_local() {
     let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
     let variant = create_legacy_variant(
