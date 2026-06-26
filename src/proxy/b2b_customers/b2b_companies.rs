@@ -124,7 +124,7 @@ impl DraftProxy {
             {
                 let mut data = serde_json::Map::new();
                 for field in fields {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let location = self
                         .store
                         .staged
@@ -330,7 +330,7 @@ impl DraftProxy {
                     let value = match field.name.as_str() {
                         "company" => {
                             let id =
-                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
                             self.store
                                 .staged
                                 .b2b_companies
@@ -342,7 +342,7 @@ impl DraftProxy {
                         }
                         "companyContact" => {
                             let id =
-                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
                             self.store
                                 .staged
                                 .b2b_contacts
@@ -357,7 +357,7 @@ impl DraftProxy {
                         }
                         "companyLocation" => {
                             let id =
-                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
                             self.store
                                 .staged
                                 .b2b_locations
@@ -450,7 +450,7 @@ impl DraftProxy {
         let field = fields
             .iter()
             .find(|field| field.name == "companyAssignCustomerAsContact")?;
-        let company_id = resolved_string_arg(&field.arguments, "companyId")?;
+        let company_id = resolved_string_field(&field.arguments, "companyId")?;
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return None;
         }
@@ -458,7 +458,7 @@ impl DraftProxy {
         // (email "order-customer-...") as a contact and relies on the dedicated
         // order-customer orchestrator to record the contact id its NOT_PERMITTED guard
         // checks. Defer that case so the orchestrator below handles it.
-        if resolved_string_arg(&field.arguments, "customerId")
+        if resolved_string_field(&field.arguments, "customerId")
             .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
             .and_then(|customer| customer["email"].as_str().map(str::to_string))
             .is_some_and(|email| email.starts_with("order-customer-"))
@@ -487,8 +487,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let Some(customer) = self.store.staged.customers.get(&customer_id).cloned() else {
             let error = b2b_company_user_error(
                 vec!["customerId"],
@@ -759,7 +759,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
             return (
@@ -828,7 +828,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
             return (
@@ -891,8 +891,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
@@ -1067,7 +1067,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
             return (
@@ -1157,7 +1157,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
@@ -1242,7 +1242,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
             return (
                 json!({
@@ -1270,8 +1270,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let contact_ids =
-            resolved_string_list_field_unsorted(&field.arguments, "companyContactIds");
+        let contact_ids = list_string_field(&field.arguments, "companyContactIds");
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, contact_id) in contact_ids.iter().enumerate() {
@@ -1305,7 +1304,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
             return (
                 json!({
@@ -1333,9 +1332,9 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let Some(company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
             return (
                 b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
@@ -1395,7 +1394,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
                 b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
@@ -1426,11 +1425,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let role_id =
-            resolved_string_arg(&field.arguments, "companyContactRoleId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactRoleId").unwrap_or_default();
         let location_id =
-            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let Some(contact) = self.store.staged.b2b_contacts.get(&contact_id) else {
             return (
                 json!({
@@ -1514,7 +1513,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
             return (
@@ -1576,9 +1575,10 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
-        let assignment_id = resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
-            .unwrap_or_default();
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_id =
+            resolved_string_field(&field.arguments, "companyContactRoleAssignmentId")
+                .unwrap_or_default();
         let Some(company_contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
             return (
                 json!({
@@ -1630,9 +1630,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
-            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
-        let assignment_ids =
-            resolved_string_list_field_unsorted(&field.arguments, "roleAssignmentIds");
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_ids = list_string_field(&field.arguments, "roleAssignmentIds");
         let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
         if assignment_ids.is_empty() && !revoke_all {
             return (
@@ -1739,7 +1738,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let company_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
                 json!({
@@ -1777,7 +1776,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let company_ids = resolved_string_list_field_unsorted(&field.arguments, "companyIds");
+        let company_ids = list_string_field(&field.arguments, "companyIds");
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, company_id) in company_ids.iter().enumerate() {
@@ -1882,8 +1881,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
@@ -1923,8 +1922,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_ids =
-            resolved_string_list_field_unsorted(&field.arguments, "companyLocationIds");
+        let location_ids = list_string_field(&field.arguments, "companyLocationIds");
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
@@ -2029,11 +2027,11 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "locationId")
-            .or_else(|| resolved_string_arg(&field.arguments, "companyLocationId"))
+        let location_id = resolved_string_field(&field.arguments, "locationId")
+            .or_else(|| resolved_string_field(&field.arguments, "companyLocationId"))
             .unwrap_or_default();
         let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
-        let address_types = resolved_string_list_field_unsorted(&field.arguments, "addressTypes");
+        let address_types = list_string_field(&field.arguments, "addressTypes");
         if !b2b_unique_strings(&address_types) {
             return (
                 json!({
@@ -2151,8 +2149,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let address_id = resolved_string_arg(&field.arguments, "addressId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+        let address_id = resolved_string_field(&field.arguments, "addressId")
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         let touched_location_ids = self.b2b_delete_company_address(&address_id);
         if touched_location_ids.is_empty() {
@@ -2179,10 +2177,10 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
-            .or_else(|| resolved_string_arg(&field.arguments, "locationId"))
+        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
-        let staff_ids = resolved_string_list_field_unsorted(&field.arguments, "staffMemberIds");
+        let staff_ids = list_string_field(&field.arguments, "staffMemberIds");
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return (
                 json!({
@@ -2261,10 +2259,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let assignment_ids = resolved_string_list_field_unsorted(
-            &field.arguments,
-            "companyLocationStaffMemberAssignmentIds",
-        );
+        let assignment_ids =
+            list_string_field(&field.arguments, "companyLocationStaffMemberAssignmentIds");
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
@@ -2306,8 +2302,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
-            .or_else(|| resolved_string_arg(&field.arguments, "locationId"))
+        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
@@ -2391,8 +2387,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let location_id =
-            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
-        let assignment_ids = resolved_string_list_field_unsorted(&field.arguments, "rolesToRevoke");
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
+        let assignment_ids = list_string_field(&field.arguments, "rolesToRevoke");
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
                 json!({
@@ -2477,13 +2473,13 @@ impl DraftProxy {
 
     fn b2b_query_has_staged_match(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "company" => resolved_string_arg(&field.arguments, "id")
+            "company" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_companies.contains_key(&id)),
-            "companyContact" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+            "companyContact" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                 self.store.staged.b2b_contacts.contains_key(&id)
                     || self.store.staged.deleted_b2b_contact_ids.contains(&id)
             }),
-            "companyLocation" => resolved_string_arg(&field.arguments, "id")
+            "companyLocation" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
             // A companies(query:) connection can always be answered from locally
@@ -2498,7 +2494,7 @@ impl DraftProxy {
     /// companies, honouring a `name:"…"` search term so deleted companies (and
     /// companies whose name does not match) are excluded.
     fn b2b_companies_connection(&self, field: &RootFieldSelection) -> Value {
-        let name_filter = resolved_string_arg(&field.arguments, "query")
+        let name_filter = resolved_string_field(&field.arguments, "query")
             .as_deref()
             .and_then(b2b_company_name_query_value);
         let companies = self
@@ -2989,14 +2985,13 @@ impl DraftProxy {
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
                         "companyContactDelete" | "companyContactRemoveFromCompany" => {
-                            resolved_string_arg(&field.arguments, "companyContactId")
+                            resolved_string_field(&field.arguments, "companyContactId")
                                 .into_iter()
                                 .collect::<Vec<String>>()
                         }
-                        "companyContactsDelete" => resolved_string_list_field_unsorted(
-                            &field.arguments,
-                            "companyContactIds",
-                        ),
+                        "companyContactsDelete" => {
+                            list_string_field(&field.arguments, "companyContactIds")
+                        }
                         _ => Vec::new(),
                     })
                     .collect::<Vec<String>>()
@@ -3042,8 +3037,8 @@ impl DraftProxy {
                     .iter()
                     .filter(|field| field.name == "companyAddressDelete")
                     .filter_map(|field| {
-                        resolved_string_arg(&field.arguments, "addressId")
-                            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                        resolved_string_field(&field.arguments, "addressId")
+                            .or_else(|| resolved_string_field(&field.arguments, "id"))
                     })
                     .collect::<Vec<String>>()
             })
@@ -3104,7 +3099,7 @@ impl DraftProxy {
                     .map(str::to_string)
                 {
                     let company_id =
-                        resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                        resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
                     let input =
                         resolved_object_field(&field.arguments, "input").unwrap_or_default();
                     let first = resolved_string_field(&input, "firstName");
@@ -3186,7 +3181,7 @@ impl DraftProxy {
                 // synthetic-keyed record intact for connection reads that still
                 // address it by the create-time id.
                 let synthetic_id =
-                    resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+                    resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
                 let real_id = response
                     .body
                     .get("data")
@@ -3242,9 +3237,9 @@ impl DraftProxy {
         if let Some(field) = assign {
             if b2b_passthrough_mutation_succeeded(&response) {
                 let company_id =
-                    resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                    resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
                 let contact_id =
-                    resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+                    resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
                 self.b2b_set_main_contact(&company_id, Some(&contact_id));
             }
         }
@@ -3281,7 +3276,7 @@ impl DraftProxy {
         if let Some(field) = revoke {
             if b2b_passthrough_mutation_succeeded(&response) {
                 let company_id =
-                    resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                    resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
                 self.b2b_set_main_contact(&company_id, None);
             }
         }
@@ -3306,12 +3301,10 @@ impl DraftProxy {
                 fields
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
-                        "companyDelete" => resolved_string_arg(&field.arguments, "id")
+                        "companyDelete" => resolved_string_field(&field.arguments, "id")
                             .into_iter()
                             .collect::<Vec<String>>(),
-                        "companiesDelete" => {
-                            resolved_string_list_field_unsorted(&field.arguments, "companyIds")
-                        }
+                        "companiesDelete" => list_string_field(&field.arguments, "companyIds"),
                         _ => Vec::new(),
                     })
                     .collect::<Vec<String>>()
@@ -3352,15 +3345,14 @@ impl DraftProxy {
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
                         "companyLocationDelete" => {
-                            resolved_string_arg(&field.arguments, "companyLocationId")
-                                .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                            resolved_string_field(&field.arguments, "companyLocationId")
+                                .or_else(|| resolved_string_field(&field.arguments, "id"))
                                 .into_iter()
                                 .collect::<Vec<String>>()
                         }
-                        "companyLocationsDelete" => resolved_string_list_field_unsorted(
-                            &field.arguments,
-                            "companyLocationIds",
-                        ),
+                        "companyLocationsDelete" => {
+                            list_string_field(&field.arguments, "companyLocationIds")
+                        }
                         _ => Vec::new(),
                     })
                     .collect::<Vec<String>>()
@@ -3402,17 +3394,17 @@ impl DraftProxy {
                 fields
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
-                        "companyContactRevokeRole" => {
-                            resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
-                                .into_iter()
-                                .collect::<Vec<String>>()
-                        }
-                        "companyContactRevokeRoles" => resolved_string_list_field_unsorted(
+                        "companyContactRevokeRole" => resolved_string_field(
                             &field.arguments,
-                            "roleAssignmentIds",
-                        ),
+                            "companyContactRoleAssignmentId",
+                        )
+                        .into_iter()
+                        .collect::<Vec<String>>(),
+                        "companyContactRevokeRoles" => {
+                            list_string_field(&field.arguments, "roleAssignmentIds")
+                        }
                         "companyLocationRevokeRoles" => {
-                            resolved_string_list_field_unsorted(&field.arguments, "rolesToRevoke")
+                            list_string_field(&field.arguments, "rolesToRevoke")
                         }
                         _ => Vec::new(),
                     })
