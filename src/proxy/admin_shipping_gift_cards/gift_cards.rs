@@ -151,7 +151,7 @@ impl DraftProxy {
     fn gift_card_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
             "giftCard" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !id.is_empty() && !self.store.staged.gift_cards.contains_key(&id)
             }
             "giftCards" | "giftCardsCount" => true,
@@ -169,18 +169,20 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "giftCard" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.gift_card_effective_record(&id)
                         .map(|card| selected_json(&card, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "giftCards" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let cards = self.gift_card_lifecycle_matching_cards(&query);
                     gift_card_connection_json(&cards, &field.selection)
                 }
                 "giftCardsCount" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     gift_card_count_json(
                         self.gift_card_lifecycle_matching_cards(&query).len(),
                         &field.selection,
@@ -331,13 +333,14 @@ impl DraftProxy {
         for field in fields {
             match field.name.as_str() {
                 "giftCard" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if let Some(card) = self.store.staged.gift_cards.get(&id) {
                         data[&field.response_key] = selected_json(card, &field.selection);
                     }
                 }
                 "giftCards" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     self.overlay_gift_card_connection(
                         &mut data[&field.response_key],
                         &query,
@@ -345,7 +348,8 @@ impl DraftProxy {
                     );
                 }
                 "giftCardsCount" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     self.overlay_gift_card_count(&mut data[&field.response_key], &query);
                 }
                 "giftCardConfiguration" => {
@@ -487,7 +491,7 @@ impl DraftProxy {
         }
         let amount = input
             .get("initialValue")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let amount_number = amount.parse::<f64>().unwrap_or(0.0);
         if user_errors.is_empty() && amount_number <= 0.0 {
@@ -567,7 +571,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let existing = self.gift_card_effective_record_for_mutation(request, &id);
@@ -682,14 +686,14 @@ impl DraftProxy {
         spec: GiftCardTransactionSpec,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input_name = spec.input_name;
         let amount_name = spec.amount_name;
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let money = resolved_object_field(&input, amount_name).unwrap_or_default();
         let requested_amount = money
             .get("amount")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
@@ -838,7 +842,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = self.gift_card_effective_record_for_mutation(request, &id);
         if user_errors.is_empty() && card.is_none() {
@@ -871,8 +875,8 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id")
-            .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
+        let id = resolved_string_field(&field.arguments, "id")
+            .or_else(|| resolved_string_field(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = None;

@@ -126,7 +126,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "marketingActivity" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .marketing_activities
@@ -138,7 +138,8 @@ impl DraftProxy {
                 "marketingActivities" => {
                     let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
                     let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let mut records = self
                         .store
                         .staged
@@ -174,7 +175,7 @@ impl DraftProxy {
                     marketing_connection(records, &field.selection)
                 }
                 "marketingEvent" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .marketing_activities
@@ -192,7 +193,8 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "marketingEvents" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let records = self
                         .store
                         .staged
@@ -277,7 +279,7 @@ impl DraftProxy {
     ) -> Vec<Value> {
         let mut records = self.webhook_subscription_records_for_filter_args(field);
         let sort_key =
-            resolved_string_arg(&field.arguments, "sortKey").unwrap_or_else(|| "ID".to_string());
+            resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "ID".to_string());
         records.sort_by(|left, right| {
             let sort_cmp = match sort_key.to_ascii_uppercase().as_str() {
                 "CREATED_AT" => webhook_subscription_string_field(left, "createdAt")
@@ -791,10 +793,7 @@ impl DraftProxy {
                 .and_then(|record| record["name"].as_str().map(ToString::to_string))
         });
         let include_fields = if webhook_input.contains_key("includeFields") {
-            json!(resolved_string_list_field_unsorted(
-                &webhook_input,
-                "includeFields"
-            ))
+            json!(list_string_field(&webhook_input, "includeFields"))
         } else {
             existing
                 .as_ref()
@@ -803,12 +802,10 @@ impl DraftProxy {
                 .unwrap_or_else(|| json!([]))
         };
         let metafield_namespaces = if webhook_input.contains_key("metafieldNamespaces") {
-            json!(
-                resolved_string_list_field_unsorted(&webhook_input, "metafieldNamespaces")
-                    .into_iter()
-                    .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
-                    .collect::<Vec<_>>()
-            )
+            json!(list_string_field(&webhook_input, "metafieldNamespaces")
+                .into_iter()
+                .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
+                .collect::<Vec<_>>())
         } else {
             existing
                 .as_ref()
@@ -1047,7 +1044,7 @@ impl DraftProxy {
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if field.arguments.contains_key("remoteId") && field.arguments.contains_key("utm") {
-            let remote = resolved_string_arg(&field.arguments, "remoteId").unwrap_or_default();
+            let remote = resolved_string_field(&field.arguments, "remoteId").unwrap_or_default();
             let utm = resolved_object_field(&field.arguments, "utm").unwrap_or_default();
             let target_by_remote = self.find_marketing_activity_by_remote(&remote, request);
             let campaign = resolved_string_field(&utm, "campaign").unwrap_or_default();
@@ -1062,10 +1059,10 @@ impl DraftProxy {
                 );
             }
         }
-        let existing_id = resolved_string_arg(&field.arguments, "marketingActivityId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+        let existing_id = resolved_string_field(&field.arguments, "marketingActivityId")
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .or_else(|| {
-                resolved_string_arg(&field.arguments, "remoteId")
+                resolved_string_field(&field.arguments, "remoteId")
                     .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
             })
             .or_else(|| {
@@ -1281,10 +1278,10 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let id = resolved_string_arg(&field.arguments, "marketingActivityId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+        let id = resolved_string_field(&field.arguments, "marketingActivityId")
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .or_else(|| {
-                resolved_string_arg(&field.arguments, "remoteId")
+                resolved_string_field(&field.arguments, "remoteId")
                     .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
             });
         let Some(id) = id else {
@@ -1383,7 +1380,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if let Some(channel) = resolved_string_arg(&field.arguments, "channelHandle") {
+        if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
             if channel != "email" {
                 return selected_json(
                     &marketing_engagement_payload(
@@ -1417,9 +1414,9 @@ impl DraftProxy {
             );
         }
         let activity_id = if has_activity_id {
-            resolved_string_arg(&field.arguments, "marketingActivityId")
+            resolved_string_field(&field.arguments, "marketingActivityId")
         } else {
-            resolved_string_arg(&field.arguments, "remoteId")
+            resolved_string_field(&field.arguments, "remoteId")
                 .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
         };
         let Some(activity_id) = activity_id else {
@@ -1486,7 +1483,8 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(Value::Null, "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", Some("INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"))],
             )
-        } else if let Some(channel_handle) = resolved_string_arg(&field.arguments, "channelHandle")
+        } else if let Some(channel_handle) =
+            resolved_string_field(&field.arguments, "channelHandle")
         {
             if known_handles.contains(&channel_handle) {
                 (
@@ -1630,7 +1628,7 @@ impl DraftProxy {
                 Some("IMMUTABLE_CHANNEL_HANDLE"),
             ));
         }
-        if input_string_field_value(input, "urlParameterValue")
+        if resolved_string_field(input, "urlParameterValue")
             .is_some_and(|value| json_string_value(&existing["urlParameterValue"]) != Some(value))
         {
             return Some(user_error(
@@ -1717,7 +1715,7 @@ impl DraftProxy {
                     selected_json(&inventory_properties_json(), &field.selection)
                 }
                 "inventoryItem" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if self.inventory_item_id_is_missing(&id)
                         && !self.inventory_item_has_local_state(&id)
                     {
@@ -1727,11 +1725,11 @@ impl DraftProxy {
                     }
                 }
                 "inventoryLevel" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.inventory_level_by_id_selected_json(&id, &field.selection)
                 }
                 "inventoryTransfer" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.inventory_transfer_by_id_selected_json(&id, &field.selection)
                 }
                 "inventoryTransfers" => self.inventory_transfers_connection_selected_json(
@@ -1739,11 +1737,11 @@ impl DraftProxy {
                     &field.selection,
                 ),
                 "inventoryShipment" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.inventory_shipment_by_id_selected_json(&id, &field.selection)
                 }
                 "product" => {
-                    let id = resolved_string_arg(&field.arguments, "id")
+                    let id = resolved_string_field(&field.arguments, "id")
                         .or_else(|| resolved_string_field(variables, "productId"))
                         .unwrap_or_default();
                     self.inventory_product_selected_json(&id, &field.selection)
@@ -4029,7 +4027,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(
@@ -4101,7 +4099,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(
@@ -4157,7 +4155,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(
@@ -4287,7 +4285,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
@@ -4321,7 +4319,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
@@ -4356,7 +4354,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
@@ -4436,7 +4434,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(record) = self.store.staged.inventory_shipments.remove(&id) else {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
@@ -4930,7 +4928,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
@@ -5034,7 +5032,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
@@ -5103,7 +5101,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
@@ -5233,7 +5231,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
@@ -5260,7 +5258,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(record) = self.store.staged.inventory_transfers.get(&id).cloned() else {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
@@ -5813,24 +5811,14 @@ pub(in crate::proxy) fn marketing_record_query_value(
     .map(ToString::to_string)
 }
 
-fn input_string_field_value(
-    input: &BTreeMap<String, ResolvedValue>,
-    field: &str,
-) -> Option<String> {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
-
 fn input_utm_value(
     input: &BTreeMap<String, ResolvedValue>,
     selector_utm: Option<&BTreeMap<String, ResolvedValue>>,
     field: &str,
 ) -> Option<String> {
     match input.get("utm") {
-        Some(ResolvedValue::Object(utm)) => input_string_field_value(utm, field),
-        _ => selector_utm.and_then(|utm| input_string_field_value(utm, field)),
+        Some(ResolvedValue::Object(utm)) => resolved_string_field(utm, field),
+        _ => selector_utm.and_then(|utm| resolved_string_field(utm, field)),
     }
 }
 
@@ -6430,7 +6418,7 @@ fn inventory_item_update_variable_errors(
 
 fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
     let mut errors = Vec::new();
-    if resolved_decimal_value(input, "cost").is_some_and(|cost| cost < 0.0) {
+    if resolved_f64_path(input, &["cost"]).is_some_and(|cost| cost < 0.0) {
         errors.push(inventory_item_update_user_error(
             inventory_item_update_field_path(&["input", "cost"]),
             "Cost must be greater than or equal to 0",
@@ -6440,7 +6428,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     if let Some(weight) = resolved_object_field(input, "measurement")
         .and_then(|measurement| resolved_object_field(&measurement, "weight"))
     {
-        if let Some(value) = resolved_decimal_value(&weight, "value") {
+        if let Some(value) = resolved_f64_path(&weight, &["value"]) {
             if value < 0.0 {
                 errors.push(inventory_item_update_user_error(
                     inventory_item_update_field_path(&["input", "measurement", "weight"]),
@@ -6520,15 +6508,6 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
 
 fn inventory_item_update_field_path(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|part| (*part).to_string()).collect()
-}
-
-fn resolved_decimal_value(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<f64> {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
-        Some(ResolvedValue::Int(value)) => Some(*value as f64),
-        Some(ResolvedValue::Float(value)) => Some(*value),
-        _ => None,
-    }
 }
 
 fn is_valid_country_code(country_code: &str) -> bool {
