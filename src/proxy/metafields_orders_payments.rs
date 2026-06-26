@@ -1651,7 +1651,7 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
         .map(|field| (field.response_key, field.selection))
         .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
     let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
+    let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
     let mut product_variants = quantity_pricing_variant_ids_from_input(&input)
         .into_iter()
         .map(|id| json!({ "id": id }))
@@ -1690,7 +1690,7 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
             "Price list not found.",
         )];
     }
-    if let Some(first) = list_object_field(input, "pricesToAdd").first() {
+    if let Some(first) = resolved_object_list_field(input, "pricesToAdd").first() {
         if resolved_string_field(first, "variantId").as_deref()
             == Some("gid://shopify/ProductVariant/0")
         {
@@ -1712,7 +1712,7 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
             )];
         }
     }
-    let prices_to_add = list_object_field(input, "pricesToAdd");
+    let prices_to_add = resolved_object_list_field(input, "pricesToAdd");
     if prices_to_add.len() > 1 {
         let mut seen = BTreeSet::new();
         let duplicate = prices_to_add.iter().any(|item| {
@@ -1770,11 +1770,11 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
             "Quantity price break not found.",
         )];
     }
-    let quantity_rules = list_object_field(input, "quantityRulesToAdd");
+    let quantity_rules = resolved_object_list_field(input, "quantityRulesToAdd");
     if let Some(rule) = quantity_rules.first() {
-        let minimum = resolved_i64_field(rule, "minimum").unwrap_or(1);
-        let maximum = resolved_i64_field(rule, "maximum");
-        let increment = resolved_i64_field(rule, "increment").unwrap_or(1);
+        let minimum = resolved_int_field(rule, "minimum").unwrap_or(1);
+        let maximum = resolved_int_field(rule, "maximum");
+        let increment = resolved_int_field(rule, "increment").unwrap_or(1);
         if resolved_string_field(rule, "variantId").as_deref()
             == Some("gid://shopify/ProductVariant/0")
         {
@@ -1852,7 +1852,7 @@ pub(in crate::proxy) fn quantity_pricing_variant_ids_from_input(
         "quantityRulesToAdd",
         "quantityPriceBreaksToAdd",
     ] {
-        for fields in list_object_field(input, key) {
+        for fields in resolved_object_list_field(input, key) {
             if let Some(id) = resolved_string_field(&fields, "variantId") {
                 ids.insert(id);
             }
@@ -1887,7 +1887,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     let (response_key, payload_selection) = primary_root_field(query, variables)
         .map(|field| (field.response_key, field.selection))
         .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
-    let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
+    let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
         let variant_ids = list_string_field(variables, "variantIds");
         if price_list_id == "gid://shopify/PriceList/0" {
@@ -1903,7 +1903,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
             json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
         }
     } else {
-        let quantity_rules = list_object_field(variables, "quantityRules");
+        let quantity_rules = resolved_object_list_field(variables, "quantityRules");
         if price_list_id == "gid://shopify/PriceList/0"
             || price_list_id == "gid://shopify/PriceList/999"
         {
@@ -1920,18 +1920,18 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
             json!({"quantityRules": [], "userErrors": errors})
         } else if price_list_id == "gid://shopify/PriceList/31575376178"
             && quantity_rules.iter().any(|rule| {
-                resolved_i64_field(rule, "minimum").unwrap_or(1)
-                    <= resolved_i64_field(rule, "maximum").unwrap_or(i64::MAX)
-                    && resolved_i64_field(rule, "maximum") == Some(5)
+                resolved_int_field(rule, "minimum").unwrap_or(1)
+                    <= resolved_int_field(rule, "maximum").unwrap_or(i64::MAX)
+                    && resolved_int_field(rule, "maximum") == Some(5)
             })
         {
             json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["quantityRules", "0", "maximum"], "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM", "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.")]})
         } else {
             json!({
                 "quantityRules": quantity_rules.into_iter().map(|rule| json!({
-                    "minimum": resolved_i64_field(&rule, "minimum").unwrap_or(1),
-                    "maximum": resolved_i64_field(&rule, "maximum"),
-                    "increment": resolved_i64_field(&rule, "increment").unwrap_or(1),
+                    "minimum": resolved_int_field(&rule, "minimum").unwrap_or(1),
+                    "maximum": resolved_int_field(&rule, "maximum"),
+                    "increment": resolved_int_field(&rule, "increment").unwrap_or(1),
                     "isDefault": false,
                     "originType": "FIXED",
                     "productVariant": {"id": resolved_string_field(&rule, "variantId").unwrap_or_default()}
@@ -1980,9 +1980,9 @@ pub(in crate::proxy) fn quantity_rules_add_validation_errors(
     let mut errors = Vec::new();
     for (index, rule) in quantity_rules.iter().enumerate() {
         let index = index.to_string();
-        let minimum = resolved_i64_field(rule, "minimum").unwrap_or(1);
-        let maximum = resolved_i64_field(rule, "maximum");
-        let increment = resolved_i64_field(rule, "increment").unwrap_or(1);
+        let minimum = resolved_int_field(rule, "minimum").unwrap_or(1);
+        let maximum = resolved_int_field(rule, "maximum");
+        let increment = resolved_int_field(rule, "increment").unwrap_or(1);
         if minimum < 1 {
             errors.push(quantity_rule_error(
                 vec!["quantityRules", &index, "minimum"],
@@ -2482,8 +2482,8 @@ pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSe
         if field.name != "paymentTermsTemplates" {
             continue;
         }
-        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
-            .or_else(|| resolved_string_arg(&field.arguments, "type"));
+        let type_filter = resolved_string_field(&field.arguments, "paymentTermsType")
+            .or_else(|| resolved_string_field(&field.arguments, "type"));
         let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATE_CATALOG
             .iter()
             .filter(|(_, _, _, _, terms_type)| {
@@ -2727,7 +2727,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
 pub(in crate::proxy) fn payment_terms_create_value(
     field: &RootFieldSelection,
 ) -> Result<(String, String, BTreeMap<String, ResolvedValue>), Value> {
-    let reference_id = resolved_string_arg(&field.arguments, "referenceId").unwrap_or_default();
+    let reference_id = resolved_string_field(&field.arguments, "referenceId").unwrap_or_default();
     let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
         return Err(payment_terms_payload_value(
@@ -2838,7 +2838,7 @@ pub(in crate::proxy) fn payment_reminder_local_data(
     }
 
     let schedule_id =
-        resolved_string_arg(&field.arguments, "paymentScheduleId").unwrap_or_default();
+        resolved_string_field(&field.arguments, "paymentScheduleId").unwrap_or_default();
 
     if schedule_id.is_empty() || !schedule_id.starts_with("gid://shopify/") {
         return Some(payment_reminder_invalid_gid_error(
@@ -3196,7 +3196,7 @@ impl DraftProxy {
                 field.name.as_str(),
                 "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment"
             ) || (field.name == "node"
-                && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                     id.starts_with("gid://shopify/Abandonment/")
                         || self.store.staged.abandonments.contains_key(&id)
                 }))
@@ -3209,8 +3209,8 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "abandonmentUpdateActivitiesDeliveryStatuses" => {
-                    let abandonment_id =
-                        resolved_string_arg(&field.arguments, "abandonmentId").unwrap_or_default();
+                    let abandonment_id = resolved_string_field(&field.arguments, "abandonmentId")
+                        .unwrap_or_default();
                     // An abandonment exists if it has been staged in this scenario or
                     // carries a real (positive) resource id. Shopify never assigns id 0,
                     // so a zero/non-numeric id references a non-existent record: the
@@ -3230,11 +3230,11 @@ impl DraftProxy {
                         continue;
                     }
                     let marketing_activity_id =
-                        resolved_string_arg(&field.arguments, "marketingActivityId")
+                        resolved_string_field(&field.arguments, "marketingActivityId")
                             .unwrap_or_default();
-                    let status = resolved_string_arg(&field.arguments, "deliveryStatus")
+                    let status = resolved_string_field(&field.arguments, "deliveryStatus")
                         .unwrap_or_else(|| "DELIVERED".to_string());
-                    let delivered_at = resolved_string_arg(&field.arguments, "deliveredAt")
+                    let delivered_at = resolved_string_field(&field.arguments, "deliveredAt")
                         .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
                     let mut user_errors = Vec::new();
                     let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
@@ -3277,7 +3277,7 @@ impl DraftProxy {
                     )
                 }
                 "abandonment" | "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .abandonments
@@ -3480,7 +3480,8 @@ impl DraftProxy {
                     )
                 }
                 "orderEditBegin" => {
-                    let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let order_id =
+                        resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let order = self.store.staged.orders.get(&order_id);
                     if order.is_none() {
                         return Some(json!({
@@ -3652,7 +3653,7 @@ impl DraftProxy {
             });
             let has_staged_owner_read = fields.iter().any(|field| {
                 matches!(field.name.as_str(), "order" | "draftOrder")
-                    && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                    && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                         self.store
                             .staged
                             .payment_terms_owner_index
@@ -3797,11 +3798,11 @@ impl DraftProxy {
                         }
                     }
                     "order" => {
-                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        let id = resolved_string_field(&field.arguments, "id")?;
                         self.selected_payment_terms_owner(&id, &field.selection, false)
                     }
                     "draftOrder" => {
-                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        let id = resolved_string_field(&field.arguments, "id")?;
                         self.selected_payment_terms_owner(&id, &field.selection, true)
                     }
                     _ => continue,
