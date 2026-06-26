@@ -8180,12 +8180,19 @@ fn update_order_display_fulfillment_status(order: &mut Value) {
 
 fn fulfillment_hold_display_reason(reason: &str) -> String {
     match reason {
+        "AWAITING_RETURN_ITEMS" => "Exchange items awaiting return delivery",
+        "MARKETPLACE_PARTNER" => "Pending Marketplace partner authorization",
+        "MARKETS_PRO" => "Markets Pro is processing the order",
+        "MARKETS_PRO_DEFERRED_SALE" => "Awaiting payment",
+        "ONLINE_STORE_POST_PURCHASE_CROSS_SELL" => "Pending upsell offer",
+        "SHOPIFY_PAYMENTS_KYC" => "Awaiting payments setup",
+        "UNKNOWN_DELIVERY_DATE" => "Unknown delivery date",
         "INVENTORY_OUT_OF_STOCK" => "Inventory out of stock",
         "HIGH_RISK_OF_FRAUD" => "High risk of fraud",
         "INCORRECT_ADDRESS" => "Incorrect address",
         "AWAITING_PAYMENT" => "Awaiting payment",
         "OTHER" => "Other",
-        value => value,
+        _ => "Other",
     }
     .to_string()
 }
@@ -8243,5 +8250,53 @@ fn should_preserve_staged_scalar(key: &str, existing: &Value, incoming: &Value) 
             ) && incoming.as_str() == Some("OPEN")
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod fulfillment_hold_display_reason_tests {
+    use super::fulfillment_hold_display_reason;
+
+    #[test]
+    fn maps_all_known_reasons_to_shopify_display_text() {
+        let cases = [
+            (
+                "AWAITING_RETURN_ITEMS",
+                "Exchange items awaiting return delivery",
+            ),
+            (
+                "MARKETPLACE_PARTNER",
+                "Pending Marketplace partner authorization",
+            ),
+            ("MARKETS_PRO", "Markets Pro is processing the order"),
+            ("MARKETS_PRO_DEFERRED_SALE", "Awaiting payment"),
+            (
+                "ONLINE_STORE_POST_PURCHASE_CROSS_SELL",
+                "Pending upsell offer",
+            ),
+            ("SHOPIFY_PAYMENTS_KYC", "Awaiting payments setup"),
+            ("UNKNOWN_DELIVERY_DATE", "Unknown delivery date"),
+            ("INVENTORY_OUT_OF_STOCK", "Inventory out of stock"),
+            ("HIGH_RISK_OF_FRAUD", "High risk of fraud"),
+            ("INCORRECT_ADDRESS", "Incorrect address"),
+            ("AWAITING_PAYMENT", "Awaiting payment"),
+            ("OTHER", "Other"),
+        ];
+
+        for (reason, display_reason) in cases {
+            assert_eq!(
+                fulfillment_hold_display_reason(reason),
+                display_reason,
+                "{reason}"
+            );
+        }
+    }
+
+    #[test]
+    fn maps_unknown_reasons_to_other() {
+        assert_eq!(
+            fulfillment_hold_display_reason("INTERNAL_NOT_VISIBLE_TO_APP"),
+            "Other"
+        );
     }
 }
