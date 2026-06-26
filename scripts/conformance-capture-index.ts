@@ -2870,6 +2870,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'selling-plan-group-update-delete-to-zero',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-update-delete-to-zero-conformance.ts',
+    purpose:
+      'sellingPlanGroupUpdate rejects deleting the only existing selling plan without a replacement, leaves readback unchanged, and allows delete-with-replacement.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-update-delete-to-zero.json`,
+      'config/parity-specs/products/selling-plan-group-update-delete-to-zero.json',
+      'config/parity-requests/products/selling-plan-group-update-delete-to-zero-create.graphql',
+      'config/parity-requests/products/selling-plan-group-update-delete-to-zero-update.graphql',
+      'config/parity-requests/products/selling-plan-group-update-delete-to-zero-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable selling-plan group, captures update/readback branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'selling-plan-group-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-input-validation-conformance.ts',
