@@ -51,29 +51,22 @@ impl DraftProxy {
         &self,
         root_fields: &[RootFieldSelection],
     ) -> Value {
-        let mut fields = serde_json::Map::new();
-        for field in root_fields {
-            let value = match field.name.as_str() {
-                "product" => Some(self.product_by_id_field(field)),
-                "products" => Some(self.products_connection_field(field)),
-                "productsCount" => Some(self.products_count_field(field)),
-                "productByIdentifier" => Some(self.product_by_identifier_field(field)),
-                "productOperation" => Some(self.product_operation_by_id_field(field)),
-                "productVariant" => Some(self.product_variant_by_id_field(field)),
-                "inventoryItem" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.product_inventory_item_by_id_value(&id, &field.selection)
-                }
-                // Mixed reads pairing `product` with sibling `collection(id:)` lookups
-                // (e.g. collectionsToJoin downstream parity) resolve membership locally.
-                "collection" => Some(self.collection_membership_value(field)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(field.response_key.clone(), value);
+        root_payload_json(root_fields, |field| match field.name.as_str() {
+            "product" => Some(self.product_by_id_field(field)),
+            "products" => Some(self.products_connection_field(field)),
+            "productsCount" => Some(self.products_count_field(field)),
+            "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+            "productOperation" => Some(self.product_operation_by_id_field(field)),
+            "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "inventoryItem" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.product_inventory_item_by_id_value(&id, &field.selection)
             }
-        }
-        Value::Object(fields)
+            // Mixed reads pairing `product` with sibling `collection(id:)` lookups
+            // (e.g. collectionsToJoin downstream parity) resolve membership locally.
+            "collection" => Some(self.collection_membership_value(field)),
+            _ => None,
+        })
     }
 
     pub(in crate::proxy) fn product_operation_by_id_field(
@@ -1226,10 +1219,7 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -2075,10 +2065,7 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -2177,8 +2164,6 @@ impl DraftProxy {
             selected_child_selection(payload_selection, "product").unwrap_or_default();
         let variant_selection =
             selected_child_selection(payload_selection, "productVariant").unwrap_or_default();
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" => Some(match product {
@@ -2201,10 +2186,7 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -2513,13 +2495,11 @@ impl DraftProxy {
             primary_root_response_selection(query, &BTreeMap::new(), || {
                 "productVariantDelete".to_string()
             });
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
@@ -3068,10 +3048,7 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         });

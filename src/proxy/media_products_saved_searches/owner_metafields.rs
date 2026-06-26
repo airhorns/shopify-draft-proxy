@@ -430,20 +430,18 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let fields = root_fields(query, variables).unwrap_or_default();
         self.hydrate_owner_metafield_read_fields(request, &fields, variables);
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             if !matches!(
                 field.name.as_str(),
                 "product" | "productVariant" | "collection" | "customer" | "order" | "company"
             ) {
-                continue;
+                return None;
             }
-            let owner = self.owner_metafield_owner_json(&field, variables);
-            data.insert(field.response_key, owner);
-        }
-        ok_json(json!({"data": Value::Object(data)}))
+            Some(self.owner_metafield_owner_json(field, variables))
+        });
+        ok_json(json!({"data": data}))
     }
 
     fn hydrate_owner_metafield_read_fields(

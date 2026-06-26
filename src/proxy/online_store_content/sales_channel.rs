@@ -18,8 +18,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = if let Some(value) = self.online_store_content_query_value(field) {
                 value
             } else {
@@ -117,9 +116,8 @@ impl DraftProxy {
                     _ => Value::Null,
                 }
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn online_store_mutation(
@@ -129,7 +127,6 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         // Server-pixel endpoint mutations reject invalid arguments with top-level GraphQL
         // errors (and no `data`) before any local staging: missing required arguments are a
@@ -140,7 +137,7 @@ impl DraftProxy {
                 return ok_json(json!({ "errors": [error] }));
             }
         }
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let value = if let Some(value) =
                 self.online_store_content_mutation_value(field, request, &mut staged_ids)
             {
@@ -180,8 +177,8 @@ impl DraftProxy {
                     _ => Value::Null,
                 }
             };
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -194,7 +191,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {

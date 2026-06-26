@@ -47,26 +47,25 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let result = match field.name.as_str() {
                 "publicationCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_create(&field, request, query, variables),
+                    self.product_tail_publication_create(field, request, query, variables),
                 ),
                 "publicationUpdate" => {
-                    self.product_tail_publication_update(&field, request, query, variables)
+                    self.product_tail_publication_update(field, request, query, variables)
                 }
                 "publicationDelete" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_delete(&field, request, query, variables),
+                    self.product_tail_publication_delete(field, request, query, variables),
                 ),
                 "productFeedCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_feed_create(&field, request, query, variables),
+                    self.product_tail_feed_create(field, request, query, variables),
                 ),
                 "productFullSync" => ProductTailMutationFieldResult::value(
-                    self.product_tail_full_sync(&field, request, query, variables),
+                    self.product_tail_full_sync(field, request, query, variables),
                 ),
-                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(&field)),
+                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(field)),
                 "bulkProductResourceFeedbackCreate" => {
                     self.record_mutation_log_with_status(
                         request,
@@ -76,9 +75,9 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    let missing_product_ids = self.feedback_missing_product_ids(&field, request);
+                    let missing_product_ids = self.feedback_missing_product_ids(field, request);
                     ProductTailMutationFieldResult::value(product_tail_resource_feedback_payload(
-                        &field,
+                        field,
                         &missing_product_ids,
                     ))
                 }
@@ -91,19 +90,17 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(
-                        &field,
-                    ))
+                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(field))
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), result.value);
             errors.extend(result.errors);
-        }
-        if data.is_empty() {
+            Some(result.value)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return None;
         }
-        let mut response = serde_json::Map::from_iter([("data".to_string(), Value::Object(data))]);
+        let mut response = serde_json::Map::from_iter([("data".to_string(), data)]);
         if !errors.is_empty() {
             response.insert("errors".to_string(), Value::Array(errors));
         }
@@ -742,22 +739,23 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if field.name == "job" {
                 let (value, error) = self.product_tail_job_read_with_error(field);
-                data.insert(field.response_key.clone(), value);
                 if let Some(error) = error {
                     errors.push(error);
                 }
+                Some(value)
+            } else {
+                None
             }
-        }
+        });
         let mut body = serde_json::Map::new();
         if !errors.is_empty() {
             body.insert("errors".to_string(), Value::Array(errors));
         }
-        body.insert("data".to_string(), Value::Object(data));
+        body.insert("data".to_string(), data);
         Value::Object(body)
     }
 

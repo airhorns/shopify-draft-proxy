@@ -123,9 +123,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         request: &Request,
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "availableLocales" => Value::Array(
                     self.localization_available_locales()
                         .iter()
@@ -161,29 +160,24 @@ impl DraftProxy {
                 }
                 "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn localization_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "shopLocaleEnable" => self.shop_locale_enable_response(field),
                 "shopLocaleUpdate" => self.shop_locale_update_response(field),
                 "shopLocaleDisable" => self.shop_locale_disable_response(field),
                 "translationsRegister" => self.localization_register_response(field),
                 "translationsRemove" => self.localization_remove_response(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn localization_available_locales(&self) -> Vec<Value> {
@@ -404,9 +398,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "market" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -490,10 +483,8 @@ impl DraftProxy {
                     )
                 }
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn market_create_mutation_data(
@@ -503,10 +494,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut log_root_field: Option<String> = None;
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "marketCreate" => self.market_create_response(field),
                 "marketUpdate" => self.market_update_response(field),
@@ -522,8 +512,8 @@ impl DraftProxy {
                     log_root_field = Some(field.name.clone());
                 }
             }
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -533,7 +523,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Value::Object(data)
+        data
     }
 
     pub(in crate::proxy) fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -1035,9 +1025,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let mut data = serde_json::Map::new();
         let mut touched_ids = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "catalogCreate" => self.catalog_create_response(field, request),
                 "catalogUpdate" => self.catalog_update_response(field, request),
@@ -1051,12 +1040,12 @@ impl DraftProxy {
             {
                 touched_ids.push(id.to_string());
             }
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !touched_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
         }
-        Value::Object(data)
+        data
     }
 
     pub(in crate::proxy) fn catalog_create_response(
@@ -1418,10 +1407,9 @@ impl DraftProxy {
         }) {
             self.web_presence_mutation_preflight(variables, request);
         }
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
         let mut touched_ids = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let outcome = match field.name.as_str() {
                 "priceListCreate" => self.price_list_create_response(field),
                 "priceListUpdate" => self.price_list_update_response(field),
@@ -1462,13 +1450,13 @@ impl DraftProxy {
                 touched_ids.push(id.to_string());
             }
             errors.extend(outcome.errors);
-            data.insert(field.response_key.clone(), outcome.value);
-        }
+            Some(outcome.value)
+        });
         if !touched_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
         let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), Value::Object(data));
+        body.insert("data".to_string(), data);
         if !errors.is_empty() {
             body.insert("errors".to_string(), Value::Array(errors));
         }
@@ -2597,9 +2585,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         request: &Request,
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "marketLocalizableResource" => {
                     let resource_id = resolved_string_field(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Metafield/localizable".to_string());
@@ -2625,10 +2612,8 @@ impl DraftProxy {
                 ),
                 "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     /// Project a market-localizable resource from observed/staged state: the
@@ -2670,16 +2655,13 @@ impl DraftProxy {
         &mut self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "marketLocalizationsRegister" => self.market_localizations_register_response(field),
                 "marketLocalizationsRemove" => self.market_localizations_remove_response(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn market_localizations_register_response(

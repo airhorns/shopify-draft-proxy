@@ -165,9 +165,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn gift_card_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "giftCard" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.gift_card_effective_record(&id)
@@ -191,11 +190,9 @@ impl DraftProxy {
                 "giftCardConfiguration" => {
                     selected_json(&self.gift_card_configuration_record(), &field.selection)
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn gift_card_mutation_response(
@@ -205,7 +202,6 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
 
         for field in fields {
@@ -221,7 +217,7 @@ impl DraftProxy {
             }
         }
 
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let payload = match field.name.as_str() {
                 "giftCardCreate" => self.gift_card_create_field(field, request, &mut staged_ids),
                 "giftCardUpdate" => self.gift_card_update_field(field, request, &mut staged_ids),
@@ -233,10 +229,10 @@ impl DraftProxy {
                 "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
                     self.gift_card_notification_field(field, request, &mut staged_ids)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), payload);
-        }
+            Some(payload)
+        });
 
         if !staged_ids.is_empty() {
             staged_ids.sort();
@@ -253,7 +249,7 @@ impl DraftProxy {
             );
         }
 
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn gift_card_lifecycle_matching_cards(&self, query: &str) -> Vec<Value> {

@@ -136,64 +136,88 @@ impl DraftProxy {
         }
 
         self.ensure_customer_payment_method_seed_state();
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields {
+        let mut early_response = None;
+        let mut missing_required = false;
+        let data = root_payload_json(&fields, |field| {
+            if early_response.is_some() || missing_required {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "customerCreate" => self.customer_payment_method_customer_create(&field),
-                "customer" => self.customer_payment_method_customer_read(&field),
-                "customerPaymentMethod" => self.customer_payment_method_read(&field),
+                "customerCreate" => self.customer_payment_method_customer_create(field),
+                "customer" => self.customer_payment_method_customer_read(field),
+                "customerPaymentMethod" => self.customer_payment_method_read(field),
                 "customerPaymentMethodCreditCardCreate" => {
-                    let (payload, id) = self.customer_payment_method_credit_card_create(&field);
+                    let (payload, id) = self.customer_payment_method_credit_card_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodCreditCardUpdate" => {
-                    self.customer_payment_method_credit_card_update(&field)
+                    self.customer_payment_method_credit_card_update(field)
                 }
                 "customerPaymentMethodRemoteCreate" => {
-                    let (payload, id) = self.customer_payment_method_remote_create(&field);
+                    let (payload, id) = self.customer_payment_method_remote_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodPaypalBillingAgreementCreate" => {
-                    let (payload, id) = self.customer_payment_method_paypal_create(&field);
+                    let (payload, id) = self.customer_payment_method_paypal_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodPaypalBillingAgreementUpdate" => {
-                    self.customer_payment_method_paypal_update(&field)
+                    self.customer_payment_method_paypal_update(field)
                 }
                 "customerPaymentMethodGetDuplicationData" => {
-                    self.customer_payment_method_duplication_data(&field)
+                    self.customer_payment_method_duplication_data(field)
                 }
                 "customerPaymentMethodCreateFromDuplicationData" => {
-                    let (payload, id) =
-                        self.customer_payment_method_create_from_duplication(&field);
+                    let (payload, id) = self.customer_payment_method_create_from_duplication(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodGetUpdateUrl" => {
-                    self.customer_payment_method_update_url(&field)
+                    self.customer_payment_method_update_url(field)
                 }
                 "customerPaymentMethodRevoke" => {
-                    let (payload, id) = self.customer_payment_method_revoke(&field);
+                    let (payload, id) = self.customer_payment_method_revoke(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
-                _ => continue,
+                "paymentReminderSend" => {
+                    let Some(reminder) = payment_reminder_local_data(
+                        query,
+                        variables,
+                        &mut self.store.staged.payment_reminder_schedule_ids,
+                    ) else {
+                        missing_required = true;
+                        return None;
+                    };
+                    if reminder.get("errors").is_some() {
+                        early_response = Some(reminder);
+                        return None;
+                    }
+                    reminder["data"][field.response_key.as_str()].clone()
+                }
+                _ => return None,
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if let Some(response) = early_response {
+            return Some(response);
+        }
+        if missing_required {
+            return None;
         }
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
@@ -204,7 +228,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     fn ensure_customer_payment_method_seed_state(&mut self) {

@@ -10,9 +10,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "sellingPlanGroup" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -40,11 +39,9 @@ impl DraftProxy {
                 "productsCount" => self.products_count_field(field),
                 "productByIdentifier" => self.product_by_identifier_field(field),
                 "productVariant" => self.product_variant_by_id_field(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn selling_plan_group_mutation(
