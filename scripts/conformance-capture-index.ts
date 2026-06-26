@@ -319,6 +319,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-revoke-role-scope-preconditions.json`,
       'config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json',
+      'config/parity-specs/b2b/b2b-revoke-role-scope-regression-branches.json',
       'config/parity-requests/b2b/b2b-revoke-role-scope-company-create.graphql',
       'config/parity-requests/b2b/b2b-revoke-role-scope-contact-assign-roles.graphql',
       'config/parity-requests/b2b/b2b-revoke-role-scope-contact-create.graphql',
