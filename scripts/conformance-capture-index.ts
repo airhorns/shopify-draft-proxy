@@ -6152,6 +6152,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'draft-orders-status-query-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-orders-status-query-conformance.ts',
+    purpose:
+      'Live draftOrders/draftOrdersCount read for a valid status:open draft-order search query, recorded as an upstream cassette for cold proxy replay.',
+    requiredAuthScopes: ['read_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-orders-status-query-read.json`,
+      'config/parity-specs/orders/draftOrders-status-query-read.json',
+      'config/parity-requests/orders/draftOrders-status-query-read.graphql',
+      'config/parity-requests/orders/draftOrders-status-query-read.variables.json',
+    ],
+    cleanupBehavior: 'Read-only capture; does not create, update, or delete Shopify resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-catalog-count-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-catalog-count-read-conformance.mts',
