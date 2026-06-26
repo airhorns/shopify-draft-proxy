@@ -2509,7 +2509,7 @@ impl DraftProxy {
                 ),
             (_, CapabilityExecution::OverlayRead) => no_dispatcher("overlay-read", root_field),
             (_, CapabilityExecution::StageLocally) => no_dispatcher("stage-locally", root_field),
-            (_, CapabilityExecution::Passthrough) => no_dispatcher("passthrough", root_field),
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
 }

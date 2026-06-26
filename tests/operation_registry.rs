@@ -1,8 +1,8 @@
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
-    default_registry, find_entry, implemented_entries, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, execution_for_operation_type, implemented_entries, operation_capability,
+    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
@@ -11,60 +11,51 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             name: "product".to_string(),
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: vec!["product".to_string(), "Product".to_string()],
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-            support_notes: None,
         },
         OperationRegistryEntry {
             name: "productCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: vec!["productCreate".to_string()],
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-            support_notes: Some("stages products locally".to_string()),
         },
         OperationRegistryEntry {
             name: "customerCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Customers,
-            execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: vec!["customerCreate".to_string()],
             runtime_tests: vec![],
-            support_notes: None,
         },
         OperationRegistryEntry {
             name: "app".to_string(),
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Apps,
-            execution: CapabilityExecution::OverlayRead,
             implemented: false,
             match_names: vec!["app".to_string(), "App".to_string()],
             runtime_tests: vec![],
-            support_notes: None,
         },
     ]
 }
 
 #[test]
-fn registry_finds_first_nonempty_candidate_by_type_and_match_name() {
-    let registry = sample_registry();
-
-    let entry = find_entry(
-        &registry,
-        OperationType::Query,
-        &[None, Some(""), Some("Product")],
-    )
-    .expect("Product match name should resolve to product entry");
-
-    assert_eq!(entry.name, "product");
-    assert_eq!(entry.domain, CapabilityDomain::Products);
-    assert_eq!(entry.execution, CapabilityExecution::OverlayRead);
-    assert!(find_entry(&registry, OperationType::Mutation, &[Some("Product")]).is_none());
+fn execution_is_derived_from_operation_type() {
+    assert_eq!(
+        execution_for_operation_type(OperationType::Query),
+        CapabilityExecution::OverlayRead
+    );
+    assert_eq!(
+        execution_for_operation_type(OperationType::Mutation),
+        CapabilityExecution::StageLocally
+    );
+    assert_eq!(
+        execution_for_operation_type(OperationType::Subscription),
+        CapabilityExecution::Passthrough
+    );
 }
 
 #[test]
@@ -86,44 +77,29 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
         name: "syntheticLocalRoot".to_string(),
         operation_type: OperationType::Query,
         domain: CapabilityDomain::Apps,
-        execution: CapabilityExecution::OverlayRead,
         implemented: true,
         match_names: vec!["syntheticLocalRoot".to_string()],
         runtime_tests: vec![],
-        support_notes: None,
     });
 
     let product = operation_capability(&registry, OperationType::Query, Some("product"));
     assert_eq!(product.domain, CapabilityDomain::Products);
     assert_eq!(product.execution, CapabilityExecution::OverlayRead);
-    assert_eq!(product.operation_name.as_deref(), Some("product"));
 
     let product_create =
         operation_capability(&registry, OperationType::Mutation, Some("productCreate"));
     assert_eq!(product_create.domain, CapabilityDomain::Products);
     assert_eq!(product_create.execution, CapabilityExecution::StageLocally);
-    assert_eq!(
-        product_create.operation_name.as_deref(),
-        Some("productCreate")
-    );
 
     let synthetic =
         operation_capability(&registry, OperationType::Query, Some("syntheticLocalRoot"));
     assert_eq!(synthetic.domain, CapabilityDomain::Apps);
     assert_eq!(synthetic.execution, CapabilityExecution::OverlayRead);
-    assert_eq!(
-        synthetic.operation_name.as_deref(),
-        Some("syntheticLocalRoot")
-    );
 
     let customer_create =
         operation_capability(&registry, OperationType::Mutation, Some("customerCreate"));
     assert_eq!(customer_create.domain, CapabilityDomain::Customers);
     assert_eq!(customer_create.execution, CapabilityExecution::StageLocally);
-    assert_eq!(
-        customer_create.operation_name.as_deref(),
-        Some("customerCreate")
-    );
 
     let noncanonical_match_name =
         operation_capability(&registry, OperationType::Query, Some("Product"));
@@ -132,15 +108,10 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
         noncanonical_match_name.execution,
         CapabilityExecution::Passthrough
     );
-    assert_eq!(
-        noncanonical_match_name.operation_name.as_deref(),
-        Some("Product")
-    );
 
     let unimplemented = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(unimplemented.domain, CapabilityDomain::Unknown);
     assert_eq!(unimplemented.execution, CapabilityExecution::Passthrough);
-    assert_eq!(unimplemented.operation_name.as_deref(), Some("app"));
 
     let missing = operation_capability(
         &registry,
@@ -149,10 +120,6 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
     );
     assert_eq!(missing.domain, CapabilityDomain::Unknown);
     assert_eq!(missing.execution, CapabilityExecution::Passthrough);
-    assert_eq!(
-        missing.operation_name.as_deref(),
-        Some("definitelyUnknownRoot")
-    );
 }
 
 #[test]
@@ -231,7 +198,8 @@ fn implemented_entries_classify_through_canonical_registry_names() {
             entry.name
         );
         assert_eq!(
-            capability.execution, entry.execution,
+            capability.execution,
+            entry.execution(),
             "{} is implemented and must keep its capability execution",
             entry.name
         );
