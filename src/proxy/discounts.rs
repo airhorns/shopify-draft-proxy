@@ -1630,9 +1630,6 @@ impl DraftProxy {
                 function_handle.as_deref(),
             )
             .or_else(|| {
-                function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
-            })
-            .or_else(|| {
                 self.fetch_shopify_function(
                     request,
                     function_id.as_deref(),
@@ -1643,7 +1640,8 @@ impl DraftProxy {
             return Err(app_discount_user_error(
                 [input_arg, field_name],
                 &format!(
-                    "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+                    "Function {identifier} not found. Ensure that it is released in the current app ({}), and that the app is installed.",
+                    request_api_client_id(request)
                 ),
                 Some("INVALID"),
             ));

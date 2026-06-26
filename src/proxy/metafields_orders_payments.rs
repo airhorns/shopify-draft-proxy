@@ -41,6 +41,7 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
         "Customer" => "CUSTOMER",
         "Order" => "ORDER",
         "Company" => "COMPANY",
+        "CartTransform" => "CARTTRANSFORM",
         _ => "PRODUCT",
     }
 }

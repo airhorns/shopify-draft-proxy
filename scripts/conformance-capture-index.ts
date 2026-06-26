@@ -7881,6 +7881,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-non-catalog-hydrate',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-non-catalog-hydrate-conformance.ts',
+    purpose:
+      'validationCreate wrong-API evidence for a released ShopifyFunction id outside the removed local Functions catalog, replayed through the FunctionHydrateById upstreamCalls cassette.',
+    requiredAuthScopes: ['shopifyFunctions read access', 'write_validations for validationCreate userError branch'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-non-catalog-hydrate-validation-create.json`,
+      'config/parity-specs/functions/functions-non-catalog-hydrate-validation-create.json',
+      'config/parity-requests/functions/functions-non-catalog-hydrate-validation-create.graphql',
+    ],
+    cleanupBehavior:
+      'Captures a wrong-API validationCreate userError for a non-validation Function; no validation is created and no cleanup resource is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-cart-transform-api-mismatch',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-cart-transform-api-mismatch-conformance.ts',
@@ -7955,7 +7972,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'functions' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
     purpose:
-      'Re-records cartTransformCreate validation plus local-runtime Function validation/update guardrail fixtures consumed by the standard parity runner.',
+      'Re-records cartTransformCreate validation plus local-runtime Function validation/update fixtures consumed by the standard parity runner.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_cart_transforms',
@@ -7966,11 +7983,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${LOCAL_RUNTIME_ROOT}functions-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-owner-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-validation-create-validation.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-create-guardrails.json`,
       'config/parity-specs/functions/functions-cart-transform-create-validation.json',
       'config/parity-specs/functions/functions-create-guardrails.json',
       'config/parity-specs/functions/functions-validation-create-validation.json',
       'config/parity-specs/functions/functions-validation-max-cap.json',
       'config/parity-specs/functions/functions-validation-update-shape.json',
+      'config/parity-requests/functions/functions-create-guardrails.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-api-mismatch.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-both.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-conflict.graphql',
@@ -7984,6 +8003,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Deletes pre-existing cartTransforms before capture, captures unresolved identifier branches with empty readbacks, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
+    notes:
+      'The functions-create-guardrails protected outputs are retained here only to register their deletion with the protected-evidence invariant; the fabricated local-runtime scenario is no longer generated or checked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

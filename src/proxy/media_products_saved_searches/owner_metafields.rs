@@ -132,6 +132,7 @@ impl DraftProxy {
             if !staged_owner_ids.iter().any(|id| id == &owner_id) {
                 staged_owner_ids.push(owner_id);
             }
+            self.sync_cart_transform_owner_metafields(&staged_owner_ids);
             metafields.push(metafield);
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
@@ -1275,6 +1276,42 @@ impl DraftProxy {
                 .deleted_owner_metafields
                 .iter()
                 .any(|(deleted_owner_id, _, _)| deleted_owner_id == owner_id)
+    }
+
+    fn sync_cart_transform_owner_metafields(&mut self, owner_ids: &[String]) {
+        for owner_id in owner_ids {
+            if shopify_gid_resource_type(owner_id) != Some("CartTransform") {
+                continue;
+            }
+            let Some(record) = self.store.staged.function_cart_transforms.get_mut(owner_id) else {
+                continue;
+            };
+            let metafields = self
+                .store
+                .staged
+                .owner_metafields
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_default();
+            let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
+            record["metafields"] = json!({ "nodes": metafields });
+            if first_metafield.is_null() {
+                record.as_object_mut().unwrap().remove("metafield");
+            } else {
+                record["metafield"] = first_metafield;
+            }
+            if self
+                .store
+                .staged
+                .function_cart_transform
+                .as_ref()
+                .and_then(|current| current.get("id"))
+                .and_then(Value::as_str)
+                == Some(owner_id.as_str())
+            {
+                self.store.staged.function_cart_transform = Some(record.clone());
+            }
+        }
     }
 
     fn owner_metafields(&self, owner_id: &str, namespace: Option<&str>) -> Vec<Value> {
