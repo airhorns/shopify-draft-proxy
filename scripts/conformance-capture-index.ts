@@ -1280,6 +1280,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'store-properties',
+    captureId: 'publishable-resource-existence-current-channel',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-publishable-resource-existence-current-channel-conformance.ts',
+    purpose:
+      'Generic/current-channel publishable top-level id resource-existence validation plus current-channel resourcePublications payload projection after publish/unpublish.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_publications', 'write_publications'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
+      'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
+      'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
+      'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active product, records missing-id and current-channel membership branches, captures hydrate cassettes while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The available credential resolves a current channel; no-current-channel live evidence requires a separate app/client with no publishable channel binding.',
+  },
+  {
     domain: 'products',
     captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',

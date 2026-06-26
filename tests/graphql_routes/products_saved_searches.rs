@@ -3864,8 +3864,15 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             "createdAt": "2026-06-14T00:00:00.000Z",
             "state": {
                 "baseState": {
-                    "products": {},
-                    "productOrder": [],
+                    "products": {
+                        "gid://shopify/Product/9264105488617": {
+                            "id": "gid://shopify/Product/9264105488617",
+                            "title": "Publishable aggregate product",
+                            "handle": "publishable-aggregate-product",
+                            "status": "DRAFT"
+                        }
+                    },
+                    "productOrder": ["gid://shopify/Product/9264105488617"],
                     "savedSearches": {},
                     "savedSearchOrder": [],
                     "shop": {
@@ -4048,6 +4055,251 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
 }
 
 #[test]
+fn publishable_mutations_reject_missing_publishable_id_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let missing_id = "gid://shopify/Product/999999999999";
+    let publication_id = "gid://shopify/Publication/268039389490";
+
+    for (root, query) in [
+        (
+            "publishablePublish",
+            r#"
+            mutation MissingPublishablePublish($id: ID!, $input: [PublicationInput!]!) {
+              publishablePublish(id: $id, input: $input) {
+                publishable { ... on Product { id } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublish",
+            r#"
+            mutation MissingPublishableUnpublish($id: ID!, $input: [PublicationInput!]!) {
+              publishableUnpublish(id: $id, input: $input) {
+                publishable { ... on Product { id } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "id": missing_id,
+                "input": [{ "publicationId": publication_id }]
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"][root]["publishable"], Value::Null);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["id"],
+                "message": "Resource does not exist",
+                "code": "RESOURCE_DOES_NOT_EXIST"
+            }])
+        );
+    }
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
+fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
+    let product_id = "gid://shopify/Product/no-current-channel";
+    let mut proxy = snapshot_proxy();
+    let restore = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/restore".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "schema": "shopify-draft-proxy-rust-state/v1",
+            "createdAt": "2026-06-25T00:00:00.000Z",
+            "state": {
+                "baseState": {
+                    "products": {
+                        product_id: {
+                            "id": product_id,
+                            "title": "No current channel product",
+                            "handle": "no-current-channel-product",
+                            "status": "ACTIVE"
+                        }
+                    },
+                    "productOrder": [product_id],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "publicationIds": [],
+                    "publicationCount": 0,
+                    "shop": null,
+                    "availableLocales": {},
+                    "shopLocales": {}
+                },
+                "stagedState": {
+                    "products": {},
+                    "productOrder": [],
+                    "deletedProductIds": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "deletedSavedSearchIds": [],
+                    "shippingPackages": {},
+                    "deletedShippingPackageIds": {},
+                    "delegatedAccessTokens": {},
+                    "customers": {},
+                    "deletedCustomerIds": [],
+                    "customerOrders": {},
+                    "taggableResources": {},
+                    "publicationIds": [],
+                    "createdPublicationIds": [],
+                    "publications": {},
+                    "resourcePublications": {}
+                }
+            },
+            "log": { "entries": [] },
+            "nextSyntheticId": 1
+        })
+        .to_string(),
+    });
+    assert_eq!(restore.status, 200);
+
+    for (root, query) in [
+        (
+            "publishablePublishToCurrentChannel",
+            r#"
+            mutation NoCurrentPublish($id: ID!) {
+              publishablePublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublishToCurrentChannel",
+            r#"
+            mutation NoCurrentUnpublish($id: ID!) {
+              publishableUnpublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+        ),
+    ] {
+        let response =
+            proxy.process_request(json_graphql_request(query, json!({ "id": product_id })));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"][root]["publishable"], Value::Null);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([{
+                "field": null,
+                "message": "Channel does not exist",
+                "code": "CHANNEL_DOES_NOT_EXIST"
+            }])
+        );
+    }
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
+fn publishable_current_channel_payload_reflects_staged_membership() {
+    let product_id = "gid://shopify/Product/current-channel-active";
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: product_id.to_string(),
+        title: "Current channel active product".to_string(),
+        handle: "current-channel-active-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    }]);
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishCurrent($id: ID!) {
+          publishablePublishToCurrentChannel(id: $id) {
+            publishable {
+              ... on Product {
+                id
+                publishedOnCurrentPublication
+                resourcePublications(first: 10) {
+                  nodes {
+                    publication { id }
+                    isPublished
+                    publishable { ... on Product { id } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublishToCurrentChannel"],
+        json!({
+            "publishable": {
+                "id": product_id,
+                "publishedOnCurrentPublication": true,
+                "resourcePublications": {
+                    "nodes": [{
+                        "publication": { "id": "gid://shopify/Publication/current-channel" },
+                        "isPublished": true,
+                        "publishable": { "id": product_id }
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnpublishCurrent($id: ID!) {
+          publishableUnpublishToCurrentChannel(id: $id) {
+            publishable {
+              ... on Product {
+                id
+                publishedOnCurrentPublication
+                resourcePublications(first: 10) { nodes { publication { id } isPublished } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(
+        unpublish.body["data"]["publishableUnpublishToCurrentChannel"],
+        json!({
+            "publishable": {
+                "id": product_id,
+                "publishedOnCurrentPublication": false,
+                "resourcePublications": { "nodes": [] }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);
@@ -4222,8 +4474,8 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
 
 #[test]
 fn publishable_mutations_validate_publication_input_locally() {
-    let mut proxy = snapshot_proxy();
     let product_id = "gid://shopify/Product/10179659858226";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
     let publication_id = "gid://shopify/Publication/268039389490";
     let publish = r#"
         mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) {

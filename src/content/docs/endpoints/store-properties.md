@@ -100,11 +100,17 @@ Generic publishable mutation slices cover Product and Collection publish/unpubli
 behavior where backed by parity specs. Product-scoped `PublicationInput`
 validation locally rejects duplicate publication IDs, blank or empty
 `publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
-the captured Shopify field paths/messages. Product current-channel helpers
-update publication aggregates such as `shop.publicationCount` for the modeled
-publication catalog. Unsupported publishable target types return local
-userErrors in the documented scenarios instead of being treated as full support
-for every publishable object.
+the captured Shopify field paths/messages. The top-level publishable `id` must
+resolve to a known Product or Collection from staged/base state, or from a
+LiveHybrid hydrate read, before the mutation stages; missing resources return a
+local `Resource does not exist` userError on `field: ["id"]` and leave the
+mutation log unchanged. Product current-channel helpers stage an internal
+current-channel publication membership when a current channel is available,
+return `Channel does not exist` without staging when the local shop context has
+no current channel, and project `publishedOnCurrentPublication` plus
+`resourcePublications(first:)` from the staged membership set. Unsupported
+publishable target types return local userErrors in the documented scenarios
+instead of being treated as full support for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,
