@@ -358,12 +358,15 @@ fn metaobject_field_definition_type(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn metaobject_field_type_category(field_type: &str) -> &'static str {
+    if let Some(inner_type) = field_type.strip_prefix("list.") {
+        return metaobject_field_type_category(inner_type);
+    }
     match field_type {
         "number_integer" | "number_decimal" => "NUMBER",
         "boolean" => "TRUE_FALSE",
         "date" | "date_time" => "DATE_TIME",
         "json" | "rich_text_field" => "JSON",
-        value if value.ends_with("_reference") || value.starts_with("list.") => "REFERENCE",
+        value if value.ends_with("_reference") => "REFERENCE",
         _ => "TEXT",
     }
 }

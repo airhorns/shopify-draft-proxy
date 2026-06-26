@@ -984,6 +984,121 @@ fn metafields_set_preserves_custom_namespace_type_named_keys() {
 }
 
 #[test]
+fn metafields_set_accepts_shopify_date_time_offsets_and_fractional_seconds() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/987654451";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DateTimeFormatsMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value jsonValue }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "trailing_z", "type": "date_time", "value": "2026-06-25T10:11:12Z"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "offset_positive", "type": "date_time", "value": "2026-06-25T10:11:12+05:30"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "fractional_z", "type": "date_time", "value": "2026-06-25T10:11:12.123Z"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "offset_negative", "type": "date_time", "value": "2026-06-25T10:11:12-04:00"}
+        ]}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "date_time_formats",
+                "key": "trailing_z",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+00:00",
+                "jsonValue": "2026-06-25T10:11:12+00:00"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "offset_positive",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+05:30",
+                "jsonValue": "2026-06-25T10:11:12+05:30"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "fractional_z",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+00:00",
+                "jsonValue": "2026-06-25T10:11:12+00:00"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "offset_negative",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12-04:00",
+                "jsonValue": "2026-06-25T10:11:12-04:00"
+            }
+        ])
+    );
+}
+
+#[test]
+fn metafields_set_resolves_owner_type_from_non_product_gids() {
+    let mut proxy = snapshot_proxy();
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonProductOwnerTypeMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              ownerType
+              owner { __typename id }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Page/1003", "namespace": "owner_type_gid", "key": "page", "type": "single_line_text_field", "value": "Page subtitle"},
+            {"ownerId": "gid://shopify/Location/1004", "namespace": "owner_type_gid", "key": "location", "type": "single_line_text_field", "value": "Location label"},
+            {"ownerId": "gid://shopify/Market/1005", "namespace": "owner_type_gid", "key": "market", "type": "single_line_text_field", "value": "Market label"},
+            {"ownerId": "gid://shopify/Article/1006", "namespace": "owner_type_gid", "key": "article", "type": "single_line_text_field", "value": "Article label"}
+        ]}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "owner_type_gid",
+                "key": "page",
+                "ownerType": "PAGE",
+                "owner": {"__typename": "Page", "id": "gid://shopify/Page/1003"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "location",
+                "ownerType": "LOCATION",
+                "owner": {"__typename": "Location", "id": "gid://shopify/Location/1004"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "market",
+                "ownerType": "MARKET",
+                "owner": {"__typename": "Market", "id": "gid://shopify/Market/1005"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "article",
+                "ownerType": "ARTICLE",
+                "owner": {"__typename": "Article", "id": "gid://shopify/Article/1006"}
+            }
+        ])
+    );
+}
+
+#[test]
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 

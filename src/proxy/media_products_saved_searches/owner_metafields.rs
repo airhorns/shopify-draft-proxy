@@ -45,10 +45,7 @@ impl DraftProxy {
         user_errors.extend(metafields_set_input_errors(&inputs, |id| {
             self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
         }));
-        user_errors.extend(metafields_set_definition_user_errors(
-            &inputs,
-            &self.store.staged.metafield_definitions,
-        ));
+        user_errors.extend(self.metafields_set_definition_user_errors(&inputs));
         if !user_errors.is_empty() {
             let metafields = if inputs.len() > 25 {
                 Value::Null
@@ -70,11 +67,12 @@ impl DraftProxy {
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let metafield_type = resolved_string_field(&input, "type")
                 .or_else(|| {
+                    let owner_type = owner_type_from_gid(&owner_id);
                     self.store
                         .staged
                         .metafield_definitions
                         .get(&metafield_definition_store_key(
-                            owner_type_from_gid(&owner_id),
+                            &owner_type,
                             &namespace,
                             &key,
                         ))
