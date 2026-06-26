@@ -926,10 +926,7 @@ fn selling_plan_group_input_user_errors(
             errors.push(position_invalid_error(vec!["input", "position"]));
         }
     }
-    let create_field = match mode {
-        SellingPlanInputMode::Create => "sellingPlansToCreate",
-        SellingPlanInputMode::Update => "sellingPlansToCreate",
-    };
+    let create_field = "sellingPlansToCreate";
     for (index, plan) in resolved_object_list_field(input, create_field)
         .iter()
         .enumerate()
@@ -1002,14 +999,24 @@ fn selling_plan_group_create_model_user_errors(
         let index = index.to_string();
         if resolved_object_field(plan, "billingPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "billingPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "billingPolicy",
+                ],
                 "Selling plans to create billing policy must be present.",
                 Some("SELLING_PLAN_BILLING_POLICY_MISSING"),
             ));
         }
         if resolved_object_field(plan, "deliveryPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "deliveryPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "deliveryPolicy",
+                ],
                 "Selling plans to create delivery policy must be present.",
                 Some("SELLING_PLAN_DELIVERY_POLICY_MISSING"),
             ));

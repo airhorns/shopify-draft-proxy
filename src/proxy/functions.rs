@@ -1,5 +1,7 @@
 use super::*;
 
+pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        apiKey\n      }\n    }\n  }\n}\n";
 
@@ -511,160 +513,216 @@ fn function_payload_identifier_field(function_id: &Option<String>) -> &'static s
     }
 }
 
-fn validation_payload_error(error: Value) -> Value {
-    json!({ "validation": Value::Null, "userErrors": [error] })
+#[derive(Clone, Copy)]
+struct FunctionPayloadDescriptor {
+    payload_key: &'static str,
+    field_prefix: &'static [&'static str],
+    expected_api_type: &'static str,
+    api_mismatch_message: &'static str,
+    api_mismatch_id_code: &'static str,
+    api_mismatch_handle_code: &'static str,
+    not_found_code: &'static str,
+    not_found_message: FunctionNotFoundMessage,
 }
 
-fn cart_transform_payload_error(error: Value) -> Value {
-    json!({ "cartTransform": Value::Null, "userErrors": [error] })
+#[derive(Clone, Copy)]
+enum FunctionNotFoundMessage {
+    ExtensionNotFound,
+    CartTransform,
+    ReleasedFunction,
 }
 
-fn validation_identifier_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
-    let (function_id, function_handle) = function_identifier_input(input);
-    match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(validation_payload_error(user_error(
-            ["validation", "functionHandle"],
-            "Either function_id or function_handle must be provided.",
-            Some("MISSING_FUNCTION_IDENTIFIER"),
-        ))),
-        (true, true) => Some(validation_payload_error(user_error(
-            ["validation"],
-            "Only one of function_id or function_handle can be provided, not both.",
-            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
-        ))),
-        _ => None,
-    }
+const VALIDATION_FUNCTION_PAYLOAD: FunctionPayloadDescriptor = FunctionPayloadDescriptor {
+    payload_key: "validation",
+    field_prefix: &["validation"],
+    expected_api_type: "VALIDATION",
+    api_mismatch_message: "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
+    api_mismatch_id_code: "FUNCTION_DOES_NOT_IMPLEMENT",
+    api_mismatch_handle_code: "FUNCTION_DOES_NOT_IMPLEMENT",
+    not_found_code: "NOT_FOUND",
+    not_found_message: FunctionNotFoundMessage::ExtensionNotFound,
+};
+
+const CART_TRANSFORM_FUNCTION_PAYLOAD: FunctionPayloadDescriptor = FunctionPayloadDescriptor {
+    payload_key: "cartTransform",
+    field_prefix: &[],
+    expected_api_type: "CART_TRANSFORM",
+    api_mismatch_message: "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+    api_mismatch_id_code: "FUNCTION_NOT_FOUND",
+    api_mismatch_handle_code: "FUNCTION_DOES_NOT_IMPLEMENT",
+    not_found_code: "FUNCTION_NOT_FOUND",
+    not_found_message: FunctionNotFoundMessage::CartTransform,
+};
+
+const FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD: FunctionPayloadDescriptor =
+    FunctionPayloadDescriptor {
+        payload_key: "fulfillmentConstraintRule",
+        field_prefix: &[],
+        expected_api_type: "FULFILLMENT_CONSTRAINT_RULE",
+        api_mismatch_message: "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.fulfillment-constraint-rule.run, cart.fulfillment-constraints.generate.run].",
+        api_mismatch_id_code: "FUNCTION_DOES_NOT_IMPLEMENT",
+        api_mismatch_handle_code: "FUNCTION_DOES_NOT_IMPLEMENT",
+        not_found_code: "FUNCTION_NOT_FOUND",
+        not_found_message: FunctionNotFoundMessage::ReleasedFunction,
+    };
+
+fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(desc.payload_key.to_string(), Value::Null);
+    payload.insert("userErrors".to_string(), Value::Array(vec![error]));
+    Value::Object(payload)
 }
 
-fn cart_transform_identifier_error(
+fn function_identifier_error(
+    desc: FunctionPayloadDescriptor,
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Option<Value> {
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(cart_transform_payload_error(user_error(
-            ["functionHandle"],
-            "Either function_id or function_handle must be provided.",
-            Some("MISSING_FUNCTION_IDENTIFIER"),
-        ))),
-        (true, true) => Some(cart_transform_payload_error(user_error(
-            ["functionHandle"],
-            "Only one of function_id or function_handle can be provided, not both.",
-            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
-        ))),
+        (false, false) => Some(payload_error(
+            desc,
+            user_error(
+                function_error_field(desc, "functionHandle"),
+                "Either function_id or function_handle must be provided.",
+                Some("MISSING_FUNCTION_IDENTIFIER"),
+            ),
+        )),
+        (true, true) => Some(payload_error(
+            desc,
+            user_error(
+                function_multiple_identifier_field(desc),
+                "Only one of function_id or function_handle can be provided, not both.",
+                Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+            ),
+        )),
         _ => None,
     }
 }
 
-fn cart_transform_function_not_found_error(
+fn function_error_field(desc: FunctionPayloadDescriptor, field_name: &str) -> Vec<String> {
+    let mut field = desc
+        .field_prefix
+        .iter()
+        .map(|segment| (*segment).to_string())
+        .collect::<Vec<_>>();
+    field.push(field_name.to_string());
+    field
+}
+
+fn function_multiple_identifier_field(desc: FunctionPayloadDescriptor) -> Vec<String> {
+    if desc.field_prefix.is_empty() {
+        function_error_field(desc, "functionHandle")
+    } else {
+        desc.field_prefix
+            .iter()
+            .map(|segment| (*segment).to_string())
+            .collect()
+    }
+}
+
+fn function_not_found_message(
+    desc: FunctionPayloadDescriptor,
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+    current_app_id: &str,
+) -> String {
+    match desc.not_found_message {
+        FunctionNotFoundMessage::ExtensionNotFound => "Extension not found.".to_string(),
+        FunctionNotFoundMessage::CartTransform => {
+            if let Some(id) = function_id {
+                format!(
+                    "Function {id} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
+                )
+            } else if let Some(handle) = function_handle {
+                format!("Could not find function with handle: {handle}.")
+            } else {
+                "Function not found.".to_string()
+            }
+        }
+        FunctionNotFoundMessage::ReleasedFunction => {
+            if let Some(identifier) = function_id.as_deref().or(function_handle.as_deref()) {
+                format!(
+                    "Function {identifier} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
+                )
+            } else {
+                "Function not found.".to_string()
+            }
+        }
+    }
+}
+
+fn function_not_found_error(
+    desc: FunctionPayloadDescriptor,
     field_name: &str,
     function_id: &Option<String>,
     function_handle: &Option<String>,
     current_app_id: &str,
 ) -> Value {
-    let message = if let Some(id) = function_id {
-        format!(
-            "Function {id} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
-        )
-    } else if let Some(handle) = function_handle {
-        format!("Could not find function with handle: {handle}.")
-    } else {
-        "Function not found.".to_string()
-    };
-    cart_transform_payload_error(user_error(
-        [field_name],
-        &message,
-        Some("FUNCTION_NOT_FOUND"),
-    ))
+    let message = function_not_found_message(desc, function_id, function_handle, current_app_id);
+    payload_error(
+        desc,
+        user_error(
+            function_error_field(desc, field_name),
+            &message,
+            Some(desc.not_found_code),
+        ),
+    )
 }
 
-fn validation_function_resolution_payload(
+fn function_resolution_payload(
     proxy: &mut DraftProxy,
     request: &Request,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Result<Value, Value> {
-    if let Some(payload) = validation_identifier_error(input) {
-        return Err(payload);
-    }
-    let (function_id, function_handle) = function_identifier_input(input);
-    let field_name = function_payload_identifier_field(&function_id);
-    let function = proxy
-        .resolve_function_metadata(
-            request,
-            function_id.as_deref(),
-            function_handle.as_deref(),
-            "VALIDATION",
-        )
-        .ok_or_else(|| {
-            validation_payload_error(user_error(
-                ["validation", field_name],
-                "Extension not found.",
-                Some("NOT_FOUND"),
-            ))
-        })?;
-    if function["apiType"].as_str() != Some("VALIDATION") {
-        return Err(validation_payload_error(user_error(
-            ["validation", field_name],
-            "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
-            Some("FUNCTION_DOES_NOT_IMPLEMENT"),
-        )));
-    }
-    if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(validation_payload_error(user_error(
-            ["validation", field_name],
-            function["createGuardrailMessage"]
-                .as_str()
-                .unwrap_or_default(),
-            Some(code),
-        )));
-    }
-    Ok(function)
-}
-
-fn cart_transform_function_resolution_payload(
-    proxy: &mut DraftProxy,
-    request: &Request,
+    desc: FunctionPayloadDescriptor,
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Result<Value, Value> {
-    if let Some(payload) = cart_transform_identifier_error(function_id, function_handle) {
+    if let Some(payload) = function_identifier_error(desc, function_id, function_handle) {
         return Err(payload);
     }
     let field_name = function_payload_identifier_field(function_id);
+    let current_app_id = request_api_client_id(request);
     let function = proxy
         .resolve_function_metadata(
             request,
             function_id.as_deref(),
             function_handle.as_deref(),
-            "CART_TRANSFORM",
+            desc.expected_api_type,
         )
         .ok_or_else(|| {
-            cart_transform_function_not_found_error(
+            function_not_found_error(
+                desc,
                 field_name,
                 function_id,
                 function_handle,
-                &request_api_client_id(request),
+                &current_app_id,
             )
         })?;
-    if function["apiType"].as_str() != Some("CART_TRANSFORM") {
+    if function["apiType"].as_str() != Some(desc.expected_api_type) {
         let code = if function_id.is_some() {
-            "FUNCTION_NOT_FOUND"
+            desc.api_mismatch_id_code
         } else {
-            "FUNCTION_DOES_NOT_IMPLEMENT"
+            desc.api_mismatch_handle_code
         };
-        return Err(cart_transform_payload_error(user_error(
-            [field_name],
-            "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
-            Some(code),
-        )));
+        return Err(payload_error(
+            desc,
+            user_error(
+                function_error_field(desc, field_name),
+                desc.api_mismatch_message,
+                Some(code),
+            ),
+        ));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(cart_transform_payload_error(user_error(
-            [field_name],
-            function["createGuardrailMessage"]
-                .as_str()
-                .unwrap_or_default(),
-            Some(code),
-        )));
+        return Err(payload_error(
+            desc,
+            user_error(
+                function_error_field(desc, field_name),
+                function["createGuardrailMessage"]
+                    .as_str()
+                    .unwrap_or_default(),
+                Some(code),
+            ),
+        ));
     }
     Ok(function)
 }
@@ -913,15 +971,43 @@ fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &st
         .any(|record| record["functionId"].as_str() == Some(function_id))
 }
 
-pub(in crate::proxy) fn cart_transform_metafields_from_field(
-    owner_id: &str,
+fn delete_staged_function_record(
+    records: &mut BTreeMap<String, Value>,
+    order: &mut Vec<String>,
+    singleton: Option<&mut Option<Value>>,
+    id: &str,
+    deleted_payload: Value,
+    not_found_payload: Value,
+) -> (Value, bool) {
+    if records.remove(id).is_none() {
+        return (not_found_payload, false);
+    }
+    order.retain(|ordered_id| ordered_id != id);
+    if let Some(singleton) = singleton {
+        if singleton.as_ref().and_then(|record| record["id"].as_str()) == Some(id) {
+            *singleton = order.last().and_then(|id| records.get(id).cloned());
+        }
+    }
+    (deleted_payload, true)
+}
+
+fn function_metafields_from_field<IdForMetafield, DigestForValue>(
     field: &RootFieldSelection,
-) -> Vec<Value> {
+    ids: &[String],
+    owner_type: &str,
+    id_for_metafield: IdForMetafield,
+    digest_for_value: DigestForValue,
+) -> Vec<Value>
+where
+    IdForMetafield: Fn(usize, &[String], &str, &str, &str) -> String,
+    DigestForValue: Fn(usize, &str) -> String,
+{
     let now = proxy_now_timestamp();
     match field.arguments.get("metafields") {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
-            .filter_map(|value| match value {
+            .enumerate()
+            .filter_map(|(index, value)| match value {
                 ResolvedValue::Object(metafield) => {
                     let namespace =
                         resolved_string_field(metafield, "namespace").unwrap_or_default();
@@ -929,15 +1015,15 @@ pub(in crate::proxy) fn cart_transform_metafields_from_field(
                     let metafield_type =
                         resolved_string_field(metafield, "type").unwrap_or_default();
                     let value = resolved_string_field(metafield, "value").unwrap_or_default();
-                    let compare_digest = metafield_compare_digest(&value);
+                    let compare_digest = digest_for_value(index, &value);
                     Some(json!({
-                        "id": cart_transform_metafield_id(owner_id, &namespace, &key),
+                        "id": id_for_metafield(index, ids, &namespace, &key, &value),
                         "namespace": namespace,
                         "key": key,
                         "type": metafield_type,
                         "value": value,
                         "compareDigest": compare_digest,
-                        "ownerType": "CARTTRANSFORM",
+                        "ownerType": owner_type,
                         "createdAt": now.clone(),
                         "updatedAt": now.clone()
                     }))
@@ -972,29 +1058,6 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
     record
 }
 
-fn fulfillment_constraint_rule_payload_error(error: Value) -> Value {
-    json!({ "fulfillmentConstraintRule": Value::Null, "userErrors": [error] })
-}
-
-fn fulfillment_constraint_rule_identifier_error(
-    function_id: &Option<String>,
-    function_handle: &Option<String>,
-) -> Option<Value> {
-    match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(fulfillment_constraint_rule_payload_error(user_error(
-            ["functionHandle"],
-            "Either function_id or function_handle must be provided.",
-            Some("MISSING_FUNCTION_IDENTIFIER"),
-        ))),
-        (true, true) => Some(fulfillment_constraint_rule_payload_error(user_error(
-            ["functionHandle"],
-            "Only one of function_id or function_handle can be provided, not both.",
-            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
-        ))),
-        _ => None,
-    }
-}
-
 fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
     match field.arguments.get("deliveryMethodTypes") {
         Some(ResolvedValue::List(values)) => values
@@ -1012,116 +1075,16 @@ fn fulfillment_constraint_rule_delivery_method_error(
     delivery_method_types: &[String],
 ) -> Option<Value> {
     if delivery_method_types.is_empty() {
-        Some(fulfillment_constraint_rule_payload_error(user_error(
-            ["deliveryMethodTypes"],
-            "Delivery method types cannot be empty.",
-            Some("INPUT_INVALID"),
-        )))
+        Some(payload_error(
+            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+            user_error(
+                ["deliveryMethodTypes"],
+                "Delivery method types cannot be empty.",
+                Some("INPUT_INVALID"),
+            ),
+        ))
     } else {
         None
-    }
-}
-
-fn fulfillment_constraint_rule_function_not_found_error(
-    field_name: &str,
-    function_id: &Option<String>,
-    function_handle: &Option<String>,
-    current_app_id: &str,
-) -> Value {
-    let message = if let Some(identifier) = function_id.as_deref().or(function_handle.as_deref()) {
-        format!(
-            "Function {identifier} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
-        )
-    } else {
-        "Function not found.".to_string()
-    };
-    fulfillment_constraint_rule_payload_error(user_error(
-        [field_name],
-        &message,
-        Some("FUNCTION_NOT_FOUND"),
-    ))
-}
-
-fn fulfillment_constraint_rule_function_resolution_payload(
-    proxy: &mut DraftProxy,
-    request: &Request,
-    function_id: &Option<String>,
-    function_handle: &Option<String>,
-) -> Result<Value, Value> {
-    if let Some(payload) =
-        fulfillment_constraint_rule_identifier_error(function_id, function_handle)
-    {
-        return Err(payload);
-    }
-    let field_name = function_payload_identifier_field(function_id);
-    let function = proxy
-        .resolve_function_metadata(
-            request,
-            function_id.as_deref(),
-            function_handle.as_deref(),
-            "FULFILLMENT_CONSTRAINT_RULE",
-        )
-        .ok_or_else(|| {
-            fulfillment_constraint_rule_function_not_found_error(
-                field_name,
-                function_id,
-                function_handle,
-                &request_api_client_id(request),
-            )
-        })?;
-    if function["apiType"].as_str() != Some("FULFILLMENT_CONSTRAINT_RULE") {
-        return Err(fulfillment_constraint_rule_payload_error(
-            user_error(
-                [field_name],
-                "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.fulfillment-constraint-rule.run, cart.fulfillment-constraints.generate.run].",
-                Some("FUNCTION_DOES_NOT_IMPLEMENT"),
-            ),
-        ));
-    }
-    if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(fulfillment_constraint_rule_payload_error(user_error(
-            [field_name],
-            function["createGuardrailMessage"]
-                .as_str()
-                .unwrap_or_default(),
-            Some(code),
-        )));
-    }
-    Ok(function)
-}
-
-fn fulfillment_constraint_rule_metafields_from_field(
-    field: &RootFieldSelection,
-    ids: Vec<String>,
-) -> Vec<Value> {
-    let now = proxy_now_timestamp();
-    match field.arguments.get("metafields") {
-        Some(ResolvedValue::List(metafields)) => metafields
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| match value {
-                ResolvedValue::Object(metafield) => {
-                    let value = resolved_string_field(metafield, "value").unwrap_or_default();
-                    let compare_digest = metafield_compare_digest(&value);
-                    Some(json!({
-                        "id": ids
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| shopify_gid("Metafield", index + 1)),
-                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
-                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
-                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
-                        "value": value,
-                        "compareDigest": compare_digest,
-                        "ownerType": "FULFILLMENTCONSTRAINTRULE",
-                        "createdAt": now.clone(),
-                        "updatedAt": now.clone()
-                    }))
-                }
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
     }
 }
 
@@ -1487,14 +1450,24 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return validation_payload_error(user_error(
-                    ["validation"],
-                    "Required input field must be present.",
-                    Some("REQUIRED_INPUT_FIELD"),
-                ));
+                return payload_error(
+                    VALIDATION_FUNCTION_PAYLOAD,
+                    user_error(
+                        ["validation"],
+                        "Required input field must be present.",
+                        Some("REQUIRED_INPUT_FIELD"),
+                    ),
+                );
             }
         };
-        let function = match validation_function_resolution_payload(self, request, input) {
+        let (function_id, function_handle) = function_identifier_input(input);
+        let function = match function_resolution_payload(
+            self,
+            request,
+            VALIDATION_FUNCTION_PAYLOAD,
+            &function_id,
+            &function_handle,
+        ) {
             Ok(function) => function,
             Err(payload) => return payload,
         };
@@ -1504,11 +1477,14 @@ impl DraftProxy {
         }
         let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && active_validation_count(&self.store.staged.function_validations, None) >= 25 {
-            return validation_payload_error(user_error(
-                Vec::<&str>::new(),
-                "Cannot have more than 25 active validation functions.",
-                Some("MAX_VALIDATIONS_ACTIVATED"),
-            ));
+            return payload_error(
+                VALIDATION_FUNCTION_PAYLOAD,
+                user_error(
+                    Vec::<&str>::new(),
+                    "Cannot have more than 25 active validation functions.",
+                    Some("MAX_VALIDATIONS_ACTIVATED"),
+                ),
+            );
         }
         let id = self.next_proxy_synthetic_gid("Validation");
         let metafields = validation_metafields_from_input(input);
@@ -1538,19 +1514,21 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return validation_payload_error(user_error(
-                    ["validation"],
-                    "Required input field must be present.",
-                    Some("REQUIRED_INPUT_FIELD"),
-                ));
+                return payload_error(
+                    VALIDATION_FUNCTION_PAYLOAD,
+                    user_error(
+                        ["validation"],
+                        "Required input field must be present.",
+                        Some("REQUIRED_INPUT_FIELD"),
+                    ),
+                );
             }
         };
         let Some(mut validation) = self.store.staged.function_validations.get(&id).cloned() else {
-            return validation_payload_error(user_error(
-                ["id"],
-                "Extension not found.",
-                Some("NOT_FOUND"),
-            ));
+            return payload_error(
+                VALIDATION_FUNCTION_PAYLOAD,
+                user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
+            );
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
@@ -1562,11 +1540,14 @@ impl DraftProxy {
         if next_enable
             && active_validation_count(&self.store.staged.function_validations, Some(&id)) >= 25
         {
-            return validation_payload_error(user_error(
-                Vec::<&str>::new(),
-                "Cannot have more than 25 active validation functions.",
-                Some("MAX_VALIDATIONS_ACTIVATED"),
-            ));
+            return payload_error(
+                VALIDATION_FUNCTION_PAYLOAD,
+                user_error(
+                    Vec::<&str>::new(),
+                    "Cannot have more than 25 active validation functions.",
+                    Some("MAX_VALIDATIONS_ACTIVATED"),
+                ),
+            );
         }
         if let Some(title) = resolved_string_field(input, "title") {
             validation["title"] = json!(title);
@@ -1586,38 +1567,21 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        if self.store.staged.function_validations.remove(&id).is_some() {
-            self.store.staged.functions_dirty = true;
-            self.store
-                .staged
-                .function_validation_order
-                .retain(|ordered_id| ordered_id != &id);
-            if self
-                .store
-                .staged
-                .function_validation
-                .as_ref()
-                .and_then(|record| record["id"].as_str())
-                == Some(id.as_str())
-            {
-                self.store.staged.function_validation = self
-                    .store
-                    .staged
-                    .function_validation_order
-                    .last()
-                    .and_then(|id| self.store.staged.function_validations.get(id).cloned());
-            }
-            json!({ "deletedId": id, "userErrors": [] })
-        } else {
+        let (payload, deleted) = delete_staged_function_record(
+            &mut self.store.staged.function_validations,
+            &mut self.store.staged.function_validation_order,
+            Some(&mut self.store.staged.function_validation),
+            &id,
+            json!({ "deletedId": id, "userErrors": [] }),
             json!({
                 "deletedId": Value::Null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Extension not found.",
-                    "code": "NOT_FOUND"
-                }]
-            })
+                "userErrors": [user_error(["id"], "Extension not found.", Some("NOT_FOUND"))]
+            }),
+        );
+        if deleted {
+            self.store.staged.functions_dirty = true;
         }
+        payload
     }
 
     pub(in crate::proxy) fn function_cart_transform_create_payload(
@@ -1627,7 +1591,11 @@ impl DraftProxy {
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
         let function_handle = resolved_field_string_arg(field, "functionHandle");
-        if let Some(payload) = cart_transform_identifier_error(&function_id, &function_handle) {
+        if let Some(payload) = function_identifier_error(
+            CART_TRANSFORM_FUNCTION_PAYLOAD,
+            &function_id,
+            &function_handle,
+        ) {
             return payload;
         }
         if let Some(function_id) = function_id.as_deref() {
@@ -1637,16 +1605,20 @@ impl DraftProxy {
                     function_id,
                 )
             {
-                return cart_transform_payload_error(user_error(
-                    ["functionId"],
-                    "Could not enable cart transform because it is already registered",
-                    Some("FUNCTION_ALREADY_REGISTERED"),
-                ));
+                return payload_error(
+                    CART_TRANSFORM_FUNCTION_PAYLOAD,
+                    user_error(
+                        ["functionId"],
+                        "Could not enable cart transform because it is already registered",
+                        Some("FUNCTION_ALREADY_REGISTERED"),
+                    ),
+                );
             }
         }
-        let function = match cart_transform_function_resolution_payload(
+        let function = match function_resolution_payload(
             self,
             request,
+            CART_TRANSFORM_FUNCTION_PAYLOAD,
             &function_id,
             &function_handle,
         ) {
@@ -1658,7 +1630,14 @@ impl DraftProxy {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
         }
         let id = self.next_proxy_synthetic_gid("CartTransform");
-        let metafields = cart_transform_metafields_from_field(&id, field);
+        let metafield_ids: Vec<String> = Vec::new();
+        let metafields = function_metafields_from_field(
+            field,
+            &metafield_ids,
+            "CARTTRANSFORM",
+            |_, _, namespace, key, _| cart_transform_metafield_id(&id, namespace, key),
+            |_, value| metafield_compare_digest(value),
+        );
         for metafield in &metafields {
             if let (Some(namespace), Some(key)) = (
                 metafield.get("namespace").and_then(Value::as_str),
@@ -1698,44 +1677,25 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        if self
-            .store
-            .staged
-            .function_cart_transforms
-            .remove(&id)
-            .is_some()
-        {
-            self.store.staged.functions_dirty = true;
-            self.store
-                .staged
-                .function_cart_transform_order
-                .retain(|ordered_id| ordered_id != &id);
-            if self
-                .store
-                .staged
-                .function_cart_transform
-                .as_ref()
-                .and_then(|record| record["id"].as_str())
-                == Some(id.as_str())
-            {
-                self.store.staged.function_cart_transform = self
-                    .store
-                    .staged
-                    .function_cart_transform_order
-                    .last()
-                    .and_then(|id| self.store.staged.function_cart_transforms.get(id).cloned());
-            }
-            json!({ "deletedId": id, "userErrors": [] })
-        } else {
+        let (payload, deleted) = delete_staged_function_record(
+            &mut self.store.staged.function_cart_transforms,
+            &mut self.store.staged.function_cart_transform_order,
+            Some(&mut self.store.staged.function_cart_transform),
+            &id,
+            json!({ "deletedId": id, "userErrors": [] }),
             json!({
                 "deletedId": Value::Null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": format!("Could not find cart transform with id: {id}"),
-                    "code": "NOT_FOUND"
-                }]
-            })
+                "userErrors": [user_error(
+                    ["id"],
+                    &format!("Could not find cart transform with id: {id}"),
+                    Some("NOT_FOUND")
+                )]
+            }),
+        );
+        if deleted {
+            self.store.staged.functions_dirty = true;
         }
+        payload
     }
 
     pub(in crate::proxy) fn function_fulfillment_constraint_rule_create_payload(
@@ -1745,9 +1705,11 @@ impl DraftProxy {
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
         let function_handle = resolved_field_string_arg(field, "functionHandle");
-        if let Some(payload) =
-            fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
-        {
+        if let Some(payload) = function_identifier_error(
+            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+            &function_id,
+            &function_handle,
+        ) {
             return payload;
         }
         let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
@@ -1756,9 +1718,10 @@ impl DraftProxy {
         {
             return payload;
         }
-        let function = match fulfillment_constraint_rule_function_resolution_payload(
+        let function = match function_resolution_payload(
             self,
             request,
+            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
             &function_id,
             &function_handle,
         ) {
@@ -1780,7 +1743,17 @@ impl DraftProxy {
                 .collect(),
             _ => Vec::new(),
         };
-        let metafields = fulfillment_constraint_rule_metafields_from_field(field, metafield_ids);
+        let metafields = function_metafields_from_field(
+            field,
+            &metafield_ids,
+            "FULFILLMENTCONSTRAINTRULE",
+            |index, ids, _, _, _| {
+                ids.get(index)
+                    .cloned()
+                    .unwrap_or_else(|| shopify_gid("Metafield", index + 1))
+            },
+            |_, value| metafield_compare_digest(value),
+        );
         let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
         let mut rule = json!({
             "id": id,
@@ -1808,9 +1781,11 @@ impl DraftProxy {
         let function_id = resolved_field_string_arg(field, "functionId");
         let function_handle = resolved_field_string_arg(field, "functionHandle");
         if function_id.is_some() || function_handle.is_some() {
-            if let Some(payload) =
-                fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
-            {
+            if let Some(payload) = function_identifier_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+                &function_id,
+                &function_handle,
+            ) {
                 return payload;
             }
         }
@@ -1827,16 +1802,20 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return fulfillment_constraint_rule_payload_error(user_error(
-                ["id"],
-                &format!("Could not find FulfillmentConstraintRule with id: {id}"),
-                Some("NOT_FOUND"),
-            ));
+            return payload_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+                user_error(
+                    ["id"],
+                    &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    Some("NOT_FOUND"),
+                ),
+            );
         };
         if function_id.is_some() || function_handle.is_some() {
-            let function = match fulfillment_constraint_rule_function_resolution_payload(
+            let function = match function_resolution_payload(
                 self,
                 request,
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
                 &function_id,
                 &function_handle,
             ) {
@@ -1858,29 +1837,25 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        if self
-            .store
-            .staged
-            .function_fulfillment_constraint_rules
-            .remove(&id)
-            .is_some()
-        {
-            self.store.staged.functions_dirty = true;
-            self.store
-                .staged
-                .function_fulfillment_constraint_rule_order
-                .retain(|ordered_id| ordered_id != &id);
-            json!({ "success": true, "userErrors": [] })
-        } else {
+        let (payload, deleted) = delete_staged_function_record(
+            &mut self.store.staged.function_fulfillment_constraint_rules,
+            &mut self.store.staged.function_fulfillment_constraint_rule_order,
+            None,
+            &id,
+            json!({ "success": true, "userErrors": [] }),
             json!({
                 "success": false,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": format!("Could not find FulfillmentConstraintRule with id: {id}"),
-                    "code": "NOT_FOUND"
-                }]
-            })
+                "userErrors": [user_error(
+                    ["id"],
+                    &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    Some("NOT_FOUND")
+                )]
+            }),
+        );
+        if deleted {
+            self.store.staged.functions_dirty = true;
         }
+        payload
     }
 
     pub(in crate::proxy) fn function_tax_app_configure_payload(
