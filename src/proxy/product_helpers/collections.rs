@@ -939,7 +939,7 @@ impl DraftProxy {
             ));
         }
 
-        let initial_product_ids = resolved_string_list_field_unsorted(&input, "products");
+        let initial_product_ids = list_string_field(&input, "products");
         self.hydrate_missing_collection_baseline("", &initial_product_ids);
         let product_errors =
             collection_initial_product_user_errors(&self.store, &initial_product_ids);
@@ -1151,7 +1151,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let requested_product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let requested_product_ids = list_string_field(&arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
         if let Some(response) = self.collection_membership_guard_response(
             query,
@@ -1199,7 +1199,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let product_ids = list_string_field(&arguments, "productIds");
         if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
             return MutationOutcome::response(collection_product_ids_too_long_response(
                 root_field,
@@ -1303,7 +1303,7 @@ impl DraftProxy {
             let new_position = resolved_string_field(&move_input, "newPosition")
                 .and_then(|value| value.parse::<usize>().ok())
                 .or_else(|| {
-                    resolved_i64_field(&move_input, "newPosition")
+                    resolved_int_field(&move_input, "newPosition")
                         .map(|value| value.max(0) as usize)
                 })
                 .unwrap_or(0);

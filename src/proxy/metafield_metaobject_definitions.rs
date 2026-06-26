@@ -168,7 +168,7 @@ impl DraftProxy {
                     if key.is_empty() {
                         if let Some(definition_id) =
                             resolved_string_field(&field.arguments, "definitionId")
-                                .or_else(|| resolved_string_arg(variables, "definitionId"))
+                                .or_else(|| resolved_string_field(variables, "definitionId"))
                         {
                             if let Some((found_owner_type, found_namespace, found_key)) =
                                 self.metafield_definition_key_for_id(&definition_id)
@@ -274,8 +274,9 @@ impl DraftProxy {
                         resolved_string_field(&identifier, "namespace").unwrap_or_default();
                     let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
                     if key.is_empty() {
-                        if let Some(definition_id) = resolved_string_arg(variables, "definitionId")
-                            .or_else(|| resolved_string_arg(variables, "id"))
+                        if let Some(definition_id) =
+                            resolved_string_field(variables, "definitionId")
+                                .or_else(|| resolved_string_field(variables, "id"))
                         {
                             if let Some((found_owner_type, found_namespace, found_key)) =
                                 self.metafield_definition_key_for_id(&definition_id)
@@ -2131,7 +2132,7 @@ fn metafield_definition_validation_errors(
     update: bool,
     existing: Option<&Value>,
 ) -> Vec<Value> {
-    let validations = list_object_field(input, "validations");
+    let validations = resolved_object_list_field(input, "validations");
     let metafield_type = resolved_string_field(input, "type")
         .or_else(|| {
             existing.and_then(|definition| definition["type"]["name"].as_str().map(str::to_string))
@@ -2472,7 +2473,7 @@ fn apply_metafield_definition_capability_derived_fields(definition: &mut Value) 
 
 fn metafield_definition_validations(input: &BTreeMap<String, ResolvedValue>) -> Value {
     Value::Array(
-        list_object_field(input, "validations")
+        resolved_object_list_field(input, "validations")
             .into_iter()
             .filter_map(|validation| {
                 Some(json!({

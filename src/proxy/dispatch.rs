@@ -335,7 +335,7 @@ impl DraftProxy {
             if field.name != "domain" {
                 return false;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             !id.is_empty() && self.store.domain_by_id(&id).is_none()
         })
     }
@@ -346,7 +346,7 @@ impl DraftProxy {
             if field.name != "domain" {
                 continue;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .domain_by_id(&id)
@@ -366,7 +366,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.local_node_value_by_id(&id, &field.selection)
                         .or_else(|| allow_unknown_null.then_some(Value::Null))?
                 }
@@ -405,7 +405,7 @@ impl DraftProxy {
             if field.name != "abandonment" {
                 continue;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .staged

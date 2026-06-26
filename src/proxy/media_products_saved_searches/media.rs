@@ -948,7 +948,7 @@ fn media_object_list_arg(
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    list_object_field(&arguments, key)
+    resolved_object_list_field(&arguments, key)
 }
 
 fn media_string_list_arg(
