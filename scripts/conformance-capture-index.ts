@@ -2058,6 +2058,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafields-custom-namespace-typed-keys',
+    scriptPath: 'scripts/capture-metafields-custom-namespace-typed-keys-conformance.mts',
+    purpose:
+      'Product-owned metafieldsSet and product read-back for custom namespace keys whose names match custom-data field types.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafieldsSet-custom-namespace-typed-keys.json`,
+      'config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json',
+      'config/parity-requests/metafields/metafieldsSet-custom-namespace-typed-keys.graphql',
+      'config/parity-requests/metafields/metafieldsSet-custom-namespace-typed-keys-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records custom json/rating/money metafieldsSet and read-back behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'product-metafield-owner-isolation',
     scriptPath: 'scripts/capture-product-metafield-owner-isolation-conformance.mts',
     purpose: 'Product owner-scoped metafield read isolation after staging metafields on a different product owner.',
