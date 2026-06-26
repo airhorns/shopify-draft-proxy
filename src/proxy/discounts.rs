@@ -3567,30 +3567,35 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     }
 }
 
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
+pub(in crate::proxy) fn gift_card_create_record(
+    id: &str,
+    last_characters: &str,
+    code: &str,
+    amount: &str,
+    currency_code: &str,
+    notify: bool,
+) -> Value {
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "2053",
-        "maskedCode": "•••• •••• •••• 2053",
+        "lastCharacters": last_characters,
+        "maskedCode": format!("•••• •••• •••• {last_characters}"),
+        "giftCardCode": code,
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
-        "expiresOn": "2027-04-26",
-        "note": "HAR-310 conformance gift card",
+        "expiresOn": null,
+        "note": null,
         "templateSuffix": null,
         "createdAt": "2026-04-29T09:31:02Z",
         "updatedAt": "2026-04-29T09:31:02Z",
-        "initialValue": money_value("5.0", "CAD"),
-        "balance": money_value("5.0", "CAD"),
-        "customer": { "id": "gid://shopify/Customer/10552623464754" },
-        "recipientAttributes": {
-            "message": "HAR-464 recipient message",
-            "preferredName": "HAR-464 recipient",
-            "sendNotificationAt": null,
-            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
-        },
+        "initialValue": money_value(amount, currency_code),
+        "balance": money_value(amount, currency_code),
+        "customer": null,
+        "recipientAttributes": null,
+        "notify": notify,
+        "source": "api_client",
         "transactions": {
             "nodes": [],
             "edges": [],
@@ -3599,10 +3604,10 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
     })
 }
 
-pub(in crate::proxy) fn gift_card_configuration_record() -> Value {
+pub(in crate::proxy) fn gift_card_configuration_record(currency_code: &str) -> Value {
     json!({
-        "issueLimit": money_value("3000.0", "CAD"),
-        "purchaseLimit": money_value("14000.0", "CAD")
+        "issueLimit": money_value("3000.0", currency_code),
+        "purchaseLimit": money_value("14000.0", currency_code)
     })
 }
 
@@ -3613,6 +3618,25 @@ pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction
             "edges": [],
             "pageInfo": empty_page_info()
         });
+    } else {
+        if !card["transactions"]
+            .get("nodes")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["nodes"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("edges")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["edges"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("pageInfo")
+            .is_some_and(Value::is_object)
+        {
+            card["transactions"]["pageInfo"] = empty_page_info();
+        }
     }
     if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
         nodes.push(transaction);

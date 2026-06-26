@@ -161,7 +161,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Gift-card LiveHybrid hydration also stores known base gift-card records and gift-card configuration in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
 The normalized product and saved-search portions currently include:
 

@@ -756,6 +756,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             {
                 "baseState": {
                     "availableLocales": null,
+                    "giftCardConfiguration": null,
+                    "giftCards": {},
                     "localizationProductIds": [
                         "gid://shopify/Product/9801098789170"
                     ],
