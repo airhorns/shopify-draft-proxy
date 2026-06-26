@@ -5,44 +5,14 @@ use sha2::{Digest, Sha256};
 mod customer_payment_methods;
 mod returns;
 
-pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
-    namespace: &str,
-    key: &str,
-) -> Option<Value> {
-    let metafield_type = match (namespace, key) {
-        ("custom", "boolean") => "boolean",
-        ("custom", "number_integer") => "number_integer",
-        ("custom", "json") => "json",
-        ("custom", "rich_text") | ("custom", "rich_text_field") => "rich_text_field",
-        ("custom", "rating") => "rating",
-        ("custom", "link") => "link",
-        ("custom", "money") => "money",
-        _ => return None,
-    };
-    Some(json!({
-        "namespace": namespace,
-        "key": key,
-        "type": metafield_type,
-        "value": "",
-        "compareDigest": metafield_compare_digest("")
-    }))
-}
-
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 
-pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
-    match metafield_owner_gid_resource_type(id) {
-        "ProductVariant" => "PRODUCTVARIANT",
-        "Collection" => "COLLECTION",
-        "Customer" => "CUSTOMER",
-        "Order" => "ORDER",
-        "Company" => "COMPANY",
-        _ => "PRODUCT",
-    }
+pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> String {
+    metafield_owner_gid_resource_type(id).to_ascii_uppercase()
 }
 
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
@@ -109,24 +79,20 @@ fn json_quote(value: &str) -> String {
     Value::String(value.to_string()).to_string()
 }
 
-/// Gleam `float.to_string` renders whole values with a trailing `.0`
-/// (`5.0`, not `5`); Rust's `{}` drops it. Mirror the Gleam behavior.
-fn float_to_string(value: f64) -> String {
-    if value.is_finite() && value.fract() == 0.0 {
-        format!("{}.0", value.trunc() as i64)
-    } else {
-        format!("{value}")
-    }
-}
-
 fn normalize_date_time_value(value: &str) -> String {
-    if value.to_lowercase().ends_with('z') {
-        format!("{}+00:00", &value[..value.len() - 1])
-    } else if has_timezone_offset(value) {
-        value.to_string()
-    } else {
-        format!("{value}+00:00")
-    }
+    let (without_offset, offset) =
+        if let Some(value) = value.strip_suffix('Z').or_else(|| value.strip_suffix('z')) {
+            (value, "+00:00")
+        } else if has_timezone_offset(value) {
+            (&value[..value.len() - 6], &value[value.len() - 6..])
+        } else {
+            (value, "+00:00")
+        };
+    let without_fraction = without_offset
+        .split_once('.')
+        .map(|(head, _)| head)
+        .unwrap_or(without_offset);
+    format!("{without_fraction}{offset}")
 }
 
 fn has_timezone_offset(value: &str) -> bool {
@@ -227,7 +193,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render via `float_to_string`. Mirrors Gleam
+/// floats render through Shopify's decimal text normalization. Mirrors Gleam
 /// `json_number_string_field`.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
@@ -235,14 +201,18 @@ fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) 
             if let Some(int_value) = number.as_i64() {
                 Some(format!("{int_value}.0"))
             } else {
-                number.as_f64().map(float_to_string)
+                number
+                    .as_f64()
+                    .map(|value| shopify_decimal_text(&value.to_string()))
             }
         }
         Some(Value::String(text)) => {
             if let Ok(int_value) = text.parse::<i64>() {
                 Some(format!("{int_value}.0"))
             } else {
-                text.parse::<f64>().ok().map(float_to_string)
+                text.parse::<f64>()
+                    .ok()
+                    .map(|value| shopify_decimal_text(&value.to_string()))
             }
         }
         _ => None,
@@ -389,7 +359,7 @@ fn list_decimal_json_item(item: &Value) -> Value {
             if let Some(int_value) = number.as_i64() {
                 Value::String(int_value.to_string())
             } else if let Some(float_value) = number.as_f64() {
-                Value::String(float_to_string(float_value))
+                Value::String(shopify_decimal_text(&float_value.to_string()))
             } else {
                 item.clone()
             }
@@ -884,65 +854,286 @@ fn metafield_json_object_message(metafield_type: &str) -> &'static str {
     }
 }
 
-pub(in crate::proxy) fn metafields_set_definition_user_errors(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-    definitions: &BTreeMap<MetafieldDefinitionKey, Value>,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
-        let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
-        let namespace =
-            canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
-        let key = resolved_string_field(input, "key").unwrap_or_default();
-        let value = resolved_string_field(input, "value").unwrap_or_default();
-        let owner_type = owner_type_from_gid(&owner_id);
-        let Some(definition) = definitions.get(&metafield_definition_store_key(
-            owner_type, &namespace, &key,
-        )) else {
-            continue;
-        };
-        errors.extend(metafields_set_definition_validation_errors(
-            definition, index, &value,
-        ));
+impl DraftProxy {
+    pub(in crate::proxy) fn metafields_set_definition_user_errors(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(input, "key").unwrap_or_default();
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            let owner_type = owner_type_from_gid(&owner_id);
+            let Some(definition) =
+                self.store
+                    .staged
+                    .metafield_definitions
+                    .get(&metafield_definition_store_key(
+                        &owner_type,
+                        &namespace,
+                        &key,
+                    ))
+            else {
+                continue;
+            };
+            errors.extend(
+                self.metafields_set_definition_validation_errors(definition, index, &value),
+            );
+        }
+        errors
     }
-    errors
+
+    fn metafields_set_definition_validation_errors(
+        &self,
+        definition: &Value,
+        index: usize,
+        value: &str,
+    ) -> Vec<Value> {
+        let metafield_type = definition["type"]["name"].as_str().unwrap_or_default();
+        let validations = definition["validations"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let mut errors = Vec::new();
+
+        if let Some(message) =
+            metafield_definition_text_length_error(metafield_type, &validations, value)
+                .or_else(|| {
+                    metafield_definition_numeric_range_error(metafield_type, &validations, value)
+                })
+                .or_else(|| metafield_definition_regex_error(&validations, value))
+                .or_else(|| metafield_definition_choices_error(&validations, value))
+                .or_else(|| {
+                    metafield_definition_rating_scale_error(metafield_type, &validations, value)
+                })
+                .or_else(|| {
+                    metafield_definition_date_range_error(metafield_type, &validations, value)
+                })
+                .or_else(|| {
+                    self.metafield_definition_metaobject_reference_error(
+                        metafield_type,
+                        &validations,
+                        value,
+                    )
+                })
+        {
+            errors.push(metafields_set_value_user_error(
+                index,
+                &message,
+                "INVALID_VALUE",
+            ));
+        }
+
+        errors
+    }
+
+    fn metafield_definition_metaobject_reference_error(
+        &self,
+        metafield_type: &str,
+        validations: &[Value],
+        value: &str,
+    ) -> Option<String> {
+        let allowed_definition_ids =
+            metafield_definition_allowed_metaobject_definition_ids(validations);
+        if allowed_definition_ids.is_empty() {
+            return None;
+        }
+        let invalid = if metafield_type == "metaobject_reference" {
+            !self.metaobject_reference_matches_allowed_definition(value, &allowed_definition_ids)
+        } else if metafield_type == "list.metaobject_reference" {
+            let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) else {
+                return None;
+            };
+            items.iter().filter_map(Value::as_str).any(|item| {
+                !self.metaobject_reference_matches_allowed_definition(item, &allowed_definition_ids)
+            })
+        } else {
+            false
+        };
+        invalid.then(|| "Value must belong to the configured metaobject definition.".to_string())
+    }
+
+    fn metaobject_reference_matches_allowed_definition(
+        &self,
+        metaobject_id: &str,
+        allowed_definition_ids: &[String],
+    ) -> bool {
+        let Some(record) = self.metaobject_by_id(metaobject_id) else {
+            return false;
+        };
+        if record
+            .get("definition")
+            .and_then(|definition| definition.get("id"))
+            .and_then(Value::as_str)
+            .is_some_and(|id| allowed_definition_ids.iter().any(|allowed| allowed == id))
+        {
+            return true;
+        }
+        let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
+            return false;
+        };
+        self.store
+            .staged
+            .metaobject_definitions
+            .values()
+            .any(|definition| {
+                definition.get("type").and_then(Value::as_str) == Some(meta_type)
+                    && definition
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| {
+                            allowed_definition_ids.iter().any(|allowed| allowed == id)
+                                && !self.store.staged.metaobject_definitions.is_tombstoned(id)
+                        })
+            })
+    }
 }
 
-fn metafields_set_definition_validation_errors(
-    definition: &Value,
-    index: usize,
+fn metafield_definition_text_length_error(
+    metafield_type: &str,
+    validations: &[Value],
     value: &str,
-) -> Vec<Value> {
-    let metafield_type = definition["type"]["name"].as_str().unwrap_or_default();
-    let validations = definition["validations"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let min = validation_i64(&validations, "min");
-    let max = validation_i64(&validations, "max");
-    let mut errors = Vec::new();
-
-    match metafield_type {
-        "single_line_text_field" | "multi_line_text_field" => {
-            if min.is_some_and(|min| value.chars().count() < min as usize) {
-                errors.push(metafields_set_value_user_error(
-                    index,
-                    "Value is too short.",
-                    "INVALID_VALUE",
-                ));
-            }
-            if max.is_some_and(|max| value.chars().count() > max as usize) {
-                errors.push(metafields_set_value_user_error(
-                    index,
-                    "Value is too long.",
-                    "INVALID_VALUE",
-                ));
-            }
-        }
-        _ => {}
+) -> Option<String> {
+    if !matches!(
+        metafield_type,
+        "single_line_text_field" | "multi_line_text_field"
+    ) {
+        return None;
     }
+    let length = value.chars().count();
+    if validation_i64(validations, "min").is_some_and(|min| length < min as usize) {
+        Some("Value is too short.".to_string())
+    } else if validation_i64(validations, "max").is_some_and(|max| length > max as usize) {
+        Some("Value is too long.".to_string())
+    } else {
+        None
+    }
+}
 
-    errors
+fn metafield_definition_numeric_range_error(
+    metafield_type: &str,
+    validations: &[Value],
+    value: &str,
+) -> Option<String> {
+    if !matches!(
+        metafield_type,
+        "number_integer" | "integer" | "number_decimal" | "float"
+    ) {
+        return None;
+    }
+    let parsed = value.parse::<f64>().ok()?;
+    if let Some((min, min_text)) = validation_f64_with_text(validations, "min") {
+        if parsed < min {
+            return Some(format!("Value has a minimum of {min_text}."));
+        }
+    }
+    if let Some((max, max_text)) = validation_f64_with_text(validations, "max") {
+        if parsed > max {
+            return Some(format!("Value has a maximum of {max_text}."));
+        }
+    }
+    None
+}
+
+fn metafield_definition_regex_error(validations: &[Value], value: &str) -> Option<String> {
+    let pattern = validation_string(validations, "regex")?;
+    regex::Regex::new(&pattern)
+        .ok()
+        .filter(|regex| regex.is_match(value))
+        .map(|_| ())
+        .is_none()
+        .then(|| "Value does not match the required pattern.".to_string())
+}
+
+fn metafield_definition_choices_error(validations: &[Value], value: &str) -> Option<String> {
+    let choices = validation_string_list(validations, "choices");
+    (!choices.is_empty() && !choices.iter().any(|choice| choice == value))
+        .then(|| "Value must be one of the allowed choices.".to_string())
+}
+
+fn metafield_definition_rating_scale_error(
+    metafield_type: &str,
+    validations: &[Value],
+    value: &str,
+) -> Option<String> {
+    if metafield_type != "rating" {
+        return None;
+    }
+    let parsed = serde_json::from_str::<Value>(value).ok()?;
+    let rating = parsed.get("value").and_then(json_f64_value)?;
+    if let Some((scale_min, scale_min_text)) = validation_f64_with_text(validations, "scale_min") {
+        if rating < scale_min {
+            return Some(format!("Value has a minimum of {scale_min_text}."));
+        }
+    }
+    if let Some((scale_max, scale_max_text)) = validation_f64_with_text(validations, "scale_max") {
+        if rating > scale_max {
+            return Some(format!("Value has a maximum of {scale_max_text}."));
+        }
+    }
+    None
+}
+
+fn metafield_definition_date_range_error(
+    metafield_type: &str,
+    validations: &[Value],
+    value: &str,
+) -> Option<String> {
+    match metafield_type {
+        "date" if is_shopify_date(value) => {
+            if let Some(min) =
+                validation_string(validations, "min").filter(|min| is_shopify_date(min))
+            {
+                if value < min.as_str() {
+                    return Some(format!("Value has a minimum date of {min}."));
+                }
+            }
+            if let Some(max) =
+                validation_string(validations, "max").filter(|max| is_shopify_date(max))
+            {
+                if value > max.as_str() {
+                    return Some(format!("Value has a maximum date of {max}."));
+                }
+            }
+            None
+        }
+        "date_time" if is_shopify_date_time(value) => {
+            let value_key = parse_shopify_date_time_sort_key(value)?;
+            if let Some(min) =
+                validation_string(validations, "min").filter(|min| is_shopify_date_time(min))
+            {
+                let min_key = parse_shopify_date_time_sort_key(&min)?;
+                if value_key < min_key {
+                    return Some(format!("Value has a minimum date-time of {min}."));
+                }
+            }
+            if let Some(max) =
+                validation_string(validations, "max").filter(|max| is_shopify_date_time(max))
+            {
+                let max_key = parse_shopify_date_time_sort_key(&max)?;
+                if value_key > max_key {
+                    return Some(format!("Value has a maximum date-time of {max}."));
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn metafield_definition_allowed_metaobject_definition_ids(validations: &[Value]) -> Vec<String> {
+    let mut ids = validation_string_list(validations, "metaobject_definition_id");
+    ids.extend(validation_string_list(
+        validations,
+        "metaobject_definition_ids",
+    ));
+    ids.sort();
+    ids.dedup();
+    ids
 }
 
 fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
@@ -957,6 +1148,38 @@ fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
             })
             .flatten()
     })
+}
+
+fn validation_string(validations: &[Value], name: &str) -> Option<String> {
+    validations.iter().find_map(|validation| {
+        (validation.get("name").and_then(Value::as_str) == Some(name))
+            .then(|| {
+                validation
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .flatten()
+    })
+}
+
+fn validation_string_list(validations: &[Value], name: &str) -> Vec<String> {
+    let Some(value) = validation_string(validations, name) else {
+        return Vec::new();
+    };
+    match serde_json::from_str::<Value>(&value) {
+        Ok(Value::Array(items)) => items
+            .into_iter()
+            .filter_map(|item| item.as_str().map(str::to_string))
+            .collect(),
+        Ok(Value::String(value)) => vec![value],
+        _ => vec![value],
+    }
+}
+
+fn validation_f64_with_text(validations: &[Value], name: &str) -> Option<(f64, String)> {
+    let value = validation_string(validations, name)?;
+    value.parse::<f64>().ok().map(|parsed| (parsed, value))
 }
 
 fn metafields_set_value_user_error(index: usize, message: &str, code: &str) -> Value {
@@ -1008,15 +1231,99 @@ fn is_shopify_hex_color(value: &str) -> bool {
 }
 
 fn is_shopify_date_time(value: &str) -> bool {
-    value.len() == 19
-        && value.as_bytes().get(4) == Some(&b'-')
-        && value.as_bytes().get(7) == Some(&b'-')
-        && value.as_bytes().get(10) == Some(&b'T')
-        && value.as_bytes().get(13) == Some(&b':')
-        && value.as_bytes().get(16) == Some(&b':')
-        && value.chars().enumerate().all(|(index, character)| {
-            matches!(index, 4 | 7 | 10 | 13 | 16) || character.is_ascii_digit()
-        })
+    parse_shopify_date_time_sort_key(value).is_some()
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct ShopifyDateTimeSortKey {
+    seconds_utc: i64,
+    nanosecond: u32,
+}
+
+fn parse_shopify_date_time_sort_key(value: &str) -> Option<ShopifyDateTimeSortKey> {
+    if !value.is_ascii() {
+        return None;
+    }
+    let (date_part, time_part) = value.split_once(['T', ' '])?;
+    let (year, month, day) = parse_shopify_date_parts(date_part)?;
+    let (time_part, offset_seconds) = split_shopify_time_offset(time_part)?;
+    let (time_core, nanosecond) = parse_shopify_time_fraction(time_part)?;
+    let mut segments = time_core.split(':');
+    let hour = parse_ascii_u32(segments.next()?)?;
+    let minute = parse_ascii_u32(segments.next()?)?;
+    let second = parse_ascii_u32(segments.next().unwrap_or("0"))?;
+    if segments.next().is_some() || hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let seconds_utc = days_from_civil(year, month, day) * 86_400
+        + i64::from(hour) * 3_600
+        + i64::from(minute) * 60
+        + i64::from(second)
+        - i64::from(offset_seconds);
+    Some(ShopifyDateTimeSortKey {
+        seconds_utc,
+        nanosecond,
+    })
+}
+
+fn parse_shopify_date_parts(value: &str) -> Option<(i32, u32, u32)> {
+    if !is_shopify_date(value) {
+        return None;
+    }
+    Some((
+        value[0..4].parse().ok()?,
+        value[5..7].parse().ok()?,
+        value[8..10].parse().ok()?,
+    ))
+}
+
+fn split_shopify_time_offset(value: &str) -> Option<(&str, i32)> {
+    if let Some(time) = value.strip_suffix(['Z', 'z']) {
+        return Some((time, 0));
+    }
+    if value.len() >= 6 {
+        let offset_start = value.len() - 6;
+        let offset = &value[offset_start..];
+        let sign = offset.as_bytes()[0];
+        if matches!(sign, b'+' | b'-') && offset.as_bytes()[3] == b':' {
+            let hours = parse_ascii_u32(&offset[1..3])?;
+            let minutes = parse_ascii_u32(&offset[4..6])?;
+            if hours > 23 || minutes > 59 {
+                return None;
+            }
+            let offset_seconds = (hours * 3_600 + minutes * 60) as i32;
+            return Some((
+                &value[..offset_start],
+                if sign == b'+' {
+                    offset_seconds
+                } else {
+                    -offset_seconds
+                },
+            ));
+        }
+    }
+    Some((value, 0))
+}
+
+fn parse_shopify_time_fraction(value: &str) -> Option<(&str, u32)> {
+    let Some((time, fraction)) = value.split_once('.') else {
+        return Some((value, 0));
+    };
+    if fraction.is_empty() || !fraction.chars().all(|character| character.is_ascii_digit()) {
+        return None;
+    }
+    let mut nanoseconds = String::with_capacity(9);
+    nanoseconds.extend(fraction.chars().take(9));
+    while nanoseconds.len() < 9 {
+        nanoseconds.push('0');
+    }
+    Some((time, nanoseconds.parse().ok()?))
+}
+
+fn parse_ascii_u32(value: &str) -> Option<u32> {
+    (!value.is_empty() && value.chars().all(|character| character.is_ascii_digit()))
+        .then(|| value.parse().ok())
+        .flatten()
 }
 
 fn metafield_reference_type_name(type_name: &str) -> Option<&str> {
@@ -1823,7 +2130,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
         .enumerate()
         .map(|(index, metafield)| {
             let namespace = resolved_string_field(&metafield, "namespace")
-                .map(|namespace| payment_customization_namespace(&namespace))
+                .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)))
                 .unwrap_or_default();
             json!({
                 "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
@@ -1842,17 +2149,16 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
     record: &mut Value,
     metafields: Vec<Value>,
 ) {
-    let edges =
-        connection_edges_with_cursor(&metafields, |index, _| format!("cursor{}", index + 1));
+    let mut connection = connection_json_with_cursor(
+        metafields.clone(),
+        |index, _| format!("cursor{}", index + 1),
+        empty_page_info(),
+    );
+    if let Some(connection) = connection.as_object_mut() {
+        connection.remove("pageInfo");
+    }
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
-    record["metafields"] = json!({ "edges": edges, "nodes": metafields });
-}
-
-pub(in crate::proxy) fn payment_customization_namespace(namespace: &str) -> String {
-    namespace
-        .strip_prefix("$app:")
-        .map(|suffix| format!("app--347082227713--{suffix}"))
-        .unwrap_or_else(|| namespace.to_string())
+    record["metafields"] = connection;
 }
 
 pub(in crate::proxy) fn payment_customization_payload(
@@ -2037,20 +2343,15 @@ pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, co
 }
 
 pub(in crate::proxy) fn payment_terms_payload_value(
-    root_field: &str,
     payment_terms: Value,
     user_errors: Vec<Value>,
     selections: &[SelectedField],
 ) -> Value {
-    let payload_key = match root_field {
-        "paymentTermsUpdate" => "paymentTermsUpdate",
-        _ => "paymentTermsCreate",
-    };
     let payload = json!({
         "paymentTerms": payment_terms,
         "userErrors": user_errors
     });
-    json!({ payload_key: selected_json(&payload, selections) })
+    selected_json(&payload, selections)
 }
 
 pub(in crate::proxy) fn payment_terms_success_record(
@@ -2360,7 +2661,7 @@ pub(in crate::proxy) fn payment_terms_delete_payload_value(
         "deletedId": deleted_id,
         "userErrors": user_errors
     });
-    json!({ "paymentTermsDelete": selected_json(&payload, selections) })
+    selected_json(&payload, selections)
 }
 
 pub(in crate::proxy) fn payment_terms_attrs_from_create_field(
@@ -2414,7 +2715,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
         return Err(payment_terms_payload_value(
-            "paymentTermsCreate",
             Value::Null,
             vec![payment_terms_user_error(
                 Value::Null,
@@ -2427,7 +2727,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     if let Some(id) = reference_id.strip_prefix("gid://shopify/Order/") {
         if id == "123" {
             return Err(payment_terms_payload_value(
-                "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
                     Value::Null,
@@ -2441,7 +2740,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
     if let Some(id) = reference_id.strip_prefix("gid://shopify/DraftOrder/") {
         if id == "999999" {
             return Err(payment_terms_payload_value(
-                "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
                     Value::Null,
@@ -2456,7 +2754,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
         payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
     {
         return Err(payment_terms_payload_value(
-            "paymentTermsCreate",
             Value::Null,
             vec![error],
             &field.selection,
@@ -2497,7 +2794,6 @@ pub(in crate::proxy) fn payment_terms_update_value(
     };
     if let Some(error) = error {
         return Err(payment_terms_payload_value(
-            "paymentTermsUpdate",
             Value::Null,
             vec![error],
             &field.selection,
@@ -2709,21 +3005,48 @@ fn money_bag_currency(money_set: &Value) -> String {
         .to_string()
 }
 
-fn money_bag_normalized_amount(amount: &str) -> String {
-    amount
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .to_string()
-        + if amount.contains('.') && amount.trim_end_matches('0').ends_with('.') {
-            ".0"
-        } else {
-            ""
-        }
-}
-
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
     let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
     format!("{total:.1}")
+}
+
+fn resolved_money_pair(
+    money: Option<BTreeMap<String, ResolvedValue>>,
+    defaults: [&str; 2],
+) -> [String; 2] {
+    let money = money.unwrap_or_default();
+    [
+        resolved_string_field(&money, "amount").unwrap_or_else(|| defaults[0].to_string()),
+        resolved_string_field(&money, "currencyCode").unwrap_or_else(|| defaults[1].to_string()),
+    ]
+}
+
+fn line_item_price_set_values(
+    first_line: &BTreeMap<String, ResolvedValue>,
+    absent_price_set: [&str; 4],
+    shop_defaults: [&str; 2],
+    presentment_defaults: Option<[&str; 2]>,
+) -> [String; 4] {
+    let Some(price_set) = resolved_object_field(first_line, "priceSet") else {
+        return absent_price_set.map(str::to_string);
+    };
+    let [shop_amount, shop_currency] = resolved_money_pair(
+        resolved_object_field(&price_set, "shopMoney"),
+        shop_defaults,
+    );
+    let presentment_default = presentment_defaults
+        .map(|defaults| defaults.map(str::to_string))
+        .unwrap_or_else(|| [shop_amount.clone(), shop_currency.clone()]);
+    let [presentment_amount, presentment_currency] = resolved_money_pair(
+        resolved_object_field(&price_set, "presentmentMoney"),
+        [&presentment_default[0], &presentment_default[1]],
+    );
+    [
+        shop_amount,
+        shop_currency,
+        presentment_amount,
+        presentment_currency,
+    ]
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
@@ -3119,7 +3442,7 @@ impl DraftProxy {
                         .first()
                         .and_then(|transaction| resolved_string_field(transaction, "amount"))
                         .unwrap_or_else(|| "5.00".to_string());
-                    let amount = money_bag_normalized_amount(&amount);
+                    let amount = normalize_money_amount(&amount);
                     let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
                     let currency = self
                         .store
@@ -3215,41 +3538,50 @@ impl DraftProxy {
         Some(json!({ "data": data }))
     }
 
-    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+    fn staged_order_input_and_first_line(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (
+        String,
+        BTreeMap<String, ResolvedValue>,
+        BTreeMap<String, ResolvedValue>,
+    ) {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
         let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let line_items = resolved_object_list_field(&order_input, "lineItems");
-        let first_line = line_items.first().cloned().unwrap_or_default();
-        let price_set = resolved_object_field(&first_line, "priceSet").unwrap_or_default();
-        let shop_money = resolved_object_field(&price_set, "shopMoney").unwrap_or_default();
-        let presentment_money =
-            resolved_object_field(&price_set, "presentmentMoney").unwrap_or_default();
-        let shop_amount = resolved_string_field(&shop_money, "amount")
-            .map(|amount| money_bag_normalized_amount(&amount))
-            .unwrap_or_else(|| "0.0".to_string());
-        let shop_currency =
-            resolved_string_field(&shop_money, "currencyCode").unwrap_or_else(|| {
-                resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string())
-            });
-        let presentment_amount = resolved_string_field(&presentment_money, "amount")
-            .map(|amount| money_bag_normalized_amount(&amount))
-            .unwrap_or_else(|| shop_amount.clone());
-        let presentment_currency = resolved_string_field(&presentment_money, "currencyCode")
-            .unwrap_or_else(|| shop_currency.clone());
+        let first_line = resolved_object_list_field(&order_input, "lineItems")
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        (id, order_input, first_line)
+    }
+
+    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+        let (id, order_input, first_line) = self.staged_order_input_and_first_line(field);
+        let default_currency =
+            resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string());
+        let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+            line_item_price_set_values(
+                &first_line,
+                ["0.0", &default_currency, "0.0", &default_currency],
+                ["0.0", &default_currency],
+                None,
+            );
+        let shop_amount = normalize_money_amount(&shop_amount);
+        let presentment_amount = normalize_money_amount(&presentment_amount);
         let tax_amount = resolved_object_list_field(&first_line, "taxLines")
             .first()
             .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
             .and_then(|tax_price| resolved_object_field(&tax_price, "shopMoney"))
             .and_then(|money| resolved_string_field(&money, "amount"))
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| "0.0".to_string());
         let presentment_tax_amount = resolved_object_list_field(&first_line, "taxLines")
             .first()
             .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
             .and_then(|tax_price| resolved_object_field(&tax_price, "presentmentMoney"))
             .and_then(|money| resolved_string_field(&money, "amount"))
-            .map(|amount| money_bag_normalized_amount(&amount))
+            .map(|amount| normalize_money_amount(&amount))
             .unwrap_or_else(|| tax_amount.clone());
         let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
         let presentment_total =
@@ -3348,7 +3680,6 @@ impl DraftProxy {
                                 self.payment_terms_owner_money(request, &owner_id);
                             if self.payment_terms_owner_is_paid(&owner_id) {
                                 payment_terms_payload_value(
-                                    "paymentTermsCreate",
                                     Value::Null,
                                     vec![payment_terms_user_error(
                                         Value::Null,
@@ -3356,8 +3687,7 @@ impl DraftProxy {
                                         "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
                                     )],
                                     &field.selection,
-                                )["paymentTermsCreate"]
-                                    .clone()
+                                )
                             } else {
                                 let record = payment_terms_record_from_attrs(
                                     &terms_id, &attrs, &amount, &currency,
@@ -3373,16 +3703,10 @@ impl DraftProxy {
                                 self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(
-                                    "paymentTermsCreate",
-                                    record,
-                                    Vec::new(),
-                                    &field.selection,
-                                )["paymentTermsCreate"]
-                                    .clone()
+                                payment_terms_payload_value(record, Vec::new(), &field.selection)
                             }
                         }
-                        Err(payload) => payload["paymentTermsCreate"].clone(),
+                        Err(payload) => payload,
                     },
                     "paymentTermsUpdate" => match payment_terms_update_value(field) {
                         Ok((terms_id, attrs)) => {
@@ -3394,7 +3718,6 @@ impl DraftProxy {
                                 && self.payment_terms_node_owner_paid(request, &terms_id)
                             {
                                 payment_terms_payload_value(
-                                    "paymentTermsUpdate",
                                     Value::Null,
                                     vec![payment_terms_user_error(
                                         Value::Null,
@@ -3402,8 +3725,7 @@ impl DraftProxy {
                                         "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
                                     )],
                                     &field.selection,
-                                )["paymentTermsUpdate"]
-                                    .clone()
+                                )
                             } else {
                                 let (amount, currency) = match owner_id.as_deref() {
                                     Some(owner) => self.payment_terms_owner_money(request, owner),
@@ -3426,16 +3748,10 @@ impl DraftProxy {
                                 }
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(
-                                    "paymentTermsUpdate",
-                                    record,
-                                    Vec::new(),
-                                    &field.selection,
-                                )["paymentTermsUpdate"]
-                                    .clone()
+                                payment_terms_payload_value(record, Vec::new(), &field.selection)
                             }
                         }
-                        Err(payload) => payload["paymentTermsUpdate"].clone(),
+                        Err(payload) => payload,
                     },
                     "paymentTermsDelete" => {
                         let input =
@@ -3460,8 +3776,7 @@ impl DraftProxy {
                                 json!(payment_terms_id),
                                 Vec::new(),
                                 &field.selection,
-                            )["paymentTermsDelete"]
-                                .clone()
+                            )
                         } else {
                             payment_terms_delete_payload_value(
                                 Value::Null,
@@ -3471,8 +3786,7 @@ impl DraftProxy {
                                     "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
                                 )],
                                 &field.selection,
-                            )["paymentTermsDelete"]
-                                .clone()
+                            )
                         }
                     }
                     "order" => {
@@ -3723,44 +4037,20 @@ impl DraftProxy {
     }
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
-        let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let price_set = order_arg
-            .get("lineItems")
-            .and_then(|_| {
-                resolved_object_list_field(&order_arg, "lineItems")
-                    .first()
-                    .cloned()
-            })
-            .and_then(|line| resolved_object_field(&line, "priceSet"))
-            .map(|price_set| {
-                let shop_money = resolved_object_field(&price_set, "shopMoney");
-                let shop_amount = shop_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "amount"))
-                    .unwrap_or_else(|| "42.50".to_string());
-                let shop_currency = shop_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "currencyCode"))
-                    .unwrap_or_else(|| "USD".to_string());
-                let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
-                let presentment_amount = presentment_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "amount"))
-                    .unwrap_or_else(|| "57.00".to_string());
-                let presentment_currency = presentment_money
-                    .as_ref()
-                    .and_then(|money| resolved_string_field(money, "currencyCode"))
-                    .unwrap_or_else(|| "CAD".to_string());
-                money_set_pair(
-                    &shop_amount,
-                    &shop_currency,
-                    &presentment_amount,
-                    &presentment_currency,
-                )
-            })
-            .unwrap_or_else(|| money_set_pair("57.00", "CAD", "57.00", "CAD"));
+        let (id, _, first_line) = self.staged_order_input_and_first_line(field);
+        let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+            line_item_price_set_values(
+                &first_line,
+                ["57.00", "CAD", "57.00", "CAD"],
+                ["42.50", "USD"],
+                Some(["57.00", "CAD"]),
+            );
+        let price_set = money_set_pair(
+            &shop_amount,
+            &shop_currency,
+            &presentment_amount,
+            &presentment_currency,
+        );
         let order = json!({
             "id": id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),

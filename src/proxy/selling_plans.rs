@@ -923,10 +923,7 @@ fn selling_plan_group_input_user_errors(
             errors.push(position_invalid_error(vec!["input", "position"]));
         }
     }
-    let create_field = match mode {
-        SellingPlanInputMode::Create => "sellingPlansToCreate",
-        SellingPlanInputMode::Update => "sellingPlansToCreate",
-    };
+    let create_field = "sellingPlansToCreate";
     for (index, plan) in resolved_object_list_field(input, create_field)
         .iter()
         .enumerate()
@@ -999,14 +996,24 @@ fn selling_plan_group_create_model_user_errors(
         let index = index.to_string();
         if resolved_object_field(plan, "billingPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "billingPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "billingPolicy",
+                ],
                 "Selling plans to create billing policy must be present.",
                 Some("SELLING_PLAN_BILLING_POLICY_MISSING"),
             ));
         }
         if resolved_object_field(plan, "deliveryPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "deliveryPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "deliveryPolicy",
+                ],
                 "Selling plans to create delivery policy must be present.",
                 Some("SELLING_PLAN_DELIVERY_POLICY_MISSING"),
             ));
@@ -1418,23 +1425,7 @@ fn resolved_decimal_text_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Option<String> {
-    match input.get(key) {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}
-
-fn shopify_decimal_text(value: &str) -> String {
-    let Ok(parsed) = value.parse::<f64>() else {
-        return value.to_string();
-    };
-    let mut formatted = parsed.to_string();
-    if !formatted.contains('.') {
-        formatted.push_str(".0");
-    }
-    formatted
+    resolved_decimal_text(input.get(key))
 }
 
 fn json_number_value(value: &Value) -> Option<f64> {

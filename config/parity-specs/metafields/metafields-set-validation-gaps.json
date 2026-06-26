@@ -1,0 +1,298 @@
+{
+  "scenarioId": "metafields-set-validation-gaps",
+  "operationNames": ["metafieldDefinitionCreate", "metaobjectDefinitionCreate", "metaobjectCreate", "metafieldsSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "definition-validation-effects",
+    "field-category-parity",
+    "user-errors-parity",
+    "payload-shape",
+    "owner-type-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafields-set-validation-gaps.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-create-definitions.graphql",
+    "variablesCapturePath": "$.definitionRules.createDefinitions.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-validation-rules",
+        "capturePath": "$.definitionRules.createDefinitions.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.quantityMin.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.quantityMax.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.sku.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.color.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.rating.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.launchDate.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.startsAt.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "create-metaobject-reference-definitions",
+        "capturePath": "$.definitionRules.metaobjectDefinitions.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-metaobject-definitions.graphql",
+          "variablesCapturePath": "$.definitionRules.metaobjectDefinitions.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.target.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic metaobject definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.replacement.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic metaobject definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "create-disallowed-reference-metaobject",
+        "capturePath": "$.definitionRules.replacementMetaobject.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-metaobject-create.graphql",
+          "variablesCapturePath": "$.definitionRules.replacementMetaobject.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a deterministic metaobject ID while Shopify returned the live-store metaobject ID."
+          }
+        ]
+      },
+      {
+        "name": "create-reference-target-definition-rule",
+        "capturePath": "$.definitionRules.referenceDefinition.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-reference-definition.graphql",
+          "variables": {
+            "definition": {
+              "name": {
+                "fromCapturePath": "$.definitionRules.referenceDefinition.request.variables.definition.name"
+              },
+              "namespace": {
+                "fromCapturePath": "$.definitionRules.referenceDefinition.request.variables.definition.namespace"
+              },
+              "key": {
+                "fromCapturePath": "$.definitionRules.referenceDefinition.request.variables.definition.key"
+              },
+              "ownerType": {
+                "fromCapturePath": "$.definitionRules.referenceDefinition.request.variables.definition.ownerType"
+              },
+              "type": {
+                "fromCapturePath": "$.definitionRules.referenceDefinition.request.variables.definition.type"
+              },
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": {
+                    "fromProxyResponse": "create-metaobject-reference-definitions",
+                    "path": "$.data.target.metaobjectDefinition.id"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.createdDefinition.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The reference validation points at the local replay metaobject definition ID instead of the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "list-scalar-metaobject-field-categories",
+        "capturePath": "$.definitionRules.listScalarDefinition.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-list-scalar-category.graphql",
+          "variablesCapturePath": "$.definitionRules.listScalarDefinition.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic metaobject definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "reject-definition-rule-violations",
+        "capturePath": "$.definitionRules.invalidSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-set.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[0]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[1]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[2]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[3]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[4]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[5]"
+              },
+              {
+                "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[6]"
+              },
+              {
+                "ownerId": {
+                  "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[7].ownerId"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[7].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[7].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.definitionRules.invalidSet.request.variables.metafields[7].type"
+                },
+                "value": {
+                  "fromProxyResponse": "create-disallowed-reference-metaobject",
+                  "path": "$.data.metaobjectCreate.metaobject.id"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[*].message",
+            "matcher": "any-string",
+            "reason": "Shopify emits validator-specific wording; this target compares reject/accept shape, field paths, codes, elementIndex, and empty metafields payload."
+          }
+        ]
+      },
+      {
+        "name": "accept-date-time-offset-value",
+        "capturePath": "$.definitionRules.validDateTimeSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-definition-validation-set.graphql",
+          "variablesCapturePath": "$.definitionRules.validDateTimeSet.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic metafield ID while Shopify returned the live-store metafield ID."
+          },
+          {
+            "path": "$.metafields[0].compareDigest",
+            "matcher": "any-string",
+            "reason": "The proxy computes deterministic compare digests instead of Shopify opaque digests."
+          },
+          {
+            "path": "$.metafields[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged metafields at replay time."
+          },
+          {
+            "path": "$.metafields[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged metafields at replay time."
+          }
+        ]
+      },
+      {
+        "name": "non-product-owner-type-payloads",
+        "capturePath": "$.ownerTypes.metafieldsSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-non-product-owner-types.graphql",
+          "variablesCapturePath": "$.ownerTypes.metafieldsSet.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[*].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages deterministic metafield IDs while Shopify returned live-store metafield IDs."
+          },
+          {
+            "path": "$.metafields[*].compareDigest",
+            "matcher": "any-string",
+            "reason": "The proxy computes deterministic compare digests instead of Shopify opaque digests."
+          },
+          {
+            "path": "$.metafields[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged metafields at replay time."
+          },
+          {
+            "path": "$.metafields[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged metafields at replay time."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify capture proves metafieldsSet rejects definition-backed numeric range, regex, choices, rating scale, date/date_time bounds, and metaobject reference target-definition violations; returns list scalar metaobject field type categories by element type; accepts a date_time value with fractional seconds and an explicit offset; and returns ownerType/owner payloads for Page, Location, Market, and Article owners."
+}

@@ -16,35 +16,6 @@ pub(in crate::proxy) fn refund_user_error(
     user_error(field, &message, Some(code))
 }
 
-pub(in crate::proxy) fn order_money_bag_from_amount(
-    amount: f64,
-    shop_currency: &str,
-    presentment_currency: &str,
-) -> Value {
-    let amount = format_order_amount(amount);
-    json!({
-        "shopMoney": {
-            "amount": amount,
-            "currencyCode": shop_currency
-        },
-        "presentmentMoney": {
-            "amount": amount,
-            "currencyCode": presentment_currency
-        }
-    })
-}
-
-pub(in crate::proxy) fn money_set_amount(value: &Value) -> Option<f64> {
-    value["shopMoney"]["amount"]
-        .as_str()
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .or_else(|| {
-            value["amount"]
-                .as_str()
-                .and_then(|amount| amount.parse::<f64>().ok())
-        })
-}
-
 pub(in crate::proxy) fn money_set_shop_currency(value: &Value) -> Option<String> {
     value["shopMoney"]["currencyCode"]
         .as_str()
@@ -235,14 +206,14 @@ pub(in crate::proxy) fn refund_order_with_defaults(mut order: Value) -> Value {
     let presentment_currency = order_presentment_currency(&order, &shop_currency);
     if order.get("totalRefundedSet").is_none_or(Value::is_null) {
         order["totalRefundedSet"] =
-            order_money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
+            money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
     }
     if order
         .get("totalRefundedShippingSet")
         .is_none_or(Value::is_null)
     {
         order["totalRefundedShippingSet"] =
-            order_money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
+            money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
     }
     if !order.get("refunds").is_some_and(Value::is_array) {
         order["refunds"] = json!([]);
@@ -393,10 +364,7 @@ pub(in crate::proxy) fn build_refund_line_items(
     resolved_object_list_field(input, "refundLineItems")
         .iter()
         .map(|line_input| {
-            let id = format!(
-                "gid://shopify/RefundLineItem/{}",
-                *next_refund_line_item_id
-            );
+            let id = format!("gid://shopify/RefundLineItem/{}", *next_refund_line_item_id);
             *next_refund_line_item_id += 1;
             let quantity = refund_line_item_quantity(line_input);
             let restock_type = resolved_string_field(line_input, "restockType")
@@ -413,7 +381,7 @@ pub(in crate::proxy) fn build_refund_line_items(
                     "id": if line_item_id.is_empty() { Value::Null } else { json!(line_item_id) },
                     "title": line["title"].clone()
                 },
-                "subtotalSet": order_money_bag_from_amount(subtotal, shop_currency, presentment_currency)
+                "subtotalSet": money_bag_from_amount(subtotal, shop_currency, presentment_currency)
             })
         })
         .collect()
@@ -434,7 +402,7 @@ pub(in crate::proxy) fn build_refund_transactions(
             "kind": "REFUND",
             "status": "SUCCESS",
             "gateway": "manual",
-            "amountSet": order_money_bag_from_amount(refund_amount, shop_currency, presentment_currency)
+            "amountSet": money_bag_from_amount(refund_amount, shop_currency, presentment_currency)
         })];
     }
     inputs
@@ -461,7 +429,7 @@ pub(in crate::proxy) fn build_refund_transactions(
                 "kind": "REFUND",
                 "status": "SUCCESS",
                 "gateway": gateway,
-                "amountSet": order_money_bag_from_amount(amount, shop_currency, presentment_currency)
+                "amountSet": money_bag_from_amount(amount, shop_currency, presentment_currency)
             })
         })
         .collect()
@@ -481,9 +449,9 @@ pub(in crate::proxy) fn update_order_after_refund(
     let total_refunded_shipping = order_refunded_shipping_amount(&order) + shipping_refund_amount;
     let received = order_received_amount(&order);
     order["totalRefundedSet"] =
-        order_money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
+        money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
     order["totalRefundedShippingSet"] =
-        order_money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
+        money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
     order["displayFinancialStatus"] = if total_refunded + 0.005 >= received && received > 0.0 {
         json!("REFUNDED")
     } else {
@@ -589,7 +557,7 @@ pub(in crate::proxy) fn payment_money_set_for_capture(
     } else {
         requested
     };
-    let shop_amount = format_order_amount(shop_amount);
+    let shop_amount = format_money_amount(shop_amount);
     if parent_amount_set.get("presentmentMoney").is_some() || requested_currency != shop_currency {
         money_set_pair(
             &shop_amount,
@@ -617,24 +585,24 @@ pub(in crate::proxy) fn payment_money_set_for_order_totals(
             .unwrap_or_else(|| shop_currency.clone());
         (
             money_set_pair(
-                &format_order_amount(remaining_amount),
+                &format_money_amount(remaining_amount),
                 &shop_currency,
-                &format_order_amount(remaining_amount),
+                &format_money_amount(remaining_amount),
                 &presentment_currency,
             ),
             money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
             money_set_pair(
-                &format_order_amount(received_amount),
+                &format_money_amount(received_amount),
                 &shop_currency,
-                &format_order_amount(received_amount),
+                &format_money_amount(received_amount),
                 &presentment_currency,
             ),
         )
     } else {
         (
-            money_set(&format_order_amount(remaining_amount), &shop_currency),
-            money_set(&format_order_amount(remaining_amount), &shop_currency),
-            money_set(&format_order_amount(received_amount), &shop_currency),
+            money_set(&format_money_amount(remaining_amount), &shop_currency),
+            money_set(&format_money_amount(remaining_amount), &shop_currency),
+            money_set(&format_money_amount(received_amount), &shop_currency),
         )
     }
 }
@@ -730,7 +698,7 @@ pub(in crate::proxy) fn normalized_order_payment_amount(value: Option<String>) -
     // parseable amount through the canonical money formatter; leave non-numeric
     // values (e.g. already-symbolic) untouched.
     match value.parse::<f64>() {
-        Ok(amount) => format_order_amount(amount),
+        Ok(amount) => format_money_amount(amount),
         Err(_) => value,
     }
 }
@@ -888,7 +856,7 @@ impl DraftProxy {
             "note": resolved_string_field(&input, "note"),
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "totalRefundedSet": order_money_bag_from_amount(refund_amount, &shop_currency, &presentment_currency),
+            "totalRefundedSet": money_bag_from_amount(refund_amount, &shop_currency, &presentment_currency),
             "refundLineItems": order_connection(refund_line_items),
             "transactions": order_connection(refund_transactions.clone())
         });
@@ -1495,7 +1463,7 @@ impl DraftProxy {
             let message = if parent_amount_set.get("presentmentMoney").is_some() {
                 format!(
                     "Cannot capture more than the authorized {} for this payment.",
-                    format_order_amount(capturable_amount)
+                    format_money_amount(capturable_amount)
                 )
             } else {
                 "Amount exceeds capturable amount".to_string()
@@ -1553,7 +1521,7 @@ impl DraftProxy {
             json!("PARTIALLY_PAID")
         };
         order["capturable"] = json!(remaining_amount > 0.000_001);
-        order["totalCapturable"] = json!(format_order_amount(remaining_amount));
+        order["totalCapturable"] = json!(format_money_amount(remaining_amount));
         order["totalCapturableSet"] = capturable_set;
         order["totalOutstandingSet"] = outstanding_set;
         order["totalReceivedSet"] = received_set.clone();

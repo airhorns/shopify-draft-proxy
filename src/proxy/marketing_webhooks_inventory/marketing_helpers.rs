@@ -158,7 +158,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .map(|obj| {
             json!({
                 "amount": resolved_string_field(&obj, "amount")
-                    .map(|a| normalized_money_amount(&a))
+                    .map(|a| normalize_money_amount(&a))
                     .unwrap_or_default(),
                 "currencyCode": resolved_string_field(&obj, "currencyCode")
                     .unwrap_or_else(|| "USD".to_string())

@@ -214,7 +214,15 @@ impl DraftProxy {
                 });
                 ok_json(json!({ "data": data }))
             }
-            "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
+            "domain" => {
+                if self.config.read_mode != ReadMode::Snapshot
+                    && self.domain_query_needs_upstream(&fields)
+                {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    ok_json(json!({ "data": self.domain_query_data(&fields) }))
+                }
+            }
             "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
                 let selection_errors = functions_output_selection_errors(query, variables, &fields);
@@ -305,25 +313,27 @@ impl DraftProxy {
         ok_json(json!({ "data": data }))
     }
 
+    fn domain_query_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| {
+            if field.name != "domain" {
+                return false;
+            }
+            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            !id.is_empty() && self.store.domain_by_id(&id).is_none()
+        })
+    }
+
     fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         root_payload_json(fields, |field| {
             if field.name != "domain" {
                 return None;
             }
             let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let value = if id == "gid://shopify/Domain/1000" {
-                selected_json(
-                    &json!({
-                        "id": "gid://shopify/Domain/1000",
-                        "host": "acme.myshopify.com",
-                        "url": "https://acme.myshopify.com",
-                        "sslEnabled": true
-                    }),
-                    &field.selection,
-                )
-            } else {
-                Value::Null
-            };
+            let value = self
+                .store
+                .domain_by_id(&id)
+                .map(|domain| selected_json(&domain, &field.selection))
+                .unwrap_or(Value::Null);
             Some(value)
         })
     }
@@ -505,6 +515,9 @@ impl DraftProxy {
                     .map(|card| selected_json(card, selection))
                     .unwrap_or(Value::Null),
             );
+        }
+        if let Some(function) = self.store.staged.function_metadata.get(id) {
+            return Some(selected_json(function, selection));
         }
         if let Some(validation) = self.store.staged.function_validations.get(id) {
             return Some(selected_json(
@@ -953,6 +966,13 @@ impl DraftProxy {
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldDelete" =>
+            {
+                let outcome = self.owner_metafield_delete(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
                         "inventoryAdjustQuantities"
@@ -988,13 +1008,13 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(&query, &variables)
+                "data": self.saved_search_overlay_read_fields(request, &query, &variables)
             })),
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
                 }
-                let outcome = self.saved_search_mutation_fields(&query, &variables);
+                let outcome = self.saved_search_mutation_fields(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
@@ -1141,7 +1161,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.gift_card_read_data(&fields) }))
+                self.gift_card_read_response(request, &fields)
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
@@ -1440,18 +1460,37 @@ impl DraftProxy {
                         | "customerPaymentMethodRevoke"
                         | "paymentReminderSend"
                 ) {
+                    let payment_reminder = fields
+                        .iter()
+                        .any(|field| field.name == "paymentReminderSend")
+                        .then(|| {
+                            payment_reminder_local_data(
+                                &query,
+                                &variables,
+                                &mut self.store.staged.payment_reminder_schedule_ids,
+                            )
+                        })
+                        .flatten();
                     if root_field == "paymentReminderSend" {
-                        if let Some(data) = payment_reminder_local_data(
-                            &query,
-                            &variables,
-                            &mut self.store.staged.payment_reminder_schedule_ids,
-                        ) {
+                        if let Some(data) = payment_reminder {
                             return ok_json(data);
                         }
                     }
                     if let Some(data) =
                         self.customer_payment_method_local_data(request, &query, &variables)
                     {
+                        let mut data = data;
+                        if let Some(reminder) = payment_reminder {
+                            if reminder.get("errors").is_some() {
+                                return ok_json(reminder);
+                            }
+                            if let (Some(data), Some(reminder)) = (
+                                data.get_mut("data").and_then(Value::as_object_mut),
+                                reminder.get("data").and_then(Value::as_object),
+                            ) {
+                                data.extend(reminder.clone());
+                            }
+                        }
                         return ok_json(data);
                     }
                     return no_dispatcher("payments", root_field);
@@ -1721,7 +1760,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let data = self.functions_metadata_mutation_data(&fields);
+                let data = self.functions_metadata_mutation_data(request, &fields);
                 self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 ok_json(json!({ "data": data }))
             }
@@ -1734,7 +1773,11 @@ impl DraftProxy {
                 // and their app ownership metadata. Once a lifecycle is staged we
                 // serve locally (read-after-write / read-after-delete).
                 if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status == 200 {
+                        self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                    }
+                    response
                 } else {
                     let fields = try_root_fields!(&query, &variables);
                     let mut selection_errors =
@@ -1743,7 +1786,9 @@ impl DraftProxy {
                         &query, &variables, &fields,
                     ));
                     if selection_errors.is_empty() {
-                        ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                        ok_json(
+                            json!({ "data": self.functions_metadata_read_data(request, &fields) }),
+                        )
                     } else {
                         ok_json(json!({ "errors": selection_errors }))
                     }
@@ -2485,7 +2530,7 @@ impl DraftProxy {
                 ),
             (_, CapabilityExecution::OverlayRead) => no_dispatcher("overlay-read", root_field),
             (_, CapabilityExecution::StageLocally) => no_dispatcher("stage-locally", root_field),
-            (_, CapabilityExecution::Passthrough) => no_dispatcher("passthrough", root_field),
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
 }

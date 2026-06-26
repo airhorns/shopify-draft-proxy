@@ -1,0 +1,14 @@
+query DraftOrdersStatusQueryRead($first: Int!, $query: String!) {
+  draftOrders(first: $first, query: $query) {
+    nodes {
+      id
+      name
+      status
+      ready
+    }
+  }
+  draftOrdersCount(query: $query) {
+    count
+    precision
+  }
+}

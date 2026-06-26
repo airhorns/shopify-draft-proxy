@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 
@@ -16,6 +16,16 @@ type CapturedRequest = {
   response: ConformanceGraphqlResult;
 };
 
+type RecordedCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
@@ -23,6 +33,10 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'gift-cards');
 const outputPath = path.join(outputDir, 'gift-card-lifecycle.json');
+const readEvidenceQuery = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-read-evidence.graphql'),
+  'utf8',
+);
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -89,6 +103,68 @@ async function capture(
     query,
     variables,
     response,
+  };
+}
+
+async function hydrateGiftCard(id: string): Promise<RecordedCall> {
+  const variables = { id };
+  const query = `#graphql
+    query GiftCardHydrate($id: ID!) {
+      giftCard(id: $id) {
+        id
+        lastCharacters
+        maskedCode
+        enabled
+        deactivatedAt
+        expiresOn
+        note
+        templateSuffix
+        createdAt
+        updatedAt
+        initialValue { amount currencyCode }
+        balance { amount currencyCode }
+        customer {
+          id
+          email
+          defaultEmailAddress { emailAddress }
+          defaultPhoneNumber { phoneNumber }
+        }
+        recipientAttributes {
+          message
+          preferredName
+          sendNotificationAt
+          recipient {
+            id
+            email
+            defaultEmailAddress { emailAddress }
+            defaultPhoneNumber { phoneNumber }
+          }
+        }
+        transactions(first: 250) {
+          nodes {
+            __typename
+            id
+            note
+            processedAt
+            amount { amount currencyCode }
+          }
+        }
+      }
+      giftCardConfiguration {
+        issueLimit { amount currencyCode }
+        purchaseLimit { amount currencyCode }
+      }
+    }
+  `;
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName: 'GiftCardHydrate',
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
   };
 }
 
@@ -256,6 +332,11 @@ const filteredEmptyRead = await capture(
   { query: 'id:999999999999' },
 );
 
+const readEvidence = await capture('readEvidence', readEvidenceQuery, {
+  unknownId,
+  query: 'id:999999999999',
+});
+
 const configurationRead = await capture(
   'configurationRead',
   `#graphql
@@ -353,6 +434,7 @@ const createdId = readCreatedGiftCardId(create);
 const lifecycle: CapturedRequest[] = [];
 
 if (createdId !== null) {
+  const hydrateAfterCreate = await hydrateGiftCard(createdId);
   const updateInput = {
     note: 'HAR-310 conformance gift card updated',
     templateSuffix: 'birthday',
@@ -865,8 +947,10 @@ if (createdId !== null) {
         notes: [
           'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
           'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
+          'The aliased readEvidence operation byte-matches config/parity-requests/gift-cards/gift-card-read-evidence.graphql for proxy replay.',
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
           'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
+          'The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
         notificationRoots: {
@@ -915,10 +999,12 @@ if (createdId !== null) {
             initialValueQuery: `${giftCardIdQuery} AND initial_value:>=5`,
           },
         },
+        upstreamCalls: [hydrateAfterCreate],
         operations: {
           schemaAndAccess,
           emptyRead,
           filteredEmptyRead,
+          readEvidence,
           configurationRead,
           customerCreate,
           create,
@@ -927,6 +1013,7 @@ if (createdId !== null) {
         schemaAndAccess,
         emptyRead,
         filteredEmptyRead,
+        readEvidence,
         configurationRead,
         customerCreate,
         create,

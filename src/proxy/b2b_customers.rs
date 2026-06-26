@@ -489,8 +489,8 @@ impl DraftProxy {
 
         let delta = if is_credit { amount } else { -amount };
         let balance_after = current_balance + delta;
-        let amount_display = shopify_decimal_text(delta);
-        let balance_display = shopify_decimal_text(balance_after);
+        let amount_display = format_money_amount(delta);
+        let balance_display = format_money_amount(balance_after);
         let transaction_id = self.next_store_credit_transaction_gid();
         let mut account = existing;
         account["balance"] = money_value(&balance_display, &currency);
@@ -5071,19 +5071,6 @@ fn resolved_money_amount_text(
         Some(ResolvedValue::Int(value)) => Some(value.to_string()),
         Some(ResolvedValue::Float(value)) => Some(value.to_string()),
         _ => None,
-    }
-}
-
-/// Render an `f64` money amount the way Shopify serializes `MoneyV2.amount`:
-/// whole values keep a single trailing zero (`"10.0"`), fractional values drop
-/// trailing zeros beyond two decimal places (`"6.12"`, `"2.5"`).
-fn shopify_decimal_text(value: f64) -> String {
-    let rounded = (value * 100.0).round() / 100.0;
-    if rounded.fract().abs() < f64::EPSILON {
-        format!("{rounded:.1}")
-    } else {
-        let text = format!("{rounded:.2}");
-        text.trim_end_matches('0').to_string()
     }
 }
 

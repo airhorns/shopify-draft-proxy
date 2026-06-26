@@ -99,15 +99,15 @@ pub(in crate::proxy) fn fulfillment_service_callback_url_host_is_allowed(
 }
 
 fn fulfillment_service_shop_origin_host(shopify_admin_origin: &str) -> Option<String> {
-    let host = url::Url::parse(shopify_admin_origin)
+    url::Url::parse(shopify_admin_origin)
         .ok()
         .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-        .filter(|host| host.ends_with(".myshopify.com"));
-    host.or_else(|| Some("harry-test-heelo.myshopify.com".to_string()))
+        .filter(|host| host.ends_with(".myshopify.com"))
 }
 
 pub(in crate::proxy) fn delegate_access_token_create_payload_json(
     token: Value,
+    shop: &Value,
     payload_selection: &[SelectedField],
     token_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -119,7 +119,7 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
             } else {
                 selected_json(&token, token_selection)
             }),
-            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(shop, &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -132,13 +132,14 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
 
 pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     status: bool,
+    shop: &Value,
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
-            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(shop, &selection.selection)),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "UserError",
@@ -431,15 +432,6 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
             "terms": terms
         }}
     })
-}
-
-pub(in crate::proxy) fn format_money_amount(value: f64) -> String {
-    if (value.fract()).abs() < f64::EPSILON {
-        format!("{value:.1}")
-    } else {
-        let text = format!("{value:.2}");
-        normalize_money_amount(text.as_str())
-    }
 }
 
 pub(in crate::proxy) fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
