@@ -394,50 +394,24 @@ impl DraftProxy {
         let Some(context) = record.get_mut("context") else {
             return;
         };
-        if let Some(customers) = context.get_mut("customers").and_then(Value::as_array_mut) {
-            for customer in customers {
-                let Some(id) = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(display_name) = self
-                    .store
-                    .staged
-                    .customers
-                    .get(&id)
-                    .and_then(|record| record.get("displayName"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    customer["displayName"] = display_name;
-                }
-            }
-        }
-        if let Some(segments) = context.get_mut("segments").and_then(Value::as_array_mut) {
-            for segment in segments {
-                let Some(id) = segment
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(name) = self
-                    .store
-                    .staged
-                    .segments
-                    .get(&id)
-                    .and_then(|record| record.get("name"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    segment["name"] = name;
-                }
-            }
-        }
+        backfill_context_names(context, "customers", "id", "displayName", |id| {
+            self.store
+                .staged
+                .customers
+                .get(id)
+                .and_then(|record| record.get("displayName"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
+        backfill_context_names(context, "segments", "id", "name", |id| {
+            self.store
+                .staged
+                .segments
+                .get(id)
+                .and_then(|record| record.get("name"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
     }
 
     /// Forward a single batched `nodes(ids:)` lookup for every product / variant /
@@ -1285,20 +1259,20 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), "MAX_INPUT_SIZE_EXCEEDED")]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], "Codes can't be blank", "BLANK")]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1404,7 +1378,7 @@ impl DraftProxy {
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
@@ -1430,7 +1404,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["search"], "'Search' can't be blank.", "BLANK")]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1438,7 +1412,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID")]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
@@ -1614,7 +1588,7 @@ impl DraftProxy {
         let identifier = function_id.as_deref().or(function_handle.as_deref());
         let Some(identifier) = identifier else {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!("functionHandle")],
+                [input_arg, "functionHandle"],
                 "Function id can't be blank.",
                 Some("MISSING_FUNCTION_IDENTIFIER"),
             ));
@@ -1630,9 +1604,6 @@ impl DraftProxy {
                 function_handle.as_deref(),
             )
             .or_else(|| {
-                function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
-            })
-            .or_else(|| {
                 self.fetch_shopify_function(
                     request,
                     function_id.as_deref(),
@@ -1641,16 +1612,17 @@ impl DraftProxy {
             });
         let Some(function) = function else {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!(field_name)],
+                [input_arg, field_name],
                 &format!(
-                    "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+                    "Function {identifier} not found. Ensure that it is released in the current app ({}), and that the app is installed.",
+                    request_api_client_id(request)
                 ),
                 Some("INVALID"),
             ));
         };
         if !app_discount_function_api_type_is_supported(&function) {
             return Err(app_discount_user_error(
-                vec![json!(input_arg), json!(field_name)],
+                [input_arg, field_name],
                 "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
                 None,
             ));
@@ -1783,6 +1755,32 @@ impl DraftProxy {
             None
         } else {
             Some(candidate)
+        }
+    }
+}
+
+fn backfill_context_names<F>(
+    context: &mut Value,
+    array_key: &str,
+    source_field: &str,
+    dest_field: &str,
+    lookup: F,
+) where
+    F: Fn(&str) -> Option<Value>,
+{
+    let Some(items) = context.get_mut(array_key).and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in items {
+        let Some(id) = item
+            .get(source_field)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        if let Some(value) = lookup(&id) {
+            item[dest_field] = value;
         }
     }
 }
@@ -2159,19 +2157,10 @@ fn discount_context_customer_selection_user_error(
 /// return the resolved input object. The public Admin API names the create/update
 /// input argument after the discount kind (e.g. `basicCodeDiscount`), not `input`.
 fn discount_field_input(field: &RootFieldSelection) -> Option<BTreeMap<String, ResolvedValue>> {
-    let input_arg = match field.name.as_str() {
-        "discountCodeBasicCreate" | "discountCodeBasicUpdate" => "basicCodeDiscount",
-        "discountCodeBxgyCreate" | "discountCodeBxgyUpdate" => "bxgyCodeDiscount",
-        "discountCodeFreeShippingCreate" | "discountCodeFreeShippingUpdate" => {
-            "freeShippingCodeDiscount"
-        }
-        "discountAutomaticBasicCreate" | "discountAutomaticBasicUpdate" => "automaticBasicDiscount",
-        "discountAutomaticBxgyCreate" | "discountAutomaticBxgyUpdate" => "automaticBxgyDiscount",
-        "discountAutomaticFreeShippingCreate" | "discountAutomaticFreeShippingUpdate" => {
-            "freeShippingAutomaticDiscount"
-        }
-        _ => return None,
-    };
+    let input_arg = discount_mutation_input_arg(&field.name)?;
+    if matches!(input_arg, "codeAppDiscount" | "automaticAppDiscount") {
+        return None;
+    }
     discount_input(field, input_arg)
 }
 
@@ -2354,7 +2343,7 @@ fn app_discount_input_user_errors(
     let mut errors = Vec::new();
     let Some(input) = input else {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg)],
+            [input_arg],
             "Input is required.",
             Some("REQUIRED"),
         ));
@@ -2365,7 +2354,7 @@ fn app_discount_input_user_errors(
     if validate_title {
         match resolved_string_path(input, &["title"]) {
             Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 if code_app {
                     "can't be blank"
                 } else {
@@ -2374,13 +2363,13 @@ fn app_discount_input_user_errors(
                 Some("INVALID"),
             )),
             Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 "is too long (maximum is 255 characters)",
                 Some("INVALID"),
             )),
             Some(_) => {}
             None => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("title")],
+                [input_arg, "title"],
                 if code_app {
                     "Required argument not found."
                 } else {
@@ -2393,25 +2382,25 @@ fn app_discount_input_user_errors(
     if code_app {
         match resolved_string_path(input, &["code"]) {
             Some(code) if code.trim().is_empty() => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
             )),
             Some(code) if code.contains('\n') || code.contains('\r') => {
                 errors.push(app_discount_user_error(
-                    vec![json!(input_arg), json!("code")],
+                    [input_arg, "code"],
                     "Code cannot contain newline characters.",
                     Some("INVALID"),
                 ))
             }
             Some(code) if code.chars().count() > 255 => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Code is too long (maximum is 255 characters)",
                 Some("INVALID"),
             )),
             Some(_) => {}
             None if create => errors.push(app_discount_user_error(
-                vec![json!(input_arg), json!("code")],
+                [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
             )),
@@ -2420,7 +2409,7 @@ fn app_discount_input_user_errors(
     }
     if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("startsAt")],
+            [input_arg, "startsAt"],
             "Starts at can't be blank.",
             Some("INVALID"),
         ));
@@ -2430,28 +2419,28 @@ fn app_discount_input_user_errors(
         Some(ResolvedValue::List(values)) if values.is_empty()
     ) {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("discountClasses")],
+            [input_arg, "discountClasses"],
             "Discount classes can't be empty.",
             Some("INVALID"),
         ));
     }
     if discount_context_customer_selection_user_error(input, input_arg).is_some() {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("context")],
+            [input_arg, "context"],
             DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
             Some("INVALID"),
         ));
     }
     if app_discount_empty_customer_selection(input) {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("customerSelection")],
+            [input_arg, "customerSelection"],
             "a minimum of one prerequisite segment or prerequisite customer must be provided",
             Some("INVALID"),
         ));
     }
     if typename == "DiscountAutomaticApp" && input.contains_key("channelIds") {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("channelIds")],
+            [input_arg, "channelIds"],
             "Channel IDs are not supported for automatic app discounts.",
             Some("INVALID"),
         ));
@@ -2460,7 +2449,7 @@ fn app_discount_input_user_errors(
         && !resolved_string_list_path(input, &["markets", "add"]).is_empty()
     {
         errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("markets")],
+            [input_arg, "markets"],
             "Cannot add markets while removeAllMarkets is true.",
             Some("INVALID"),
         ));
@@ -2469,12 +2458,12 @@ fn app_discount_input_user_errors(
     let function_handle = resolved_non_blank_string_field(input, "functionHandle");
     match (function_id.is_some(), function_handle.is_some()) {
         (false, false) => errors.push(app_discount_user_error(
-            vec![json!(input_arg), json!("functionHandle")],
+            [input_arg, "functionHandle"],
             "Function id can't be blank.",
             Some("MISSING_FUNCTION_IDENTIFIER"),
         )),
         (true, true) => errors.push(app_discount_user_error(
-            vec![json!(input_arg)],
+            [input_arg],
             "Only one of functionId or functionHandle is allowed.",
             Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
         )),
@@ -2499,7 +2488,11 @@ fn app_discount_empty_customer_selection(input: &BTreeMap<String, ResolvedValue>
     )
 }
 
-fn app_discount_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
+fn app_discount_user_error(
+    field: impl Into<UserErrorField>,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
     user_error_with_extra_info(field, message, code, Value::Null)
 }
 
@@ -3639,94 +3632,11 @@ pub(in crate::proxy) fn gift_card_count_json(count: usize, selections: &[Selecte
     selected_json(&full, selections)
 }
 
-pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Option<Value> {
-    match country_code {
-        "AE" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110482738",
-            "name": "United Arab Emirates",
-            "code": "AE"
-        })),
-        "AT" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110515506",
-            "name": "Austria",
-            "code": "AT"
-        })),
-        "AU" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110548274",
-            "name": "Australia",
-            "code": "AU"
-        })),
-        "BE" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110581042",
-            "name": "Belgium",
-            "code": "BE"
-        })),
-        "CA" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110417202",
-            "name": "Canada",
-            "code": "CA"
-        })),
-        "CH" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110613810",
-            "name": "Switzerland",
-            "code": "CH"
-        })),
-        "CZ" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110646578",
-            "name": "Czechia",
-            "code": "CZ"
-        })),
-        "DE" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110679346",
-            "name": "Germany",
-            "code": "DE"
-        })),
-        "DK" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110712114",
-            "name": "Denmark",
-            "code": "DK"
-        })),
-        "ES" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110744882",
-            "name": "Spain",
-            "code": "ES"
-        })),
-        "FI" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110777650",
-            "name": "Finland",
-            "code": "FI"
-        })),
-        "MX" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062111334706",
-            "name": "Mexico",
-            "code": "MX"
-        })),
-        "US" => Some(json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110449970",
-            "name": "United States",
-            "code": "US"
-        })),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     message: &str,
     operation_path: &str,
     code: &str,
+    location: SourceLocation,
 ) -> Value {
     let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
     if code == "missingRequiredInputObjectAttribute" {
@@ -3744,7 +3654,7 @@ pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     json!({
         "errors": [{
             "message": message,
-            "locations": [{ "line": 2, "column": 30 }],
+            "locations": [{ "line": location.line, "column": location.column }],
             "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
             "extensions": extensions
         }]

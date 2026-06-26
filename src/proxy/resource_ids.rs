@@ -41,6 +41,7 @@ pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> &'static 
         Some("Customer") => "Customer",
         Some("Order") => "Order",
         Some("Company") => "Company",
+        Some("CartTransform") => "CartTransform",
         _ => "Product",
     }
 }

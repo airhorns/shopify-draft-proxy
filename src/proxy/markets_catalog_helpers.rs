@@ -18,10 +18,7 @@ pub(in crate::proxy) fn catalog_payload_error_with_root(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        root_key: null,
-        "userErrors": [catalog_user_error(field, message, code)]
-    })
+    payload_error(root_key, vec![catalog_user_error(field, message, code)])
 }
 
 pub(in crate::proxy) fn catalog_markets_connection(
@@ -182,10 +179,7 @@ pub(in crate::proxy) fn price_list_payload_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        root_key: null,
-        "userErrors": [price_list_user_error(field, message, code)]
-    })
+    payload_error(root_key, vec![price_list_user_error(field, message, code)])
 }
 
 pub(in crate::proxy) fn price_list_adjustment_value_json(

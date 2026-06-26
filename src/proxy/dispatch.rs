@@ -16,13 +16,12 @@ macro_rules! try_root_fields {
 /// carrying one of these must be answered upstream against the full catalog —
 /// serving it from the overlay would fabricate wrong matches.
 ///
-/// Everything else is locally servable. The overlay applies the filters it does
-/// understand (`status:`, `sku:`, tag filters) and otherwise surfaces the staged
-/// products unfiltered. That "forgiving" behavior is intentional: it is the
-/// read-after-write contract an importer relies on (see examples/catalog-importer,
-/// where `products(query: "vendor:Northwind")` returns the staged products), and
-/// it matches HAR-549 live evidence that Shopify treats malformed search syntax
-/// (a bare leading `(`, a dangling `OR`) as forgiving rather than erroring.
+/// Everything else is locally servable. The overlay applies the modeled
+/// Shopify-style product search subset against observed/staged store state, and
+/// unsupported fielded filters resolve as explicit local no-matches instead of
+/// surfacing the full local catalog. Malformed search syntax stays forgiving for
+/// the cases covered by live evidence (for example a bare leading `(` or
+/// dangling `OR`) rather than returning top-level GraphQL errors.
 fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
     predicate.contains("inventory_total:")
 }
@@ -204,10 +203,18 @@ impl DraftProxy {
         let fields = try_root_fields!(query, variables);
         match root_field {
             "backupRegion" => {
+                if self.store.staged.backup_region.is_null()
+                    && self.config.read_mode != ReadMode::Snapshot
+                {
+                    self.hydrate_current_backup_region_from_upstream(request);
+                }
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     if field.name == "backupRegion" {
-                        data.insert(field.response_key, self.store.staged.backup_region.clone());
+                        data.insert(
+                            field.response_key,
+                            selected_json(&self.store.staged.backup_region, &field.selection),
+                        );
                     }
                 }
                 ok_json(json!({ "data": Value::Object(data) }))
@@ -506,6 +513,9 @@ impl DraftProxy {
                     .map(|card| selected_json(card, selection))
                     .unwrap_or(Value::Null),
             );
+        }
+        if let Some(function) = self.store.staged.function_metadata.get(id) {
+            return Some(selected_json(function, selection));
         }
         if let Some(validation) = self.store.staged.function_validations.get(id) {
             return Some(selected_json(
@@ -950,6 +960,13 @@ impl DraftProxy {
                     && root_field == "metafieldsDelete" =>
             {
                 let outcome = self.owner_metafields_delete(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldDelete" =>
+            {
+                let outcome = self.owner_metafield_delete(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -1722,7 +1739,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let data = self.functions_metadata_mutation_data(&fields);
+                let data = self.functions_metadata_mutation_data(request, &fields);
                 self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 ok_json(json!({ "data": data }))
             }
@@ -1735,7 +1752,11 @@ impl DraftProxy {
                 // and their app ownership metadata. Once a lifecycle is staged we
                 // serve locally (read-after-write / read-after-delete).
                 if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status == 200 {
+                        self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                    }
+                    response
                 } else {
                     let fields = try_root_fields!(&query, &variables);
                     let mut selection_errors =
@@ -1744,7 +1765,9 @@ impl DraftProxy {
                         &query, &variables, &fields,
                     ));
                     if selection_errors.is_empty() {
-                        ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                        ok_json(
+                            json!({ "data": self.functions_metadata_read_data(request, &fields) }),
+                        )
                     } else {
                         ok_json(json!({ "errors": selection_errors }))
                     }
@@ -2486,7 +2509,7 @@ impl DraftProxy {
                 ),
             (_, CapabilityExecution::OverlayRead) => no_dispatcher("overlay-read", root_field),
             (_, CapabilityExecution::StageLocally) => no_dispatcher("stage-locally", root_field),
-            (_, CapabilityExecution::Passthrough) => no_dispatcher("passthrough", root_field),
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
 }

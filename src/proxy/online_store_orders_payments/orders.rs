@@ -437,6 +437,44 @@ pub(in crate::proxy) fn order_update_phone_is_valid(phone: &str) -> bool {
             .all(|character| character == '+' || character.is_ascii_digit())
 }
 
+const CANADIAN_PROVINCE_CODES: &[&str] = &[
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+];
+const UNITED_STATES_PROVINCE_CODES: &[&str] = &[
+    "AK", "AL", "AR", "AS", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "FM", "GA", "GU", "HI", "IA",
+    "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MH", "MI", "MN", "MO", "MP", "MS", "MT",
+    "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "PR", "PW", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VA", "VI", "VT", "WA", "WI", "WV", "WY",
+];
+const AUSTRALIAN_PROVINCE_CODES: &[&str] = &["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
+
+fn country_province_rule(
+    country_code: &str,
+) -> Option<(&'static str, &'static str, &'static [&'static str])> {
+    match country_code {
+        "AU" => Some(("State", "Australia", AUSTRALIAN_PROVINCE_CODES)),
+        "CA" => Some(("Province", "Canada", CANADIAN_PROVINCE_CODES)),
+        "US" => Some(("State", "United States", UNITED_STATES_PROVINCE_CODES)),
+        _ => None,
+    }
+}
+
+fn order_update_invalid_province_message(
+    country_code: &str,
+    province_code: &str,
+) -> Option<String> {
+    if province_code.is_empty() {
+        return None;
+    }
+    let (label, country_name, valid_codes) = country_province_rule(country_code)?;
+    (!valid_codes.contains(&province_code)).then(|| {
+        format!(
+            "{label} is not a valid {} in {country_name}",
+            label.to_ascii_lowercase()
+        )
+    })
+}
+
 pub(in crate::proxy) fn order_update_shipping_address_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -463,10 +501,10 @@ pub(in crate::proxy) fn order_update_shipping_address_errors(
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
         .unwrap_or_default();
     let province_code = resolved_string_field(input, "provinceCode").unwrap_or_default();
-    if country_code == "US" && province_code == "ON" {
+    if let Some(message) = order_update_invalid_province_message(&country_code, &province_code) {
         errors.push(json!({
             "field": ["shippingAddress", "province"],
-            "message": "State is not a valid state in United States"
+            "message": message
         }));
     }
     errors

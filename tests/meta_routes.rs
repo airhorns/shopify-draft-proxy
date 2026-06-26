@@ -655,6 +655,19 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
 
     for (domain, root, query) in cases {
         let mut proxy = snapshot_proxy();
+        if root == "backupRegionUpdate" {
+            let setup = proxy.process_request(graphql_request(
+                &json!({
+                    "query": "mutation { marketCreate(input: { name: \"Canada\", enabled: true, regions: [{ countryCode: \"CA\" }] }) { market { id } userErrors { message } } }"
+                })
+                .to_string(),
+            ));
+            assert_eq!(
+                setup.body["data"]["marketCreate"]["userErrors"],
+                json!([]),
+                "backupRegionUpdate log enforcement setup should stage a covering market"
+            );
+        }
         let response =
             proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
         assert_eq!(
@@ -1142,6 +1155,81 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         next_create.body["data"]["productCreate"]["product"]["id"],
         json!("gid://shopify/Product/5?shopify-draft-proxy=synthetic")
     );
+}
+
+#[test]
+fn restore_state_round_trips_dumped_staged_counter_fields() {
+    let mut dump = snapshot_proxy()
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-26T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let staged_state = dump["state"]["stagedState"].as_object_mut().unwrap();
+    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(17));
+    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(23));
+    staged_state.insert("nextDraftOrderId".to_string(), json!(29));
+    staged_state.insert("nextCustomerPaymentMethodId".to_string(), json!(31));
+    staged_state.insert("nextOrderCustomerOrderId".to_string(), json!(37));
+    staged_state.insert("nextDraftOrderBulkTagJobId".to_string(), json!(41));
+    staged_state.insert("nextInventoryQuantityTimestamp".to_string(), json!(43));
+    staged_state.insert("nextB2bCompanyId".to_string(), json!(47));
+    staged_state.insert("nextB2bContactId".to_string(), json!(53));
+    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(59));
+    staged_state.insert(
+        "orderCustomerOrders".to_string(),
+        json!({
+            "gid://shopify/Order/37": {
+                "id": "gid://shopify/Order/37"
+            }
+        }),
+    );
+    staged_state.insert(
+        "b2bCompanies".to_string(),
+        json!({
+            "gid://shopify/Company/47": {
+                "id": "gid://shopify/Company/47"
+            }
+        }),
+    );
+    let counter_fields = [
+        "nextStoreCreditAccountId",
+        "nextStoreCreditTransactionId",
+        "nextDraftOrderId",
+        "nextCustomerPaymentMethodId",
+        "nextOrderCustomerOrderId",
+        "nextDraftOrderBulkTagJobId",
+        "nextInventoryQuantityTimestamp",
+        "nextB2bCompanyId",
+        "nextB2bContactId",
+        "nextB2bContactRoleAssignmentId",
+    ];
+    let expected_counters = counter_fields
+        .iter()
+        .map(|field| (*field, dump["state"]["stagedState"][field].clone()))
+        .collect::<Vec<_>>();
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_dump = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-26T00:00:01.000Z" }).to_string(),
+    ));
+    assert_eq!(restored_dump.status, 200);
+    for (field, expected) in expected_counters {
+        assert_eq!(
+            restored_dump.body["state"]["stagedState"][field], expected,
+            "staged counter {field} should round-trip through restore"
+        );
+    }
 }
 
 #[test]

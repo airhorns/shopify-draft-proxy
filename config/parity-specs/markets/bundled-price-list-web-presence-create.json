@@ -1,0 +1,39 @@
+{
+  "scenarioId": "bundled-price-list-web-presence-create",
+  "operationNames": ["priceListCreate", "webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "local-staging", "market-web-presence-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/bundled-price-list-web-presence.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/bundled-price-list-web-presence-create.graphql",
+    "variablesCapturePath": "$.cases[1].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bundled-price-list-web-presence-create",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.priceListCreate.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The local proxy creates a deterministic synthetic PriceList id while the capture stores Shopify's disposable live id."
+          },
+          {
+            "path": "$.webPresenceCreate.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy creates a deterministic synthetic MarketWebPresence id while the capture stores Shopify's disposable live id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves a single document co-selecting priceListCreate and webPresenceCreate returns Shopify-shaped payloads; the local replay exercises the bundled price-list dispatch route with the web-presence preflight cassette."
+}

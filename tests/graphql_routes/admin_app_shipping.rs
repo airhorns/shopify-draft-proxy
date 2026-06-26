@@ -19,6 +19,33 @@ fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) ->
     format!("#{}\n{}", pad.repeat(padding_bytes / pad.len()), body)
 }
 
+fn synthetic_product_timestamp_for_log_len(log_len: usize) -> String {
+    format!("2024-01-01T00:00:{:02}.000Z", (log_len + 1) % 60)
+}
+
+fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkMetadataProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     let mut proxy = snapshot_proxy();
@@ -87,7 +114,7 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     assert_eq!(read.body["data"]["bulkOperation"]["type"], json!("QUERY"));
     assert_eq!(
         read.body["data"]["bulkOperation"]["objectCount"],
-        json!("1432")
+        json!("0")
     );
 
     let cancel_id = "gid://shopify/BulkOperation/7689772990770";
@@ -122,6 +149,119 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
         cancel.body["data"]["bulkOperationCancel"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn bulk_operation_run_query_reports_metadata_from_served_jsonl_for_multiple_store_sizes() {
+    for product_count in [1_usize, 3] {
+        let mut proxy = snapshot_proxy();
+        let mut expected_ids = Vec::new();
+        for index in 0..product_count {
+            expected_ids.push(create_bulk_metadata_product(
+                &mut proxy,
+                &format!("Bulk Metadata Product {index}"),
+            ));
+        }
+
+        let expected_run_timestamp = synthetic_product_timestamp_for_log_len(product_count);
+        let run = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RunProductBulkMetadata($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation {
+                  id
+                  status
+                  type
+                  createdAt
+                  completedAt
+                  objectCount
+                  rootObjectCount
+                  fileSize
+                  url
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+        ));
+        assert_eq!(run.status, 200);
+        assert_eq!(
+            run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let created_operation = &run.body["data"]["bulkOperationRunQuery"]["bulkOperation"];
+        assert_eq!(created_operation["status"], json!("CREATED"));
+        assert_eq!(created_operation["type"], json!("QUERY"));
+        assert_eq!(
+            created_operation["createdAt"],
+            json!(expected_run_timestamp)
+        );
+        assert_eq!(created_operation["completedAt"], Value::Null);
+        assert_eq!(created_operation["objectCount"], json!("0"));
+        assert_eq!(created_operation["rootObjectCount"], json!("0"));
+        assert_eq!(created_operation["fileSize"], Value::Null);
+        assert_eq!(created_operation["url"], Value::Null);
+        let operation_id = created_operation["id"].as_str().unwrap().to_string();
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadProductBulkMetadata($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+                type
+                createdAt
+                completedAt
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+              }
+            }
+            "#,
+            json!({ "id": operation_id }),
+        ));
+        assert_eq!(read.status, 200);
+        let completed_operation = &read.body["data"]["bulkOperation"];
+        assert_eq!(completed_operation["status"], json!("COMPLETED"));
+        assert_eq!(
+            completed_operation["createdAt"],
+            created_operation["createdAt"]
+        );
+        assert_eq!(
+            completed_operation["completedAt"],
+            created_operation["createdAt"]
+        );
+        let url = completed_operation["url"].as_str().unwrap();
+        let path = url::Url::parse(url).unwrap().path().to_string();
+        let artifact = proxy.process_request(request_with_body("GET", &path, ""));
+        assert_eq!(artifact.status, 200);
+        let jsonl = artifact.body.as_str().unwrap();
+        let rows = jsonl
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("artifact row is JSON"))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), product_count);
+        for product_id in expected_ids {
+            assert!(
+                rows.iter().any(|row| row["id"] == json!(product_id)),
+                "artifact rows should include staged product {product_id}"
+            );
+        }
+
+        let expected_row_count = rows.len().to_string();
+        let expected_file_size = jsonl.len().to_string();
+        assert_eq!(
+            completed_operation["objectCount"],
+            json!(expected_row_count)
+        );
+        assert_eq!(
+            completed_operation["rootObjectCount"],
+            completed_operation["objectCount"]
+        );
+        assert_eq!(completed_operation["fileSize"], json!(expected_file_size));
+    }
 }
 
 #[test]
@@ -324,6 +464,93 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
                 && row["sku"] == json!("BULK-ARTIFACT-SKU")
                 && row["price"] == json!("12.34")
         }));
+}
+
+#[test]
+fn products_bulk_operation_applies_common_search_filters_to_jsonl_artifact() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/alpha".to_string(),
+            title: "Alpha Jacket".to_string(),
+            handle: "alpha-jacket".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/beta".to_string(),
+            title: "Beta Jacket".to_string(),
+            handle: "beta-jacket".to_string(),
+            status: "DRAFT".to_string(),
+            vendor: "Southwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["clearance".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/gamma".to_string(),
+            title: "Gamma Shirt".to_string(),
+            handle: "gamma-shirt".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Shirts".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+    ]);
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunFilteredProductBulkArtifact($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products(query: \"vendor:Northwind product_type:Jackets\") {\n    edges {\n      node {\n        id\n        title\n        status\n        vendor\n        productType\n      }\n    }\n  }\n}" }),
+    ));
+    assert_eq!(run.status, 200);
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFilteredProductBulkArtifact($id: ID!) {
+          bulkOperation(id: $id) { url }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
+    let path = url::Url::parse(url).unwrap().path().to_string();
+    let artifact = proxy.process_request(request_with_body("GET", &path, ""));
+    let rows = artifact
+        .body
+        .as_str()
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("artifact line is JSON"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        rows,
+        vec![json!({
+            "id": "gid://shopify/Product/alpha",
+            "title": "Alpha Jacket",
+            "status": "ACTIVE",
+            "vendor": "Northwind",
+            "productType": "Jackets"
+        })]
+    );
 }
 
 #[test]
@@ -972,8 +1199,11 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         .as_str()
         .unwrap()
         .starts_with("gid://shopify/BulkOperation/"));
+    let operation_id = operation["id"].as_str().unwrap().to_string();
+    let expected_created_at = synthetic_product_timestamp_for_log_len(1);
     assert_eq!(operation["status"], json!("CREATED"));
     assert_eq!(operation["type"], json!("MUTATION"));
+    assert_eq!(operation["createdAt"], json!(expected_created_at));
     assert_eq!(operation["completedAt"], Value::Null);
     assert_eq!(operation["objectCount"], json!("0"));
     assert_eq!(operation["rootObjectCount"], json!("0"));
@@ -983,6 +1213,50 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         response.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([])
     );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadBulkImport($id: ID!) {
+          bulkOperation(id: $id) {
+            id
+            status
+            type
+            createdAt
+            completedAt
+            objectCount
+            rootObjectCount
+            fileSize
+          }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["createdAt"],
+        operation["createdAt"]
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["completedAt"],
+        operation["createdAt"]
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["objectCount"],
+        json!("0")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["rootObjectCount"],
+        json!("0")
+    );
+    assert_eq!(read.body["data"]["bulkOperation"]["fileSize"], json!("0"));
 }
 
 #[test]
@@ -1703,7 +1977,7 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
             older_id,
             "CREATED",
             "QUERY",
-            "2026-04-27T20:33:59Z",
+            "2023-12-31T23:59:59.000Z",
             "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
         );
         move |_request| bulk_operation_hydrate_response(operation.clone())
