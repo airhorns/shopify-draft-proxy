@@ -1156,7 +1156,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.gift_card_read_data(&fields) }))
+                self.gift_card_read_response(request, &fields)
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>

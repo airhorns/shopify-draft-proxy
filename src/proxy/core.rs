@@ -156,6 +156,8 @@ impl DraftProxy {
                 "savedSearchOrder": self.store.base.saved_searches.order,
                 "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
                 "shopPolicyOrder": self.store.base.shop_policies.order,
+                "giftCards": self.store.base.gift_cards.clone(),
+                "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
@@ -850,6 +852,11 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
+        self.store.base.gift_card_configuration = state["baseState"]
+            .get("giftCardConfiguration")
+            .filter(|configuration| configuration.is_object())
+            .cloned();
         let base_shop = state["baseState"]
             .get("shop")
             .filter(|shop| shop.is_object())

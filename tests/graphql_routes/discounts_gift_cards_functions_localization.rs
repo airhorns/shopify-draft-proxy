@@ -29,6 +29,205 @@ fn assert_datetime_string(value: &Value, context: &str) {
     );
 }
 
+fn upstream_gift_card_fixture(id: &str, currency: &str) -> Value {
+    json!({
+        "__typename": "GiftCard",
+        "id": id,
+        "legacyResourceId": id.trim_start_matches("gid://shopify/GiftCard/"),
+        "lastCharacters": "9876",
+        "maskedCode": "•••• •••• •••• 9876",
+        "enabled": true,
+        "deactivatedAt": null,
+        "disabledAt": null,
+        "expiresOn": "2028-01-31",
+        "note": "real upstream note",
+        "templateSuffix": null,
+        "createdAt": "2026-06-01T12:00:00Z",
+        "updatedAt": "2026-06-02T12:00:00Z",
+        "initialValue": { "amount": "25.0", "currencyCode": currency },
+        "balance": { "amount": "25.0", "currencyCode": currency },
+        "customer": { "id": "gid://shopify/Customer/424242", "email": "gift-real@example.com" },
+        "recipientAttributes": null,
+        "transactions": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        }
+    })
+}
+
+fn legacy_gift_card_fixture(id: &str) -> Value {
+    let mut card = upstream_gift_card_fixture(id, "CAD");
+    card["lastCharacters"] = json!("2053");
+    card["maskedCode"] = json!("•••• •••• •••• 2053");
+    card["initialValue"] = json!({ "amount": "5.0", "currencyCode": "CAD" });
+    card["balance"] = card["initialValue"].clone();
+    card["expiresOn"] = json!("2027-04-26");
+    card["note"] = json!("legacy gift card fixture");
+    card["customer"] = json!({
+        "id": "gid://shopify/Customer/10552623464754",
+        "email": "gift-card-customer@example.com",
+        "defaultEmailAddress": { "emailAddress": "gift-card-customer@example.com" },
+        "defaultPhoneNumber": null
+    });
+    card["recipientAttributes"] = json!({
+        "message": "recipient message",
+        "preferredName": "recipient",
+        "sendNotificationAt": null,
+        "recipient": {
+            "id": "gid://shopify/Customer/10552623464754",
+            "email": "gift-card-customer@example.com",
+            "defaultEmailAddress": { "emailAddress": "gift-card-customer@example.com" },
+            "defaultPhoneNumber": null
+        }
+    });
+    card
+}
+
+fn restore_proxy_state(proxy: &mut DraftProxy, update: impl FnOnce(&mut Value)) {
+    let dump = proxy
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-16T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let mut restored = dump.clone();
+    update(&mut restored);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
+fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
+    let mut cards = serde_json::Map::new();
+    for id in [
+        "gid://shopify/GiftCard/har694-active",
+        "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+        "gid://shopify/GiftCard/654773256498",
+        "gid://shopify/GiftCard/654865301810",
+        "gid://shopify/GiftCard/654808252722",
+        "gid://shopify/GiftCard/trial-assignment",
+        "gid://shopify/GiftCard/trial-update-card",
+        "gid://shopify/GiftCard/timezone-credit",
+        "gid://shopify/GiftCard/timezone-debit",
+        "gid://shopify/GiftCard/timezone-customer-notification",
+        "gid://shopify/GiftCard/timezone-recipient-notification",
+        "gid://shopify/GiftCard/disabled-entitlement-card",
+    ] {
+        let mut card = legacy_gift_card_fixture(id);
+        if id == "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" {
+            card["note"] = json!("HAR-766 no-op current note");
+            card["expiresOn"] = json!("2030-01-01");
+            card["templateSuffix"] = json!("birthday");
+            card["initialValue"] = json!({ "amount": "12.5", "currencyCode": "CAD" });
+            card["balance"] = card["initialValue"].clone();
+            card["recipientAttributes"] = Value::Null;
+        }
+        cards.insert(id.to_string(), card);
+    }
+    for id in [
+        "gid://shopify/GiftCard/har694-deactivated",
+        "gid://shopify/GiftCard/deactivated",
+        "gid://shopify/GiftCard/654808318258",
+        "gid://shopify/GiftCard/654904197426",
+    ] {
+        let mut card = legacy_gift_card_fixture(id);
+        card["enabled"] = json!(false);
+        card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
+        cards.insert(id.to_string(), card);
+    }
+    for id in [
+        "gid://shopify/GiftCard/654808285490",
+        "gid://shopify/GiftCard/654904295730",
+    ] {
+        let mut card = legacy_gift_card_fixture(id);
+        card["expiresOn"] = json!("2020-01-01");
+        cards.insert(id.to_string(), card);
+    }
+    for id in [
+        "gid://shopify/GiftCard/timezone-credit",
+        "gid://shopify/GiftCard/timezone-debit",
+        "gid://shopify/GiftCard/timezone-customer-notification",
+        "gid://shopify/GiftCard/timezone-recipient-notification",
+    ] {
+        let mut card = legacy_gift_card_fixture(id);
+        card["expiresOn"] = json!("2026-06-14");
+        cards.insert(id.to_string(), card);
+    }
+    let mut boundary = legacy_gift_card_fixture("gid://shopify/GiftCard/654867595570");
+    boundary["initialValue"] = json!({ "amount": "3000.0", "currencyCode": "CAD" });
+    boundary["balance"] = boundary["initialValue"].clone();
+    cards.insert("gid://shopify/GiftCard/654867595570".to_string(), boundary);
+    let mut no_customer = legacy_gift_card_fixture("gid://shopify/GiftCard/654904230194");
+    no_customer["customer"] = Value::Null;
+    cards.insert(
+        "gid://shopify/GiftCard/654904230194".to_string(),
+        no_customer,
+    );
+    let mut no_contact = legacy_gift_card_fixture("gid://shopify/GiftCard/654904262962");
+    no_contact["recipientAttributes"] = json!({
+        "message": null,
+        "preferredName": null,
+        "sendNotificationAt": null,
+        "recipient": {
+            "id": "gid://shopify/Customer/654904262962",
+            "email": null,
+            "phone": null,
+            "defaultEmailAddress": null,
+            "defaultPhoneNumber": null
+        }
+    });
+    cards.insert(
+        "gid://shopify/GiftCard/654904262962".to_string(),
+        no_contact,
+    );
+
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shop"]["currencyCode"] = json!("CAD");
+        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+        restored["state"]["baseState"]["giftCardConfiguration"] = json!({
+            "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+            "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+        });
+    });
+}
+
+fn set_gift_card_trial_shop(proxy: &mut DraftProxy) {
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shop"]["plan"] = json!({
+            "partnerDevelopment": false,
+            "publicDisplayName": "Trial",
+            "shopifyPlus": false
+        });
+    });
+}
+
+fn set_gift_cards_unavailable(proxy: &mut DraftProxy) {
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shop"]["entitlements"]["giftCards"] =
+            json!({ "enabled": false });
+    });
+}
+
+fn set_gift_card_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
+        restored["state"]["baseState"]["giftCardConfiguration"] = json!({
+            "issueLimit": { "amount": "3000.0", "currencyCode": currency_code },
+            "purchaseLimit": { "amount": "14000.0", "currencyCode": currency_code }
+        });
+    });
+}
+
 fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, input_arg: &str) {
     assert_eq!(data[alias][node_field], json!(null));
     assert_eq!(
@@ -4476,8 +4675,376 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
 }
 
 #[test]
+fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_id = "gid://shopify/GiftCard/777000111222";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert!(
+                request.body.contains("giftCard")
+                    && request.body.contains("giftCards")
+                    && request.body.contains("giftCardsCount"),
+                "cold gift-card read should forward the original read, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "card": {
+                            "id": upstream_id,
+                            "note": "real upstream note",
+                            "balance": { "amount": "25.0", "currencyCode": "USD" }
+                        },
+                        "cards": {
+                            "nodes": [{
+                                "id": upstream_id,
+                                "note": "real upstream note"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        },
+                        "count": { "count": 1, "precision": "EXACT" },
+                        "configuration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardColdRead($id: ID!) {
+          card: giftCard(id: $id) { id note balance { amount currencyCode } }
+          cards: giftCards(first: 10) { nodes { id note } pageInfo { hasNextPage hasPreviousPage } }
+          count: giftCardsCount { count precision }
+          configuration: giftCardConfiguration { issueLimit { amount currencyCode } purchaseLimit { amount currencyCode } }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        response.body["data"]["card"],
+        json!({
+            "id": upstream_id,
+            "note": "real upstream note",
+            "balance": { "amount": "25.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["cards"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        response.body["data"]["count"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        response.body["data"]["configuration"]["issueLimit"]["currencyCode"],
+        json!("USD")
+    );
+}
+
+#[test]
+fn gift_card_update_hydrates_non_seed_live_hybrid_card_before_staging() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_id = "gid://shopify/GiftCard/777000333444";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            if request.body.contains("GiftCardHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCard": upstream_gift_card_fixture(upstream_id, "USD"),
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                }
+            } else {
+                assert!(
+                    request.body.contains("giftCards") && request.body.contains("giftCardsCount"),
+                    "post-mutation gift-card list/count read should forward upstream, got {}",
+                    request.body
+                );
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "card": {
+                                "id": upstream_id,
+                                "note": "real upstream note",
+                                "balance": { "amount": "25.0", "currencyCode": "USD" }
+                            },
+                            "cards": {
+                                "nodes": [{
+                                    "id": upstream_id,
+                                    "note": "real upstream note"
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false
+                                }
+                            },
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "configuration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUpdateHydratesRealCard($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "updated local note" }) {
+            giftCard {
+              id
+              note
+              balance { amount currencyCode }
+              customer { id }
+            }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        update.body["data"]["giftCardUpdate"],
+        json!({
+            "giftCard": {
+                "id": upstream_id,
+                "note": "updated local note",
+                "balance": { "amount": "25.0", "currencyCode": "USD" },
+                "customer": { "id": "gid://shopify/Customer/424242" }
+            },
+            "userErrors": []
+        })
+    );
+    assert!(
+        !update
+            .body
+            .to_string()
+            .contains("gid://shopify/Customer/10552623464754"),
+        "hydrated real-card mutation must not leak the old baked customer id"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReadOverlaysStagedRealCard($id: ID!, $query: String!) {
+          card: giftCard(id: $id) { id note balance { amount currencyCode } }
+          cards: giftCards(first: 10, query: $query) { nodes { id note } pageInfo { hasNextPage hasPreviousPage } }
+          count: giftCardsCount(query: $query) { count precision }
+          configuration: giftCardConfiguration { issueLimit { amount currencyCode } }
+        }"#,
+        json!({ "id": upstream_id, "query": "id:777000333444" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 2);
+    assert_eq!(
+        read.body["data"]["card"],
+        json!({
+            "id": upstream_id,
+            "note": "updated local note",
+            "balance": { "amount": "25.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["cards"]["nodes"],
+        json!([{ "id": upstream_id, "note": "updated local note" }])
+    );
+    assert_eq!(
+        read.body["data"]["count"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["configuration"]["issueLimit"],
+        json!({ "amount": "3000.0", "currencyCode": "USD" })
+    );
+}
+
+#[test]
+fn gift_card_configuration_and_create_limit_use_shop_currency() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-16T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let mut restored = dump.clone();
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let configuration = proxy.process_request(json_graphql_request(
+        r#"query GiftCardConfigurationUsesShopCurrency {
+          giftCardConfiguration {
+            issueLimit { amount currencyCode }
+            purchaseLimit { amount currencyCode }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        configuration.body["data"]["giftCardConfiguration"],
+        json!({
+            "issueLimit": { "amount": "3000.0", "currencyCode": "EUR" },
+            "purchaseLimit": { "amount": "14000.0", "currencyCode": "EUR" }
+        })
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardLimitUsesShopCurrency {
+          createOverLimit: giftCardCreate(input: { initialValue: "4000" }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["createOverLimit"],
+        json!({
+            "giftCard": null,
+            "giftCardCode": null,
+            "userErrors": [{
+                "field": ["input", "initialValue"],
+                "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                "message": "can't exceed $3,000.00 EUR"
+            }]
+        })
+    );
+}
+
+#[test]
+fn gift_card_create_missing_customer_uses_existence_not_id_substring() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardMissingCustomer {
+          giftCardCreate(input: { initialValue: "10", customerId: "gid://shopify/Customer/424242" }) {
+            giftCard { id customer { id } }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["giftCardCreate"],
+        json!({
+            "giftCard": null,
+            "giftCardCode": null,
+            "userErrors": [{
+                "field": ["input", "customerId"],
+                "code": "CUSTOMER_NOT_FOUND",
+                "message": "The customer could not be found."
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["giftCards"],
+        json!({})
+    );
+}
+
+#[test]
+fn gift_card_recipient_notification_checks_actual_contact_projection() {
+    let mut proxy = snapshot_proxy();
+
+    let customer = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNoContactRecipientCustomer {
+          customerCreate(input: { firstName: "No", lastName: "Contact" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("recipient customer id")
+        .to_string();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientNoContactCreate($recipientId: ID!) {
+          create: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) {
+            giftCard { id recipientAttributes { recipient { id } } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "recipientId": recipient_id }),
+    ));
+
+    assert_eq!(create.body["data"]["create"]["userErrors"], json!([]));
+    let gift_card_id = json_string(
+        &create.body["data"]["create"]["giftCard"]["id"],
+        "created gift card id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientNoContactNotify($id: ID!) {
+          notifyRecipient: giftCardSendNotificationToRecipient(id: $id) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["notifyRecipient"],
+        json!({
+            "giftCard": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "The recipient has no contact information (e.g. email address or phone number)."
+            }]
+        })
+    );
+}
+
+#[test]
 fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs_and_allows_note() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardUpdateValidation($activeId: ID!, $deactivatedId: ID!, $missingCustomerId: ID!, $recipientId: ID!, $tooLongPreferredName: String!, $tooLongMessage: String!, $successNote: String!) {
@@ -4515,6 +5082,7 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
 #[test]
 fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardUpdateNoop($id: ID!, $note: String!, $expiresOn: Date!, $templateSuffix: String!) {
@@ -4545,6 +5113,7 @@ fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
 #[test]
 fn gift_card_update_deactivated_multi_field_prioritizes_deactivated_errors() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardUpdateDeactivatedMultiField($deactivatedId: ID!, $customerId: ID!, $recipientId: ID!) {
@@ -4572,6 +5141,8 @@ fn gift_card_update_deactivated_multi_field_prioritizes_deactivated_errors() {
 #[test]
 fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+    set_gift_card_trial_shop(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardTrialShopAssignment($customerId: ID!, $recipientId: ID!, $updateGiftCardId: ID!) {
@@ -4601,6 +5172,8 @@ fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
 #[test]
 fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notifications() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+    set_gift_card_trial_shop(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardNotificationTrialShop($id: ID!) {
@@ -4628,6 +5201,7 @@ fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notification
 #[test]
 fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardNotificationBaseKeyedStateErrors {
@@ -4669,31 +5243,48 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
 
 #[test]
 fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_card_state() {
-    let mut proxy = snapshot_proxy();
-
-    let response = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardNotificationPriority {
-          entitlementBeforeTrial: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/disabled-entitlement-trial-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeMissing: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-missing-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeNotifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-notify-disabled-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeExpired: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-expired-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeDeactivated: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-deactivated-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeNoCustomer: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-no-customer-notification") { giftCard { id } userErrors { field code message } }
-          trialBeforeNoContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/trial-no-contact-notification") { giftCard { id } userErrors { field code message } }
-        }"#,
-        json!({}),
-    ));
-
     let entitlement_error = json!([{ "field": null, "code": null, "message": "Gift cards are unavailable on your plan." }]);
     let trial_error = json!([{
         "field": null,
         "code": "INVALID",
         "message": "Notifications are not available on trial shops."
     }]);
+
+    let mut disabled_proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut disabled_proxy);
+    set_gift_card_trial_shop(&mut disabled_proxy);
+    set_gift_cards_unavailable(&mut disabled_proxy);
+    let disabled_response = disabled_proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationEntitlementBeforeTrial {
+          entitlementBeforeTrial: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654773256498") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disabled_response.body["data"],
+        json!({
+            "entitlementBeforeTrial": { "giftCard": null, "userErrors": entitlement_error }
+        })
+    );
+    assert_eq!(disabled_proxy.get_log_snapshot()["entries"], json!([]));
+
+    let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+    set_gift_card_trial_shop(&mut proxy);
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationTrialPriority {
+          trialBeforeMissing: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/not-restored") { giftCard { id } userErrors { field code message } }
+          trialBeforeNotifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") { giftCard { id } userErrors { field code message } }
+          trialBeforeExpired: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654808285490") { giftCard { id } userErrors { field code message } }
+          trialBeforeDeactivated: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654808318258") { giftCard { id } userErrors { field code message } }
+          trialBeforeNoCustomer: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654904230194") { giftCard { id } userErrors { field code message } }
+          trialBeforeNoContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/654904262962") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
     assert_eq!(
         response.body["data"],
         json!({
-            "entitlementBeforeTrial": { "giftCard": null, "userErrors": entitlement_error },
             "trialBeforeMissing": { "giftCard": null, "userErrors": trial_error },
             "trialBeforeNotifyDisabled": { "giftCard": null, "userErrors": trial_error },
             "trialBeforeExpired": { "giftCard": null, "userErrors": trial_error },
@@ -4754,6 +5345,7 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
 #[test]
 fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!, $futureDebitInput: GiftCardDebitInput!, $preEpochDebitInput: GiftCardDebitInput!) {
@@ -4826,6 +5418,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
 #[test]
 fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let setup_customer = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardRecipientValidationCustomer {
@@ -4910,6 +5503,7 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
 #[test]
 fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_fields() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let setup_customer = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardRecipientValidationCustomer {
@@ -5000,7 +5594,7 @@ fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_field
             id
             recipientAttributes { recipient { id } preferredName message }
           }
-          giftCards(first: 10) { nodes { id recipientAttributes { recipient { id } } } }
+          giftCards(first: 10, query: "id:999999999999") { nodes { id recipientAttributes { recipient { id } } } }
         }"#,
         json!({ "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }),
     ));
@@ -5017,6 +5611,7 @@ fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_field
 #[test]
 fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_paths() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardMutationUserErrorCodes {
@@ -5056,6 +5651,7 @@ fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_path
 #[test]
 fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation IssueGiftCards($validCode: String!, $tooLongCode: String!, $missingCustomerId: ID!) {
@@ -5502,6 +6098,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
 #[test]
 fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -5677,6 +6274,7 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
 #[test]
 fn gift_card_credit_debit_preserve_optional_transaction_notes() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -5762,6 +6360,7 @@ fn gift_card_credit_debit_preserve_optional_transaction_notes() {
 #[test]
 fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let empty = proxy.process_request(json_graphql_request(
         r#"query GiftCardReadEvidence($unknownId: ID!, $query: String!) {
@@ -5878,6 +6477,7 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
 #[test]
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -5913,13 +6513,13 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
         .to_string();
 
     let setup = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardExpiryShopTimezoneSetup($recipientId: ID!) {
+        r#"mutation GiftCardExpiryShopTimezoneSetup($customerId: ID!, $recipientId: ID!) {
           creditCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
           debitCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } giftCardCode userErrors { field code message } }
-          customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: "gid://shopify/Customer/10552623464754" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: $customerId }) { giftCard { id } giftCardCode userErrors { field code message } }
           recipientNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", recipientAttributes: { id: $recipientId } }) { giftCard { id } giftCardCode userErrors { field code message } }
         }"#,
-        json!({ "recipientId": recipient_id }),
+        json!({ "customerId": recipient_id.clone(), "recipientId": recipient_id }),
     ));
     assert_eq!(setup.body["data"]["creditCard"]["userErrors"], json!([]));
     assert_eq!(setup.body["data"]["debitCard"]["userErrors"], json!([]));
@@ -5979,6 +6579,7 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
 #[test]
 fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
     let mut proxy = snapshot_proxy();
+    set_gift_card_shop_currency(&mut proxy, "CAD");
 
     let setup = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardExpiryUtcFallbackSetup {
@@ -6039,6 +6640,7 @@ fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
 #[test]
 fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
@@ -6083,6 +6685,8 @@ fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction()
 #[test]
 fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
     let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+    set_gift_cards_unavailable(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardEntitlementDisabled {
