@@ -48,7 +48,7 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "validation" => resolved_field_string_arg(field, "id")
+                "validation" => resolved_string_field(&field.arguments, "id")
                     .and_then(|id| {
                         self.store
                             .staged
@@ -98,7 +98,8 @@ impl DraftProxy {
                 ),
                 "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(field),
                 "shopifyFunctions" => {
-                    let api_type = resolved_field_string_arg(field, "apiType").unwrap_or_default();
+                    let api_type =
+                        resolved_string_field(&field.arguments, "apiType").unwrap_or_default();
                     let api_type = match api_type.as_str() {
                         "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
                         "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
@@ -108,14 +109,14 @@ impl DraftProxy {
                     };
                     json!({ "nodes": self.function_catalog_read_nodes(api_type) })
                 }
-                "shopifyFunction" => match resolved_field_string_arg(field, "id") {
+                "shopifyFunction" => match resolved_string_field(&field.arguments, "id") {
                     Some(id) => {
                         function_by_id_or_handle(Some(id.as_str()), None).unwrap_or(Value::Null)
                     }
                     None => local_cart_transform_function(),
                 },
                 "node" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.local_node_value_by_id(&id, &field.selection)
                         .unwrap_or(Value::Null)
                 }
@@ -1356,7 +1357,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
@@ -1407,7 +1408,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.store.staged.function_validations.remove(&id).is_some() {
             self.store
                 .staged
@@ -1445,8 +1446,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let function_id = resolved_field_string_arg(field, "functionId");
-        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        let function_id = resolved_string_field(&field.arguments, "functionId");
+        let function_handle = resolved_string_field(&field.arguments, "functionHandle");
         if let Some(payload) = cart_transform_identifier_error(&function_id, &function_handle) {
             return payload;
         }
@@ -1509,7 +1510,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self
             .store
             .staged
@@ -1553,8 +1554,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let function_id = resolved_field_string_arg(field, "functionId");
-        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        let function_id = resolved_string_field(&field.arguments, "functionId");
+        let function_handle = resolved_string_field(&field.arguments, "functionHandle");
         if let Some(payload) =
             fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
         {
@@ -1611,9 +1612,9 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        let function_id = resolved_field_string_arg(field, "functionId");
-        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let function_id = resolved_string_field(&field.arguments, "functionId");
+        let function_handle = resolved_string_field(&field.arguments, "functionHandle");
         if function_id.is_some() || function_handle.is_some() {
             if let Some(payload) =
                 fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
@@ -1662,7 +1663,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self
             .store
             .staged

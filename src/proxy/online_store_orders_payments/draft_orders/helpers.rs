@@ -43,7 +43,7 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
                 email.insert(field.to_string(), json!(value));
             }
         }
-        let bcc = resolved_string_list_field_unsorted(&email_arg, "bcc");
+        let bcc = list_string_field(&email_arg, "bcc");
         if !bcc.is_empty() {
             email.insert("bcc".to_string(), json!(bcc));
         }
@@ -52,10 +52,10 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
     let mut metadata = serde_json::Map::new();
     metadata.insert(
         "templateName".to_string(),
-        json!(resolved_string_arg(args, "templateName")
+        json!(resolved_string_field(args, "templateName")
             .unwrap_or_else(|| "DRAFT_ORDER_INVOICE".to_string())),
     );
-    if let Some(currency) = resolved_string_arg(args, "presentmentCurrencyCode") {
+    if let Some(currency) = resolved_string_field(args, "presentmentCurrencyCode") {
         metadata.insert("presentmentCurrencyCode".to_string(), json!(currency));
     }
     metadata.insert("email".to_string(), Value::Object(email));

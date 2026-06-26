@@ -325,7 +325,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
-        let customer_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         // `showRevoked` is an argument on the nested `paymentMethods` connection,
         // not on the `customer` root field, so read it from that selection.
         let show_revoked = field
@@ -374,7 +374,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let show_revoked = matches!(
             field.arguments.get("showRevoked"),
             Some(ResolvedValue::Bool(true))
@@ -392,10 +392,10 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
-        let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
+        let session_id = resolved_string_field(&field.arguments, "sessionId").unwrap_or_default();
         // Allocate the payment-method id up front so rejected and processing
         // attempts still consume a counter slot, matching Shopify's behavior
         // where every credit-card create attempt reserves an id even when the
@@ -453,7 +453,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_credit_card_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
@@ -497,7 +497,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let remote_reference =
             resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
         let has_paypal = remote_reference.contains_key("paypalPaymentMethod");
@@ -580,7 +580,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
@@ -599,7 +599,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_paypal_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let record = self
             .store
             .staged
@@ -612,16 +612,16 @@ impl DraftProxy {
 
     fn customer_payment_method_duplication_data(&self, field: &RootFieldSelection) -> Value {
         let source_id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let target_customer_id =
-            resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
                 "Invalid instrument",
                 Some("INVALID_INSTRUMENT"),
             )]
-        } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
+        } else if resolved_string_field(&field.arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
             vec![user_error(
@@ -640,7 +640,7 @@ impl DraftProxy {
                         base64_urlsafe_no_pad(&json!({
                             "customerPaymentMethodId": source_id,
                             "targetCustomerId": target_customer_id,
-                            "targetShopId": resolved_string_arg(&field.arguments, "targetShopId").unwrap_or_default()
+                            "targetShopId": resolved_string_field(&field.arguments, "targetShopId").unwrap_or_default()
                         }).to_string())
                     ))
                 } else {
@@ -656,7 +656,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let errors = customer_payment_method_billing_address_blank_errors(&billing_address);
@@ -668,7 +668,7 @@ impl DraftProxy {
         }
         let id = self.next_customer_payment_method_gid();
         let instrument = self.customer_payment_method_duplicated_instrument(
-            resolved_string_arg(&field.arguments, "encryptedDuplicationData")
+            resolved_string_field(&field.arguments, "encryptedDuplicationData")
                 .as_deref()
                 .unwrap_or_default(),
             &billing_address,
@@ -714,7 +714,7 @@ impl DraftProxy {
 
     fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
         let id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
@@ -742,7 +742,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
         let id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id) else {
             return (
                 selected_json(

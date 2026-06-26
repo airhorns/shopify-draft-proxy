@@ -1125,13 +1125,13 @@ impl DraftProxy {
             .arguments
             .get("id")
             .and_then(resolved_value_string)
-            .or_else(|| resolved_string_arg(variables, "id"))
-            .or_else(|| resolved_string_arg(variables, "productId"))
-            .or_else(|| resolved_string_arg(variables, "variantId"))
-            .or_else(|| resolved_string_arg(variables, "collectionId"))
-            .or_else(|| resolved_string_arg(variables, "customerId"))
-            .or_else(|| resolved_string_arg(variables, "orderId"))
-            .or_else(|| resolved_string_arg(variables, "companyId"))
+            .or_else(|| resolved_string_field(variables, "id"))
+            .or_else(|| resolved_string_field(variables, "productId"))
+            .or_else(|| resolved_string_field(variables, "variantId"))
+            .or_else(|| resolved_string_field(variables, "collectionId"))
+            .or_else(|| resolved_string_field(variables, "customerId"))
+            .or_else(|| resolved_string_field(variables, "orderId"))
+            .or_else(|| resolved_string_field(variables, "companyId"))
             .unwrap_or_default()
     }
 

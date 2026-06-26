@@ -2553,7 +2553,7 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().all(|field| match field.name.as_str() {
-            "metaobjectUpdate" => resolved_string_arg(&field.arguments, "id")
+            "metaobjectUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_by_id(&id).is_some())
                 .unwrap_or(false),
             "metaobjectUpsert" => match field.arguments.get("handle") {
@@ -2562,7 +2562,7 @@ impl DraftProxy {
                     .unwrap_or(false),
                 _ => false,
             },
-            "metaobjectDefinitionUpdate" => resolved_string_arg(&field.arguments, "id")
+            "metaobjectDefinitionUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_definition_by_id(&id).is_some())
                 .unwrap_or(false),
             // Creates and deletes are always emulated locally.
@@ -2580,7 +2580,7 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "metaobjects" => self.metaobject_connection(field),
                 "metaobject" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_by_id(&id)
                         .map(|record| self.project_metaobject_against_definition(&record))
                         .map(|record| self.selected_metaobject(&record, &field.selection))
@@ -2588,7 +2588,7 @@ impl DraftProxy {
                 }
                 "metaobjectByHandle" => self.metaobject_by_handle_arg(field).unwrap_or(Value::Null),
                 "metaobjectDefinition" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_definition_by_id(&id)
                         .map(|definition| selected_json(&definition, &field.selection))
                         .unwrap_or(Value::Null)
@@ -2634,7 +2634,7 @@ impl DraftProxy {
             }
             let value = match field.name.as_str() {
                 "metaobject" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     upstream_nodes
                         .iter()
                         .find(|node| node.get("id").and_then(Value::as_str) == Some(&id))
@@ -2992,7 +2992,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
-        let meta_type = resolved_string_arg(&field.arguments, "type").unwrap_or_default();
+        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
         let mut records: Vec<Value> =
             self.store
                 .staged
@@ -3040,7 +3040,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "urlRedirect" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .url_redirects
@@ -3057,7 +3057,7 @@ impl DraftProxy {
     }
 
     fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
-        let query = resolved_string_arg(&field.arguments, "query");
+        let query = resolved_string_field(&field.arguments, "query");
         let mut records = self
             .store
             .staged
@@ -3279,7 +3279,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self
             .metaobject_by_id(&id)
             .or_else(|| self.hydrate_metaobject_by_id(request, &id))
@@ -3597,7 +3597,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.metaobject_by_id(&id).is_none()
             && self.hydrate_metaobject_by_id(request, &id).is_none()
         {
@@ -3733,7 +3733,7 @@ impl DraftProxy {
     fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
             "field" => {
-                let key = resolved_string_arg(&field.arguments, "key").unwrap_or_default();
+                let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
                 let value = record["fields"]
                     .as_array()
                     .into_iter()
@@ -3977,7 +3977,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(definition) = self.metaobject_definition_by_id(&id) else {
             return selected_json(
                 &json!({
@@ -4064,7 +4064,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(definition) = self.metaobject_definition_by_id(&id) else {
             return selected_json(
                 &json!({

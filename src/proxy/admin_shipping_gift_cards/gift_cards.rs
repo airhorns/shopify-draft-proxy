@@ -63,7 +63,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "giftCard" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .gift_cards
@@ -72,12 +72,14 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "giftCards" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let cards = self.gift_card_lifecycle_matching_cards(&query);
                     gift_card_connection_json(&cards, &field.selection)
                 }
                 "giftCardsCount" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     gift_card_count_json(
                         self.gift_card_lifecycle_matching_cards(&query).len(),
                         &field.selection,
@@ -183,7 +185,7 @@ impl DraftProxy {
         }
         let amount = input
             .get("initialValue")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let amount_number = amount.parse::<f64>().unwrap_or(0.0);
         if user_errors.is_empty() && amount_number <= 0.0 {
@@ -263,7 +265,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let existing = self.gift_card_effective_record(&id);
@@ -379,12 +381,12 @@ impl DraftProxy {
         is_credit: bool,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let money = resolved_object_field(&input, amount_name).unwrap_or_default();
         let requested_amount = money
             .get("amount")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
@@ -527,7 +529,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = self.gift_card_effective_record(&id);
         if user_errors.is_empty() && card.is_none() {
@@ -556,8 +558,8 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id")
-            .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
+        let id = resolved_string_field(&field.arguments, "id")
+            .or_else(|| resolved_string_field(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = None;
@@ -683,8 +685,8 @@ impl DraftProxy {
             "giftCardCreate" => resolved_object_field(&field.arguments, "input")
                 .and_then(|input| resolved_string_field(&input, "customerId"))
                 .is_some_and(|id| id.contains("disabled-entitlement")),
-            _ => resolved_string_arg(&field.arguments, "id")
-                .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
+            _ => resolved_string_field(&field.arguments, "id")
+                .or_else(|| resolved_string_field(&field.arguments, "giftCardId"))
                 .is_some_and(|id| id.contains("disabled-entitlement")),
         };
         if disabled_by_id {

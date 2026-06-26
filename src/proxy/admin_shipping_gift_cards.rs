@@ -690,7 +690,7 @@ impl DraftProxy {
         &mut self,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let location_ids = resolved_string_list_field_unsorted(input, "locations");
+        let location_ids = list_string_field(input, "locations");
         let locations = location_ids
             .into_iter()
             .map(|id| delivery_profile_location_record(&id))
@@ -786,7 +786,7 @@ impl DraftProxy {
             "operator": resolved_string_field(input, "operator").unwrap_or_else(|| "LESS_THAN_OR_EQUAL_TO".to_string()),
             "conditionCriteria": {
                 "__typename": "MoneyV2",
-                "amount": resolved_money_amount_string(criteria.get("amount")),
+                "amount": money_amount_string_from_resolved(criteria.get("amount")),
                 "currencyCode": resolved_string_field(&criteria, "currencyCode").unwrap_or_else(|| "USD".to_string())
             }
         })
@@ -797,7 +797,7 @@ impl DraftProxy {
         profile: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
     ) {
-        let delete_ids = resolved_string_list_field_unsorted(input, "conditionsToDelete")
+        let delete_ids = list_string_field(input, "conditionsToDelete")
             .into_iter()
             .collect::<BTreeSet<_>>();
         for group in profile["profileLocationGroups"]
@@ -844,9 +844,7 @@ impl DraftProxy {
                 continue;
             };
             if let Some(locations) = group["locationGroup"]["locations"].as_array_mut() {
-                for location_id in
-                    resolved_string_list_field_unsorted(&group_update, "locationsToAdd")
-                {
+                for location_id in list_string_field(&group_update, "locationsToAdd") {
                     if !locations.iter().any(|location| {
                         location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
                     }) {
@@ -929,13 +927,13 @@ impl DraftProxy {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        for variant_id in resolved_string_list_field_unsorted(input, "variantsToAssociate") {
+        for variant_id in list_string_field(input, "variantsToAssociate") {
             if !variant_ids.contains(&variant_id) {
                 variant_ids.push(variant_id);
             }
         }
         if !create {
-            let removals = resolved_string_list_field_unsorted(input, "variantsToDissociate")
+            let removals = list_string_field(input, "variantsToDissociate")
                 .into_iter()
                 .collect::<BTreeSet<_>>();
             variant_ids.retain(|variant_id| !removals.contains(variant_id));
@@ -2825,7 +2823,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "fulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.ensure_shipping_fulfillment_order_hydrated(request, &id);
                     let fulfillment_order = self
                         .shipping_fulfillment_order_by_id(&id)
@@ -2856,7 +2854,7 @@ impl DraftProxy {
                     // requests, and a non-empty location list narrows to the
                     // matching assigned locations.
                     let assignment_status =
-                        resolved_string_arg(&field.arguments, "assignmentStatus");
+                        resolved_string_field(&field.arguments, "assignmentStatus");
                     let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
                     let nodes = self
                         .shipping_fulfillment_orders()
@@ -3286,7 +3284,7 @@ impl DraftProxy {
             Ok(preamble) => preamble,
             Err(response) => return response,
         };
-        let hold_ids = resolved_string_list_field_unsorted(&arguments, "holdIds");
+        let hold_ids = list_string_field(&arguments, "holdIds");
         let external_id = resolved_string_field(&arguments, "externalId");
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut released = Value::Null;
@@ -3702,7 +3700,7 @@ impl DraftProxy {
                 query,
                 variables,
             );
-        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        let ids = list_string_field(&arguments, "fulfillmentOrderIds");
         for id in &ids {
             self.ensure_shipping_fulfillment_order_hydrated(request, id);
         }
@@ -4220,7 +4218,7 @@ impl DraftProxy {
             primary_root_response_parts(query, variables, || {
                 "fulfillmentOrdersSetFulfillmentDeadline".to_string()
             });
-        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        let ids = list_string_field(&arguments, "fulfillmentOrderIds");
         let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
         let unknown = ids
             .iter()
@@ -4284,8 +4282,8 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")
-                        .or_else(|| resolved_string_arg(&field.arguments, "orderId"))
+                    let id = resolved_string_field(&field.arguments, "id")
+                        .or_else(|| resolved_string_field(&field.arguments, "orderId"))
                         .unwrap_or_default();
                     let order = self
                         .store
@@ -4302,7 +4300,7 @@ impl DraftProxy {
                     selected_json(&order, &field.selection)
                 }
                 "fulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let fulfillment_order = self
                         .shipping_fulfillment_order_by_id(&id)
                         .unwrap_or(Value::Null);
@@ -4353,8 +4351,8 @@ impl DraftProxy {
         };
         fields.iter().any(|field| match field.name.as_str() {
             "order" => {
-                let order_id = resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_arg(&field.arguments, "orderId"));
+                let order_id = resolved_string_field(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(&field.arguments, "orderId"));
                 let selects_fulfillment_orders =
                     selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
                 selects_fulfillment_orders
@@ -7134,12 +7132,12 @@ impl DraftProxy {
             return FlowFieldResult::TopLevelError(error);
         }
 
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !id.starts_with("gid://shopify/FlowActionDefinition/") {
             return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
         }
 
-        let payload = resolved_string_arg(&field.arguments, "payload").unwrap_or_default();
+        let payload = resolved_string_field(&field.arguments, "payload").unwrap_or_default();
         let Ok(payload_json) = serde_json::from_str::<Value>(&payload) else {
             let value = selected_json(
                 &json!({

@@ -325,7 +325,7 @@ impl DraftProxy {
             if field.name != "storeCreditAccount" {
                 continue;
             }
-            let value = resolved_string_arg(&field.arguments, "id")
+            let value = resolved_string_field(&field.arguments, "id")
                 .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
                 .map(|account| self.selected_store_credit_account(account, &field.selection))
                 .unwrap_or(Value::Null);
@@ -431,7 +431,7 @@ impl DraftProxy {
             );
         }
 
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(account_id) =
             self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
         else {
@@ -2056,8 +2056,7 @@ impl DraftProxy {
             }
         }
         if input.contains_key("taxExemptions") {
-            normalized.tax_exemptions =
-                Some(resolved_string_list_field_unsorted(input, "taxExemptions"));
+            normalized.tax_exemptions = Some(list_string_field(input, "taxExemptions"));
         }
         if input.contains_key("metafields") {
             normalized.loyalty = Some(customer_loyalty_metafield(input));
@@ -2262,7 +2261,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         request: &Request,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(&customer_id) {
             return (
                 customer_tax_exemptions_payload(
@@ -2285,9 +2284,8 @@ impl DraftProxy {
             );
         }
 
-        let tax_exemptions = normalize_customer_tax_exemptions(
-            resolved_string_list_field_unsorted(&field.arguments, "taxExemptions"),
-        );
+        let tax_exemptions =
+            normalize_customer_tax_exemptions(list_string_field(&field.arguments, "taxExemptions"));
         let mut customer = self
             .store
             .staged

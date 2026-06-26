@@ -218,9 +218,8 @@ impl DraftProxy {
                 &field.selection,
             ));
         };
-        let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
-        let publishables_to_remove =
-            resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        let publishables_to_add = list_string_field(&input, "publishablesToAdd");
+        let publishables_to_remove = list_string_field(&input, "publishablesToRemove");
         let publishable_count = publishables_to_add.len() + publishables_to_remove.len();
         if publishable_count <= PUBLICATION_UPDATE_LIMIT {
             if let Some(variant_id) = Self::first_publication_update_variant_id(
@@ -614,11 +613,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let feed_exists = shopify_gid_resource_type(&id) == Some("ProductFeed")
             && self.has_products_tail_staged_resource_id(&id);
-        let before_updated_at = resolved_string_arg(&field.arguments, "beforeUpdatedAt");
-        let updated_at_since = resolved_string_arg(&field.arguments, "updatedAtSince");
+        let before_updated_at = resolved_string_field(&field.arguments, "beforeUpdatedAt");
+        let updated_at_since = resolved_string_field(&field.arguments, "updatedAtSince");
         let (payload, staged_ids, status) = if !feed_exists {
             (
                 json!({
@@ -697,7 +696,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> (Value, Option<Value>) {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return (Value::Null, None);
         };
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
