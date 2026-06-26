@@ -256,6 +256,19 @@ Two nearby 2026-04 traps from the same capture:
   captured through this input shape; keep local update-path coverage in focused
   runtime tests unless a later public schema exposes address fields.
 
+## Current: B2B location name fallback differs by creation root
+
+Admin GraphQL 2026-04 derives a nested `companyCreate(input.companyLocation)`
+default location name from `companyLocation.name` and then the company name; it
+does not use `shippingAddress.address1` on that nested path. Standalone
+`companyLocationCreate` still derives the location name from
+`shippingAddress.address1` when no `input.name` is supplied, but the accepted
+public fallback capture includes another non-address attribute (`phone`). A
+standalone `companyLocationCreate` probe with only `shippingAddress.address1`
+returned `NO_INPUT`, so do not use an address-only standalone request as
+evidence for the accepted address1 fallback branch without recapturing that
+validation behavior explicitly.
+
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
 The local runtime has focused tests for the Business Customers package guardrail

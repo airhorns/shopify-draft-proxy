@@ -7,6 +7,11 @@ enum B2bCompanyLocationDeleteBlocker {
     StoreCredit,
 }
 
+enum B2bLocationNameFallback {
+    CompanyName,
+    ShippingAddressThenCompanyName,
+}
+
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
         let location_tail = resource_id_tail(location_id);
@@ -712,8 +717,12 @@ impl DraftProxy {
         // named from the companyLocation input or falling back to the company
         // name when no location input is supplied.
         let location_input = resolved_object_field(&input, "companyLocation").unwrap_or_default();
-        let (location, location_staged_ids) =
-            self.b2b_build_company_location(&id, &company, &location_input);
+        let (location, location_staged_ids) = self.b2b_build_company_location(
+            &id,
+            &company,
+            &location_input,
+            B2bLocationNameFallback::CompanyName,
+        );
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -874,7 +883,12 @@ impl DraftProxy {
             }
         }
 
-        let (location, staged_ids) = self.b2b_build_company_location(&company_id, &company, &input);
+        let (location, staged_ids) = self.b2b_build_company_location(
+            &company_id,
+            &company,
+            &input,
+            B2bLocationNameFallback::ShippingAddressThenCompanyName,
+        );
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -2734,6 +2748,7 @@ impl DraftProxy {
         company_id: &str,
         company: &Value,
         input: &BTreeMap<String, ResolvedValue>,
+        name_fallback: B2bLocationNameFallback,
     ) -> (Value, Vec<String>) {
         let id = self.next_proxy_synthetic_gid("CompanyLocation");
         let mut staged_ids = vec![id.clone()];
@@ -2753,7 +2768,11 @@ impl DraftProxy {
                 b2b_company_address_json(&address_id, &address)
             })
         };
-        let name = b2b_location_name(input, company, shipping_address.as_ref());
+        let shipping_address_name_fallback = match name_fallback {
+            B2bLocationNameFallback::CompanyName => None,
+            B2bLocationNameFallback::ShippingAddressThenCompanyName => shipping_address.as_ref(),
+        };
+        let name = b2b_location_name(input, company, shipping_address_name_fallback);
         // Every location carries a buyerExperienceConfiguration; when none is
         // supplied Shopify still returns the all-default object (not null).
         let buyer_experience = b2b_buyer_experience_configuration_json(
