@@ -19,8 +19,10 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
 });
 
 const suffix = Date.now().toString(36);
-const namespace = `har145_${suffix}`;
+const namespace = `definition_lifecycle_${suffix}`;
 const key = 'definition_lifecycle';
+const looseNamespace = `definition_loose_${suffix}`;
+const looseKey = 'loose_metafield';
 
 const productCreateMutation = `#graphql
   mutation CreateProduct($product: ProductCreateInput!) {
@@ -84,7 +86,14 @@ const updateDefinitionMutation = `#graphql
 const setMetafieldMutation = `#graphql
   mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
-      metafields { id namespace key type value owner { ... on Product { id } } }
+      metafields {
+        id
+        namespace
+        key
+        type
+        value
+        definition { id namespace key type { name } }
+      }
       userErrors { field message code elementIndex }
     }
   }
@@ -101,7 +110,7 @@ const deleteDefinitionMutation = `#graphql
 `;
 
 const downstreamReadQuery = `#graphql
-  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!) {
+  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!, $looseNamespace: String!, $looseKey: String!) {
     definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {
       id
       name
@@ -116,7 +125,22 @@ const downstreamReadQuery = `#graphql
     }
     product(id: $productId) {
       id
-      metafield(namespace: $namespace, key: $key) { id namespace key type value }
+      metafield(namespace: $namespace, key: $key) {
+        id
+        namespace
+        key
+        type
+        value
+        definition { id namespace key type { name } }
+      }
+      looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {
+        id
+        namespace
+        key
+        type
+        value
+        definition { id }
+      }
     }
   }
 `;
@@ -149,7 +173,7 @@ const cleanup = [];
 
 try {
   const productCreate = await capture('productCreate setup', productCreateMutation, {
-    product: { title: `HAR-145 definition lifecycle ${suffix}` },
+    product: { title: `Metafield definition lifecycle ${suffix}` },
   });
   captures.push(productCreate);
   const createdProduct = readObject(readObject(readObject(productCreate.response)?.['data'])?.['productCreate'])?.[
@@ -162,14 +186,13 @@ try {
 
   const createDefinition = await capture('metafieldDefinitionCreate success', createDefinitionMutation, {
     definition: {
-      name: 'HAR-145 lifecycle definition',
+      name: 'Lifecycle definition',
       namespace,
       key,
       ownerType: 'PRODUCT',
       type: 'single_line_text_field',
-      description: 'Temporary conformance definition for HAR-145',
+      description: 'Temporary conformance definition for lifecycle capture',
       validations: [{ name: 'max', value: '8' }],
-      pin: true,
     },
   });
   captures.push(createDefinition);
@@ -191,6 +214,13 @@ try {
           type: 'single_line_text_field',
           value: 'ABCDEFGH',
         },
+        {
+          ownerId: productId,
+          namespace: looseNamespace,
+          key: looseKey,
+          type: 'single_line_text_field',
+          value: 'loose',
+        },
       ],
     }),
   );
@@ -200,17 +230,19 @@ try {
       productId,
       namespace,
       key,
+      looseNamespace,
+      looseKey,
     }),
   );
 
   captures.push(
     await capture('metafieldDefinitionUpdate success', updateDefinitionMutation, {
       definition: {
-        name: 'HAR-145 lifecycle definition updated',
+        name: 'Lifecycle definition updated',
         namespace,
         key,
         ownerType: 'PRODUCT',
-        description: 'Updated temporary conformance definition for HAR-145',
+        description: 'Updated temporary conformance definition for lifecycle capture',
       },
     }),
   );
@@ -228,6 +260,8 @@ try {
       productId,
       namespace,
       key,
+      looseNamespace,
+      looseKey,
     }),
   );
 } finally {
@@ -255,6 +289,8 @@ const fixture = {
   apiVersion,
   namespace,
   key,
+  looseNamespace,
+  looseKey,
   captures,
   cleanup,
 };

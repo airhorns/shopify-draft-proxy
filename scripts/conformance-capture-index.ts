@@ -2959,12 +2959,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'metafields',
     captureId: 'metafield-definition-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-lifecycle-conformance.mts',
-    purpose: 'Product-owned metafieldDefinitionCreate/update/delete lifecycle.',
+    purpose:
+      'Product-owned metafieldDefinitionCreate/update/delete lifecycle plus Metafield.definition association on metafieldsSet payloads and owner reads.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-lifecycle-mutations.json`,
       'config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json',
+      'config/parity-requests/metafields/metafield-definition-lifecycle-metafields-set.graphql',
+      'config/parity-requests/metafields/metafield-definition-lifecycle-read-product-metafield.graphql',
     ],
     cleanupBehavior: 'Deletes created definitions and disposable product with captured cleanup steps.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
