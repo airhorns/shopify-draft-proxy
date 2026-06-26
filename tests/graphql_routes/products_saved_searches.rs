@@ -2343,6 +2343,127 @@ fn product_variant_media_validation_guards_match_captured_shopify_errors() {
 }
 
 #[test]
+fn product_variant_media_empty_media_ids_return_blank_without_staging() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("empty mediaIds validation should not call upstream"));
+    let variant = create_legacy_variant(&mut proxy, product_id, "EMPTY-MEDIA-IDS", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let log_before_validation = proxy.get_log_snapshot();
+
+    let append = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppendEmptyMediaIds($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": [{ "variantId": variant_id, "mediaIds": [] }]
+        }),
+    ));
+    assert_eq!(append.status, 200);
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "The mediaIds list cannot be empty.",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before_validation,
+        "append empty mediaIds should not stage a mutation log entry"
+    );
+
+    let detach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DetachEmptyMediaIds($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": [{ "variantId": variant_id, "mediaIds": [] }]
+        }),
+    ));
+    assert_eq!(detach.status, 200);
+    assert_eq!(
+        detach.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "The mediaIds list cannot be empty.",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before_validation,
+        "detach empty mediaIds should not stage a mutation log entry"
+    );
+
+    let append_empty_variant_media = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppendEmptyVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": []
+        }),
+    ));
+    assert_eq!(append_empty_variant_media.status, 200);
+    assert_eq!(
+        append_empty_variant_media.body["data"]["productVariantAppendMedia"],
+        json!({
+            "productVariants": [],
+            "userErrors": []
+        })
+    );
+
+    let detach_empty_variant_media = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DetachEmptyVariantMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": []
+        }),
+    ));
+    assert_eq!(detach_empty_variant_media.status, 200);
+    assert_eq!(
+        detach_empty_variant_media.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": [],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
 
