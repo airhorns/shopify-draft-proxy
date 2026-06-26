@@ -155,7 +155,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::AdminPlatform,
             true,
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "backupRegion",

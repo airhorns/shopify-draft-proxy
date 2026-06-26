@@ -108,6 +108,9 @@ for commit replay. For `requiresShippingMethod`, the local model follows the
 captured public GraphQL default: an omitted argument stages `true` on both
 create and update, while an explicit `false` value remains observable through
 the mutation payload and downstream `fulfillmentService(id:)` reads.
+Callback URL validation allows `mock.shop` hosts and the configured
+`.myshopify.com` Admin origin host when one is present; cold/default proxy
+configuration does not synthesize a `shopify-draft-proxy.local` allowed host.
 The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
 `fulfillmentServiceCreate`; those arguments return top-level

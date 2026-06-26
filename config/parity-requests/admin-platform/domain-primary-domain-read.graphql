@@ -1,0 +1,8 @@
+query AdminPlatformDomainPrimaryDomainRead($id: ID!) {
+  domain(id: $id) {
+    id
+    host
+    url
+    sslEnabled
+  }
+}

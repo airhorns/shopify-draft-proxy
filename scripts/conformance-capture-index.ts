@@ -5826,6 +5826,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/business-entities-catalog.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/store-properties/business-entity-fallbacks.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/business-entity-fallbacks.json',
+      'config/parity-specs/store-properties/shop-baseline-non-harry.json',
+      'config/parity-requests/store-properties/shop-baseline-read.graphql',
     ],
     cleanupBehavior: 'Read-only by default; location lifecycle writes need disposable location setup and cleanup.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
@@ -8739,6 +8741,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Temporarily stages CA, AE, US, and JP as the backup region; creates/deletes temporary region markets if needed; then restores the store backup region to its original country.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
+    captureId: 'domain-primary-domain-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-domain-primary-domain-read-conformance.mts',
+    purpose:
+      'Direct domain(id:) read evidence for a connected-shop primary domain id that is not the legacy local Domain/1000 id.',
+    requiredAuthScopes: ['active Admin API token with shop/domain read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}domain-primary-domain-read.json`,
+      'config/parity-specs/admin-platform/domain-primary-domain-read.json',
+      'config/parity-requests/admin-platform/domain-primary-domain-read.graphql',
+      'config/parity-requests/admin-platform/domain-primary-domain-read.variables.json',
+    ],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

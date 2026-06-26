@@ -3371,7 +3371,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         missing.body["data"]["delegateAccessTokenDestroy"],
         json!({
             "status": false,
-            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
+            "shop": { "id": "gid://shopify/Shop/0", "name": "Shopify Draft Proxy" },
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
     );
@@ -3391,8 +3391,8 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
         json!({
-            "id": "gid://shopify/Shop/92891250994",
-            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "id": "gid://shopify/Shop/0",
+            "myshopifyDomain": "shopify-draft-proxy.local",
             "currencyCode": "USD"
         })
     );
@@ -3421,7 +3421,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "status": true,
             "userErrors": []
         })
@@ -3442,7 +3442,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         repeat.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "status": false,
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
@@ -3468,6 +3468,93 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
         json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
+    );
+}
+
+#[test]
+fn delegate_access_token_payload_shop_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored-delegate",
+        "name": "Restored delegate shop",
+        "myshopifyDomain": "restored-delegate.myshopify.com",
+        "currencyCode": "GBP",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/444555666",
+            "host": "restored-delegate.example",
+            "url": "https://restored-delegate.example",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateRestoredShop {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken }
+            shop { id name myshopifyDomain currencyCode primaryDomain { id host } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/restored-delegate",
+            "name": "Restored delegate shop",
+            "myshopifyDomain": "restored-delegate.myshopify.com",
+            "currencyCode": "GBP",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/444555666",
+                "host": "restored-delegate.example"
+            }
+        })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyRestoredShop($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": token }),
+    ));
+
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": true,
+            "shop": {
+                "id": "gid://shopify/Shop/restored-delegate",
+                "myshopifyDomain": "restored-delegate.myshopify.com"
+            },
+            "userErrors": []
+        })
     );
 }
 
@@ -5630,6 +5717,30 @@ fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior
     );
     assert_eq!(
         primary.body["data"]["shopifyCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+            }]
+        })
+    );
+    let mut default_origin_proxy = snapshot_proxy();
+    let default_origin = default_origin_proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlDefaultOriginRejected($callbackUrl: URL!) {
+          fulfillmentServiceCreate(name: "No Fallback Origin", callbackUrl: $callbackUrl) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "callbackUrl": "https://shopify-draft-proxy.local/fulfillment-service-callback"
+        }),
+    ));
+    assert_eq!(
+        default_origin.body["data"]["fulfillmentServiceCreate"],
         json!({
             "fulfillmentService": null,
             "userErrors": [{

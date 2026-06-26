@@ -989,19 +989,91 @@ where
     normalized
 }
 
-fn default_shop_json() -> Value {
-    json!({
-        "id": "gid://shopify/Shop/92891250994",
-        "name": "harry-test-heelo",
-        "myshopifyDomain": "harry-test-heelo.myshopify.com",
-        "currencyCode": "USD"
-    })
+fn collect_domain_records(domains: &mut BTreeMap<String, Value>, value: Option<&Value>) {
+    let Some(value) = value else {
+        return;
+    };
+    if let Some(domain) = normalized_domain_record(value) {
+        if let Some(id) = domain.get("id").and_then(Value::as_str) {
+            domains.insert(id.to_string(), domain);
+        }
+        return;
+    }
+    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+        for node in nodes {
+            collect_domain_records(domains, Some(node));
+        }
+    }
+    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
+        for edge in edges {
+            collect_domain_records(domains, edge.get("node"));
+        }
+    }
+    if let Some(values) = value.as_array() {
+        for value in values {
+            collect_domain_records(domains, Some(value));
+        }
+    }
+}
+
+fn normalized_domain_record(value: &Value) -> Option<Value> {
+    let id = value.get("id").and_then(Value::as_str)?;
+    let host = value
+        .get("host")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            value
+                .get("url")
+                .and_then(Value::as_str)
+                .and_then(domain_host_from_url)
+        })?;
+    let url = value
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("https://{host}"));
+    let ssl_enabled = value
+        .get("sslEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| url.starts_with("https://"));
+    Some(json!({
+        "id": id,
+        "host": host,
+        "url": url,
+        "sslEnabled": ssl_enabled
+    }))
+}
+
+fn domain_host_from_url(url: &str) -> Option<String> {
+    let without_scheme = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url);
+    without_scheme
+        .split('/')
+        .next()
+        .map(str::trim)
+        .filter(|host| !host.is_empty())
+        .map(str::to_string)
 }
 
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
-        store.base.shop = default_shop_json();
+        store.base.shop = json!({
+            "id": "gid://shopify/Shop/0",
+            "name": "Shopify Draft Proxy",
+            "myshopifyDomain": "shopify-draft-proxy.local",
+            "url": "https://shopify-draft-proxy.local",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/1000",
+                "host": "shopify-draft-proxy.local",
+                "url": "https://shopify-draft-proxy.local",
+                "sslEnabled": true
+            },
+            "currencyCode": "USD"
+        });
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -1102,6 +1174,25 @@ impl Store {
 
     fn stage_shop_policy(&mut self, policy: ShopPolicyRecord) {
         self.staged.shop_policies.stage(policy.id.clone(), policy);
+    }
+
+    fn domain_by_id(&self, id: &str) -> Option<Value> {
+        if id.is_empty() {
+            return None;
+        }
+        self.effective_domains()
+            .into_iter()
+            .find(|domain| domain.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    fn effective_domains(&self) -> Vec<Value> {
+        let mut domains = BTreeMap::<String, Value>::new();
+        collect_domain_records(&mut domains, self.base.shop.get("primaryDomain"));
+        collect_domain_records(&mut domains, self.base.shop.get("domains"));
+        for web_presence in self.staged.web_presences.values() {
+            collect_domain_records(&mut domains, web_presence.get("domain"));
+        }
+        domains.into_values().collect()
     }
 
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {

@@ -280,6 +280,7 @@ pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(
     deleted_id: Option<&str>,
+    shop: &Value,
     payload_selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
@@ -289,7 +290,7 @@ pub(in crate::proxy) fn saved_search_delete_payload_json(
                 Some(id) => json!(id),
                 None => Value::Null,
             }),
-            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(shop, &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
         }
@@ -1017,8 +1018,10 @@ impl DraftProxy {
             .and_then(|input| resolved_string_field(input, "id"))
             .unwrap_or_default();
         let deleted = self.store.delete_saved_search(&id);
+        let shop = self.store.effective_shop();
         let value = saved_search_delete_payload_json(
             if deleted { Some(&id) } else { None },
+            &shop,
             &field.selection,
             if deleted {
                 Vec::new()

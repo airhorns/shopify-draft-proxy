@@ -6650,6 +6650,90 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
 }
 
 #[test]
+fn saved_search_delete_payload_shop_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored-saved-search",
+        "name": "Restored saved search shop",
+        "myshopifyDomain": "restored-saved-search.myshopify.com",
+        "currencyCode": "EUR",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/555666777",
+            "host": "restored-saved-search.example",
+            "url": "https://restored-saved-search.example",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSavedSearchForShopPayload($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "resourceType": "PRODUCT",
+                "name": "Delete payload shop",
+                "query": "status:ACTIVE"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteSavedSearchShopPayload($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            shop { id name myshopifyDomain currencyCode primaryDomain { id host } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id } }),
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"],
+        json!({
+            "deletedSavedSearchId": id,
+            "shop": {
+                "id": "gid://shopify/Shop/restored-saved-search",
+                "name": "Restored saved search shop",
+                "myshopifyDomain": "restored-saved-search.myshopify.com",
+                "currencyCode": "EUR",
+                "primaryDomain": {
+                    "id": "gid://shopify/Domain/555666777",
+                    "host": "restored-saved-search.example"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_core() {
     let mut proxy = snapshot_proxy();
 
@@ -8058,7 +8142,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["shop"],
-        json!({ "id": "gid://shopify/Shop/92891250994" })
+        json!({ "id": "gid://shopify/Shop/0" })
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["userErrors"],
@@ -8124,7 +8208,7 @@ fn collection_delete_payload_includes_shop_on_user_error() {
         missing.body["data"]["collectionDelete"],
         json!({
             "deletedCollectionId": null,
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Collection does not exist"
