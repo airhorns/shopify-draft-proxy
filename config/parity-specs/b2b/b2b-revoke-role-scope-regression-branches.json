@@ -15,6 +15,9 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-revoke-role-scope-preconditions.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-company-create.graphql",
     "variablesCapturePath": "$.companyCreate.request.variables",
@@ -22,7 +25,7 @@
   },
   "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
-  "notes": "Focused regression parity for B2B revoke-role precondition branches. This spec reuses the recorded Shopify fixture and public setup mutations, then compares the exact user-error payloads and no-wrong-scope-revocation behavior that the local handlers must preserve.",
+  "notes": "Focused snapshot-mode regression parity for B2B revoke-role precondition branches. This spec reuses the recorded Shopify fixture and public setup mutations, then compares the exact user-error payloads and no-wrong-scope-revocation behavior that the local handlers must preserve.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
