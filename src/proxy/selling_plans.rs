@@ -1043,7 +1043,7 @@ fn selling_plan_group_update_model_user_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     let plans_to_create = resolved_object_list_field(input, "sellingPlansToCreate");
-    let plan_ids_to_delete = resolved_string_list_field_unsorted(input, "sellingPlansToDelete");
+    let plan_ids_to_delete = resolved_string_list_field(input, "sellingPlansToDelete");
     if plans_to_create.is_empty()
         && !plan_ids_to_delete.is_empty()
         && !group.selling_plans.is_empty()
