@@ -5,29 +5,6 @@ use sha2::{Digest, Sha256};
 mod customer_payment_methods;
 mod returns;
 
-pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
-    namespace: &str,
-    key: &str,
-) -> Option<Value> {
-    let metafield_type = match (namespace, key) {
-        ("custom", "boolean") => "boolean",
-        ("custom", "number_integer") => "number_integer",
-        ("custom", "json") => "json",
-        ("custom", "rich_text") | ("custom", "rich_text_field") => "rich_text_field",
-        ("custom", "rating") => "rating",
-        ("custom", "link") => "link",
-        ("custom", "money") => "money",
-        _ => return None,
-    };
-    Some(json!({
-        "namespace": namespace,
-        "key": key,
-        "type": metafield_type,
-        "value": "",
-        "compareDigest": metafield_compare_digest("")
-    }))
-}
-
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
@@ -41,6 +18,7 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
         "Customer" => "CUSTOMER",
         "Order" => "ORDER",
         "Company" => "COMPANY",
+        "CartTransform" => "CARTTRANSFORM",
         _ => "PRODUCT",
     }
 }
@@ -1856,10 +1834,16 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
     record: &mut Value,
     metafields: Vec<Value>,
 ) {
-    let edges =
-        connection_edges_with_cursor(&metafields, |index, _| format!("cursor{}", index + 1));
+    let mut connection = connection_json_with_cursor(
+        metafields.clone(),
+        |index, _| format!("cursor{}", index + 1),
+        empty_page_info(),
+    );
+    if let Some(connection) = connection.as_object_mut() {
+        connection.remove("pageInfo");
+    }
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
-    record["metafields"] = json!({ "edges": edges, "nodes": metafields });
+    record["metafields"] = connection;
 }
 
 pub(in crate::proxy) fn payment_customization_namespace(namespace: &str) -> String {

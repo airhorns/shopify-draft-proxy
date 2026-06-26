@@ -7665,24 +7665,9 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
     // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
     // because there is no upstream transport.
     let mut proxy = snapshot_proxy().with_registry(vec![
-        registry_entry(
-            "knownProducts",
-            OperationType::Query,
-            CapabilityExecution::OverlayRead,
-            true,
-        ),
-        registry_entry(
-            "knownProductCreate",
-            OperationType::Mutation,
-            CapabilityExecution::StageLocally,
-            true,
-        ),
-        registry_entry(
-            "knownButUnimplemented",
-            OperationType::Query,
-            CapabilityExecution::OverlayRead,
-            false,
-        ),
+        registry_entry("knownProducts", OperationType::Query, true),
+        registry_entry("knownProductCreate", OperationType::Mutation, true),
+        registry_entry("knownButUnimplemented", OperationType::Query, false),
     ]);
 
     let known_query = proxy.process_request(graphql_request(
@@ -7721,7 +7706,6 @@ fn registry_classification_without_matching_root_field_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
         "productCreate",
         OperationType::Mutation,
-        CapabilityExecution::StageLocally,
         true,
     )]);
 
@@ -7744,11 +7728,9 @@ fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
         domain: CapabilityDomain::SavedSearches,
-        execution: CapabilityExecution::OverlayRead,
         implemented: true,
         match_names: vec!["unknownSavedSearches".to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-        support_notes: None,
     }]);
 
     let response = proxy.process_request(graphql_request(

@@ -2609,3 +2609,128 @@ fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
         })
     );
 }
+
+#[test]
+fn standard_metafield_definition_enable_supports_shopify_material_template() {
+    let mut proxy = snapshot_proxy();
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableMaterial {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+            createdDefinition {
+              namespace
+              key
+              ownerType
+              name
+              type { name category }
+              validations { name value }
+              constraints {
+                key
+                values(first: 5) { nodes { value } }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
+        json!("shopify")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"],
+        json!({
+            "namespace": "shopify",
+            "key": "material",
+            "ownerType": "PRODUCT",
+            "name": "Material",
+            "type": { "name": "list.metaobject_reference", "category": "REFERENCE" },
+            "validations": [{
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/standard-material?shopify-draft-proxy=synthetic"
+            }],
+            "constraints": {
+                "key": "category",
+                "values": {
+                    "nodes": [
+                        { "value": "aa-2" },
+                        { "value": "aa-2-14-6" },
+                        { "value": "aa-2-14-6-2" },
+                        { "value": "aa-2-14-6-3" },
+                        { "value": "aa-2-14-6-4" }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric() {
+    let mut proxy = snapshot_proxy();
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableFabricById {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/12777"
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              name
+              type { name category }
+              validations { name value }
+              constraints { key values(first: 5) { nodes { value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
+        json!("shopify")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["key"],
+        json!("fabric")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["name"],
+        json!("Fabric")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["type"],
+        json!({ "name": "list.metaobject_reference", "category": "REFERENCE" })
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["validations"],
+        json!([{
+            "name": "metaobject_definition_id",
+            "value": "gid://shopify/MetaobjectDefinition/standard-fabric?shopify-draft-proxy=synthetic"
+        }])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["constraints"],
+        json!({ "key": "category", "values": { "nodes": [] } })
+    );
+}

@@ -78,7 +78,7 @@ Input readers that need the inverse conversion from JSON into resolved GraphQL v
 Check the existing metafield helpers before adding metafield-specific parsing or projection.
 
 - `src/proxy/media_products_saved_searches.rs` owns `owner_metafields_set(...)`, `owner_metafields_read(...)`, and metafield definition pinning/lifecycle read handlers.
-- `src/proxy/metafields_orders_payments.rs` owns `metafield_json_value(...)`, `custom_data_metafield_type_matrix_record(...)`, `canonical_app_metafield_namespace(...)`, and shared `metafield_definition_*` value/ID helpers.
+- `src/proxy/metafields_orders_payments.rs` owns `metafield_json_value(...)`, `canonical_app_metafield_namespace(...)`, and shared `metafield_definition_*` value/ID helpers.
 
 Owner-specific validation and storage should stay in the owning domain branch, but scalar parsing and projection should reuse shared helpers when possible.
 
