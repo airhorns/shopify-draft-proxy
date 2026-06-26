@@ -1,0 +1,33 @@
+mutation MetafieldsSetDefinitionValidationMetaobjectDefinitions(
+  $target: MetaobjectDefinitionCreateInput!
+  $replacement: MetaobjectDefinitionCreateInput!
+) {
+  target: metaobjectDefinitionCreate(definition: $target) {
+    metaobjectDefinition {
+      id
+      type
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+  replacement: metaobjectDefinitionCreate(definition: $replacement) {
+    metaobjectDefinition {
+      id
+      type
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

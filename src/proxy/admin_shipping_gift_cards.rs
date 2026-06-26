@@ -63,6 +63,7 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // cannot be deleted) from real store state rather than guessing.
 const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
+const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -608,33 +609,11 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return (
-                delivery_profile_remove_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    vec![user_error_omit_code(
-                        Value::Null,
-                        "Cannot delete the default profile.",
-                        None,
-                    )],
-                ),
-                Vec::new(),
-            );
+            return delivery_profile_remove_default_payload(&field.selection);
         }
         if profile.is_none() {
             if self.delivery_profile_hydrates_as_default(&id, request) {
-                return (
-                    delivery_profile_remove_payload_json(
-                        Value::Null,
-                        &field.selection,
-                        vec![user_error_omit_code(
-                            Value::Null,
-                            "Cannot delete the default profile.",
-                            None,
-                        )],
-                    ),
-                    Vec::new(),
-                );
+                return delivery_profile_remove_default_payload(&field.selection);
             }
             return (
                 delivery_profile_remove_payload_json(
@@ -1123,42 +1102,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let mut locations = self.effective_shipping_locations();
-        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-            locations.truncate(limit);
-        }
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| location_selected_json(location, &selection.selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| {
-                            let edge = json!({
-                                "cursor": location.get("id").and_then(Value::as_str).unwrap_or_default(),
-                                "node": location
-                            });
-                            selected_json(&edge, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(
-                    &empty_page_info(),
-                    &selection.selection,
-                )),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(fields)
+        location_connection_json(self.effective_shipping_locations(), arguments, selections)
     }
 
     fn effective_shipping_locations(&self) -> Vec<Value> {
@@ -1949,70 +1893,12 @@ impl DraftProxy {
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         if let Some(name) = resolved_string_field(input, "name") {
-            if name.trim().is_empty() {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "Add a location name",
-                    Some("BLANK"),
-                ));
-            } else if name.chars().count() > 100 {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "Use a shorter location name (up to 100 characters)",
-                    Some("TOO_LONG"),
-                ));
-            } else if self.location_name_exists_except(&name, location_id) {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "You already have a location with this name",
-                    Some("TAKEN"),
-                ));
+            if let Some(error) = self.location_name_user_error(&name, Some(location_id)) {
+                errors.push(error);
             }
         }
-        if let Some(address) = resolved_object_field(input, "address") {
-            if resolved_string_field(&address, "address1")
-                .is_some_and(|address1| address1.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "address1"],
-                    "Use a shorter name for the street (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "city")
-                .is_some_and(|city| city.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "city"],
-                    "Use a shorter city name (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(user_error(
-                    ["input", "address", "zip"],
-                    "Use a shorter postal / ZIP code (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-        }
-        for (index, metafield) in resolved_object_list_field(input, "metafields")
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
-                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(user_error(
-                        json!(["input", "metafields", (index + 1).to_string(), "type"]),
-                        &format!(
-                            "Type must be one of the following: {}.",
-                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
-                        ),
-                        Some("INVALID_TYPE"),
-                    ));
-                }
-            }
-        }
+        errors.extend(location_address_length_user_errors(input, true));
+        errors.extend(location_metafield_type_user_errors(input, 1));
         // Shopify refuses to disable online-order fulfillment on the last
         // location that still fulfills online orders.
         if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
@@ -2031,6 +1917,34 @@ impl DraftProxy {
                     .get("name")
                     .and_then(Value::as_str)
                     .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+        })
+    }
+
+    fn location_name_user_error(&self, name: &str, except_id: Option<&str>) -> Option<Value> {
+        if name.trim().is_empty() {
+            return Some(user_error(
+                ["input", "name"],
+                "Add a location name",
+                Some("BLANK"),
+            ));
+        }
+        if name.chars().count() > 100 {
+            return Some(user_error(
+                ["input", "name"],
+                "Use a shorter location name (up to 100 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        let name_exists = match except_id {
+            Some(except_id) => self.location_name_exists_except(name, except_id),
+            None => self.location_name_exists(name),
+        };
+        name_exists.then(|| {
+            user_error(
+                ["input", "name"],
+                "You already have a location with this name",
+                Some("TAKEN"),
+            )
         })
     }
 
@@ -2090,60 +2004,11 @@ impl DraftProxy {
     fn location_add_user_errors(&self, input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
-        if name.trim().is_empty() {
-            errors.push(user_error(
-                ["input", "name"],
-                "Add a location name",
-                Some("BLANK"),
-            ));
-        } else if name.chars().count() > 100 {
-            errors.push(user_error(
-                ["input", "name"],
-                "Use a shorter location name (up to 100 characters)",
-                Some("TOO_LONG"),
-            ));
-        } else if self.location_name_exists(&name) {
-            errors.push(user_error(
-                ["input", "name"],
-                "You already have a location with this name",
-                Some("TAKEN"),
-            ));
+        if let Some(error) = self.location_name_user_error(&name, None) {
+            errors.push(error);
         }
-        if let Some(address) = resolved_object_field(input, "address") {
-            if resolved_string_field(&address, "address1")
-                .is_some_and(|address1| address1.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "address1"],
-                    "Use a shorter name for the street (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(user_error(
-                    ["input", "address", "zip"],
-                    "Use a shorter postal / ZIP code (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-        }
-        for (index, metafield) in resolved_object_list_field(input, "metafields")
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
-                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(user_error(
-                        json!(["input", "metafields", index.to_string(), "type"]),
-                        &format!(
-                            "Type must be one of the following: {}.",
-                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
-                        ),
-                        Some("INVALID_TYPE"),
-                    ));
-                }
-            }
-        }
+        errors.extend(location_address_length_user_errors(input, false));
+        errors.extend(location_metafield_type_user_errors(input, 0));
         if self.location_limit_reached() {
             errors.push(user_error(
                 ["input"],
@@ -2507,7 +2372,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let mut locations = self
+        let locations = self
             .store
             .staged
             .locations
@@ -2516,41 +2381,7 @@ impl DraftProxy {
             .filter(|id| !self.store.staged.locations.is_tombstoned(id))
             .filter_map(|id| self.store.staged.locations.get(id).cloned())
             .collect::<Vec<_>>();
-        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-            locations.truncate(limit);
-        }
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| location_selected_json(location, &selection.selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| {
-                            let edge = json!({
-                                "cursor": location.get("id").and_then(Value::as_str).unwrap_or_default(),
-                                "node": location
-                            });
-                            selected_json(&edge, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(
-                    &empty_page_info(),
-                    &selection.selection,
-                )),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(fields)
+        location_connection_json(locations, arguments, selections)
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -5053,6 +4884,32 @@ impl DraftProxy {
         }
     }
 
+    fn fulfillment_service_validation_errors(
+        &self,
+        name: &str,
+        callback_url: Option<&str>,
+        except_id: Option<&str>,
+        validate_name_shape: bool,
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        if validate_name_shape {
+            user_errors.extend(fulfillment_service_name_user_errors(name));
+        }
+        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url) {
+            user_errors.push(error);
+        }
+        if fulfillment_service_name_is_reserved(name) {
+            user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
+        } else if self.fulfillment_service_name_or_handle_exists(name, except_id) {
+            user_errors.push(user_error_omit_code(
+                ["name"],
+                "Name has already been taken",
+                None,
+            ));
+        }
+        user_errors
+    }
+
     pub(in crate::proxy) fn fulfillment_service_mutation(
         &mut self,
         root_field: &str,
@@ -5101,24 +4958,8 @@ impl DraftProxy {
             .arguments
             .get("callbackUrl")
             .and_then(resolved_value_string);
-        let mut user_errors = Vec::new();
-        if name.trim().is_empty() {
-            user_errors.push(user_error_omit_code(["name"], "Name can't be blank", None));
-        } else {
-            user_errors.extend(fulfillment_service_name_whitespace_errors(&name));
-        }
-        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
-            user_errors.push(error);
-        }
-        if fulfillment_service_name_is_reserved(&name) {
-            user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
-        } else if self.fulfillment_service_name_or_handle_exists(&name, None) {
-            user_errors.push(user_error_omit_code(
-                ["name"],
-                "Name has already been taken",
-                None,
-            ));
-        }
+        let user_errors =
+            self.fulfillment_service_validation_errors(&name, callback_url.as_deref(), None, true);
         if !user_errors.is_empty() {
             return (
                 fulfillment_service_payload_json(
@@ -5207,59 +5048,19 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         };
-        let name_user_errors = if field.arguments.contains_key("name") {
-            if name.trim().is_empty() {
-                vec![user_error_omit_code(["name"], "Name can't be blank", None)]
-            } else {
-                fulfillment_service_name_whitespace_errors(&name)
-            }
-        } else {
-            vec![]
-        };
-        if !name_user_errors.is_empty() {
+        let user_errors = self.fulfillment_service_validation_errors(
+            &name,
+            callback_url.as_deref(),
+            Some(&id),
+            field.arguments.contains_key("name"),
+        );
+        if !user_errors.is_empty() {
             return (
                 fulfillment_service_payload_json(
                     Value::Null,
                     &field.selection,
                     &service_selection,
-                    name_user_errors,
-                ),
-                vec![],
-            );
-        }
-        if fulfillment_service_name_is_reserved(&name) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![user_error_omit_code(["name"], "Name is reserved", None)],
-                ),
-                vec![],
-            );
-        }
-        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![error],
-                ),
-                vec![],
-            );
-        }
-        if self.fulfillment_service_name_or_handle_exists(&name, Some(&id)) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![user_error_omit_code(
-                        ["name"],
-                        "Name has already been taken",
-                        None,
-                    )],
+                    user_errors,
                 ),
                 vec![],
             );
@@ -5854,6 +5655,113 @@ impl DraftProxy {
                 "primaryRootField": root_field
             }
         }));
+    }
+}
+
+fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Value, Vec<String>) {
+    (
+        delivery_profile_remove_payload_json(
+            Value::Null,
+            selections,
+            vec![user_error_omit_code(
+                Value::Null,
+                DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE,
+                None,
+            )],
+        ),
+        Vec::new(),
+    )
+}
+
+fn location_connection_json(
+    mut locations: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
+        locations.truncate(limit);
+    }
+    selected_typed_connection(
+        &locations,
+        selections,
+        location_selected_json,
+        value_id_cursor,
+        |selections| selected_json(&empty_page_info(), selections),
+    )
+}
+
+fn location_address_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    include_city: bool,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(address) = resolved_object_field(input, "address") {
+        if resolved_string_field(&address, "address1")
+            .is_some_and(|address1| address1.chars().count() > 255)
+        {
+            errors.push(user_error(
+                ["input", "address", "address1"],
+                "Use a shorter name for the street (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        if include_city
+            && resolved_string_field(&address, "city")
+                .is_some_and(|city| city.chars().count() > 255)
+        {
+            errors.push(user_error(
+                ["input", "address", "city"],
+                "Use a shorter city name (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
+            errors.push(user_error(
+                ["input", "address", "zip"],
+                "Use a shorter postal / ZIP code (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+    }
+    errors
+}
+
+fn location_metafield_type_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    index_base: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let invalid_type_message = format!(
+        "Type must be one of the following: {}.",
+        LOCATION_METAFIELD_VALID_TYPES.join(", ")
+    );
+    for (index, metafield) in resolved_object_list_field(input, "metafields")
+        .into_iter()
+        .enumerate()
+    {
+        if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
+            if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
+                errors.push(user_error(
+                    json!([
+                        "input",
+                        "metafields",
+                        (index + index_base).to_string(),
+                        "type"
+                    ]),
+                    &invalid_type_message,
+                    Some("INVALID_TYPE"),
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn fulfillment_service_name_user_errors(name: &str) -> Vec<Value> {
+    if name.trim().is_empty() {
+        vec![user_error_omit_code(["name"], "Name can't be blank", None)]
+    } else {
+        fulfillment_service_name_whitespace_errors(name)
     }
 }
 
@@ -7492,14 +7400,31 @@ fn segment_user_error(field: Value, message: &str) -> Value {
     user_error_typed_omit_code("UserError", field, message, None)
 }
 
+fn segment_presence_user_error(field: impl Into<UserErrorField>, field_name: &str) -> Value {
+    let mut error = presence_user_error(field, field_name);
+    error["__typename"] = json!("UserError");
+    error
+}
+
+fn segment_length_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+    bound: LengthUserErrorBound,
+) -> Value {
+    let mut error = length_user_error(field, field_name, bound);
+    error["__typename"] = json!("UserError");
+    error
+}
+
 fn segment_name_user_errors(name: &str) -> Vec<Value> {
     let stripped = name.trim();
     if stripped.is_empty() {
-        vec![segment_user_error(json!(["name"]), "Name can't be blank")]
+        vec![segment_presence_user_error(["name"], "Name")]
     } else if stripped.chars().count() > 255 {
-        vec![segment_user_error(
-            json!(["name"]),
-            "Name is too long (maximum is 255 characters)",
+        vec![segment_length_user_error(
+            ["name"],
+            "Name",
+            LengthUserErrorBound::TooLong { maximum: 255 },
         )]
     } else {
         Vec::new()
@@ -7508,12 +7433,13 @@ fn segment_name_user_errors(name: &str) -> Vec<Value> {
 
 fn segment_query_user_errors(query: &str) -> Vec<Value> {
     if query.trim().is_empty() {
-        return vec![segment_user_error(json!(["query"]), "Query can't be blank")];
+        return vec![segment_presence_user_error(["query"], "Query")];
     }
     if query.chars().count() > 5000 {
-        return vec![segment_user_error(
-            json!(["query"]),
-            "Query is too long (maximum is 5000 characters)",
+        return vec![segment_length_user_error(
+            ["query"],
+            "Query",
+            LengthUserErrorBound::TooLong { maximum: 5000 },
         )];
     }
     segment_query_grammar_user_errors(query)

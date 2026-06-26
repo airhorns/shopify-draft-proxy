@@ -1,6 +1,11 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+const DEFAULT_ORDER_UNFULFILLED_ID: &str =
+    "gid://shopify/SavedSearch/default-order-unfulfilled?shopify-draft-proxy=synthetic";
+const DEFAULT_ORDER_UNPAID_ID: &str =
+    "gid://shopify/SavedSearch/default-order-unpaid?shopify-draft-proxy=synthetic";
+
 fn seed_product(id: &str) -> ProductRecord {
     ProductRecord {
         id: id.to_string(),
@@ -2340,6 +2345,127 @@ fn product_variant_media_validation_guards_match_captured_shopify_errors() {
         }])
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
+fn product_variant_media_empty_media_ids_return_blank_without_staging() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("empty mediaIds validation should not call upstream"));
+    let variant = create_legacy_variant(&mut proxy, product_id, "EMPTY-MEDIA-IDS", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let log_before_validation = proxy.get_log_snapshot();
+
+    let append = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppendEmptyMediaIds($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": [{ "variantId": variant_id, "mediaIds": [] }]
+        }),
+    ));
+    assert_eq!(append.status, 200);
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "The mediaIds list cannot be empty.",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before_validation,
+        "append empty mediaIds should not stage a mutation log entry"
+    );
+
+    let detach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DetachEmptyMediaIds($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": [{ "variantId": variant_id, "mediaIds": [] }]
+        }),
+    ));
+    assert_eq!(detach.status, 200);
+    assert_eq!(
+        detach.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "The mediaIds list cannot be empty.",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before_validation,
+        "detach empty mediaIds should not stage a mutation log entry"
+    );
+
+    let append_empty_variant_media = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppendEmptyVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": []
+        }),
+    ));
+    assert_eq!(append_empty_variant_media.status, 200);
+    assert_eq!(
+        append_empty_variant_media.body["data"]["productVariantAppendMedia"],
+        json!({
+            "productVariants": [],
+            "userErrors": []
+        })
+    );
+
+    let detach_empty_variant_media = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DetachEmptyVariantMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": []
+        }),
+    ));
+    assert_eq!(detach_empty_variant_media.status, 200);
+    assert_eq!(
+        detach_empty_variant_media.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": [],
+            "userErrors": []
+        })
+    );
 }
 
 #[test]
@@ -5439,18 +5565,18 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
             "data": {
                 "ord": {
                     "nodes": [
-                        { "id": "gid://shopify/SavedSearch/3634391515442", "name": "Unfulfilled" },
-                        { "id": "gid://shopify/SavedSearch/3634391548210", "name": "Unpaid" }
+                        { "id": DEFAULT_ORDER_UNFULFILLED_ID, "name": "Unfulfilled" },
+                        { "id": DEFAULT_ORDER_UNPAID_ID, "name": "Unpaid" }
                     ],
                     "edges": [
-                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391515442", "node": { "id": "gid://shopify/SavedSearch/3634391515442" } },
-                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391548210", "node": { "id": "gid://shopify/SavedSearch/3634391548210" } }
+                        { "cursor": format!("cursor:{DEFAULT_ORDER_UNFULFILLED_ID}"), "node": { "id": DEFAULT_ORDER_UNFULFILLED_ID } },
+                        { "cursor": format!("cursor:{DEFAULT_ORDER_UNPAID_ID}"), "node": { "id": DEFAULT_ORDER_UNPAID_ID } }
                     ],
                     "pageInfo": {
                         "hasNextPage": true,
                         "hasPreviousPage": false,
-                        "startCursor": "cursor:gid://shopify/SavedSearch/3634391515442",
-                        "endCursor": "cursor:gid://shopify/SavedSearch/3634391548210"
+                        "startCursor": format!("cursor:{DEFAULT_ORDER_UNFULFILLED_ID}"),
+                        "endCursor": format!("cursor:{DEFAULT_ORDER_UNPAID_ID}")
                     }
                 },
                 "draftOrderSavedSearches": {
@@ -6346,6 +6472,108 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 }
 
 #[test]
+fn saved_search_app_namespace_uses_request_api_client_id() {
+    let mut proxy = snapshot_proxy();
+    let mut create_request = json_graphql_request(
+        r#"
+        mutation SavedSearchAppNamespace($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "resourceType": "PRODUCT",
+                "name": "App namespace products",
+                "query": "metafields.$app.tier:gold"
+            }
+        }),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["savedSearch"],
+        json!({
+            "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+            "name": "App namespace products",
+            "query": "metafields.app--999999999999.tier:gold",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [{ "key": "metafields.app--999999999999.tier", "value": "gold" }]
+        })
+    );
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let created_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation SavedSearchAppNamespaceUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": created_id,
+                "query": "metafields.$app.vip:true"
+            }
+        }),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["query"],
+        json!("metafields.app--999999999999.vip:true")
+    );
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["filters"],
+        json!([{ "key": "metafields.app--999999999999.vip", "value": "true" }])
+    );
+
+    let mut read_request = json_graphql_request(
+        r#"
+        query SavedSearchAppNamespaceRead {
+          productSavedSearches(first: 1, reverse: true) {
+            nodes { query searchTerms filters { key value } }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    read_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "query": "metafields.app--999999999999.vip:true",
+            "searchTerms": "",
+            "filters": [{ "key": "metafields.app--999999999999.vip", "value": "true" }]
+        }])
+    );
+}
+
+#[test]
 fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing_name() {
     let mut proxy = snapshot_proxy();
 
@@ -6650,6 +6878,90 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
 }
 
 #[test]
+fn saved_search_delete_payload_shop_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored-saved-search",
+        "name": "Restored saved search shop",
+        "myshopifyDomain": "restored-saved-search.myshopify.com",
+        "currencyCode": "EUR",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/555666777",
+            "host": "restored-saved-search.example",
+            "url": "https://restored-saved-search.example",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSavedSearchForShopPayload($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "resourceType": "PRODUCT",
+                "name": "Delete payload shop",
+                "query": "status:ACTIVE"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteSavedSearchShopPayload($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            shop { id name myshopifyDomain currencyCode primaryDomain { id host } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id } }),
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"],
+        json!({
+            "deletedSavedSearchId": id,
+            "shop": {
+                "id": "gid://shopify/Shop/restored-saved-search",
+                "name": "Restored saved search shop",
+                "myshopifyDomain": "restored-saved-search.myshopify.com",
+                "currencyCode": "EUR",
+                "primaryDomain": {
+                    "id": "gid://shopify/Domain/555666777",
+                    "host": "restored-saved-search.example"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_core() {
     let mut proxy = snapshot_proxy();
 
@@ -6815,13 +7127,13 @@ fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_cor
           savedSearchUpdate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "id": "gid://shopify/SavedSearch/3634391515442", "query": "reference_location_id:42 made_up_filter:foo" } }),
+        json!({ "input": { "id": DEFAULT_ORDER_UNFULFILLED_ID, "query": "reference_location_id:42 made_up_filter:foo" } }),
     ));
     assert_eq!(
         order_reserved_update.body["data"]["savedSearchUpdate"],
         json!({
             "savedSearch": {
-                "id": "gid://shopify/SavedSearch/3634391515442",
+                "id": DEFAULT_ORDER_UNFULFILLED_ID,
                 "name": "Unfulfilled",
                 "query": "reference_location_id:42 made_up_filter:foo",
                 "resourceType": "ORDER"
@@ -7665,24 +7977,9 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
     // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
     // because there is no upstream transport.
     let mut proxy = snapshot_proxy().with_registry(vec![
-        registry_entry(
-            "knownProducts",
-            OperationType::Query,
-            CapabilityExecution::OverlayRead,
-            true,
-        ),
-        registry_entry(
-            "knownProductCreate",
-            OperationType::Mutation,
-            CapabilityExecution::StageLocally,
-            true,
-        ),
-        registry_entry(
-            "knownButUnimplemented",
-            OperationType::Query,
-            CapabilityExecution::OverlayRead,
-            false,
-        ),
+        registry_entry("knownProducts", OperationType::Query, true),
+        registry_entry("knownProductCreate", OperationType::Mutation, true),
+        registry_entry("knownButUnimplemented", OperationType::Query, false),
     ]);
 
     let known_query = proxy.process_request(graphql_request(
@@ -7721,7 +8018,6 @@ fn registry_classification_without_matching_root_field_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
         "productCreate",
         OperationType::Mutation,
-        CapabilityExecution::StageLocally,
         true,
     )]);
 
@@ -7744,11 +8040,9 @@ fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
         domain: CapabilityDomain::SavedSearches,
-        execution: CapabilityExecution::OverlayRead,
         implemented: true,
         match_names: vec!["unknownSavedSearches".to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-        support_notes: None,
     }]);
 
     let response = proxy.process_request(graphql_request(
@@ -8076,7 +8370,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["shop"],
-        json!({ "id": "gid://shopify/Shop/92891250994" })
+        json!({ "id": "gid://shopify/Shop/0" })
     );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["userErrors"],
@@ -8142,7 +8436,7 @@ fn collection_delete_payload_includes_shop_on_user_error() {
         missing.body["data"]["collectionDelete"],
         json!({
             "deletedCollectionId": null,
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Collection does not exist"

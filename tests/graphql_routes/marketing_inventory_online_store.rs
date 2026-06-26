@@ -50,6 +50,48 @@ fn create_metaobject_definition_for_test(
 }
 
 #[test]
+fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateListScalarCategoryDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              fieldDefinitions { key type { name category } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "list_scalar_category",
+            "name": "List scalar category",
+            "fieldDefinitions": [
+                {"key": "text_values", "name": "Text values", "type": "list.single_line_text_field", "required": false},
+                {"key": "numbers", "name": "Numbers", "type": "list.number_integer", "required": false},
+                {"key": "dates", "name": "Dates", "type": "list.date", "required": false},
+                {"key": "references", "name": "References", "type": "list.metaobject_reference", "required": false}
+            ]
+        }}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"],
+        json!([
+            {"key": "text_values", "type": {"name": "list.single_line_text_field", "category": "TEXT"}},
+            {"key": "numbers", "type": {"name": "list.number_integer", "category": "NUMBER"}},
+            {"key": "dates", "type": {"name": "list.date", "category": "DATE_TIME"}},
+            {"key": "references", "type": {"name": "list.metaobject_reference", "category": "REFERENCE"}}
+        ])
+    );
+}
+
+#[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -4191,7 +4233,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
                     {"handle": "unauthenticated_read_product_inventory"}
                 ]
             },
-            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "shop": {"id": "gid://shopify/Shop/0"},
             "userErrors": []
         })
     );
@@ -4244,7 +4286,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
         blank.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "shop": {"id": "gid://shopify/Shop/0"},
             "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );

@@ -8,7 +8,7 @@ pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
 }
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
-    let amount = money_bag_normalized_amount(amount);
+    let amount = normalize_money_amount(amount);
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
