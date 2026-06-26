@@ -256,7 +256,7 @@ impl DraftProxy {
         for field in fields {
             match field.name.as_str() {
                 "node" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if shopify_gid_resource_type(&id) == Some("ShopPolicy") {
                         saw_shop_policy = true;
                         data.insert(
