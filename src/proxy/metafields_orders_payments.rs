@@ -1834,10 +1834,16 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
     record: &mut Value,
     metafields: Vec<Value>,
 ) {
-    let edges =
-        connection_edges_with_cursor(&metafields, |index, _| format!("cursor{}", index + 1));
+    let mut connection = connection_json_with_cursor(
+        metafields.clone(),
+        |index, _| format!("cursor{}", index + 1),
+        empty_page_info(),
+    );
+    if let Some(connection) = connection.as_object_mut() {
+        connection.remove("pageInfo");
+    }
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
-    record["metafields"] = json!({ "edges": edges, "nodes": metafields });
+    record["metafields"] = connection;
 }
 
 pub(in crate::proxy) fn payment_customization_namespace(namespace: &str) -> String {
