@@ -7447,8 +7447,136 @@ fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
 }
 
 #[test]
+fn media_file_update_hydrates_real_file_before_staging_captured_id() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["variables"]["fileIds"],
+                json!([media_id]),
+                "fileUpdate hydrate should request the target file id"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": media_id,
+                            "__typename": "MediaImage",
+                            "alt": "Hydrated alt",
+                            "createdAt": "2026-06-04T00:00:00Z",
+                            "fileStatus": "READY",
+                            "image": {
+                                "url": "https://cdn.example.com/hydrated-file-real.jpg",
+                                "width": 640,
+                                "height": 480
+                            },
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.com/hydrated-file-real-preview.jpg",
+                                    "width": 320,
+                                    "height": 240
+                                }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileUpdateHydratesCapturedId($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": media_id, "alt": "Updated hydrated alt"}]}),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": media_id,
+                "alt": "Updated hydrated alt",
+                "fileStatus": "READY",
+                "filename": "hydrated-file-real.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/hydrated-file-real.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "userErrors": []
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
 fn media_file_update_validates_core_bucket_ordering() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let nodes = body["variables"]["fileIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| match id.as_str() {
+                    Some("gid://shopify/MediaImage/43688017887538") => json!({
+                        "id": "gid://shopify/MediaImage/43688017887538",
+                        "__typename": "MediaImage",
+                        "alt": "Ready image",
+                        "createdAt": "2026-06-05T00:00:00Z",
+                        "fileStatus": "READY",
+                        "image": {
+                            "url": "https://cdn.example.com/ready-image.jpg",
+                            "width": 640,
+                            "height": 480
+                        },
+                        "preview": {
+                            "image": {
+                                "url": "https://cdn.example.com/ready-image-preview.jpg",
+                                "width": 320,
+                                "height": 240
+                            }
+                        }
+                    }),
+                    Some("gid://shopify/ExternalVideo/43688017953074") => json!({
+                        "id": "gid://shopify/ExternalVideo/43688017953074",
+                        "__typename": "ExternalVideo",
+                        "alt": "Ready external video",
+                        "createdAt": "2026-06-05T00:00:00Z",
+                        "fileStatus": "READY"
+                    }),
+                    _ => Value::Null,
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        });
     let mutation = r#"
         mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
           fileUpdate(files: $files) {
