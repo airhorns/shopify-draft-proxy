@@ -744,10 +744,12 @@ impl DraftProxy {
                     set_log_status(entry, "failed");
                 }
             }
+            let shop = self.store.effective_shop();
             return ok_json(json!({
                 "data": {
                     response_key: delegate_access_token_create_payload_json(
                         Value::Null,
+                        &shop,
                         &payload_selection,
                         &token_selection,
                         user_errors,
@@ -782,11 +784,13 @@ impl DraftProxy {
             "delegateAccessTokenCreate",
             vec![token],
         );
+        let shop = self.store.effective_shop();
 
         ok_json(json!({
             "data": {
                 response_key: delegate_access_token_create_payload_json(
                     record,
+                    &shop,
                     &payload_selection,
                     &token_selection,
                     vec![],
@@ -856,11 +860,13 @@ impl DraftProxy {
                 "ACCESS_TOKEN_NOT_FOUND",
             ));
         }
+        let shop = self.store.effective_shop();
 
         ok_json(json!({
             "data": {
                 response_key: delegate_access_token_destroy_payload_json(
                     status,
+                    &shop,
                     user_errors,
                     &payload_selection,
                 )

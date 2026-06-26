@@ -854,7 +854,7 @@ impl DraftProxy {
             .get("shop")
             .filter(|shop| shop.is_object())
             .cloned()
-            .unwrap_or_else(default_shop_json);
+            .unwrap_or_else(|| Store::with_default_baseline().base.shop);
         let mut base_shop_policies =
             shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
         let mut base_shop_policy_order =

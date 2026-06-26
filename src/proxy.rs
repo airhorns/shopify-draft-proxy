@@ -1056,26 +1056,22 @@ fn domain_host_from_url(url: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn default_shop_json() -> Value {
-    json!({
-        "id": "gid://shopify/Shop/0",
-        "name": "Shopify Draft Proxy",
-        "myshopifyDomain": "shopify-draft-proxy.local",
-        "url": "https://shopify-draft-proxy.local",
-        "primaryDomain": {
-            "id": "gid://shopify/Domain/1000",
-            "host": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "sslEnabled": true
-        },
-        "currencyCode": "USD"
-    })
-}
-
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
-        store.base.shop = default_shop_json();
+        store.base.shop = json!({
+            "id": "gid://shopify/Shop/0",
+            "name": "Shopify Draft Proxy",
+            "myshopifyDomain": "shopify-draft-proxy.local",
+            "url": "https://shopify-draft-proxy.local",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/1000",
+                "host": "shopify-draft-proxy.local",
+                "url": "https://shopify-draft-proxy.local",
+                "sslEnabled": true
+            },
+            "currencyCode": "USD"
+        });
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),

@@ -400,7 +400,7 @@ fn domain_id_live_hybrid_forwards_cold_domain_reads() {
 }
 
 #[test]
-fn default_shop_json_uses_neutral_identity() {
+fn cold_snapshot_shop_baseline_uses_neutral_identity() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
