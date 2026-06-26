@@ -12,10 +12,35 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged `metafieldsSet` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` and `product.metafields` visibility for product-owned metafields.",
+  "notes": "Executed by the conformance parity runner against the local staged `metafieldsSet` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` and `product.metafields` visibility for product-owned metafields. Shopify compareDigest values are opaque CAS tokens, so staged write digests are compared as non-empty values rather than exact captured hashes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.origin.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.primarySpec.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[0].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[1].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
       {
         "path": "$.product.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",

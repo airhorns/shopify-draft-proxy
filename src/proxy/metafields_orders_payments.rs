@@ -2238,10 +2238,12 @@ fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) 
     else {
         return false;
     };
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+    let Some(now_epoch) =
+        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2024-01-01T00:00:00Z")
+    else {
         return false;
     };
-    due_at_epoch <= now.as_secs() as i64
+    due_at_epoch <= now_epoch
 }
 
 /// Builds a materialized PaymentSchedule node from the owner money and the

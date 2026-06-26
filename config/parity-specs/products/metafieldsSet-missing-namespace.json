@@ -11,10 +11,20 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace.",
+  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace. Shopify compareDigest values are opaque CAS tokens, so the locally staged digest for the new app-namespace metafield is compared as a non-empty value rather than an exact captured hash.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[3].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
       {
         "path": "$.product.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",

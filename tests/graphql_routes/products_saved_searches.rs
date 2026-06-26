@@ -129,6 +129,69 @@ fn assert_product_media_type(
 }
 
 #[test]
+fn product_create_media_image_payload_is_uploaded_while_downstream_read_processes() {
+    let product_id = "gid://shopify/Product/media-status";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("product media staging should not call upstream"));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateImageMediaStatus($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id mediaContentType status }
+            mediaUserErrors { field message }
+            product {
+              id
+              media(first: 10) { nodes { id mediaContentType status } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/640x480/png",
+                "alt": "Front view"
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    let created_media = &create.body["data"]["productCreateMedia"]["media"][0];
+    let media_id = created_media["id"].as_str().unwrap().to_string();
+    assert_eq!(created_media["status"], json!("UPLOADED"));
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
+        json!("UPLOADED")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCreateImageMediaDownstreamStatus($id: ID!) {
+          product(id: $id) {
+            media(first: 10) { nodes { id mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"][0],
+        json!({
+            "id": media_id,
+            "mediaContentType": "IMAGE",
+            "status": "PROCESSING"
+        })
+    );
+}
+
+#[test]
 fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     let product_id = "gid://shopify/Product/media-types";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)

@@ -863,14 +863,13 @@ impl DraftProxy {
             .filter(|value| value.is_object())
             .cloned()
             .unwrap_or_else(|| webhook_subscription_api_version_record(api_version_handle));
-        json!({
+        let mut record = json!({
             "id": id,
             "legacyResourceId": webhook_subscription_legacy_id(id),
             "apiVersion": api_version,
             "topic": topic,
             "format": format,
             "uri": uri,
-            "callbackUrl": callback_url,
             "name": name,
             "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
@@ -880,7 +879,11 @@ impl DraftProxy {
             "createdAt": created_at,
             "updatedAt": updated_at,
             "endpoint": webhook_endpoint(&uri)
-        })
+        });
+        if let Some(callback_url) = callback_url {
+            record["callbackUrl"] = json!(callback_url);
+        }
+        record
     }
 
     pub(in crate::proxy) fn marketing_mutation(
@@ -2472,7 +2475,12 @@ impl DraftProxy {
     /// Mirrors the sync `inventoryItemUpdate` and inventory-level item payloads
     /// already perform. No-op for non-`available` names (those don't feed
     /// `ProductVariant.inventoryQuantity`).
-    fn sync_variant_available_quantity(&mut self, inventory_item_id: &str, name: &str) {
+    fn sync_variant_available_quantity(
+        &mut self,
+        inventory_item_id: &str,
+        name: &str,
+        sync_product_aggregate: bool,
+    ) {
         if name != "available" {
             return;
         }
@@ -2486,7 +2494,9 @@ impl DraftProxy {
         variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let product_id = variant.product_id.clone();
         self.store.stage_product_variant(variant);
-        self.sync_product_inventory_aggregates(&product_id);
+        if sync_product_aggregate {
+            self.sync_product_inventory_aggregates(&product_id);
+        }
     }
 
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
@@ -2671,7 +2681,7 @@ impl DraftProxy {
                 self.store.staged.inventory_level_order.push(key);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &name);
+            self.sync_variant_available_quantity(&item_id, &name, true);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -2777,7 +2787,7 @@ impl DraftProxy {
                 location_id.clone(),
                 "on_hand".to_string(),
             ));
-            self.sync_variant_available_quantity(&item_id, "available");
+            self.sync_variant_available_quantity(&item_id, "available", true);
             changes.push(inventory_set_on_hand_change_json(
                 &item_id,
                 "available",
@@ -2886,7 +2896,7 @@ impl DraftProxy {
                 ));
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &name);
+            self.sync_variant_available_quantity(&item_id, &name, false);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -3009,8 +3019,8 @@ impl DraftProxy {
             };
             self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
             self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &from_name);
-            self.sync_variant_available_quantity(&item_id, &to_name);
+            self.sync_variant_available_quantity(&item_id, &from_name, true);
+            self.sync_variant_available_quantity(&item_id, &to_name, true);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,

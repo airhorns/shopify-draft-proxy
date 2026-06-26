@@ -2005,6 +2005,82 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
+#[test]
+fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "ADJUST-LAZY",
+        "10.00",
+    );
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let location_id = "gid://shopify/Location/1";
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustInventory($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "delta": -2, "changeFromQuantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAdjustLazyProductAggregate($variantId: ID!, $productId: ID!) {
+          productVariant(id: $variantId) { inventoryQuantity }
+          product(id: $productId) {
+            totalInventory
+            hasOutOfStockVariants
+            variants(first: 5) { nodes { inventoryQuantity inventoryItem { tracked } } }
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(0)
+    );
+    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(2));
+    assert_eq!(
+        read.body["data"]["product"]["hasOutOfStockVariants"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"][0],
+        json!({"inventoryQuantity": 0, "inventoryItem": {"tracked": true}})
+    );
+}
+
 fn inventory_activation_base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
