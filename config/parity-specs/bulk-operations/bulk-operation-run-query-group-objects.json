@@ -69,6 +69,16 @@
             "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
           },
           {
+            "path": "$.objectCount",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports counts for the captured shop contents while the proxy reports rows in its generated local JSONL."
+          },
+          {
+            "path": "$.rootObjectCount",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports counts for the captured shop contents while the proxy reports rows in its generated local JSONL."
+          },
+          {
             "path": "$.fileSize",
             "matcher": "non-empty-string",
             "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."

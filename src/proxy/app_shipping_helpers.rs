@@ -433,15 +433,6 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
     })
 }
 
-pub(in crate::proxy) fn format_money_amount(value: f64) -> String {
-    if (value.fract()).abs() < f64::EPSILON {
-        format!("{value:.1}")
-    } else {
-        let text = format!("{value:.2}");
-        normalize_money_amount(text.as_str())
-    }
-}
-
 pub(in crate::proxy) fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
     let raw = match value {
         Some(ResolvedValue::Int(value)) => value.to_string(),

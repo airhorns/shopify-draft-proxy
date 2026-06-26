@@ -1,5 +1,6 @@
 use crate::graphql::OperationType;
 use serde_json::{json, Map, Value};
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapabilityDomain {
@@ -86,22 +87,27 @@ pub struct OperationRegistryEntry {
     pub name: String,
     pub operation_type: OperationType,
     pub domain: CapabilityDomain,
-    pub execution: CapabilityExecution,
     pub implemented: bool,
     pub match_names: Vec<String>,
     pub runtime_tests: Vec<String>,
-    pub support_notes: Option<String>,
+}
+
+impl OperationRegistryEntry {
+    pub fn execution(&self) -> CapabilityExecution {
+        execution_for_operation_type(self.operation_type)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationCapability {
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
-    pub operation_name: Option<String>,
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
-    crate::operation_registry_data::default_registry_entries()
+    let registry = crate::operation_registry_data::default_registry_entries();
+    debug_assert_default_registry_local_routing_contract(&registry);
+    registry
 }
 
 pub fn default_registry_json_value() -> Value {
@@ -116,20 +122,12 @@ pub fn implemented_entries(registry: &[OperationRegistryEntry]) -> Vec<&Operatio
     registry.iter().filter(|entry| entry.implemented).collect()
 }
 
-pub fn find_entry<'a>(
-    registry: &'a [OperationRegistryEntry],
-    operation_type: OperationType,
-    names: &[Option<&str>],
-) -> Option<&'a OperationRegistryEntry> {
-    names
-        .iter()
-        .filter_map(|name| name.and_then(nonempty))
-        .find_map(|candidate| {
-            registry.iter().find(|entry| {
-                entry.operation_type == operation_type
-                    && entry.match_names.iter().any(|name| name == candidate)
-            })
-        })
+pub fn execution_for_operation_type(operation_type: OperationType) -> CapabilityExecution {
+    match operation_type {
+        OperationType::Query => CapabilityExecution::OverlayRead,
+        OperationType::Mutation => CapabilityExecution::StageLocally,
+        OperationType::Subscription => CapabilityExecution::Passthrough,
+    }
 }
 
 pub fn operation_capability(
@@ -141,23 +139,23 @@ pub fn operation_capability(
         return OperationCapability {
             domain: CapabilityDomain::Unknown,
             execution: CapabilityExecution::Passthrough,
-            operation_name: None,
         };
     };
-    let operation_name = Some(field.to_string());
-    let local_entry = find_entry(registry, operation_type, &[Some(field)])
-        .filter(|entry| entry.implemented && entry.name == field);
+    let local_entry = registry.iter().find(|entry| {
+        entry.implemented
+            && entry.operation_type == operation_type
+            && entry.name == field
+            && entry.match_names.iter().any(|name| name == field)
+    });
 
     match local_entry {
         Some(entry) => OperationCapability {
             domain: entry.domain,
-            execution: entry.execution,
-            operation_name,
+            execution: entry.execution(),
         },
         None => OperationCapability {
             domain: CapabilityDomain::Unknown,
             execution: CapabilityExecution::Passthrough,
-            operation_name,
         },
     }
 }
@@ -172,23 +170,12 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     object.insert("domain".to_string(), json!(entry.domain.registry_name()));
     object.insert(
         "execution".to_string(),
-        json!(entry.execution.registry_name()),
+        json!(entry.execution().registry_name()),
     );
     object.insert("implemented".to_string(), json!(entry.implemented));
     object.insert("matchNames".to_string(), json!(entry.match_names));
     object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
-    if let Some(support_notes) = &entry.support_notes {
-        object.insert("supportNotes".to_string(), json!(support_notes));
-    }
     Value::Object(object)
-}
-
-fn nonempty(value: &str) -> Option<&str> {
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
 }
 
 fn operation_type_registry_name(operation_type: OperationType) -> &'static str {
@@ -197,4 +184,31 @@ fn operation_type_registry_name(operation_type: OperationType) -> &'static str {
         OperationType::Mutation => "mutation",
         OperationType::Subscription => "subscription",
     }
+}
+
+fn debug_assert_default_registry_local_routing_contract(registry: &[OperationRegistryEntry]) {
+    static CHECKED: OnceLock<()> = OnceLock::new();
+    CHECKED.get_or_init(|| {
+        for entry in implemented_entries(registry) {
+            let capability =
+                operation_capability(registry, entry.operation_type, Some(entry.name.as_str()));
+            debug_assert_eq!(
+                capability.domain, entry.domain,
+                "{} must classify through its canonical local registry root",
+                entry.name
+            );
+            debug_assert_eq!(
+                capability.execution,
+                entry.execution(),
+                "{} must derive local execution from operation type",
+                entry.name
+            );
+            debug_assert_ne!(
+                capability.execution,
+                CapabilityExecution::Passthrough,
+                "{} is implemented and must dispatch locally",
+                entry.name
+            );
+        }
+    });
 }
