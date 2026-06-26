@@ -34,6 +34,20 @@ type PriceListDeleteData = {
   };
 };
 
+type PublicationCreateData = {
+  publicationCreate?: {
+    publication?: { id?: string } | null;
+    userErrors?: UserError[];
+  };
+};
+
+type PublicationDeleteData = {
+  publicationDelete?: {
+    deletedId?: string | null;
+    userErrors?: UserError[];
+  };
+};
+
 type CatalogCreateData = {
   catalogCreate?: {
     catalog?: { id?: string } | null;
@@ -125,11 +139,59 @@ mutation CatalogRelationPriceListDelete($id: ID!) {
 }
 `;
 
+const publicationCreateMutation = `#graphql
+mutation CatalogRelationPublicationCreate($input: PublicationCreateInput!) {
+  publicationCreate(input: $input) {
+    publication {
+      id
+      autoPublish
+      supportsFuturePublishing
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
+const publicationDeleteMutation = `#graphql
+mutation CatalogRelationPublicationDelete($id: ID!) {
+  publicationDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
 const catalogCreateMutation = `#graphql
 mutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {
   catalogCreate(input: $input) {
     catalog {
       id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
+const catalogCreatePublicationMutation = `#graphql
+mutation CatalogCreatePublicationRelation($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+      publication {
+        id
+      }
     }
     userErrors {
       field
@@ -224,6 +286,14 @@ function priceListId(result: ConformanceGraphqlResult<PriceListCreateData>): str
   return id;
 }
 
+function publicationId(result: ConformanceGraphqlResult<PublicationCreateData>): string {
+  const id = result.payload.data?.publicationCreate?.publication?.id;
+  if (typeof id !== 'string') {
+    throw new Error(`publicationCreate did not return an id: ${JSON.stringify(result.payload)}`);
+  }
+  return id;
+}
+
 function catalogId(result: ConformanceGraphqlResult<CatalogCreateData>): string {
   const id = result.payload.data?.catalogCreate?.catalog?.id;
   if (typeof id !== 'string') {
@@ -281,10 +351,11 @@ const unique = Date.now().toString(36);
 const unknownPriceListId = 'gid://shopify/PriceList/9999999999';
 const unknownPublicationId = 'gid://shopify/Publication/9999999999';
 const createdPriceListIds: string[] = [];
+const createdPublicationIds: string[] = [];
 const createdCatalogIds: string[] = [];
 const cases: Array<CapturedCase<unknown>> = [];
 const cleanup: Array<{
-  type: 'catalog' | 'priceList';
+  type: 'catalog' | 'priceList' | 'publication';
   id: string;
   response: ConformanceGraphqlResult<unknown>;
 }> = [];
@@ -388,6 +459,36 @@ try {
     'catalogUpdate publicationId not found',
   );
   cases.push(catalogUpdatePublicationNotFound);
+
+  const publicationForCatalogCreate = await captureCase<PublicationCreateData>(
+    'publicationCreate for catalogCreate publicationId relation',
+    publicationCreateMutation,
+    { input: {} },
+  );
+  assertNoUserErrors(
+    publicationForCatalogCreate.response,
+    'publicationCreate',
+    'publicationCreate for catalogCreate publicationId relation',
+  );
+  const createdPublicationId = publicationId(publicationForCatalogCreate.response);
+  createdPublicationIds.push(createdPublicationId);
+  cases.push(publicationForCatalogCreate);
+
+  const catalogCreateFreshPublication = await captureCase<CatalogCreateData>(
+    'catalogCreate with freshly-created publicationId',
+    catalogCreatePublicationMutation,
+    catalogCreateVariables('Catalog publication fresh attachment', marketId, {
+      publicationId: createdPublicationId,
+    }),
+  );
+  assertNoUserErrors(
+    catalogCreateFreshPublication.response,
+    'catalogCreate',
+    'catalogCreate with freshly-created publicationId',
+  );
+  const freshPublicationCatalogId = catalogId(catalogCreateFreshPublication.response);
+  createdCatalogIds.push(freshPublicationCatalogId);
+  cases.push(catalogCreateFreshPublication);
 } finally {
   for (const id of createdCatalogIds.toReversed()) {
     cleanup.push({
@@ -401,6 +502,13 @@ try {
       type: 'priceList',
       id,
       response: await runGraphqlRequest<PriceListDeleteData>(priceListDeleteMutation, { id }),
+    });
+  }
+  for (const id of createdPublicationIds.toReversed()) {
+    cleanup.push({
+      type: 'publication',
+      id,
+      response: await runGraphqlRequest<PublicationDeleteData>(publicationDeleteMutation, { id }),
     });
   }
 }

@@ -1538,7 +1538,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
             .store
@@ -1551,10 +1551,7 @@ impl DraftProxy {
             json!({
                 "deletedCustomerId": null,
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Customer can’t be deleted because they have associated orders"
-                }]
+                "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
             self.store.staged.customers.remove(&id);
@@ -2424,17 +2421,13 @@ impl DraftProxy {
             self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
         else {
             let user_error = if is_email {
-                json!({
-                    "field": ["input", "customerId"],
-                    "message": "Customer not found",
-                    "code": "INVALID"
-                })
+                user_error(
+                    ["input", "customerId"],
+                    "Customer not found",
+                    Some("INVALID"),
+                )
             } else {
-                json!({
-                    "field": Value::Null,
-                    "message": "Customer not found",
-                    "code": Value::Null
-                })
+                user_error(Value::Null, "Customer not found", None)
             };
             self.record_mutation_log_with_status(
                 request,
@@ -4314,10 +4307,11 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
 }
 
 fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
-    json!({
-        "field": [field],
-        "message": format!("To update {field}, please use the {mutation} Mutation instead")
-    })
+    user_error_omit_code(
+        json!([field]),
+        &format!("To update {field}, please use the {mutation} Mutation instead"),
+        None,
+    )
 }
 
 impl DraftProxy {

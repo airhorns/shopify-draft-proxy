@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-recipient-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-recipient-validation.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The public giftCardUpdate userErrors type in Admin API 2025-01 is generic UserError, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
+  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The public giftCardUpdate userErrors type is generic UserError in the captured API, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -130,10 +130,16 @@
             },
             "validSendAt": {
               "fromCapturePath": "$.proxyVariables.recipientValidation.validSendAt"
+            },
+            "missingRecipientId": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.missingRecipientId"
             }
           }
         },
         "selectedPaths": [
+          "$.createUnknownRecipient",
+          "$.createBlankPreferredName",
+          "$.createBlankMessage",
           "$.createLongPreferredName",
           "$.createLongMessage",
           "$.createHtmlPreferredName",
@@ -143,6 +149,9 @@
           "$.createValidSendAt.giftCard.recipientAttributes.sendNotificationAt",
           "$.createValidSendAt.userErrors",
           "$.updateLongPreferredName",
+          "$.updateUnknownRecipient",
+          "$.updateBlankPreferredName",
+          "$.updateBlankMessage",
           "$.updateLongMessage",
           "$.updateHtmlPreferredName",
           "$.updateHtmlMessage",

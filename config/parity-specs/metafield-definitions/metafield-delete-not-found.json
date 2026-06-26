@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/metafield-definitions/metafield-delete-not-found.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql",
     "apiVersion": "2026-04",
@@ -100,5 +100,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime coverage for the singular `metafieldDelete` compatibility root: happy-path delete of a staged metafield ID, repeat delete of that just-deleted ID, and delete of a never-created ID. Public Admin GraphQL schema probes through 2026-04 and unstable expose only `metafieldsDelete`, so real public-Shopify evidence for the singular root is not available; the current public-root live evidence remains in `config/parity-specs/products/metafieldsDelete-parity-plan.json`."
+  "notes": "Executable Rust local-runtime coverage for the singular `metafieldDelete` compatibility root: happy-path delete of a staged metafield ID, repeat delete of that just-deleted ID, and delete of a never-created ID. Public Admin GraphQL schema probes through 2026-04 and unstable expose only `metafieldsDelete`, so real public-Shopify evidence for the singular root is not available; the current public-root live evidence remains in `config/parity-specs/products/metafieldsDelete-parity-plan.json`."
 }

@@ -327,6 +327,93 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
 }
 
 #[test]
+fn products_bulk_operation_applies_common_search_filters_to_jsonl_artifact() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/alpha".to_string(),
+            title: "Alpha Jacket".to_string(),
+            handle: "alpha-jacket".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/beta".to_string(),
+            title: "Beta Jacket".to_string(),
+            handle: "beta-jacket".to_string(),
+            status: "DRAFT".to_string(),
+            vendor: "Southwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["clearance".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/gamma".to_string(),
+            title: "Gamma Shirt".to_string(),
+            handle: "gamma-shirt".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Shirts".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+    ]);
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunFilteredProductBulkArtifact($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products(query: \"vendor:Northwind product_type:Jackets\") {\n    edges {\n      node {\n        id\n        title\n        status\n        vendor\n        productType\n      }\n    }\n  }\n}" }),
+    ));
+    assert_eq!(run.status, 200);
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFilteredProductBulkArtifact($id: ID!) {
+          bulkOperation(id: $id) { url }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
+    let path = url::Url::parse(url).unwrap().path().to_string();
+    let artifact = proxy.process_request(request_with_body("GET", &path, ""));
+    let rows = artifact
+        .body
+        .as_str()
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("artifact line is JSON"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        rows,
+        vec![json!({
+            "id": "gid://shopify/Product/alpha",
+            "title": "Alpha Jacket",
+            "status": "ACTIVE",
+            "vendor": "Northwind",
+            "productType": "Jackets"
+        })]
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_validates_admin_query_branches() {
     let cases = [
         (
