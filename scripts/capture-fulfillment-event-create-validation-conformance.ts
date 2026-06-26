@@ -313,12 +313,12 @@ const estimatedDeliveryAt = isoWithoutMilliseconds(stamp + 2 * 24 * 60 * 60 * 10
 const orderCreate = await graphqlStep('orderCreate', orderCreateMutation, {
   order: {
     email: `hermes-fulfillment-event-validation-${stamp}@example.com`,
-    note: `HAR-582 fulfillmentEventCreate validation capture ${stamp}`,
-    tags: ['parity-probe', 'har-582', 'fulfillment-event-create'],
+    note: `fulfillmentEventCreate validation capture ${stamp}`,
+    tags: ['parity-probe', 'fulfillment-event-create'],
     test: true,
     lineItems: [
       {
-        title: `HAR-582 fulfillment event item ${stamp}`,
+        title: `fulfillment event item ${stamp}`,
         quantity: 1,
         priceSet: {
           shopMoney: {
@@ -328,7 +328,7 @@ const orderCreate = await graphqlStep('orderCreate', orderCreateMutation, {
         },
         requiresShipping: true,
         taxable: false,
-        sku: `HAR-582-${stamp}`,
+        sku: `FEC-${stamp}`,
       },
     ],
     transactions: [
@@ -364,7 +364,7 @@ const fulfillmentCreate = await graphqlStep('fulfillmentCreate', fulfillmentCrea
     },
     lineItemsByFulfillmentOrder: [{ fulfillmentOrderId }],
   },
-  message: 'HAR-582 fulfillmentEventCreate validation capture',
+  message: 'fulfillmentEventCreate validation capture',
 });
 
 const fulfillment = requirePath(
@@ -411,7 +411,7 @@ const fulfillmentEventCreate = await graphqlStep('fulfillmentEventCreate', fulfi
   fulfillmentEvent: {
     fulfillmentId,
     status: 'IN_TRANSIT',
-    message: 'HAR-582 package scanned in transit',
+    message: 'package scanned in transit',
     happenedAt,
     estimatedDeliveryAt,
     city: 'Toronto',
@@ -447,7 +447,7 @@ const cancelledFulfillmentEventCreateProbe = await graphqlStep(
     fulfillmentEvent: {
       fulfillmentId,
       status: 'DELIVERED',
-      message: 'HAR-582 cancelled fulfillment public API probe',
+      message: 'cancelled fulfillment public API probe',
       happenedAt: deliveredAt,
     },
   },
@@ -489,7 +489,7 @@ const fixture = {
     'Selecting userErrors.code returns a top-level undefinedField error before resolver execution.',
     'Invalid FulfillmentEventStatus variables fail GraphQL coercion with INVALID_VARIABLE before resolver execution.',
     'FulfillmentEventStatus introspection includes DELAYED and CARRIER_PICKED_UP in Admin GraphQL 2026-04.',
-    'The cancelledFulfillmentEventCreateProbe records public API behavior after fulfillmentCancel; HAR-582 local runtime keeps the source-backed cancellation guard.',
+    'The cancelledFulfillmentEventCreateProbe records public API behavior after fulfillmentCancel; fulfillment-state-preconditions replays that accepted branch.',
   ],
   setup: {
     orderCreate,
