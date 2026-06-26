@@ -374,7 +374,7 @@ impl DraftProxy {
                     continue;
                 }
             };
-            let requested_amount = resolved_money_amount_string(capped.get("amount"));
+            let requested_amount = money_amount_string_from_resolved(capped.get("amount"));
             let requested_currency = match capped.get("currencyCode") {
                 Some(ResolvedValue::String(value)) => value.clone(),
                 _ => "USD".to_string(),
@@ -547,7 +547,7 @@ impl DraftProxy {
                 }));
             }
         };
-        let amount = resolved_money_amount_string(price.get("amount"));
+        let amount = money_amount_string_from_resolved(price.get("amount"));
         let currency = match price.get("currencyCode") {
             Some(ResolvedValue::String(value)) => value.clone(),
             _ => "USD".to_string(),
@@ -984,7 +984,7 @@ impl DraftProxy {
             Some(ResolvedValue::Object(price)) => price.clone(),
             _ => BTreeMap::new(),
         };
-        let amount = resolved_money_amount_string(price.get("amount"));
+        let amount = money_amount_string_from_resolved(price.get("amount"));
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {

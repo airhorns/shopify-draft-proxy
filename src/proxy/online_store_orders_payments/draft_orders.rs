@@ -50,7 +50,7 @@ pub(in crate::proxy) fn draft_order_base_record(
             .map(Value::String)
             .unwrap_or(Value::Null),
         "paymentTerms": draft_order_payment_terms(input),
-        "tags": normalize_taggable_tags(resolved_string_list_field_unsorted(input, "tags")),
+        "tags": normalize_taggable_tags(list_string_field(input, "tags")),
         "invoiceUrl": draft_order_invoice_url(id),
         "customAttributes": draft_order_input_custom_attributes(input),
         "appliedDiscount": draft_order_applied_discount(input, original_subtotal),
@@ -127,7 +127,7 @@ pub(in crate::proxy) fn draft_order_line_item(
     currency: &str,
     variant_hydrations: &BTreeMap<String, Value>,
 ) -> Value {
-    let quantity = resolved_i64_field(input, "quantity").unwrap_or(1).max(0);
+    let quantity = resolved_int_field(input, "quantity").unwrap_or(1).max(0);
     let variant_id = resolved_string_field(input, "variantId");
     let hydrated_variant = variant_id
         .as_ref()
@@ -600,7 +600,7 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
     input: &BTreeMap<String, ResolvedValue>,
     update: bool,
 ) -> Option<Vec<Value>> {
-    let tags = resolved_string_list_field_unsorted(input, "tags");
+    let tags = list_string_field(input, "tags");
     let long_tag_errors = tags
         .iter()
         .enumerate()
@@ -640,7 +640,7 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
         }
     }
     for (index, line_item) in line_items.iter().enumerate() {
-        if resolved_i64_field(line_item, "quantity").is_some_and(|quantity| quantity < 1) {
+        if resolved_int_field(line_item, "quantity").is_some_and(|quantity| quantity < 1) {
             return Some(vec![user_error_omit_code(
                 vec![
                     "lineItems".to_string(),
@@ -784,16 +784,6 @@ pub(in crate::proxy) fn draft_order_max_input_error(
     })
 }
 
-pub(in crate::proxy) fn resolved_list_len(
-    input: &BTreeMap<String, ResolvedValue>,
-    field: &str,
-) -> usize {
-    match input.get(field) {
-        Some(ResolvedValue::List(values)) => values.len(),
-        _ => 0,
-    }
-}
-
 impl DraftProxy {
     pub(in crate::proxy) fn draft_order_complete_local_data(
         &mut self,
@@ -808,7 +798,8 @@ impl DraftProxy {
         // Forward a hydrate + observe for a draft not created locally this scenario
         // so completion settles the real draft instead of a precondition seed.
         if root_field == "draftOrderComplete" {
-            if let Some(id) = field.and_then(|field| resolved_string_arg(&field.arguments, "id")) {
+            if let Some(id) = field.and_then(|field| resolved_string_field(&field.arguments, "id"))
+            {
                 self.ensure_draft_order_hydrated(request, &id);
             }
         }
@@ -823,7 +814,7 @@ impl DraftProxy {
             }
             "order" => {
                 let field = field?;
-                let id = resolved_string_arg(&field.arguments, "id")?;
+                let id = resolved_string_field(&field.arguments, "id")?;
                 let order = self.store.staged.orders.get(&id)?;
                 Some(data_response(
                     &field.response_key,
@@ -832,7 +823,8 @@ impl DraftProxy {
             }
             "orders" => {
                 let field = field?;
-                let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                let query_arg =
+                    resolved_string_field(&field.arguments, "query").unwrap_or_default();
                 // This local overlay can only resolve a single `name:` look-up against
                 // orders staged in this scenario (the draft-complete read-back). Catalog
                 // reads — tag/status filters, sort/window/count, multi-alias windows, or a
@@ -903,7 +895,7 @@ impl DraftProxy {
         // has been staged in this scenario; otherwise they fall through to the
         // upstream passthrough so the recorded live catalog replays verbatim.
         let has_staged_read = fields.iter().any(|field| match field.name.as_str() {
-            "draftOrder" => resolved_string_arg(&field.arguments, "id")
+            "draftOrder" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.draft_orders.contains_key(&id)),
             // List/count reads resolve locally once any draft order has existed this
             // scenario (counter advanced past its base) — a session that created then
@@ -926,7 +918,7 @@ impl DraftProxy {
         for field in &fields {
             match field.name.as_str() {
                 "draftOrderUpdate" | "draftOrderDuplicate" => {
-                    if let Some(id) = resolved_string_arg(&field.arguments, "id") {
+                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
                         self.ensure_draft_order_hydrated(request, &id);
                     }
                 }
@@ -934,7 +926,7 @@ impl DraftProxy {
                     let input =
                         resolved_object_field(&field.arguments, "input").unwrap_or_default();
                     if let Some(id) = resolved_string_field(&input, "id")
-                        .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                        .or_else(|| resolved_string_field(&field.arguments, "id"))
                     {
                         self.ensure_draft_order_hydrated(request, &id);
                     }
@@ -945,12 +937,12 @@ impl DraftProxy {
                     }
                 }
                 "draftOrderCreateFromOrder" => {
-                    if let Some(order_id) = resolved_string_arg(&field.arguments, "orderId") {
+                    if let Some(order_id) = resolved_string_field(&field.arguments, "orderId") {
                         self.ensure_order_hydrated(request, &order_id);
                     }
                 }
                 "draftOrderInvoicePreview" | "draftOrder" => {
-                    if let Some(id) = resolved_string_arg(&field.arguments, "id") {
+                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
                         self.ensure_draft_order_hydrated(request, &id);
                     }
                 }
@@ -998,7 +990,7 @@ impl DraftProxy {
                             .filter(|draft_order| {
                                 draft_order_matches_query(
                                     draft_order,
-                                    &resolved_string_arg(&field.arguments, "query")
+                                    &resolved_string_field(&field.arguments, "query")
                                         .unwrap_or_default(),
                                 )
                             })
@@ -1075,7 +1067,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(user_errors) = draft_order_input_user_errors(&input, true) {
             return selected_json(
@@ -1165,7 +1157,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(source) = self.store.staged.draft_orders.get(&id).cloned() else {
             return selected_json(
                 &draft_order_not_found_payload("draftOrder"),
@@ -1220,7 +1212,7 @@ impl DraftProxy {
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         if self.store.staged.draft_orders.remove(&id).is_none() {
             return selected_json(
@@ -1287,7 +1279,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
         let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
             return selected_json(
                 &json!({
@@ -1325,7 +1317,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
             return selected_json(
                 &json!({
@@ -1362,7 +1354,7 @@ impl DraftProxy {
     }
 
     pub(super) fn staged_draft_order_read(&self, field: &RootFieldSelection) -> Value {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return Value::Null;
         };
         self.store
@@ -1374,7 +1366,7 @@ impl DraftProxy {
     }
 
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
         let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
         let edge_node_selection = nested_selected_fields(&field.selection, &["edges", "node"]);
         let mut records = self
@@ -1609,9 +1601,7 @@ impl DraftProxy {
                 .unwrap_or(Value::Null);
         }
         if input.contains_key("tags") {
-            draft_order["tags"] = json!(normalize_taggable_tags(
-                resolved_string_list_field_unsorted(input, "tags")
-            ));
+            draft_order["tags"] = json!(normalize_taggable_tags(list_string_field(input, "tags")));
         }
         if input.contains_key("customAttributes") || input.contains_key("properties") {
             draft_order["customAttributes"] = json!(draft_order_input_custom_attributes(input));
@@ -1752,7 +1742,7 @@ impl DraftProxy {
 
     pub(super) fn draft_order_bulk_target_ids(&self, field: &RootFieldSelection) -> Vec<String> {
         let mut ids = resolved_string_list_arg(&field.arguments, "ids");
-        if ids.is_empty() && resolved_string_arg(&field.arguments, "search").is_some() {
+        if ids.is_empty() && resolved_string_field(&field.arguments, "search").is_some() {
             ids = self.store.staged.draft_orders.keys().cloned().collect();
         }
         ids
@@ -1783,7 +1773,7 @@ impl DraftProxy {
     }
 
     pub(super) fn complete_staged_draft_order(&mut self, field: &RootFieldSelection) -> Value {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
@@ -1816,7 +1806,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let payment_gateway_id = resolved_string_arg(&field.arguments, "paymentGatewayId");
+        let payment_gateway_id = resolved_string_field(&field.arguments, "paymentGatewayId");
         if payment_gateway_id.is_some() {
             return selected_json(
                 &json!({
@@ -1949,10 +1939,10 @@ impl DraftProxy {
             // Forward a hydrate + observe for a draft not created locally this
             // scenario so the invoice send operates on the real draft instead of a
             // precondition seed.
-            if let Some(id) = resolved_string_arg(&field.arguments, "id") {
+            if let Some(id) = resolved_string_field(&field.arguments, "id") {
                 self.ensure_draft_order_hydrated(request, &id);
             }
-            if let Some(template) = resolved_string_arg(&field.arguments, "templateName") {
+            if let Some(template) = resolved_string_field(&field.arguments, "templateName") {
                 if !is_valid_draft_order_invoice_template(&template) {
                     return Some(ok_json(json!({
                         "errors": [{
@@ -2067,7 +2057,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
@@ -2179,8 +2169,8 @@ impl DraftProxy {
         });
         let has_managed_read = fields.iter().any(|field| {
             field.name == "draftOrder"
-                && resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_arg(&field.arguments, "draftOrderId"))
+                && resolved_string_field(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(&field.arguments, "draftOrderId"))
                     .is_some_and(|id| {
                         self.store.staged.taggable_resources.contains_key(&id)
                             || self.store.staged.draft_order_tags.contains_key(&id)
@@ -2213,8 +2203,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {
-        let Some(id) = resolved_string_arg(&field.arguments, "id")
-            .or_else(|| resolved_string_arg(&field.arguments, "draftOrderId"))
+        let Some(id) = resolved_string_field(&field.arguments, "id")
+            .or_else(|| resolved_string_field(&field.arguments, "draftOrderId"))
         else {
             return Value::Null;
         };

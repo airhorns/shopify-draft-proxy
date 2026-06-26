@@ -141,7 +141,7 @@ impl DraftProxy {
                     )
                 }
                 "translatableResource" => {
-                    let resource_id = resolved_string_arg(&field.arguments, "resourceId")
+                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
                     if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
@@ -233,7 +233,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let locale =
-            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let payload = if locale == "en" {
             json!({
                 "shopLocale": null,
@@ -294,11 +294,10 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let locale =
-            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let input = resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
         let published = resolved_bool_field(&input, "published");
-        let market_web_presence_ids =
-            resolved_string_list_field_unsorted(&input, "marketWebPresenceIds");
+        let market_web_presence_ids = list_string_field(&input, "marketWebPresenceIds");
 
         if locale == "en" && published.is_some() {
             return selected_json(
@@ -366,7 +365,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let locale =
-            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let payload = if locale == "en" {
             json!({
                 "locale": null,
@@ -402,7 +401,7 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "market" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .markets
@@ -411,7 +410,7 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "catalog" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .catalogs
@@ -430,7 +429,7 @@ impl DraftProxy {
                     selected_json(&json!({"nodes": nodes}), &field.selection)
                 }
                 "priceList" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .price_lists
@@ -681,7 +680,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let payload = if self.store.staged.markets.remove(&id).is_some() {
             self.cascade_market_delete(&id);
             json!({"deletedId": id, "userErrors": []})
@@ -716,7 +715,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing_market) = self.store.staged.markets.get(&id).cloned() else {
             return selected_json(
                 &json!({
@@ -1200,7 +1199,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         request: &Request,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&id).cloned() else {
             return selected_json(
                 &catalog_payload_error_with_root(
@@ -1288,7 +1287,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let payload = if let Some(catalog) = self.store.staged.catalogs.remove(&id) {
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
@@ -1302,7 +1301,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let catalog_id = resolved_string_arg(&field.arguments, "catalogId").unwrap_or_default();
+        let catalog_id = resolved_string_field(&field.arguments, "catalogId").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&catalog_id).cloned() else {
             return selected_json(
                 &catalog_payload_error_with_root(
@@ -1599,7 +1598,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> PriceListFieldOutcome {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.price_lists.get(&id).cloned() else {
             return PriceListFieldOutcome::payload(selected_json(
                 &price_list_payload_error(
@@ -1741,7 +1740,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let payload = if self.store.staged.price_lists.remove(&id).is_some() {
             self.detach_price_list_from_catalogs(&id);
             json!({"deletedId": id, "userErrors": []})
@@ -2109,7 +2108,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let price_list_id =
-            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "priceListId").unwrap_or_default();
         let variant_ids = resolved_string_list_arg(&field.arguments, "variantIds");
         let payload = if !self
             .store
@@ -2149,7 +2148,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let payload = self.web_presence_helper_update_payload_inner(
             &id, &input, request, query, variables, false,
@@ -2161,7 +2160,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let payload = self.web_presence_delete_payload(&id);
         selected_json(&payload, &field.selection)
     }
@@ -2589,7 +2588,7 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "marketLocalizableResource" => {
-                    let resource_id = resolved_string_arg(&field.arguments, "resourceId")
+                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Metafield/localizable".to_string());
                     if resource_id.contains("missing") {
                         Value::Null
@@ -2669,7 +2668,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
         // 1. Per-mutation key cap fires before resource existence (matches live Shopify).
         if localizations.len() > 100 {
@@ -2809,7 +2808,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self
             .store
             .staged
@@ -2868,7 +2867,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
@@ -3026,7 +3025,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
@@ -3103,8 +3102,8 @@ impl DraftProxy {
                     .collect(),
             )),
             "translations" => {
-                let locale = resolved_string_arg(&selection.arguments, "locale");
-                let market_id = resolved_string_arg(&selection.arguments, "marketId");
+                let locale = resolved_string_field(&selection.arguments, "locale");
+                let market_id = resolved_string_field(&selection.arguments, "marketId");
                 Some(Value::Array(
                     self.localization_translations_for(
                         resource_id,
@@ -3124,7 +3123,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let resource_type = resolved_string_arg(&field.arguments, "resourceType")
+        let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
         let mut records = self
             .localization_translatable_resource_ids()
@@ -3331,7 +3330,7 @@ impl DraftProxy {
             // resource's content has been observed (cold read or mutation preflight),
             // forward verbatim so Shopify reports its real content/digests; afterwards
             // serve the staged read-after-write projection locally.
-            "marketLocalizableResource" => resolved_string_arg(variables, "resourceId")
+            "marketLocalizableResource" => resolved_string_field(variables, "resourceId")
                 .map(|resource_id| {
                     !self
                         .store
@@ -4038,7 +4037,7 @@ fn market_localizations_market_filter(selection: &[SelectedField]) -> Option<Str
     selection
         .iter()
         .find(|field| field.name == "marketLocalizations")
-        .and_then(|field| resolved_string_arg(&field.arguments, "marketId"))
+        .and_then(|field| resolved_string_field(&field.arguments, "marketId"))
 }
 
 fn record_gid(record: &Value, prefix: &str) -> Option<String> {

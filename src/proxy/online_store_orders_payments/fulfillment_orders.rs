@@ -220,8 +220,8 @@ pub(in crate::proxy) fn fulfillment_tracking_info(
 ) -> Vec<Value> {
     let company = resolved_string_field(input, "company")
         .or_else(|| resolved_string_field(input, "trackingCompany"));
-    let numbers = resolved_string_list_field_unsorted(input, "numbers");
-    let urls = resolved_string_list_field_unsorted(input, "urls");
+    let numbers = list_string_field(input, "numbers");
+    let urls = list_string_field(input, "urls");
     if !numbers.is_empty() || !urls.is_empty() {
         let len = numbers.len().max(urls.len());
         return (0..len)
@@ -312,7 +312,7 @@ pub(in crate::proxy) fn fulfillment_group_line_items(
         .iter()
         .filter_map(|requested| {
             let requested_id = resolved_string_field(requested, "id")?;
-            let quantity = resolved_i64_field(requested, "quantity")
+            let quantity = resolved_int_field(requested, "quantity")
                 .unwrap_or(0)
                 .max(0);
             line_nodes
@@ -363,7 +363,7 @@ pub(in crate::proxy) fn fulfillment_create_precondition_error(
             let Some(requested_id) = resolved_string_field(&requested, "id") else {
                 return Some(fulfillment_create_invalid_quantity_error());
             };
-            let requested_quantity = resolved_i64_field(&requested, "quantity").unwrap_or(0);
+            let requested_quantity = resolved_int_field(&requested, "quantity").unwrap_or(0);
             let Some(line) = line_nodes
                 .iter()
                 .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
@@ -630,7 +630,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
             let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
@@ -655,7 +655,7 @@ impl DraftProxy {
     ) -> Value {
         let requested_lines =
             resolved_object_list_field(&field.arguments, "fulfillmentOrderLineItems");
-        let message = resolved_string_arg(&field.arguments, "message");
+        let message = resolved_string_field(&field.arguments, "message");
         let notify_customer =
             resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
 
@@ -693,7 +693,7 @@ impl DraftProxy {
                 .filter_map(|line| {
                     Some((
                         resolved_string_field(line, "id")?,
-                        resolved_i64_field(line, "quantity").unwrap_or(0).max(0),
+                        resolved_int_field(line, "quantity").unwrap_or(0).max(0),
                     ))
                 })
                 .collect::<Vec<_>>()
@@ -778,7 +778,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
             let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
@@ -812,7 +812,8 @@ impl DraftProxy {
             "fulfillmentOrderAcceptFulfillmentRequest" => {
                 fulfillment_order["status"] = json!("IN_PROGRESS");
                 fulfillment_order["requestStatus"] = json!("ACCEPTED");
-                if let Some(estimated) = resolved_string_arg(&field.arguments, "estimatedShippedAt")
+                if let Some(estimated) =
+                    resolved_string_field(&field.arguments, "estimatedShippedAt")
                 {
                     fulfillment_order["estimatedShippedAt"] = json!(estimated);
                 }
@@ -830,7 +831,7 @@ impl DraftProxy {
                     .unwrap_or_default();
                 requests.push(json!({
                     "kind": "CANCELLATION_REQUEST",
-                    "message": resolved_string_arg(&field.arguments, "message").unwrap_or_default(),
+                    "message": resolved_string_field(&field.arguments, "message").unwrap_or_default(),
                     "requestOptions": {},
                     "responseData": Value::Null
                 }));
@@ -917,7 +918,7 @@ impl DraftProxy {
                 );
             }
             for (line_index, line) in line_inputs.iter().enumerate() {
-                if resolved_i64_field(line, "quantity").unwrap_or(0) <= 0 {
+                if resolved_int_field(line, "quantity").unwrap_or(0) <= 0 {
                     return fulfillment_order_split_payload_json(
                         Value::Null,
                         &field.selection,
@@ -976,7 +977,7 @@ impl DraftProxy {
                 let split_quantity = line_inputs
                     .iter()
                     .find(|input| resolved_string_field(input, "id").as_deref() == Some(line_id))
-                    .and_then(|input| resolved_i64_field(input, "quantity"))
+                    .and_then(|input| resolved_int_field(input, "quantity"))
                     .unwrap_or(0);
                 let current = line_item_remaining_quantity(&line);
                 if split_quantity > current {
@@ -1061,7 +1062,7 @@ impl DraftProxy {
         let mut result = Vec::new();
         for (request_index, request) in requested.iter().enumerate() {
             let requested_id = resolved_string_field(request, "id").unwrap_or_default();
-            let quantity = resolved_i64_field(request, "quantity").unwrap_or(0);
+            let quantity = resolved_int_field(request, "quantity").unwrap_or(0);
             if quantity <= 0 {
                 return Err(fulfillment_order_user_error(
                     json!([
@@ -1464,7 +1465,7 @@ impl DraftProxy {
                             for requested in &requested_line_items {
                                 let requested_id =
                                     resolved_string_field(requested, "id").unwrap_or_default();
-                                let quantity = resolved_i64_field(requested, "quantity")
+                                let quantity = resolved_int_field(requested, "quantity")
                                     .unwrap_or(0)
                                     .max(0);
                                 if let Some(line) = line_nodes
@@ -1520,7 +1521,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "id")?;
         let fulfillment = self
             .store
             .staged
@@ -1651,7 +1652,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "fulfillmentId")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "fulfillmentId")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
             .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
@@ -1701,7 +1702,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "id")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
             .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;

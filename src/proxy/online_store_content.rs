@@ -27,7 +27,7 @@ impl DraftProxy {
     ) -> Option<Value> {
         match field.name.as_str() {
             "blog" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
                     self.online_store_blog_value(&id, &field.selection)
                         .unwrap_or(Value::Null),
@@ -44,7 +44,7 @@ impl DraftProxy {
                 &field.selection,
             )),
             "page" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
                     self.online_store_page_value(&id, &field.selection)
                         .unwrap_or(Value::Null),
@@ -61,14 +61,14 @@ impl DraftProxy {
                 &field.selection,
             )),
             "article" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
                     self.online_store_article_value(&id, &field.selection)
                         .unwrap_or(Value::Null),
                 )
             }
             "articles" => {
-                let query = resolved_string_arg(&field.arguments, "query");
+                let query = resolved_string_field(&field.arguments, "query");
                 let mut records = self.online_store_article_records();
                 records.retain(|article| article["isPublished"].as_bool().unwrap_or(false));
                 if let Some(query) = query.as_deref() {
@@ -121,7 +121,7 @@ impl DraftProxy {
                 Some(Value::Array(tags))
             }
             "comment" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
                     self.online_store_comment_value(&id, &field.selection)
                         .unwrap_or(Value::Null),
@@ -427,7 +427,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_blogs.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -489,7 +489,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_blogs.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -592,7 +592,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_pages.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -679,7 +679,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_pages.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -801,7 +801,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_articles.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -886,7 +886,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_articles.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -924,7 +924,7 @@ impl DraftProxy {
         root: &str,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_comments.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -1015,7 +1015,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.online_store_comments.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,

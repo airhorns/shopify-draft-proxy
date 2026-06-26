@@ -97,12 +97,12 @@ impl DraftProxy {
     fn discount_read_field_is_cold(&self, field: &RootFieldSelection) -> bool {
         match field.name.as_str() {
             "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => {
-                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !self.store.staged.discounts.contains_key(&id)
                     && !self.store.staged.discounts.is_tombstoned(&id)
             }
             "codeDiscountNodeByCode" => {
-                let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
                 !self
                     .store
                     .staged
@@ -114,7 +114,7 @@ impl DraftProxy {
             | "automaticDiscountNodes"
             | "codeDiscountNodes" => !self.has_staged_discounts(),
             "discountRedeemCodeBulkCreation" => {
-                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !self
                     .store
                     .staged
@@ -751,7 +751,7 @@ impl DraftProxy {
         discount_kind: &str,
         typename: &str,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
         let existing_record = self.discount_record(&id).cloned();
         let user_errors = match existing_record.as_ref() {
@@ -883,7 +883,7 @@ impl DraftProxy {
         discount_kind: &str,
         typename: &str,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
         let mut errors = if self.discount_record(&id).is_none() {
             vec![discount_user_error(
@@ -933,7 +933,7 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let activating = field.name.ends_with("Activate");
         let mut record = match self.discount_record(&id).cloned() {
             Some(record) => record,
@@ -1085,7 +1085,7 @@ impl DraftProxy {
     }
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let exists = self.discount_record(&id).is_some();
         if !exists {
             return MutationFieldOutcome::unlogged(discount_delete_payload(
@@ -1250,7 +1250,7 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let discount_id = resolved_field_string_arg(field, "discountId").unwrap_or_default();
+        let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
@@ -1369,7 +1369,7 @@ impl DraftProxy {
                 )]
             }));
         }
-        let discount_id = resolved_field_string_arg(field, "discountId").unwrap_or_default();
+        let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
@@ -1442,21 +1442,21 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "discountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id).map(discount_admin_node_for_record)
                 }
                 "codeDiscountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id).map(discount_node_for_record)
                 }
                 "automaticDiscountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
                         .filter(|record| discount_kind(record) == "automatic")
                         .map(discount_node_for_record)
                 }
                 "codeDiscountNodeByCode" => {
-                    let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                    let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
                     self.store
                         .staged
                         .discount_code_index
@@ -1492,7 +1492,7 @@ impl DraftProxy {
                     "precision": "EXACT"
                 })),
                 "discountRedeemCodeBulkCreation" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .discount_redeem_code_bulk_creations
@@ -1512,7 +1512,7 @@ impl DraftProxy {
     }
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
-        let query = resolved_field_string_arg(field, "query").unwrap_or_default();
+        let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
         self.store
             .staged
             .discounts
@@ -4122,16 +4122,6 @@ pub(in crate::proxy) fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec
             })
             .collect(),
         _ => Vec::new(),
-    }
-}
-
-pub(in crate::proxy) fn resolved_field_string_arg(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<String> {
-    match field.arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
     }
 }
 
