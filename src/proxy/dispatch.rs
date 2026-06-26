@@ -514,6 +514,9 @@ impl DraftProxy {
                     .unwrap_or(Value::Null),
             );
         }
+        if let Some(function) = self.store.staged.function_metadata.get(id) {
+            return Some(selected_json(function, selection));
+        }
         if let Some(validation) = self.store.staged.function_validations.get(id) {
             return Some(selected_json(
                 &validation_record_for_selection(validation, selection),
@@ -1736,7 +1739,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let data = self.functions_metadata_mutation_data(&fields);
+                let data = self.functions_metadata_mutation_data(request, &fields);
                 self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 ok_json(json!({ "data": data }))
             }
@@ -1749,7 +1752,11 @@ impl DraftProxy {
                 // and their app ownership metadata. Once a lifecycle is staged we
                 // serve locally (read-after-write / read-after-delete).
                 if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status == 200 {
+                        self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                    }
+                    response
                 } else {
                     let fields = try_root_fields!(&query, &variables);
                     let mut selection_errors =
@@ -1758,7 +1765,9 @@ impl DraftProxy {
                         &query, &variables, &fields,
                     ));
                     if selection_errors.is_empty() {
-                        ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                        ok_json(
+                            json!({ "data": self.functions_metadata_read_data(request, &fields) }),
+                        )
                     } else {
                         ok_json(json!({ "errors": selection_errors }))
                     }
@@ -2500,7 +2509,7 @@ impl DraftProxy {
                 ),
             (_, CapabilityExecution::OverlayRead) => no_dispatcher("overlay-read", root_field),
             (_, CapabilityExecution::StageLocally) => no_dispatcher("stage-locally", root_field),
-            (_, CapabilityExecution::Passthrough) => no_dispatcher("passthrough", root_field),
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
 }

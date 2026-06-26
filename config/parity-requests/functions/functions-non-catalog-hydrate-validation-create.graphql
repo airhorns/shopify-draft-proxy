@@ -1,0 +1,27 @@
+mutation FunctionsNonCatalogHydrateValidationCreate($validation: ValidationCreateInput!) {
+  validationCreate(validation: $validation) {
+    validation {
+      id
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        id
+        title
+        apiType
+        appKey
+        app {
+          __typename
+          id
+          title
+          apiKey
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -438,7 +438,6 @@ struct StagedState {
     next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
-    draft_order_complete_gateway_create_count: usize,
     order_customer_orders: BTreeMap<String, Value>,
     order_customer_cancelled_ids: BTreeSet<String>,
     order_customer_b2b_order_ids: BTreeSet<String>,
@@ -461,6 +460,8 @@ struct StagedState {
     order_edit_author: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
+    function_metadata: BTreeMap<String, Value>,
+    function_metadata_order: Vec<String>,
     function_validations: BTreeMap<String, Value>,
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
@@ -851,7 +852,6 @@ impl Default for StagedState {
             next_draft_order_id: 1,
             draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
-            draft_order_complete_gateway_create_count: 0,
             order_customer_orders: BTreeMap::new(),
             order_customer_cancelled_ids: BTreeSet::new(),
             order_customer_b2b_order_ids: BTreeSet::new(),
@@ -867,6 +867,8 @@ impl Default for StagedState {
             order_edit_author: None,
             function_validation: None,
             function_cart_transform: None,
+            function_metadata: BTreeMap::new(),
+            function_metadata_order: Vec::new(),
             function_validations: BTreeMap::new(),
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
@@ -896,6 +898,28 @@ fn effective_get<'a, T>(
         return None;
     }
     staged.get(id).or_else(|| base.get(id))
+}
+
+fn effective_find<'a, T, F>(
+    base: &'a OrderedRecords<T>,
+    staged: &'a StagedRecords<T>,
+    mut predicate: F,
+) -> Option<&'a T>
+where
+    F: FnMut(&T) -> bool,
+{
+    staged
+        .order
+        .iter()
+        .filter_map(|id| staged.get(id))
+        .find(|record| predicate(*record))
+        .or_else(|| {
+            base.order
+                .iter()
+                .filter(|id| !staged.is_tombstoned(id) && !staged.contains_staged(id))
+                .filter_map(|id| base.get(id))
+                .find(|record| predicate(*record))
+        })
 }
 
 fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> Vec<T> {
@@ -1065,25 +1089,11 @@ impl Store {
     }
 
     fn shop_policy_by_type(&self, policy_type: &str) -> Option<&ShopPolicyRecord> {
-        self.staged
-            .shop_policies
-            .order
-            .iter()
-            .filter(|id| !self.staged.shop_policies.is_tombstoned(id))
-            .filter_map(|id| self.staged.shop_policies.get(id))
-            .find(|policy| policy.policy_type == policy_type)
-            .or_else(|| {
-                self.base
-                    .shop_policies
-                    .order
-                    .iter()
-                    .filter(|id| {
-                        !self.staged.shop_policies.is_tombstoned(id)
-                            && !self.staged.shop_policies.contains_staged(id)
-                    })
-                    .filter_map(|id| self.base.shop_policies.get(id))
-                    .find(|policy| policy.policy_type == policy_type)
-            })
+        effective_find(
+            &self.base.shop_policies,
+            &self.staged.shop_policies,
+            |policy| policy.policy_type == policy_type,
+        )
     }
 
     fn shop_policies(&self) -> Vec<ShopPolicyRecord> {
@@ -1099,25 +1109,9 @@ impl Store {
     }
 
     fn product_by_handle(&self, handle: &str) -> Option<&ProductRecord> {
-        self.staged
-            .products
-            .order
-            .iter()
-            .filter(|id| !self.staged.products.is_tombstoned(id))
-            .filter_map(|id| self.staged.products.get(id))
-            .find(|product| product.handle == handle)
-            .or_else(|| {
-                self.base
-                    .products
-                    .order
-                    .iter()
-                    .filter(|id| {
-                        !self.staged.products.is_tombstoned(id)
-                            && !self.staged.products.contains_staged(id)
-                    })
-                    .filter_map(|id| self.base.products.get(id))
-                    .find(|product| product.handle == handle)
-            })
+        effective_find(&self.base.products, &self.staged.products, |product| {
+            product.handle == handle
+        })
     }
 
     fn products(&self) -> Vec<ProductRecord> {
@@ -1328,25 +1322,11 @@ impl Store {
         &self,
         inventory_item_id: &str,
     ) -> Option<&ProductVariantRecord> {
-        self.staged
-            .product_variants
-            .order
-            .iter()
-            .filter(|id| !self.staged.product_variants.is_tombstoned(id))
-            .filter_map(|id| self.staged.product_variants.get(id))
-            .find(|variant| variant.inventory_item.id == inventory_item_id)
-            .or_else(|| {
-                self.base
-                    .product_variants
-                    .order
-                    .iter()
-                    .filter(|id| {
-                        !self.staged.product_variants.is_tombstoned(id)
-                            && !self.staged.product_variants.contains_staged(id)
-                    })
-                    .filter_map(|id| self.base.product_variants.get(id))
-                    .find(|variant| variant.inventory_item.id == inventory_item_id)
-            })
+        effective_find(
+            &self.base.product_variants,
+            &self.staged.product_variants,
+            |variant| variant.inventory_item.id == inventory_item_id,
+        )
     }
 
     fn product_variants_for_product(&self, product_id: &str) -> Vec<ProductVariantRecord> {
@@ -1592,9 +1572,6 @@ impl Store {
     }
 
     fn selling_plan_group_by_id(&self, id: &str) -> Option<&SellingPlanGroupRecord> {
-        if self.staged.selling_plan_groups.is_tombstoned(id) {
-            return None;
-        }
         self.staged.selling_plan_groups.get(id)
     }
 
