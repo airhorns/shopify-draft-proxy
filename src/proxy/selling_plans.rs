@@ -122,9 +122,8 @@ impl DraftProxy {
         }
 
         let resources = resolved_object_field(&field.arguments, "resources").unwrap_or_default();
-        let product_ids = resolved_string_list_field_unsorted(&resources, "productIds");
-        let product_variant_ids =
-            resolved_string_list_field_unsorted(&resources, "productVariantIds");
+        let product_ids = list_string_field(&resources, "productIds");
+        let product_variant_ids = list_string_field(&resources, "productVariantIds");
         if let Some(error) = self.resource_existence_error(&product_ids, ResourceKind::Product) {
             return fail(
                 self,
@@ -164,7 +163,7 @@ impl DraftProxy {
             merchant_code: resolved_string_field(&input, "merchantCode")
                 .unwrap_or_else(|| name.clone()),
             description: resolved_string_field(&input, "description").unwrap_or_default(),
-            options: resolved_string_list_field_unsorted(&input, "options"),
+            options: list_string_field(&input, "options"),
             position: resolved_int_field(&input, "position").unwrap_or(1),
             created_at,
             name,
@@ -235,14 +234,14 @@ impl DraftProxy {
             group.description = description;
         }
         if input.contains_key("options") {
-            group.options = resolved_string_list_field_unsorted(&input, "options");
+            group.options = list_string_field(&input, "options");
         }
         if let Some(position) = resolved_int_field(&input, "position") {
             group.position = position;
         }
 
         let mut deleted_plan_ids = Vec::new();
-        for id in resolved_string_list_field_unsorted(&input, "sellingPlansToDelete") {
+        for id in list_string_field(&input, "sellingPlansToDelete") {
             if let Some(index) = group.selling_plans.iter().position(|plan| plan.id == id) {
                 deleted_plan_ids.push(group.selling_plans.remove(index).id);
             }
@@ -323,7 +322,7 @@ impl DraftProxy {
         resource_kind: ResourceKind,
     ) -> MutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = resolved_string_list_field_unsorted(&field.arguments, resource_kind.ids_arg());
+        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
         let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
             proxy.selling_plan_failed_outcome(
@@ -396,7 +395,7 @@ impl DraftProxy {
         resource_kind: ResourceKind,
     ) -> MutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = resolved_string_list_field_unsorted(&field.arguments, resource_kind.ids_arg());
+        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
             return self.selling_plan_failed_outcome(
@@ -439,8 +438,7 @@ impl DraftProxy {
         is_join: bool,
     ) -> MutationOutcome {
         let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let group_ids =
-            resolved_string_list_field_unsorted(&field.arguments, "sellingPlanGroupIds");
+        let group_ids = list_string_field(&field.arguments, "sellingPlanGroupIds");
         let payload_selection = &field.selection;
         let response = |proxy: &Self, user_errors: Vec<Value>| {
             resource_join_leave_payload(
@@ -546,9 +544,8 @@ impl DraftProxy {
             "sellingPlanGroupCreate" => {
                 let resources =
                     resolved_object_field(&field.arguments, "resources").unwrap_or_default();
-                let product_ids = resolved_string_list_field_unsorted(&resources, "productIds");
-                let variant_ids =
-                    resolved_string_list_field_unsorted(&resources, "productVariantIds");
+                let product_ids = list_string_field(&resources, "productIds");
+                let variant_ids = list_string_field(&resources, "productVariantIds");
                 product_ids
                     .iter()
                     .all(|id| self.has_resource(id, ResourceKind::Product))
@@ -914,7 +911,7 @@ fn selling_plan_group_input_user_errors(
     mode: SellingPlanInputMode,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    if resolved_string_list_field_unsorted(input, "options").len() > 3 {
+    if list_string_field(input, "options").len() > 3 {
         errors.push(user_error(
             ["input", "options"],
             "Too many selling plan group options (maximum 3 options)",
@@ -1034,7 +1031,7 @@ fn selling_plan_input_user_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let index = index.to_string();
-    if resolved_string_list_field_unsorted(plan, "options").len() > 3 {
+    if list_string_field(plan, "options").len() > 3 {
         errors.push(user_error(
             vec![
                 "input".to_string(),
@@ -1237,7 +1234,7 @@ fn selling_plan_record_from_input(
         id,
         name: resolved_string_field(input, "name").unwrap_or_default(),
         description: resolved_string_field(input, "description").unwrap_or_default(),
-        options: resolved_string_list_field_unsorted(input, "options"),
+        options: list_string_field(input, "options"),
         position: resolved_int_field(input, "position").unwrap_or((index + 1) as i64),
         category: resolved_string_field(input, "category").unwrap_or_else(|| "OTHER".to_string()),
         created_at: created_at.to_string(),
@@ -1262,7 +1259,7 @@ fn apply_selling_plan_update(
         plan.description = description;
     }
     if input.contains_key("options") {
-        plan.options = resolved_string_list_field_unsorted(input, "options");
+        plan.options = list_string_field(input, "options");
     }
     if let Some(position) = resolved_int_field(input, "position") {
         plan.position = position;

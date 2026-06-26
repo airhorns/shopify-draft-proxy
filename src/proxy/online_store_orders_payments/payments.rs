@@ -140,7 +140,7 @@ pub(in crate::proxy) fn order_line_unit_amount(line: &Value) -> f64 {
 }
 
 pub(in crate::proxy) fn refund_line_item_quantity(input: &BTreeMap<String, ResolvedValue>) -> i64 {
-    resolved_i64_field(input, "quantity").unwrap_or(1).max(0)
+    resolved_int_field(input, "quantity").unwrap_or(1).max(0)
 }
 
 pub(in crate::proxy) fn refund_input_transaction_amount(
@@ -1037,7 +1037,7 @@ impl DraftProxy {
             }
             "transactionVoid" => {
                 let field = field?;
-                let parent_id = resolved_string_arg(&field.arguments, "parentTransactionId")
+                let parent_id = resolved_string_field(&field.arguments, "parentTransactionId")
                     .or_else(|| resolved_string_field(variables, "id"))?;
                 let (transaction, user_errors, staged_ids) = self.stage_payment_void(&parent_id);
                 if !staged_ids.is_empty() {
@@ -1059,7 +1059,7 @@ impl DraftProxy {
                     .is_some_and(order_read_selects_payment_transaction_fields) =>
             {
                 let field = field?;
-                let id = resolved_string_arg(&field.arguments, "id")?;
+                let id = resolved_string_field(&field.arguments, "id")?;
                 let order = self.store.staged.orders.get(&id)?;
                 Some(data_response(
                     &field.response_key,
@@ -1089,11 +1089,11 @@ impl DraftProxy {
                         }]
                     }));
                 }
-                let order = resolved_string_arg(&field.arguments, "id")
+                let order = resolved_string_field(&field.arguments, "id")
                     .or_else(|| resolved_string_field(variables, "id"))
                     .and_then(|id| self.store.staged.orders.get(&id).cloned())
                     .unwrap_or(Value::Null);
-                let idempotency_key = resolved_string_arg(&field.arguments, "idempotencyKey")
+                let idempotency_key = resolved_string_field(&field.arguments, "idempotencyKey")
                     .or_else(|| resolved_string_field(variables, "idempotencyKey"));
                 let Some(idempotency_key) = idempotency_key else {
                     return Some(data_response(
@@ -1112,7 +1112,7 @@ impl DraftProxy {
                         ),
                     ));
                 };
-                let order_id = resolved_string_arg(&field.arguments, "id")
+                let order_id = resolved_string_field(&field.arguments, "id")
                     .or_else(|| resolved_string_field(variables, "id"))
                     .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
                 let amount_input = resolved_object_field(&field.arguments, "amount")
@@ -1654,7 +1654,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "paymentCustomization" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     match self.store.staged.payment_customizations.get(&id) {
                         Some(record) => selected_json(record, &field.selection),
                         None => Value::Null,
@@ -1796,7 +1796,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
         let Some(existing) = self.store.staged.payment_customizations.get(&id).cloned() else {
@@ -1920,7 +1920,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self
             .store
             .staged
