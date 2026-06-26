@@ -548,6 +548,116 @@ fn product_media_missing_media_errors_use_media_user_error_code_and_captured_mes
 }
 
 #[test]
+fn product_media_missing_media_errors_aggregate_all_missing_ids() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("media validation should use local product state"));
+    let ready_media_id =
+        create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Ready media");
+
+    let before_invalid = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMediaBeforeInvalidMutation($productId: ID!) {
+          product(id: $productId) {
+            media(first: 10) {
+              nodes { id alt mediaContentType status }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(before_invalid.status, 200);
+    assert_eq!(
+        before_invalid.body["data"]["product"]["media"]["nodes"][0]["id"],
+        json!(ready_media_id)
+    );
+    let media_before_invalid = before_invalid.body["data"]["product"]["media"]["nodes"].clone();
+
+    let missing_media_ids = [
+        "gid://shopify/MediaImage/999999999998",
+        "gid://shopify/MediaImage/999999999999",
+    ];
+    let expected_plural_message = format!(
+        "Media ids {},{} do not exist",
+        missing_media_ids[0], missing_media_ids[1]
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingMediaUpdate($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media { id }
+            userErrors { field message code }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [
+                { "id": missing_media_ids[0], "alt": "Missing one" },
+                { "id": missing_media_ids[1], "alt": "Missing two" }
+            ]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let update_payload = &update.body["data"]["productUpdateMedia"];
+    let expected_update_errors = json!([{
+        "field": ["media"],
+        "message": expected_plural_message,
+        "code": "MEDIA_DOES_NOT_EXIST"
+    }]);
+    assert_eq!(update_payload["media"], Value::Null);
+    assert_eq!(update_payload["mediaUserErrors"], expected_update_errors);
+    assert_eq!(update_payload["userErrors"], expected_update_errors);
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingMediaDelete($productId: ID!, $mediaIds: [ID!]!) {
+          productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+            deletedMediaIds
+            deletedProductImageIds
+            userErrors { field message code }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "mediaIds": missing_media_ids }),
+    ));
+    assert_eq!(delete.status, 200);
+    let delete_payload = &delete.body["data"]["productDeleteMedia"];
+    let expected_delete_errors = json!([{
+        "field": ["mediaIds"],
+        "message": expected_plural_message,
+        "code": "MEDIA_DOES_NOT_EXIST"
+    }]);
+    assert_eq!(delete_payload["deletedMediaIds"], Value::Null);
+    assert_eq!(delete_payload["deletedProductImageIds"], Value::Null);
+    assert_eq!(delete_payload["mediaUserErrors"], expected_delete_errors);
+    assert_eq!(delete_payload["userErrors"], expected_delete_errors);
+
+    let after_invalid = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMediaAfterInvalidMutation($productId: ID!) {
+          product(id: $productId) {
+            media(first: 10) {
+              nodes { id alt mediaContentType status }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(after_invalid.status, 200);
+    assert_eq!(
+        after_invalid.body["data"]["product"]["media"]["nodes"], media_before_invalid,
+        "rejected update/delete should not stage product media changes"
+    );
+}
+
+#[test]
 fn product_reorder_media_unknown_media_id_returns_async_job_without_immediate_error() {
     let product_id = "gid://shopify/Product/1";
     let missing_media_id = "gid://shopify/MediaImage/999999999999";
