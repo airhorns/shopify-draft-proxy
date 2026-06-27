@@ -1303,6 +1303,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-media-missing-media-aggregation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-media-missing-media-aggregation-conformance.mts',
+    purpose:
+      'Product media update/delete validation for aggregating multiple missing media IDs into one MEDIA_DOES_NOT_EXIST error.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-media-missing-media-aggregation.json',
+      'config/parity-requests/products/productUpdateMedia-missing-media-aggregation.graphql',
+      'config/parity-requests/products/productDeleteMedia-missing-media-aggregation.graphql',
+      'config/parity-specs/products/product-media-missing-media-aggregation.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product with one product media node, records update/delete requests for two nonexistent media IDs, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'files',
     captureId: 'file-mutations',
     scriptPath: 'scripts/capture-file-mutation-conformance.mts',
