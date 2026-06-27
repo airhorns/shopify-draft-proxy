@@ -1293,12 +1293,8 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: 
     })
 }
 
-pub(in crate::proxy) fn shop_locale_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(field, message, Some(code))
+pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
