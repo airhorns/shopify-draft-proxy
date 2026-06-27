@@ -1607,6 +1607,17 @@ impl DraftProxy {
         let assignment_id =
             resolved_string_field(&field.arguments, "companyContactRoleAssignmentId")
                 .unwrap_or_default();
+        let Some(company_contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
+            return (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "companyContact": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        };
         let assignment_matches_contact = self
             .store
             .staged
@@ -1627,13 +1638,6 @@ impl DraftProxy {
             );
         }
 
-        let company_contact = self
-            .store
-            .staged
-            .b2b_contacts
-            .get(&contact_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let _ = self.b2b_remove_role_assignment(&assignment_id);
         (
             json!({
@@ -1646,17 +1650,62 @@ impl DraftProxy {
         )
     }
 
-    /// Revokes contact role assignments by id, reporting a per-index
-    /// RESOURCE_NOT_FOUND for any unknown assignment id.
+    /// Revokes contact role assignments by id, validating the parent contact
+    /// first and reporting a per-index RESOURCE_NOT_FOUND for unknown or
+    /// differently-scoped assignment ids.
     pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "roleAssignmentIds");
+        let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
+        if assignment_ids.is_empty() && !revoke_all {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let ids_to_revoke = if revoke_all {
+            self.store
+                .staged
+                .b2b_role_assignments
+                .iter()
+                .filter(|(_, assignment)| {
+                    assignment["companyContactId"].as_str() == Some(contact_id.as_str())
+                })
+                .map(|(assignment_id, _)| assignment_id.clone())
+                .collect::<Vec<String>>()
+        } else {
+            assignment_ids.clone()
+        };
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
-        for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if self.b2b_remove_role_assignment(assignment_id).is_some() {
+        for (index, assignment_id) in ids_to_revoke.iter().enumerate() {
+            let assignment_matches_contact = self
+                .store
+                .staged
+                .b2b_role_assignments
+                .get(assignment_id)
+                .and_then(|assignment| assignment["companyContactId"].as_str())
+                == Some(contact_id.as_str());
+            if assignment_matches_contact {
+                let _ = self.b2b_remove_role_assignment(assignment_id);
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -1670,7 +1719,7 @@ impl DraftProxy {
         let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
-                "revokedRoleAssignmentIds": revoked_ids,
+                "revokedRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
                 "userErrors": user_errors
             }),
             status,
@@ -2365,18 +2414,32 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
+        let location_id =
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "rolesToRevoke");
+        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "revokedCompanyContactRoleAssignmentIds": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-                if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                    self.b2b_remove_location_assignment_id(
-                        location_id,
-                        "roleAssignmentIds",
-                        assignment_id,
-                    );
-                }
+            let assignment_matches_location = self
+                .store
+                .staged
+                .b2b_role_assignments
+                .get(assignment_id)
+                .and_then(|assignment| assignment["companyLocationId"].as_str())
+                == Some(location_id.as_str());
+            if assignment_matches_location {
+                let _ = self.b2b_remove_role_assignment(assignment_id);
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -2390,8 +2453,8 @@ impl DraftProxy {
         let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
-                "revokedRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
-                "revokedCompanyContactRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
+                "revokedRoleAssignmentIds": revoked_ids,
+                "revokedCompanyContactRoleAssignmentIds": revoked_ids,
                 "userErrors": user_errors
             }),
             status,

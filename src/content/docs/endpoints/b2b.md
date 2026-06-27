@@ -94,6 +94,12 @@ that pointer. Assigning an unknown contact returns `RESOURCE_NOT_FOUND`;
 assigning a contact that exists on another staged company returns
 `INVALID_INPUT` at `["companyContactId"]` without mutating the target company.
 
+`companyContactRevokeRole` and `companyContactRevokeRoles` validate the parent
+contact before revoking assignments. Bulk contact revocation rejects empty
+`roleAssignmentIds` when `revokeAll` is false, emits indexed
+`RESOURCE_NOT_FOUND` errors at `["roleAssignmentIds", i]` for assignments that
+are missing or belong to another contact, and still revokes valid siblings.
+
 `companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`, and
 `companyLocationsDelete` stage the company-location lifecycle. Location create
 uses the Shopify-like fallback chain `input.name` -> `shippingAddress.address1`
@@ -124,8 +130,10 @@ staged contact and role exist and returns indexed `RESOURCE_NOT_FOUND` errors at
 role-per-contact-per-location rule: an entry whose contact already holds any
 role at the target location returns indexed `LIMIT_REACHED` at
 `["rolesToAssign", i]`, while valid sibling entries in the same request still
-stage and return in `roleAssignments`. Revoke returns indexed
-missing-assignment errors at `["rolesToRevoke", i]`.
+stage and return in `roleAssignments`. Revoke validates the parent location,
+returns `RESOURCE_NOT_FOUND` at `["companyLocationId"]` when it is missing, and
+returns indexed `RESOURCE_NOT_FOUND` errors at `["rolesToRevoke", i]` for
+assignments that are missing or belong to another location.
 
 `companyLocationTaxSettingsUpdate` stages `taxExempt`, `taxRegistrationId`, and
 tax-exemption assignment/removal under `CompanyLocation.taxSettings`. Exemption
@@ -172,7 +180,9 @@ the covered request shape, including `editableShippingAddress`,
   `config/parity-specs/b2b/b2b-bulk-mutation-field-paths.json`
 - Contact/location-role parity:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
-  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`
+  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`.
+  Focused revoke-role scope regression branches are covered by
+  `config/parity-specs/b2b/b2b-revoke-role-scope-regression-branches.json`
 - Company-location tax-settings parity:
   `config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
 - Bulk duplicate role-assignment parity:
