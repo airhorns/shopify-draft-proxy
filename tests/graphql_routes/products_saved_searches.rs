@@ -2127,7 +2127,10 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
     assert_eq!(invalid_update.status, 200);
     assert_eq!(
         invalid_update.body["data"]["productVariantsBulkUpdate"]["productVariants"],
-        Value::Null
+        json!([
+            { "id": red_id, "sku": "RED", "price": "10.00" },
+            { "id": blue_id, "sku": "BLUE", "price": "11.00" }
+        ])
     );
     assert!(
         invalid_update.body["data"]["productVariantsBulkUpdate"]["userErrors"]
@@ -2272,6 +2275,214 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
     );
 
     assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
+fn product_variants_bulk_update_stages_valid_inputs_when_partial_updates_allowed() {
+    let forwarded = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&forwarded);
+    let product_id = "gid://shopify/Product/partial-update";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            panic!("supported bulk variant update should not call upstream")
+        });
+    let red = create_legacy_variant(&mut proxy, product_id, "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, product_id, "BLUE", "11.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantPartialUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, allowPartialUpdates: true, variants: $variants) {
+            productVariants { id sku price }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                { "id": red_id, "inventoryItem": { "sku": "RED-PARTIAL" }, "price": "9.99" },
+                { "id": blue_id, "price": "-1.00" }
+            ]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+        json!([
+            { "id": red_id, "sku": "RED-PARTIAL", "price": "9.99" },
+            { "id": blue_id, "sku": "BLUE", "price": "11.00" }
+        ])
+    );
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([{
+            "field": ["variants", "1", "price"],
+            "message": "Price must be greater than or equal to 0",
+            "code": "GREATER_THAN_OR_EQUAL_TO"
+        }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkVariantPartialUpdateRead($red: ID!, $blue: ID!) {
+          red: productVariant(id: $red) { sku price }
+          blue: productVariant(id: $blue) { sku price }
+        }
+        "#,
+        json!({ "red": red_id, "blue": blue_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["red"],
+        json!({"sku": "RED-PARTIAL", "price": "9.99"})
+    );
+    assert_eq!(
+        read.body["data"]["blue"],
+        json!({"sku": "BLUE", "price": "11.00"})
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert!(
+        log["entries"].as_array().unwrap().iter().any(|entry| {
+            entry["interpreted"]["operationName"] == json!("productVariantsBulkUpdate")
+                && entry["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("allowPartialUpdates: true"))
+        }),
+        "staged mutation log should preserve the original raw mutation for commit replay: {log:?}"
+    );
+    assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
+fn product_variants_bulk_update_explicit_partial_updates_false_stays_atomic() {
+    let product_id = "gid://shopify/Product/partial-update-false";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| {
+            panic!("supported bulk variant update should not call upstream")
+        });
+    let red = create_legacy_variant(&mut proxy, product_id, "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, product_id, "BLUE", "11.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantAtomicUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, allowPartialUpdates: false, variants: $variants) {
+            productVariants { id sku price }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                { "id": red_id, "inventoryItem": { "sku": "RED-SHOULD-NOT-STAGE" }, "price": "9.99" },
+                { "id": blue_id, "price": "-1.00" }
+            ]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+        json!([
+            { "id": red_id, "sku": "RED", "price": "10.00" },
+            { "id": blue_id, "sku": "BLUE", "price": "11.00" }
+        ])
+    );
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([{
+            "field": ["variants", "1", "price"],
+            "message": "Price must be greater than or equal to 0",
+            "code": "GREATER_THAN_OR_EQUAL_TO"
+        }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkVariantAtomicUpdateRead($red: ID!, $blue: ID!) {
+          red: productVariant(id: $red) { sku price }
+          blue: productVariant(id: $blue) { sku price }
+        }
+        "#,
+        json!({ "red": red_id, "blue": blue_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["red"],
+        json!({"sku": "RED", "price": "10.00"})
+    );
+    assert_eq!(
+        read.body["data"]["blue"],
+        json!({"sku": "BLUE", "price": "11.00"})
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert!(
+        !log["entries"].as_array().unwrap().iter().any(|entry| {
+            entry["interpreted"]["operationName"] == json!("productVariantsBulkUpdate")
+        }),
+        "atomic validation failure should not stage a bulk update log entry: {log:?}"
+    );
+}
+
+#[test]
+fn product_variants_bulk_update_sorts_user_errors_by_field_and_code() {
+    let product_id = "gid://shopify/Product/error-order";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| {
+            panic!("supported bulk variant update should not call upstream")
+        });
+    let variant = create_legacy_variant(&mut proxy, product_id, "RED", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantSortedErrors($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "id": variant_id,
+                "price": "-1.00",
+                "compareAtPrice": "1000000000000000000"
+            }]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+        json!([{ "id": variant_id }])
+    );
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["variants", "0", "compareAtPrice"],
+                "message": "must be less than 1000000000000000000",
+                "code": "INVALID_INPUT"
+            },
+            {
+                "field": ["variants", "0", "price"],
+                "message": "Price must be greater than or equal to 0",
+                "code": "GREATER_THAN_OR_EQUAL_TO"
+            }
+        ])
+    );
 }
 
 #[test]

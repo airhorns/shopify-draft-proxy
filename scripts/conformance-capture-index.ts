@@ -1886,6 +1886,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variants-bulk-update-allow-partial',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-variants-bulk-update-partial-conformance.ts',
+    purpose:
+      'productVariantsBulkUpdate allowPartialUpdates persistence for valid inputs, read-after-write, and field/code userError ordering.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variants-bulk-update-allow-partial-and-error-order.json`,
+      'config/parity-specs/products/productVariantsBulkUpdate-allow-partial-and-error-order.json',
+      'config/parity-requests/products/productVariantsBulkUpdate-allow-partial.graphql',
+      'config/parity-requests/products/productVariantsBulkUpdate-allow-partial-downstream-read.graphql',
+      'config/parity-requests/products/productVariantsBulkUpdate-error-order.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product with two option-backed variants, records partial update and validation probes, then deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
