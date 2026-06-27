@@ -2039,12 +2039,12 @@ fn inline_input_field_name_location(
                 }
             }
             _ if depth == target_depth => {
-                let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
+                let before_ok = index == 0 || !graphql_name_byte(bytes[index - 1]);
                 if before_ok && query[index..].starts_with(name) {
                     let after = index + name.len();
                     let after_ok = bytes
                         .get(after)
-                        .is_none_or(|next| !is_graphql_name_byte(*next));
+                        .is_none_or(|next| !graphql_name_byte(*next));
                     let followed_by_colon = query[after..].trim_start().starts_with(':');
                     if after_ok && followed_by_colon {
                         return source_location_for_byte_offset(query, index);
@@ -2166,7 +2166,7 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
         let before_ok = haystack[..candidate]
             .chars()
             .next_back()
-            .is_none_or(|ch| !is_graphql_name_char(ch));
+            .is_none_or(|ch| !graphql_name_char(ch));
         let after_name = candidate + argument_name.len();
         let followed_by_colon = haystack[after_name..]
             .chars()
@@ -2186,11 +2186,11 @@ fn find_graphql_name_after(query: &str, start: usize, name: &str) -> Option<usiz
     while search_start < query.len() {
         let relative = query[search_start..].find(name)?;
         let candidate = search_start + relative;
-        let before_ok = candidate == 0 || !is_graphql_name_byte(bytes[candidate - 1]);
+        let before_ok = candidate == 0 || !graphql_name_byte(bytes[candidate - 1]);
         let after = candidate + name.len();
         let after_ok = bytes
             .get(after)
-            .is_none_or(|next| !is_graphql_name_byte(*next));
+            .is_none_or(|next| !graphql_name_byte(*next));
         if before_ok && after_ok {
             return Some(candidate);
         }
@@ -2296,14 +2296,6 @@ pub(in crate::proxy) fn graphql_variable_definition_type(
         search_from = after;
     }
     None
-}
-
-fn is_graphql_name_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
-}
-
-fn is_graphql_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 pub(in crate::proxy) fn invalid_variable_error(

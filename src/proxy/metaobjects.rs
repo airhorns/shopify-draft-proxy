@@ -400,21 +400,9 @@ fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String 
     resolved.to_lowercase()
 }
 
-fn metaobject_definition_type_token_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
-
 const MIN_FIELD_KEY_LENGTH: usize = 2;
 const MAX_FIELD_KEY_LENGTH: usize = 64;
 const FIELD_KEY_INVALID_MESSAGE: &str = "Key contains one or more invalid characters.";
-
-fn metaobject_definition_field_key_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
 
 fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("shopify--")
@@ -506,7 +494,7 @@ fn metaobject_definition_create_validation_errors(
             Value::Null,
             Value::Null,
         ));
-    } else if !metaobject_definition_type_token_chars_valid(meta_type) {
+    } else if !token_chars_valid(meta_type) {
         errors.push(metaobject_user_error(
             vec!["definition", "type"],
             "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
@@ -689,7 +677,7 @@ fn push_metaobject_field_key_errors(
         ));
         return true;
     }
-    if !metaobject_definition_field_key_chars_valid(key) {
+    if !token_chars_valid(key) {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
             FIELD_KEY_INVALID_MESSAGE,

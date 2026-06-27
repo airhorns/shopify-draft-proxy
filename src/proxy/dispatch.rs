@@ -302,10 +302,7 @@ impl DraftProxy {
             "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
             "orders" => Some(connection_json(Vec::new())),
             "ordersCount" => Some(selected_json(
-                &json!({
-                    "count": 0,
-                    "precision": "EXACT"
-                }),
+                &count_object(0),
                 &field.selection,
             )),
             _ => None,

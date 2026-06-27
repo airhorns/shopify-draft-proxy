@@ -600,7 +600,7 @@ impl DraftProxy {
         {
             return id.to_string();
         }
-        let numeric_id = id.trim_start_matches("gid://shopify/Video/");
+        let numeric_id = shopify_gid_tail_for_type(id, "Video").unwrap_or(id);
         let media_image_id = shopify_gid("MediaImage", numeric_id);
         if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
@@ -1579,23 +1579,6 @@ fn filename_from_source(source: &str) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or("file")
         .to_string()
-}
-
-fn file_extension(value: &str) -> String {
-    // Mirror Gleam derive_filename + file_extension: first reduce to the last
-    // non-empty path segment (after stripping query/fragment), then take the
-    // substring after that segment's final dot. A URL like
-    // `https://www.w3.org/.../dummy` must yield "" — not "org/.../dummy" — even
-    // though the host contains dots.
-    let path = value.split(['?', '#']).next().unwrap_or(value);
-    let filename = path
-        .rsplit('/')
-        .find(|segment| !segment.is_empty())
-        .unwrap_or("");
-    match filename.rsplit_once('.') {
-        Some((_, extension)) => extension.to_ascii_lowercase(),
-        None => String::new(),
-    }
 }
 
 // Shopify infers FileContentType from the source/filename extension when the

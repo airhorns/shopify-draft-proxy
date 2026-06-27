@@ -256,7 +256,7 @@ impl DraftProxy {
                         "EXACT"
                     };
                     selected_json(
-                        &json!({ "count": count, "precision": precision }),
+                        &count_object_with_precision(count, precision),
                         &field.selection,
                     )
                 }
@@ -647,11 +647,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-            if name.is_empty()
-                || !name
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-            {
+            if name.is_empty() || !token_chars_valid(name) {
                 errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
             }
             if name.chars().count() > 50 {
@@ -1798,12 +1794,7 @@ impl DraftProxy {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_id = resolved_string_field(variables, "variantId")
             .or_else(|| variant.map(|variant| variant.id.clone()))
-            .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/ProductVariant/{}",
-                    resource_id_tail(inventory_item_id)
-                )
-            });
+            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(inventory_item_id)));
         let mut fields = serde_json::Map::new();
         for selection in selections {
             let value = match selection.name.as_str() {
@@ -1829,10 +1820,7 @@ impl DraftProxy {
                     ),
                 }),
                 "locationsCount" => Some(selected_json(
-                    &json!({
-                        "count": item_levels.len(),
-                        "precision": "EXACT"
-                    }),
+                    &count_object(item_levels.len()),
                     &selection.selection,
                 )),
                 "inventoryLevel" => {
@@ -5525,12 +5513,7 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/ProductVariant/{}",
-                    resource_id_tail(&item_id)
-                )
-            });
+            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(&item_id)));
         let product_id = variant
             .get("product")
             .and_then(|product| product.get("id"))
@@ -5996,12 +5979,9 @@ fn webhook_filter_is_invalid(filter: &str) -> bool {
         return false;
     }
     !trimmed.split_whitespace().any(|token| {
-        token.split_once(':').is_some_and(|(field, _)| {
-            !field.is_empty()
-                && field
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-        })
+        token
+            .split_once(':')
+            .is_some_and(|(field, _)| !field.is_empty() && field.chars().all(graphql_name_char))
     })
 }
 

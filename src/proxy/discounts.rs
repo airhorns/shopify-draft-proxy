@@ -1055,10 +1055,7 @@ impl DraftProxy {
             "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
             "asyncUsageCount": 0,
             "codes": codes,
-            "codesCount": {
-                "count": codes_count,
-                "precision": "EXACT"
-            }
+            "codesCount": count_object(codes_count)
         }))
     }
 
@@ -1336,7 +1333,7 @@ impl DraftProxy {
                     }));
                 }
             }
-            record["codesCount"] = json!({ "count": next.len(), "precision": "EXACT" });
+            record["codesCount"] = count_object(next.len());
             record["codes"] = Value::Array(next);
         }
         self.rebuild_discount_code_index();
@@ -1426,7 +1423,7 @@ impl DraftProxy {
                 );
             }
             let count = record["codes"].as_array().map(Vec::len).unwrap_or(0);
-            record["codesCount"] = json!({ "count": count, "precision": "EXACT" });
+            record["codesCount"] = count_object(count);
         }
         self.rebuild_discount_code_index();
         MutationFieldOutcome::staged(
@@ -1487,10 +1484,7 @@ impl DraftProxy {
                         page_info,
                     ))
                 }
-                "discountNodesCount" => Some(json!({
-                    "count": self.filtered_discount_records(field).len(),
-                    "precision": "EXACT"
-                })),
+                "discountNodesCount" => Some(count_object(self.filtered_discount_records(field).len())),
                 "discountRedeemCodeBulkCreation" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -2792,10 +2786,7 @@ fn discount_record_from_input(
         "appliesOnOneTimePurchase": resolved_bool_path(input, &["appliesOnOneTimePurchase"]).unwrap_or(true),
         "appliesOnSubscription": resolved_bool_path(input, &["appliesOnSubscription"]).unwrap_or(false),
         "codes": codes,
-        "codesCount": {
-            "count": codes.as_array().map(Vec::len).unwrap_or(0),
-            "precision": "EXACT"
-        },
+        "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
         "metafields": discount_metafields_from_input(input)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
@@ -3589,11 +3580,7 @@ pub(in crate::proxy) fn gift_card_create_record(
         "recipientAttributes": null,
         "notify": notify,
         "source": "api_client",
-        "transactions": {
-            "nodes": [],
-            "edges": [],
-            "pageInfo": empty_page_info()
-        }
+        "transactions": connection_json(Vec::new())
     })
 }
 
@@ -3606,11 +3593,7 @@ pub(in crate::proxy) fn gift_card_configuration_record(currency_code: &str) -> V
 
 pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
     if !card.get("transactions").is_some_and(Value::is_object) {
-        card["transactions"] = json!({
-            "nodes": [],
-            "edges": [],
-            "pageInfo": empty_page_info()
-        });
+        card["transactions"] = connection_json(Vec::new());
     } else {
         if !card["transactions"]
             .get("nodes")
@@ -3645,8 +3628,7 @@ pub(in crate::proxy) fn gift_card_connection_json(
 }
 
 pub(in crate::proxy) fn gift_card_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    let full = json!({ "count": count, "precision": "EXACT" });
-    selected_json(&full, selections)
+    selected_json(&count_object(count), selections)
 }
 
 pub(in crate::proxy) fn backup_region_country_code_coercion_error(

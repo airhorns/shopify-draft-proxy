@@ -79,12 +79,8 @@ pub(in crate::proxy) fn order_line_inventory_item_id(
     line_item: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
     resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId").map(|variant_id| {
-            format!(
-                "gid://shopify/InventoryItem/{}",
-                resource_id_tail(&variant_id)
-            )
-        })
+        resolved_string_field(line_item, "variantId")
+            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
     })
 }
 
@@ -209,10 +205,7 @@ pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
 pub(in crate::proxy) fn orders_empty_count_payload() -> Value {
     json!({
         "data": {
-            "ordersCount": {
-                "count": 0,
-                "precision": "EXACT"
-            }
+            "ordersCount": count_object(0)
         }
     })
 }
@@ -556,11 +549,7 @@ pub(in crate::proxy) fn order_update_metafields(
                 })
                 .and_then(|m| m["id"].as_str().map(str::to_string))
                 .unwrap_or_else(|| {
-                    format!(
-                        "gid://shopify/Metafield/{}{}",
-                        resource_id_tail(order_id),
-                        index + 1
-                    )
+                    shopify_gid("Metafield", format!("{}{}", resource_id_tail(order_id), index + 1))
                 });
             Some(json!({
                 "id": metafield_id,
@@ -1206,7 +1195,7 @@ impl DraftProxy {
             _ => (matched, "EXACT"),
         };
         selected_json(
-            &json!({ "count": count, "precision": precision }),
+            &count_object_with_precision(count, precision),
             &field.selection,
         )
     }
@@ -2257,10 +2246,7 @@ impl DraftProxy {
                 )],
             );
         }
-        let calculated_id = format!(
-            "gid://shopify/CalculatedOrder/{}",
-            resource_id_tail(&order_id)
-        );
+        let calculated_id = shopify_gid("CalculatedOrder", resource_id_tail(&order_id));
         let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
         let session = oe_build_session(&order, &calculated_id, &session_id);
         let view = oe_calc_order_view(&session);

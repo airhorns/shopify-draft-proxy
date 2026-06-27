@@ -887,10 +887,17 @@ pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) 
         .last()
         .and_then(|node| node["id"].as_str())
         .map(|id| format!("cursor:{id}"));
-    json!({
-        "nodes": nodes,
-        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
-    })
+    let page_info = connection_page_info(false, false, start_cursor, end_cursor);
+    connection_json_with_cursor(
+        nodes,
+        |_, node| {
+            node["id"]
+                .as_str()
+                .map(|id| format!("cursor:{id}"))
+                .unwrap_or_default()
+        },
+        page_info,
+    )
 }
 
 fn proxy_now_timestamp() -> String {
@@ -1721,13 +1728,13 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
-        let id = format!(
-            "gid://shopify/FulfillmentConstraintRule/{}",
+        let id = shopify_gid(
+            "FulfillmentConstraintRule",
             self.store
                 .staged
                 .function_fulfillment_constraint_rule_order
                 .len()
-                + 1
+                + 1,
         );
         let metafield_ids = match field.arguments.get("metafields") {
             Some(ResolvedValue::List(metafields)) => metafields

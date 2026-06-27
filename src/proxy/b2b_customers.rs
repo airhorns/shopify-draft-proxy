@@ -173,7 +173,7 @@ impl DraftProxy {
             "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
             "customers" => Some(self.customers_list_field(field)),
             "customersCount" => Some(selected_json(
-                &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
+                &count_object(self.customers_count_value()),
                 &field.selection,
             )),
             "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
@@ -3172,7 +3172,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
     let metafields = if input.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": empty_page_info() })
+        connection_json(Vec::new())
     } else {
         json!({
             "nodes": [input.loyalty.clone()],
