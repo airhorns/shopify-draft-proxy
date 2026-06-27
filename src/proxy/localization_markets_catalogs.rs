@@ -2952,6 +2952,19 @@ impl DraftProxy {
                 ));
                 continue;
             }
+            let value = resolved_object_string(translation_input, "value").unwrap_or_default();
+            if market_id.is_some()
+                && self
+                    .localization_shop_level_translation_value(&resource_id, &key, &locale)
+                    .is_some_and(|base_value| base_value == value)
+            {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "value"]),
+                    "Value cannot match original content",
+                    Some("FAILS_RESOURCE_VALIDATION"),
+                ));
+                continue;
+            }
             if let Some(supplied_digest) =
                 resolved_object_string(translation_input, "translatableContentDigest")
             {
@@ -3833,6 +3846,26 @@ impl DraftProxy {
             return Some(value.to_string());
         }
         None
+    }
+
+    fn localization_shop_level_translation_value(
+        &self,
+        resource_id: &str,
+        key: &str,
+        locale: &str,
+    ) -> Option<String> {
+        self.store
+            .staged
+            .localization_translations
+            .iter()
+            .rev()
+            .find(|translation| {
+                translation["resourceId"].as_str() == Some(resource_id)
+                    && translation["key"].as_str() == Some(key)
+                    && translation["locale"].as_str() == Some(locale)
+                    && translation["market"].is_null()
+            })
+            .and_then(|translation| translation["value"].as_str().map(ToString::to_string))
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
