@@ -2349,7 +2349,7 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
         .with_upstream_transport(|_| panic!("empty mediaIds validation should not call upstream"));
     let variant = create_legacy_variant(&mut proxy, product_id, "EMPTY-MEDIA-IDS", "10.00");
     let variant_id = variant["id"].as_str().unwrap().to_string();
-    let log_before_validation = proxy.get_log_snapshot();
+    let log_before_validation = log_snapshot(&proxy);
 
     let append = proxy.process_request(json_graphql_request(
         r#"
@@ -2378,7 +2378,7 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before_validation,
         "append empty mediaIds should not stage a mutation log entry"
     );
@@ -2410,7 +2410,7 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before_validation,
         "detach empty mediaIds should not stage a mutation log entry"
     );

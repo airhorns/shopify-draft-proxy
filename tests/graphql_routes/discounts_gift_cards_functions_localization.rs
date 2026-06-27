@@ -5448,7 +5448,7 @@ fn gift_card_create_missing_customer_uses_existence_not_id_substring() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["giftCards"],
+        state_snapshot(&proxy)["stagedState"]["giftCards"],
         json!({})
     );
 }
@@ -5739,7 +5739,7 @@ fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_ca
             "entitlementBeforeTrial": { "giftCard": null, "userErrors": entitlement_error }
         })
     );
-    assert_eq!(disabled_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&disabled_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     seed_legacy_gift_card_base_state(&mut proxy);
