@@ -468,7 +468,7 @@ fn selling_plan_group_update_rejects_deleting_final_plan_without_replacement() {
         json!([{ "id": plan_id }])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("failed"));
     assert_eq!(log["entries"][1]["stagedResourceIds"], json!([]));
 }
@@ -541,7 +541,7 @@ fn selling_plan_group_update_allows_deleting_some_but_not_all_plans() {
         json!([{ "id": keep_id }])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(log["entries"][1]["stagedResourceIds"], json!([group_id]));
 }
@@ -604,7 +604,7 @@ fn selling_plan_group_update_allows_deleting_final_plan_with_replacement() {
     assert_eq!(replacement_plans[0]["name"], json!("Replacement"));
     assert_ne!(replacement_plans[0]["id"], json!(delete_id));
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(log["entries"][1]["stagedResourceIds"], json!([group_id]));
 }

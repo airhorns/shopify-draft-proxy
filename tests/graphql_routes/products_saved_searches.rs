@@ -1594,7 +1594,7 @@ fn product_variants_bulk_create_omitted_strategy_removes_default_standalone_vari
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][1]["interpreted"]["capability"],
+        log_snapshot(&proxy)["entries"][1]["interpreted"]["capability"],
         json!({
             "operationName": "productVariantsBulkCreate",
             "domain": "products",
@@ -2484,7 +2484,7 @@ fn product_variants_bulk_update_stages_valid_inputs_when_partial_updates_allowed
         json!({"sku": "BLUE", "price": "11.00"})
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert!(
         log["entries"].as_array().unwrap().iter().any(|entry| {
             entry["interpreted"]["operationName"] == json!("productVariantsBulkUpdate")
@@ -2563,7 +2563,7 @@ fn product_variants_bulk_update_explicit_partial_updates_false_stays_atomic() {
         json!({"sku": "BLUE", "price": "11.00"})
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert!(
         !log["entries"].as_array().unwrap().iter().any(|entry| {
             entry["interpreted"]["operationName"] == json!("productVariantsBulkUpdate")
@@ -8963,8 +8963,8 @@ fn collection_create_rejects_unknown_initial_products_without_staging() {
         status: "ACTIVE".to_string(),
         ..ProductRecord::default()
     }]);
-    let state_before = proxy.get_state_snapshot();
-    let log_before = proxy.get_log_snapshot();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
 
     let rejected = proxy.process_request(json_graphql_request(
         r#"
@@ -8997,8 +8997,8 @@ fn collection_create_rejects_unknown_initial_products_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
 
     let accepted = proxy.process_request(json_graphql_request(
         r#"
@@ -9026,7 +9026,7 @@ fn collection_create_rejects_unknown_initial_products_without_staging() {
         json!([{ "id": "gid://shopify/Product/known" }])
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .expect("log entries should be an array")
             .len(),
@@ -9072,8 +9072,8 @@ fn collection_create_accepts_empty_rules_as_custom_and_rejects_missing_rules_wit
     );
 
     let mut proxy = snapshot_proxy();
-    let state_before = proxy.get_state_snapshot();
-    let log_before = proxy.get_log_snapshot();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
     let missing_rules = proxy.process_request(json_graphql_request(
         r#"
         mutation CollectionCreateMissingRuleSetRules($input: CollectionInput!) {
@@ -9102,8 +9102,8 @@ fn collection_create_accepts_empty_rules_as_custom_and_rejects_missing_rules_wit
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
 }
 
 #[test]
