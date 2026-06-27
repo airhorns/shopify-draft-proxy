@@ -65,17 +65,12 @@ impl DraftProxy {
                 resolved_string_field(&input, "namespace").as_deref(),
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
+            let owner_type = owner_type_from_gid(&owner_id);
+            let definition = self.owner_metafield_definition(&owner_type, &namespace, &key);
             let metafield_type = resolved_string_field(&input, "type")
                 .or_else(|| {
-                    let owner_type = owner_type_from_gid(&owner_id);
-                    self.store
-                        .staged
-                        .metafield_definitions
-                        .get(&metafield_definition_store_key(
-                            &owner_type,
-                            &namespace,
-                            &key,
-                        ))
+                    definition
+                        .as_ref()
                         .and_then(|definition| definition["type"]["name"].as_str())
                         .map(str::to_string)
                 })
@@ -100,6 +95,7 @@ impl DraftProxy {
                 index,
                 existing: existing.as_ref(),
                 include_owner: true,
+                definition: definition.unwrap_or(Value::Null),
             });
             self.store.staged.deleted_owner_metafields.remove(&(
                 owner_id.clone(),
@@ -797,12 +793,7 @@ impl DraftProxy {
                 record["compareDigest"] = json!(metafield_compare_digest(value));
             }
         }
-        // Metafields not backed by a definition return `definition: null`; hydration
-        // and metafieldsSet inputs never carry one, so default it so singular
-        // `metafield(namespace:, key:) { definition }` reads emit null, not undefined.
-        if record.get("definition").is_none() {
-            record["definition"] = Value::Null;
-        }
+        record["definition"] = self.owner_metafield_definition_value(owner_id, &namespace, &key);
         let owner_metafields = self
             .store
             .staged
@@ -844,6 +835,7 @@ impl DraftProxy {
             let value = resolved_string_field(&metafield, "value").unwrap_or_default();
             let metafield_type = resolved_string_field(&metafield, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
+            let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
             let index = self
                 .store
                 .staged
@@ -861,6 +853,7 @@ impl DraftProxy {
                 index,
                 existing: None,
                 include_owner: false,
+                definition,
             });
             self.upsert_owner_metafield_record(owner_id, record);
         }
@@ -1233,6 +1226,7 @@ impl DraftProxy {
                     && metafield.get("key").and_then(Value::as_str) == Some(key)
             })
             .cloned()
+            .map(|metafield| self.owner_metafield_with_effective_definition(owner_id, metafield))
     }
 
     fn owner_metafield_has_local_effect(&self, owner_id: &str, namespace: &str, key: &str) -> bool {
@@ -1325,7 +1319,54 @@ impl DraftProxy {
                             ))
                     )
             })
+            .map(|metafield| self.owner_metafield_with_effective_definition(owner_id, metafield))
             .collect()
+    }
+
+    fn owner_metafield_definition(
+        &self,
+        owner_type: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .metafield_definitions
+            .get(&metafield_definition_store_key(owner_type, namespace, key))
+            .cloned()
+    }
+
+    fn owner_metafield_definition_value(
+        &self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Value {
+        let owner_type = owner_type_from_gid(owner_id);
+        self.owner_metafield_definition(&owner_type, namespace, key)
+            .unwrap_or(Value::Null)
+    }
+
+    fn owner_metafield_with_effective_definition(
+        &self,
+        owner_id: &str,
+        mut metafield: Value,
+    ) -> Value {
+        let namespace = metafield
+            .get("namespace")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let key = metafield
+            .get("key")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if let (Some(namespace), Some(key)) = (namespace, key) {
+            metafield["definition"] =
+                self.owner_metafield_definition_value(owner_id, &namespace, &key);
+        } else if metafield.get("definition").is_none() {
+            metafield["definition"] = Value::Null;
+        }
+        metafield
     }
 
     /// Stage product metafields supplied through a `metafields` create/update input so that
@@ -1345,6 +1386,7 @@ impl DraftProxy {
             let metafield_type = resolved_string_field(&metafield_input, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&metafield_input, "value").unwrap_or_default();
+            let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
             let index = self
                 .store
                 .staged
@@ -1362,6 +1404,7 @@ impl DraftProxy {
                 index,
                 existing: None,
                 include_owner: true,
+                definition,
             });
             self.store.staged.deleted_owner_metafields.remove(&(
                 owner_id.to_string(),
@@ -1387,6 +1430,7 @@ struct OwnerMetafieldRecordArgs<'a> {
     index: usize,
     existing: Option<&'a Value>,
     include_owner: bool,
+    definition: Value,
 }
 
 fn owner_metafield_record(
@@ -1399,6 +1443,7 @@ fn owner_metafield_record(
         index,
         existing,
         include_owner,
+        definition,
     }: OwnerMetafieldRecordArgs<'_>,
 ) -> Value {
     let normalized_value = normalize_metafield_value_string(metafield_type, value);
@@ -1427,6 +1472,7 @@ fn owner_metafield_record(
         "createdAt": created_at,
         "updatedAt": updated_at,
         "ownerType": owner_type_from_gid(owner_id),
+        "definition": definition,
     });
     if include_owner {
         record["owner"] = owner_reference_from_gid(owner_id);

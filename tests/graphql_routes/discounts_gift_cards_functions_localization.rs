@@ -3596,8 +3596,8 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
 
     let lifecycle = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($known: ID!) {
-          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
-          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message } }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
         }"#,
         json!({ "known": "gid://shopify/MarketWebPresence/known" }),
     ));
@@ -3634,7 +3634,7 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
         .any(|locale| locale["locale"] == json!("fr")));
 
     let disabled = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message code } } }"#,
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message } } }"#,
         json!({ "locale": "fr" }),
     ));
     assert_eq!(
@@ -3928,7 +3928,7 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     for locale in ["fr", "es"] {
         let enable = proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -4166,7 +4166,7 @@ fn localization_translatable_content_uses_modeled_source_values_and_round_trips_
         .any(|node| node["resourceId"] == json!(product_id)));
 
     let enable = proxy.process_request(json_graphql_request(
-        r#"mutation EnableFrench { shopLocaleEnable(locale: "fr") { userErrors { field message code } } }"#,
+        r#"mutation EnableFrench { shopLocaleEnable(locale: "fr") { userErrors { field message } } }"#,
         json!({}),
     ));
     assert_eq!(
@@ -4252,7 +4252,7 @@ fn localization_translations_register_rejects_invalid_product_key_without_stagin
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4319,7 +4319,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation EnableLocale($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4434,7 +4434,7 @@ fn localization_translations_reject_unknown_supported_product_resource_ids() {
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4547,7 +4547,7 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
     for locale in ["fr", "es"] {
         let enable = proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -4676,7 +4676,7 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
     let mut market_proxy = snapshot_proxy();
     let enable = market_proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "es" }),
     ));
@@ -4716,6 +4716,276 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
 }
 
 #[test]
+fn localization_translations_register_accepts_market_original_without_shop_level_base() {
+    let market_id = "gid://shopify/Market/123";
+    let original_title = fallback_product_title_value();
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateValueMatchProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": original_title,
+                "handle": "market-value-match-original-product"
+            }
+        }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let resource_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "es" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let market_original = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_original = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_original.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo local",
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_accept = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_accept.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let enable_fr = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "fr",
+            "market": null
+        }])
+    );
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_translations_register_rejects_market_value_matching_shop_level_translation() {
+    let resource_id = "gid://shopify/Product/9801098789170";
+    let market_id = "gid://shopify/Market/123";
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": "invalid-digest-is-suppressed",
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "value"],
+                "message": "Value cannot match original content",
+                "code": "FAILS_RESOURCE_VALIDATION"
+            }]
+        })
+    );
+
+    let downstream_after_reject = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_reject.body["data"]["translatableResource"]["translations"],
+        json!([])
+    );
+}
+
+#[test]
 fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_commit() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);
@@ -4735,7 +5005,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4792,16 +5062,16 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
 
     let lifecycle = proxy.process_request(json_graphql_request(
         r#"mutation RustLocalizationShopLocaleTailHelpers($known: ID!, $unknown: ID!) {
-          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
-          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
-          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
-          missingWithPresenceUnpublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: false, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
-          missingWithPresencePublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
-          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
-          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
-          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
-          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
-          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
+          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message } }
+          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
+          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
+          missingWithPresenceUnpublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: false, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message } }
+          missingWithPresencePublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message } }
+          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message } }
+          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message } }
+          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message } }
+          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message } }
+          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message } }
         }"#,
         json!({ "known": known_presence, "unknown": unknown_presence }),
     ));
@@ -4848,8 +5118,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The locale doesn't exist.",
-                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+                "message": "The locale doesn't exist."
             }]
         })
     );
@@ -4857,8 +5126,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
         "shopLocale": null,
         "userErrors": [{
             "field": ["locale"],
-            "message": "The locale doesn't exist.",
-            "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            "message": "The locale doesn't exist."
         }]
     });
     assert_eq!(
@@ -4875,8 +5143,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4886,8 +5153,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4897,8 +5163,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "locale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4908,8 +5173,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "locale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The locale doesn't exist.",
-                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+                "message": "The locale doesn't exist."
             }]
         })
     );
@@ -4944,7 +5208,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
         .any(|locale| locale["locale"] == json!("fr")));
 
     let disabled = proxy.process_request(json_graphql_request(
-        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message code } } }"#,
+        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message } } }"#,
         json!({}),
     ));
     assert_eq!(
@@ -4964,6 +5228,99 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn localization_shop_locale_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let code_selection = proxy.process_request(json_graphql_request(
+        r#"mutation ShopLocaleUserErrorNoCode {
+          enable: shopLocaleEnable(locale: "tlh") {
+            userErrors { field message code }
+          }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: false }) {
+            userErrors { code }
+          }
+          disable: shopLocaleDisable(locale: "en") {
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(code_selection.status, 200);
+    assert!(code_selection.body.get("data").is_none());
+    let errors = code_selection.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 3);
+    for (error, response_key) in errors.iter().zip(["enable", "update", "disable"]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation ShopLocaleUserErrorNoCode",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
+    }
+
+    let field_message_selection = proxy.process_request(json_graphql_request(
+        r#"mutation ShopLocaleUserErrorFieldMessage {
+          enable: shopLocaleEnable(locale: "tlh") {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: false }) {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+          disable: shopLocaleDisable(locale: "en") {
+            locale
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(field_message_selection.status, 200);
+    assert!(field_message_selection.body.get("errors").is_none());
+    assert_eq!(
+        field_message_selection.body["data"],
+        json!({
+            "enable": {
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "Locale is invalid"
+                }]
+            },
+            "update": {
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "The locale doesn't exist."
+                }]
+            },
+            "disable": {
+                "locale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "The primary locale of your store can't be changed through this endpoint."
+                }]
+            }
+        })
+    );
+}
+
+#[test]
 fn localization_locale_cap_register_guards_and_remove_combinations_match_captured_behavior() {
     let mut proxy = snapshot_proxy();
     let title_digest = fallback_product_title_digest();
@@ -4980,7 +5337,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
               shopLocaleEnable(locale: $locale) {
                 shopLocale { locale }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }"#,
             json!({ "locale": locale }),
@@ -4995,7 +5352,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
           shopLocaleEnable(locale: $locale) {
             shopLocale { locale }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }"#,
         json!({ "locale": "zh-CN" }),
@@ -5006,8 +5363,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             "shopLocale": null,
             "userErrors": [{
                 "field": null,
-                "message": "Your store has reached its 20 language limit. To add Chinese (Simplified), delete one of your other languages.",
-                "code": "SHOP_LOCALE_LIMIT_REACHED"
+                "message": "Your store has reached its 20 language limit. To add Chinese (Simplified), delete one of your other languages."
             }]
         })
     );
@@ -5068,7 +5424,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
     for locale in ["es", "fr"] {
         let enable = remove_proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -9240,8 +9596,12 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     );
 }
 
+fn fallback_product_title_value() -> &'static str {
+    "The Inventory Not Tracked Snowboard"
+}
+
 fn fallback_product_title_digest() -> String {
-    localization_content_digest("The Inventory Not Tracked Snowboard")
+    localization_content_digest(fallback_product_title_value())
 }
 
 fn content_digest(content: &Value, key: &str) -> String {

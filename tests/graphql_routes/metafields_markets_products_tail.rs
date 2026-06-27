@@ -1916,6 +1916,85 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
 }
 
 #[test]
+fn market_create_region_nodes_include_country_identity_fields_in_payload_and_reads() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation RustMarketCreateRegionNodeShape($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Region Shape", "conditions": {"regionsCondition": {"regions": [{"countryCode": "CA"}]}}}}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let expected_nodes = json!([{
+        "__typename": "MarketRegionCountry",
+        "id": "gid://shopify/Market/Region/1",
+        "name": "Canada",
+        "code": "CA"
+    }]);
+    assert_eq!(
+        create.body["data"]["marketCreate"]["market"]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketCreateRegionNodeShapeRead($id: ID!) {
+          market(id: $id) {
+            id
+            conditions {
+              regionsCondition {
+                regions(first: 10) {
+                  nodes { id name __typename ... on MarketRegionCountry { code } }
+                }
+              }
+            }
+          }
+          markets(first: 10) {
+            nodes {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["market"]["conditions"]["regionsCondition"]["regions"]["nodes"],
+        expected_nodes
+    );
+    assert_eq!(
+        read.body["data"]["markets"]["nodes"][0]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+}
+
+#[test]
 fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
     // Ports old Gleam proxy tests around marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults

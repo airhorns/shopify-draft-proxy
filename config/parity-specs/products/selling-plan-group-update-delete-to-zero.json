@@ -1,0 +1,103 @@
+{
+  "scenarioId": "selling-plan-group-update-delete-to-zero",
+  "operationNames": ["sellingPlanGroup", "sellingPlanGroupCreate", "sellingPlanGroupUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-update-delete-to-zero.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/selling-plan-group-update-delete-to-zero-create.graphql",
+    "variables": {
+      "input": {
+        "fromCapturePath": "$.scenarios.create.request.variables.input"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-group",
+        "capturePath": "$.scenarios.create.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "excludedPaths": ["$.sellingPlanGroup.id", "$.sellingPlanGroup.sellingPlans.nodes[*].id"]
+      },
+      {
+        "name": "delete-final-plan-rejected",
+        "capturePath": "$.scenarios.deleteFinalRejected.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-update-delete-to-zero-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToDelete": [
+                {
+                  "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                }
+              ]
+            }
+          }
+        },
+        "excludedPaths": ["$.sellingPlanGroup.id", "$.sellingPlanGroup.sellingPlans.nodes[*].id"]
+      },
+      {
+        "name": "read-after-rejected-delete",
+        "capturePath": "$.scenarios.readAfterRejectedDelete.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-update-delete-to-zero-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            }
+          }
+        },
+        "excludedPaths": ["$.id", "$.sellingPlans.nodes[*].id"]
+      },
+      {
+        "name": "delete-final-plan-with-replacement",
+        "capturePath": "$.scenarios.deleteFinalWithReplacement.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-update-delete-to-zero-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToDelete": [
+                {
+                  "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                }
+              ],
+              "sellingPlansToCreate": [
+                {
+                  "fromCapturePath": "$.scenarios.deleteFinalWithReplacement.request.variables.input.sellingPlansToCreate[0]"
+                }
+              ]
+            }
+          }
+        },
+        "excludedPaths": ["$.sellingPlanGroup.id", "$.sellingPlanGroup.sellingPlans.nodes[*].id"],
+        "expectedDifferences": [
+          {
+            "path": "$.deletedSellingPlanIds[*]",
+            "matcher": "shopify-gid:SellingPlan",
+            "reason": "The proxy creates a synthetic selling-plan ID while Shopify captured a real disposable selling-plan ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Admin 2026-04 capture for sellingPlanGroupUpdate plan-count behavior: deleting the only existing plan without a replacement returns SELLING_PLAN_COUNT_LOWER_BOUND at input.sellingPlansToDelete and leaves the plan visible on readback, while deleting the final plan and creating one replacement succeeds."
+}

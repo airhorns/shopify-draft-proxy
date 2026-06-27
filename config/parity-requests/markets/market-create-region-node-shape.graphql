@@ -1,0 +1,26 @@
+mutation MarketCreateRegionNodeShape($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      conditions {
+        regionsCondition {
+          regions(first: 10) {
+            nodes {
+              id
+              name
+              __typename
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

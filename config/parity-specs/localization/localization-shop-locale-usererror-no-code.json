@@ -1,0 +1,39 @@
+{
+  "scenarioId": "localization-shop-locale-usererror-no-code",
+  "operationNames": ["shopLocaleEnable", "shopLocaleUpdate", "shopLocaleDisable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "mutation-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-usererror-no-code.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-usererror-no-code.graphql",
+    "variablesCapturePath": "$.codeSelection.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-user-errors-reject-code-selection",
+        "capturePath": "$.codeSelection.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].path",
+          "$[0].extensions",
+          "$[1].message",
+          "$[1].path",
+          "$[1].extensions",
+          "$[2].message",
+          "$[2].path",
+          "$[2].extensions"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable expose plain UserError payloads for userErrors. Selecting userErrors.code is rejected by GraphQL validation with undefinedField before any shop-locale resolver can mutate state."
+}

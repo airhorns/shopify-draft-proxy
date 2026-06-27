@@ -901,6 +901,41 @@ pub(in crate::proxy) fn region_country_codes_from_value(
     }
 }
 
+pub(in crate::proxy) fn market_region_country_nodes(
+    market_id: &str,
+    region_codes: &[String],
+) -> Vec<Value> {
+    region_codes
+        .iter()
+        .enumerate()
+        .map(|(index, code)| market_region_country_node(market_id, index, code))
+        .collect()
+}
+
+fn market_region_country_node(market_id: &str, index: usize, code: &str) -> Value {
+    let code = code.to_ascii_uppercase();
+    let name = country_name_for_code(&code)
+        .map(str::to_string)
+        .unwrap_or_else(|| code.clone());
+    json!({
+        "__typename": "MarketRegionCountry",
+        "id": market_region_country_id(market_id, index),
+        "name": name,
+        "code": code
+    })
+}
+
+fn market_region_country_id(market_id: &str, index: usize) -> String {
+    let tail = resource_id_tail(market_id);
+    match tail.parse::<u64>() {
+        Ok(market_number) => {
+            let region_number = market_number.saturating_sub(1) * 1000 + index as u64 + 1;
+            shopify_gid("Market/Region", region_number)
+        }
+        Err(_) => shopify_gid("Market/Region", format!("{tail}-{}", index + 1)),
+    }
+}
+
 pub(in crate::proxy) fn market_record_from_input(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
@@ -925,10 +960,7 @@ pub(in crate::proxy) fn market_record_from_input(
     } else {
         "REGION"
     };
-    let region_nodes = region_codes
-        .iter()
-        .map(|code| json!({"code": code}))
-        .collect::<Vec<_>>();
+    let region_nodes = market_region_country_nodes(id, region_codes);
     json!({
         "id": id,
         "name": name,
@@ -1293,12 +1325,8 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: 
     })
 }
 
-pub(in crate::proxy) fn shop_locale_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(field, message, Some(code))
+pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {

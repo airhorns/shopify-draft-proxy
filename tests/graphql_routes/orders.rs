@@ -1746,7 +1746,155 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
 }
 
 #[test]
-fn fulfillment_event_create_rejects_cancelled_parent_without_logging() {
+fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() {
+    let mut proxy = snapshot_proxy();
+    let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelBeforeRetry($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment { id status displayStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_id.clone() }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["fulfillmentCancel"]["userErrors"],
+        json!([])
+    );
+
+    let cancel_again = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelAlreadyCancelled($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment { id status displayStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_id.clone() }),
+    ));
+    assert_eq!(
+        cancel_again.body["data"]["fulfillmentCancel"],
+        json!({
+            "fulfillment": {
+                "id": fulfillment_id,
+                "status": "CANCELLED",
+                "displayStatus": "CANCELED"
+            },
+            "userErrors": []
+        })
+    );
+
+    let tracking = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCancelledTracking($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          fulfillmentTrackingInfoUpdate(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo { number url company }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": fulfillment_id,
+            "trackingInfoInput": {
+                "company": "UPS",
+                "number": "CANCELLED-TRACK",
+                "url": "https://tracking.example/CANCELLED-TRACK"
+            }
+        }),
+    ));
+    assert_eq!(
+        tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]["trackingInfo"],
+        json!([{
+            "number": "CANCELLED-TRACK",
+            "url": "https://tracking.example/CANCELLED-TRACK",
+            "company": "UPS"
+        }])
+    );
+
+    let (_delivered_order_id, delivered_fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+    let delivered_event = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkFulfillmentDelivered($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": delivered_fulfillment_id,
+                "status": "DELIVERED",
+                "message": "Delivered before cancel"
+            }
+        }),
+    ));
+    assert_eq!(
+        delivered_event.body["data"]["fulfillmentEventCreate"]["userErrors"],
+        json!([])
+    );
+
+    let cancel_delivered = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelDeliveredFulfillment($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment { id status displayStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": delivered_fulfillment_id }),
+    ));
+    assert_eq!(
+        cancel_delivered.body["data"]["fulfillmentCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        cancel_delivered.body["data"]["fulfillmentCancel"]["fulfillment"]["status"],
+        json!("CANCELLED")
+    );
+
+    let operation_names = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["operationName"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operation_names,
+        vec![
+            "orderCreate",
+            "fulfillmentCreate",
+            "fulfillmentCancel",
+            "fulfillmentCancel",
+            "fulfillmentTrackingInfoUpdate",
+            "orderCreate",
+            "fulfillmentCreate",
+            "fulfillmentEventCreate",
+            "fulfillmentCancel"
+        ]
+    );
+}
+
+#[test]
+fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
     let mut proxy = snapshot_proxy();
     let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
     let cancel = proxy.process_request(json_graphql_request(
@@ -1784,21 +1932,20 @@ fn fulfillment_event_create_rejects_cancelled_parent_without_logging() {
     ));
 
     assert_eq!(
-        rejected.body["data"]["fulfillmentEventCreate"],
-        json!({
-            "fulfillmentEvent": null,
-            "userErrors": [{
-                "field": ["fulfillmentEvent", "fulfillmentId"],
-                "message": "fulfillment_is_cancelled",
-                "code": "INVALID"
-            }]
-        })
+        rejected.body["data"]["fulfillmentEventCreate"]["userErrors"],
+        json!([])
     );
+    let event = &rejected.body["data"]["fulfillmentEventCreate"]["fulfillmentEvent"];
+    assert_eq!(event["status"], json!("DELIVERED"));
+    assert!(event["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/FulfillmentEvent/"));
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 4);
     assert_eq!(
-        log["entries"][2]["operationName"],
-        json!("fulfillmentCancel")
+        log["entries"][3]["operationName"],
+        json!("fulfillmentEventCreate")
     );
 }
 
@@ -7555,10 +7702,6 @@ fn order_update_rejects_invalid_country_province_pairs_generally() {
 
 #[test]
 fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
-    let fulfillment_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
-    ))
-    .unwrap();
     let residual_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
     ))
@@ -7571,83 +7714,6 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
     ))
     .unwrap();
-
-    // `fulfillmentCancel`/`fulfillmentTrackingInfoUpdate` are gated local-support
-    // roots whose precondition checks hydrate the real fulfillment's parent order
-    // upstream (the recorded `OrdersFulfillmentHydrate` calls). Replay the captured
-    // hydrate keyed by the forwarded `variables.id` so the cancelled/delivered/happy
-    // parents resolve to their recorded precondition outcomes without a passthrough
-    // mutation.
-    let hydrate_calls = fulfillment_fixture["upstreamCalls"].clone();
-    let mut fulfillment_proxy = configured_proxy(
-        ReadMode::LiveHybrid,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
-    )
-    .with_upstream_transport(move |request| {
-        let body: Value = serde_json::from_str(&request.body).unwrap_or(Value::Null);
-        let requested_id = body["variables"]["id"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
-        let response_body = hydrate_calls
-            .as_array()
-            .and_then(|calls| {
-                calls
-                    .iter()
-                    .find(|call| call["variables"]["id"] == json!(requested_id))
-            })
-            .map(|call| call["response"]["body"].clone())
-            .unwrap_or(Value::Null);
-        shopify_draft_proxy::proxy::Response {
-            status: 200,
-            headers: Default::default(),
-            body: response_body,
-        }
-    });
-    let cancel = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
-        ),
-        fulfillment_fixture["cancelAlreadyCancelled"]["variables"].clone(),
-    ));
-    assert_eq!(
-        cancel.body,
-        fulfillment_fixture["cancelAlreadyCancelled"]["response"]
-    );
-    assert_eq!(log_snapshot(&fulfillment_proxy)["entries"], json!([]));
-
-    let tracking = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
-        ),
-        fulfillment_fixture["trackingAlreadyCancelled"]["variables"].clone(),
-    ));
-    assert_eq!(
-        tracking.body,
-        fulfillment_fixture["trackingAlreadyCancelled"]["response"]
-    );
-
-    let delivered = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
-        ),
-        fulfillment_fixture["cancelDelivered"]["variables"].clone(),
-    ));
-    assert_eq!(
-        delivered.body,
-        fulfillment_fixture["cancelDelivered"]["response"]
-    );
-
-    let happy_tracking = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
-        ),
-        fulfillment_fixture["trackingHappyPath"]["variables"].clone(),
-    ));
-    assert_eq!(
-        happy_tracking.body,
-        fulfillment_fixture["trackingHappyPath"]["response"]
-    );
 
     let mut proxy = snapshot_proxy();
     let residual_count = proxy.process_request(json_graphql_request(

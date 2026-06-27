@@ -1,0 +1,127 @@
+{
+  "scenarioId": "product-variants-bulk-create-omitted-strategy-default-standalone",
+  "operationNames": ["productVariantsBulkCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/productVariantsBulkCreate-omitted-strategy-default-standalone.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantCompatibility-setup-product.graphql",
+    "variablesCapturePath": "$.setup.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable 2026-04 parity for `productVariantsBulkCreate` with the `strategy` argument omitted on a product with only Shopify's standalone default variant. Shopify applies the Core DEFAULT behavior: it removes the default `Default Title` variant, creates the submitted variant, rewrites the Title option value to the created value, and returns no userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productVariantsBulkCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy replays setup through local productCreate, so mutation data references a synthetic product ID instead of Shopify's live product ID."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.product.options[*].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.product.options[*].optionValues[*].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.product.variants.nodes[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Product variant IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.product.variants.nodes[*].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "Inventory item IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.productVariants[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Created product variant IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.productVariants[*].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "Created inventory item IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The downstream proxy read references the synthetic product created during local setup replay."
+      },
+      {
+        "path": "$.product.options[*].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns locally generated product option IDs."
+      },
+      {
+        "path": "$.product.options[*].optionValues[*].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns locally generated product option value IDs."
+      },
+      {
+        "path": "$.product.variants.nodes[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The downstream proxy read returns locally generated product variant IDs."
+      },
+      {
+        "path": "$.product.variants.nodes[*].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "The downstream proxy read returns locally generated inventory item IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "setup-product",
+        "capturePath": "$.setup.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a stable synthetic product ID instead of Shopify's live product ID."
+          }
+        ]
+      },
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-omitted-strategy.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.mutation.variables.variants"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "mutation-data",
+              "path": "$.data.productVariantsBulkCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

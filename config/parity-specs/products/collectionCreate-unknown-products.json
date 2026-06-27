@@ -1,0 +1,26 @@
+{
+  "scenarioId": "collectionCreate-unknown-products",
+  "operationNames": ["collectionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-create-products-ruleset-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionCreate-products-ruleset-validation.graphql",
+    "variablesCapturePath": "$.scenarios.unknownProducts.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL rejects collectionCreate with an unknown input.products id using field [\"products\", \"0\"] and message \"Product does not exist\"; the local runtime must return collection: null and avoid staging a collection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "collection-create-unknown-products-user-error",
+        "capturePath": "$.scenarios.unknownProducts.response.data.collectionCreate",
+        "proxyPath": "$.data.collectionCreate"
+      }
+    ]
+  }
+}
