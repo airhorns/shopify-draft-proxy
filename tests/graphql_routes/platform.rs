@@ -3733,8 +3733,8 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         r#"
         mutation HoldNumericFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
           fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
-            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
-            fulfillmentOrder { id status fulfillmentHolds { id handle } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
+            fulfillmentHold { id handle reason reasonNotes displayReason heldByRequestingApp }
+            fulfillmentOrder { id status fulfillmentHolds { id handle reason displayReason } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
             remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
             userErrors { field message code }
           }
@@ -3743,7 +3743,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         json!({
             "id": fulfillment_order_id,
             "fulfillmentHold": {
-                "reason": "OTHER",
+                "reason": "AWAITING_RETURN_ITEMS",
                 "reasonNotes": "wait",
                 "handle": "numeric-hold",
                 "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
@@ -3753,7 +3753,19 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(hold.status, 200);
     let hold_payload = &hold.body["data"]["fulfillmentOrderHold"];
     assert_eq!(hold_payload["userErrors"], json!([]));
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(hold_payload["fulfillmentOrder"]["status"], json!("ON_HOLD"));
+    assert_eq!(
+        hold_payload["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(
         hold_payload["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"],
         json!(1)
@@ -3766,9 +3778,9 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     let after_hold = proxy.process_request(json_graphql_request(
         r#"
         query ReadHeldFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
-          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle } } } }
-          fulfillmentOrder(id: $fulfillmentOrderId) { id status }
-          manualHoldsFulfillmentOrders(first: 10) { nodes { id status } }
+          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle reason displayReason } } } }
+          fulfillmentOrder(id: $fulfillmentOrderId) { id status fulfillmentHolds { reason displayReason } }
+          manualHoldsFulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { reason displayReason } } }
         }
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
@@ -3780,6 +3792,15 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        after_hold.body["data"]["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
+    assert_eq!(
+        after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["fulfillmentHolds"][0]
+            ["displayReason"],
+        json!("Exchange items awaiting return delivery")
     );
 
     let hold_id = hold_payload["fulfillmentHold"]["id"].as_str().unwrap();
@@ -3826,6 +3847,10 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         .as_str()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
 }
 
 #[test]
