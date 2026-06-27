@@ -53,12 +53,12 @@ impl DraftProxy {
 
         if inputs.len() > 250 {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", inputs.len()),
-                    "locations": [{"line": 2, "column": 3}],
-                    "path": ["fileCreate", "files"],
-                    "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-                }]
+                "errors": [max_input_size_exceeded_error(
+                    ["fileCreate", "files"],
+                    inputs.len(),
+                    250,
+                    Some(json!([{"line": 2, "column": 3}]))
+                )]
             })));
         }
 
@@ -1114,11 +1114,11 @@ fn validate_file_update_required_fields(
         .filter(|value| !value.is_empty())
         .is_none()
     {
-        return Some(json!({
-            "field": ["files", index.to_string(), "id"],
-            "message": "File id is required",
-            "code": "REQUIRED"
-        }));
+        return Some(user_error(
+            ["files", index.to_string().as_str(), "id"],
+            "File id is required",
+            Some("REQUIRED"),
+        ));
     }
     None
 }

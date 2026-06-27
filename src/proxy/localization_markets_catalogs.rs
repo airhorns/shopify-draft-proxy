@@ -237,17 +237,17 @@ impl DraftProxy {
         let payload = if locale == "en" {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
             })
         } else if self.localization_available_locale_name(&locale).is_none() {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid", "INVALID")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid")]
             })
         } else if self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken")]
             })
         } else if self
             .localization_shop_locales(None)
@@ -258,10 +258,10 @@ impl DraftProxy {
         {
             json!({
                 "shopLocale": null,
-                "userErrors": [user_error(Value::Null, &format!(
+                "userErrors": [user_error_omit_code(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
-                    ), Some("SHOP_LOCALE_LIMIT_REACHED"))]
+                    ), None)]
             })
         } else {
             let name = self
@@ -303,7 +303,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
                 }),
                 &field.selection,
             );
@@ -314,7 +314,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
                 }),
                 &field.selection,
             );
@@ -369,12 +369,12 @@ impl DraftProxy {
         let payload = if locale == "en" {
             json!({
                 "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
             })
         } else if !self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
             })
         } else {
             self.store.staged.shop_locales.remove(&locale);
@@ -787,7 +787,7 @@ impl DraftProxy {
         }
 
         let mut updated_market = existing_market;
-        Self::apply_market_update_scalar_fields(&mut updated_market, &input);
+        Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
         selected_json(
@@ -799,6 +799,7 @@ impl DraftProxy {
     fn apply_market_update_scalar_fields(
         market: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
+        market_id: &str,
     ) {
         let Some(object) = market.as_object_mut() else {
             return;
@@ -849,10 +850,7 @@ impl DraftProxy {
         }
         if market_update_region_input_present(input) {
             let region_codes = market_region_country_codes(input);
-            let region_nodes = region_codes
-                .iter()
-                .map(|code| json!({"code": code}))
-                .collect::<Vec<_>>();
+            let region_nodes = market_region_country_nodes(market_id, &region_codes);
             object.insert("regionCodes".to_string(), json!(region_codes));
             object.insert(
                 "type".to_string(),
@@ -2952,6 +2950,19 @@ impl DraftProxy {
                 ));
                 continue;
             }
+            let value = resolved_object_string(translation_input, "value").unwrap_or_default();
+            if market_id.is_some()
+                && self
+                    .localization_shop_level_translation_value(&resource_id, &key, &locale)
+                    .is_some_and(|base_value| base_value == value)
+            {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "value"]),
+                    "Value cannot match original content",
+                    Some("FAILS_RESOURCE_VALIDATION"),
+                ));
+                continue;
+            }
             if let Some(supplied_digest) =
                 resolved_object_string(translation_input, "translatableContentDigest")
             {
@@ -3833,6 +3844,26 @@ impl DraftProxy {
             return Some(value.to_string());
         }
         None
+    }
+
+    fn localization_shop_level_translation_value(
+        &self,
+        resource_id: &str,
+        key: &str,
+        locale: &str,
+    ) -> Option<String> {
+        self.store
+            .staged
+            .localization_translations
+            .iter()
+            .rev()
+            .find(|translation| {
+                translation["resourceId"].as_str() == Some(resource_id)
+                    && translation["key"].as_str() == Some(key)
+                    && translation["locale"].as_str() == Some(locale)
+                    && translation["market"].is_null()
+            })
+            .and_then(|translation| translation["value"].as_str().map(ToString::to_string))
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {

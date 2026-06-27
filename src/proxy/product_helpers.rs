@@ -559,15 +559,17 @@ impl DraftProxy {
         }
 
         let mut overlay = self.product_known_media(&product_id);
-        if let Some(missing) = media_inputs
+        let missing_media_ids: Vec<String> = media_inputs
             .iter()
             .filter_map(|item| resolved_string_field(item, "id"))
-            .find(|id| !media_nodes_contain(&overlay, id))
-        {
+            .filter(|id| !media_nodes_contain(&overlay, id))
+            .collect();
+        if !missing_media_ids.is_empty() {
+            let error = media_missing_ids_error("media", &missing_media_ids);
             return Some(json!({
                 "media": Value::Null,
-                "userErrors": [media_missing_error("media", &missing)],
-                "mediaUserErrors": [media_missing_error("media", &missing)],
+                "userErrors": [error.clone()],
+                "mediaUserErrors": [error],
             }));
         }
 
@@ -632,12 +634,18 @@ impl DraftProxy {
         }
 
         let known = self.product_known_media(&product_id);
-        if let Some(missing) = media_ids.iter().find(|id| !media_nodes_contain(&known, id)) {
+        let missing_media_ids: Vec<String> = media_ids
+            .iter()
+            .filter(|id| !media_nodes_contain(&known, id))
+            .cloned()
+            .collect();
+        if !missing_media_ids.is_empty() {
+            let error = media_missing_ids_error("mediaIds", &missing_media_ids);
             return Some(json!({
                 "deletedMediaIds": Value::Null,
                 "deletedProductImageIds": Value::Null,
-                "userErrors": [media_missing_error("mediaIds", missing)],
-                "mediaUserErrors": [media_missing_error("mediaIds", missing)],
+                "userErrors": [error.clone()],
+                "mediaUserErrors": [error],
                 "product": Value::Null,
             }));
         }
@@ -916,12 +924,14 @@ fn product_does_not_exist_error(field: &str) -> Value {
     )
 }
 
-fn media_missing_error(field: &str, id: &str) -> Value {
-    user_error_omit_code(
-        [field],
-        &format!("Media id {id} does not exist"),
-        Some("MEDIA_DOES_NOT_EXIST"),
-    )
+fn media_missing_ids_error(field: &str, ids: &[String]) -> Value {
+    let joined_ids = ids.join(",");
+    let message = if ids.len() == 1 {
+        format!("Media id {joined_ids} does not exist")
+    } else {
+        format!("Media ids {joined_ids} do not exist")
+    };
+    user_error_omit_code([field], &message, Some("MEDIA_DOES_NOT_EXIST"))
 }
 
 pub(in crate::proxy) fn gift_card_payload_json(

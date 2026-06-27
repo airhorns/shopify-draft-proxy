@@ -256,6 +256,19 @@ Two nearby 2026-04 traps from the same capture:
   captured through this input shape; keep local update-path coverage in focused
   runtime tests unless a later public schema exposes address fields.
 
+## Current: B2B location name fallback differs by creation root
+
+Admin GraphQL 2026-04 derives a nested `companyCreate(input.companyLocation)`
+default location name from `companyLocation.name` and then the company name; it
+does not use `shippingAddress.address1` on that nested path. Standalone
+`companyLocationCreate` still derives the location name from
+`shippingAddress.address1` when no `input.name` is supplied, but the accepted
+public fallback capture includes another non-address attribute (`phone`). A
+standalone `companyLocationCreate` probe with only `shippingAddress.address1`
+returned `NO_INPUT`, so do not use an address-only standalone request as
+evidence for the accepted address1 fallback branch without recapturing that
+validation behavior explicitly.
+
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
 The local runtime has focused tests for the Business Customers package guardrail
@@ -910,7 +923,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
   - `extensions.code: "RESOURCE_NOT_FOUND"`
   - `data.fulfillmentCreate: null`
 - practical consequence: the proxy can safely mirror that invalid-id branch in both `snapshot` mode and `live-hybrid` now, without pretending it already knows how to stage successful fulfillments or downstream fulfillment reads
-- nearby fulfillment roots are split into two layers under the current host credential:
+- nearby fulfillment roots were initially split into two layers under the host credential:
   - safe pre-access GraphQL validation branches
     - `fulfillmentTrackingInfoUpdate` inline missing `fulfillmentId` -> `missingRequiredArguments`
     - `fulfillmentTrackingInfoUpdate` inline `fulfillmentId: null` -> `argumentLiteralsIncompatible`
@@ -918,7 +931,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
     - `fulfillmentCancel` inline missing `id` -> `missingRequiredArguments`
     - `fulfillmentCancel` inline `id: null` -> `argumentLiteralsIncompatible`
     - `fulfillmentCancel` missing required `$id` -> `INVALID_VARIABLE`
-  - broader happy-path probes with concrete ids were still blocked differently under the host credential at that point:
+  - broader happy-path probes with concrete ids were blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
 
@@ -927,8 +940,9 @@ Practical rule:
 - treat `fulfillmentCreate` invalid-id handling as the first evidence-backed fulfillment increment, but do not stop there once later fulfillment roots reveal their own safe pre-access validation slices
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
 - do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `src/content/docs/endpoints/orders.md` and `src/content/docs/endpoints/shipping-fulfillments.md`
+- a later Admin GraphQL 2026-04 capture records concrete fulfillment state behavior: already-cancelled `fulfillmentCancel`, cancelled `fulfillmentTrackingInfoUpdate`, cancelled `fulfillmentEventCreate`, and `fulfillmentCancel` after a delivered event all return payload success with empty `userErrors`
 - once a fulfillment root has evidence-backed behavior, keep the operation registry and executable parity evidence aligned instead of leaving implemented behavior as free-text notes only
-- keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
+- keep current fulfillment lifecycle behavior machine-readable in parity specs; use access-denied notes only for branches that a fresh capture still cannot reach
 
 ### Current: Fulfillment services couple tightly to locations, but their handles do not follow renames
 
@@ -1479,6 +1493,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
 - media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
 - unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
+- `productUpdateMedia` and `productDeleteMedia` aggregate multiple missing media IDs into a single `MEDIA_DOES_NOT_EXIST` error: the message comma-joins all missing GIDs in request order and pluralizes to `Media ids ... do not exist`; one missing ID stays singular as `Media id ... does not exist`
 - `productVariantAppendMedia` and `productVariantDetachMedia` validation field paths in the 2026-04 live capture stay rooted in public camel-case input names: the pair cap uses `["variantMedia"]`, per-pair media count uses `["variantMedia", "0", "mediaIds"]`, duplicate/already-attached variants use `["variantMedia", "0", "variantId"]`, and unattached detach still uses `["variantMedia", "0", "variantId"]`
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
@@ -2309,6 +2324,8 @@ Observed live behavior on this host:
 - adding `available:` to that already-active-location call still does **not** silently restock the item; Shopify returned `userErrors[{ field: ['available'], message: 'Not allowed to set available quantity when the item is already active at the location.' }]`
 - `inventoryActivate(inventoryItemId:, locationId:)` against a known second location now succeeds and creates a new `inventoryLevel` row for that location
 - important quirk: even when `inventoryActivate` was called with `available: 9`, the newly created second-location level still came back with `available: 0` / `on_hand: 0` / `incoming: 0`; the activation succeeded, but the provided quantity seed was ignored on this host
+- `inventoryActivate(... onHand: 50)` on a fresh second-location level seeds both `available` and `on_hand` to `50`; the mutation response populated `available.updatedAt` while leaving `on_hand.updatedAt` null, and a downstream `inventoryLevel.quantities(names: ["on_hand"])` read returned `50`
+- Public `inventoryActivate` userError field paths use the GraphQL argument name `onHand`, not the Core/Ruby `on_hand` spelling. The captured `available` + `onHand` conflict and out-of-range `onHand` messages are location-prefixed (`The product couldn't be stocked at <location> because ...`) and return `inventoryLevel: null`.
 - HAR-468 refreshed the lifecycle again against Admin GraphQL 2026-04. `inventoryDeactivate(inventoryLevelId: ...)` still fails with the minimum-one-location rule when called against the only active level, but once two active levels exist it succeeds and marks the targeted level inactive rather than deleting its row.
 - HAR-591 refreshed `inventoryDeactivate` validation on 2026-04 with real committed inventory from `orderCreate`, incoming inventory from an in-transit shipment, and reserved inventory from a ready transfer. Shopify returned `userErrors: []` for each non-zero quantity case as long as another active stocking location existed. A fabricated level for a missing item returned `The product couldn't be unstocked because the product was deleted.`, while a fabricated level for a known item returned `The product couldn't be unstocked because the location was deleted.`
 - The current 2026-04 live schema on this host exposes `includeInactive` on `InventoryItem.inventoryLevel(locationId:, includeInactive:)` and `InventoryItem.inventoryLevels(includeInactive:)`. It does **not** expose `includeInactive` on `InventoryLevel.quantities`; an attempted `quantities(names:, includeInactive:)` selection returned Shopify's `argumentNotAccepted` GraphQL error.
@@ -2449,6 +2466,7 @@ Live evidence refreshed on this host:
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
+- Current 2026-04 public Admin GraphQL `collectionCreate(input.products)` rejects unknown product ids before creating a collection with `field: ["products", "<index>"]`, where the index is serialized as a string. For `ruleSet`, `collectionCreate` accepts an explicit empty `rules: []` list as a custom collection and returns `ruleSet: null`, but rejects an omitted `rules` key with `field: ["ruleSet", "rules"]` and `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; a supplied but unknown collection id instead returns payload `userErrors[{ field: null, message: "Collection does not exist" }]`.
 
@@ -2805,6 +2823,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- `Market.conditions.regionsCondition.regions.nodes` is a `MarketRegion` interface connection in public Admin GraphQL 2026-04. Selecting `code` directly on the interface returns an `undefinedField` schema error; select `id`, `name`, and `__typename` on the interface and `code` through `... on MarketRegionCountry`. A live `marketCreate` / `market(id:)` capture for a Canada region returned `__typename: "MarketRegionCountry"`, `name: "Canada"`, `code: "CA"`, and an opaque `gid://shopify/MarketRegionCountry/...` id on both payload and read-after-write.
 - A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
 - On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
@@ -3349,6 +3368,7 @@ Captured facts:
 - the captured merchant-managed setup returns guardrails for close/reschedule failure branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
 - HAR-552 live capture showed the multiple-holds API currently allows 10 active holds by the same requesting app on one fulfillment order; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`. Older notes or tickets that describe a cap of 2 should be treated as stale unless a newer capture proves a version-specific change.
 - `fulfillmentOrderHold` validation failures for duplicate handle, not-splittable partial hold, hold limit, zero quantity, and duplicate line-item IDs returned `fulfillmentHold: null`, `fulfillmentOrder: null`, and `remainingFulfillmentOrder: null` in the captured 2026-04 payload.
+- A 2026-04 selective hold capture with `reason: AWAITING_RETURN_ITEMS` returned `displayReason: "Exchange items awaiting return delivery"` on both `fulfillmentHold` and nested `fulfillmentHolds`; do not fall back to the raw enum for known hold reasons.
 - After a partial hold, Shopify reports the held fulfillment-order line-item `totalQuantity` / `remainingQuantity` as the held quantity while the nested order line item's `fulfillableQuantity` reflects the remaining fulfillable order-line quantity. The split-off remaining fulfillment order reports the same nested `fulfillableQuantity`.
 - `fulfillmentOrderClose` API-service success is captured after submit/accept: Shopify returns `userErrors: []`, changes the fulfillment order to `status: INCOMPLETE` with `requestStatus: CLOSED`, and preserves supported actions in the selected payload instead of returning `status: CLOSED` with an empty action list. The proxy mirrors that captured state for local close staging.
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.

@@ -1,0 +1,242 @@
+{
+  "scenarioId": "company_location_name_fallback",
+  "capturedAt": "2026-06-26T23:05:29.148Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Record divergent B2B location name fallbacks: nested companyCreate ignores shippingAddress.address1 and uses the company name, while standalone companyLocationCreate falls back to shippingAddress.address1."
+  },
+  "nestedCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            phone\n            locale\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B nested location fallback 1782515127596"
+          },
+          "companyLocation": {
+            "shippingAddress": {
+              "address1": "Nested fallback street 1782515127596",
+              "city": "Boston",
+              "countryCode": "US"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5708054834",
+            "name": "B2B nested location fallback 1782515127596",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8575320370",
+                  "name": "B2B nested location fallback 1782515127596",
+                  "phone": null,
+                  "locale": "en"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nestedCompanyRead": {
+    "request": {
+      "query": "#graphql\n  query B2BStringValidationCompanyRead($id: ID!) {\n    company(id: $id) {\n      id\n      name\n      locations(first: 10) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5708054834"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5708054834",
+          "name": "B2B nested location fallback 1782515127596",
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8575320370",
+                "name": "B2B nested location fallback 1782515127596"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standaloneSetupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            phone\n            locale\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B standalone location fallback 1782515127596"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5708087602",
+            "name": "B2B standalone location fallback 1782515127596",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8575353138",
+                  "name": "B2B standalone location fallback 1782515127596",
+                  "phone": null,
+                  "locale": "en"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standaloneLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5708087602",
+        "input": {
+          "phone": "+14155550179",
+          "shippingAddress": {
+            "address1": "Standalone fallback street 1782515127596",
+            "city": "Austin",
+            "countryCode": "US"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8575385906",
+            "name": "Standalone fallback street 1782515127596",
+            "phone": "+14155550179",
+            "locale": "en"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "nestedCompanyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyLocationNameFallbackCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5708054834"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5708054834",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "standaloneCompanyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyLocationNameFallbackCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5708087602"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5708087602",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

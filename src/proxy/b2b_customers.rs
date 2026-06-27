@@ -4407,6 +4407,19 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        // Shopify validates customerOneId then customerTwoId.
+        if let Some(error) = self.customer_merge_unknown_error(one_id, "customerOneId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(two_id, "customerTwoId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
         if one_id == two_id {
             return (
                 customer_merge_payload_json(
@@ -4418,19 +4431,6 @@ impl DraftProxy {
                         "INVALID_CUSTOMER_ID",
                     )],
                 ),
-                Vec::new(),
-            );
-        }
-        // Shopify validates customerOneId then customerTwoId.
-        if let Some(error) = self.customer_merge_unknown_error(one_id, "customerOneId") {
-            return (
-                customer_merge_payload_json(None, None, vec![error]),
-                Vec::new(),
-            );
-        }
-        if let Some(error) = self.customer_merge_unknown_error(two_id, "customerTwoId") {
-            return (
-                customer_merge_payload_json(None, None, vec![error]),
                 Vec::new(),
             );
         }

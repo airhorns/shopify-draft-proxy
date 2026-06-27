@@ -402,10 +402,10 @@ impl DraftProxy {
             if handle.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![user_error_omit_code(
+                    vec![length_user_error(
                         ["handle"],
-                        "Handle is too long (maximum is 255 characters)",
-                        None,
+                        "Handle",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
                     )],
                 ));
             }
@@ -414,10 +414,10 @@ impl DraftProxy {
             if vendor.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![user_error_omit_code(
+                    vec![length_user_error(
                         ["vendor"],
-                        "Vendor is too long (maximum is 255 characters)",
-                        None,
+                        "Vendor",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
                     )],
                 ));
             }
@@ -427,15 +427,15 @@ impl DraftProxy {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![
-                        user_error_omit_code(
+                        length_user_error(
                             ["productType"],
-                            "Product type is too long (maximum is 255 characters)",
-                            None,
+                            "Product type",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
                         ),
-                        user_error_omit_code(
+                        length_user_error(
                             ["customProductType"],
-                            "Custom product type is too long (maximum is 255 characters)",
-                            None,
+                            "Custom product type",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
                         ),
                     ],
                 ));
@@ -719,12 +719,12 @@ impl DraftProxy {
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.len() > 250 {
                 return MutationOutcome::response(ok_json(json!({
-                    "errors": [{
-                        "message": format!("The input array size of {} is greater than the maximum allowed of 250.", tags.len()),
-                        "locations": [{"line": 3, "column": 5}],
-                        "path": ["productUpdate", "product", "tags"],
-                        "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-                    }]
+                    "errors": [max_input_size_exceeded_error(
+                        ["productUpdate", "product", "tags"],
+                        tags.len(),
+                        250,
+                        Some(json!([{"line": 3, "column": 5}]))
+                    )]
                 })));
             }
         }
@@ -748,8 +748,7 @@ impl DraftProxy {
             return self.product_update_field_user_error(
                 query,
                 &existing,
-                "title",
-                "Title can't be blank",
+                presence_user_error(["title"], "Title"),
             );
         }
 
@@ -758,8 +757,11 @@ impl DraftProxy {
                 return self.product_update_field_user_error(
                     query,
                     &existing,
-                    "handle",
-                    "Handle is too long (maximum is 255 characters)",
+                    length_user_error(
+                        ["handle"],
+                        "Handle",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
+                    ),
                 );
             }
         }
@@ -856,8 +858,7 @@ impl DraftProxy {
         &self,
         query: &str,
         existing: &ProductRecord,
-        field: &str,
-        message: &str,
+        user_error: Value,
     ) -> MutationOutcome {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, &BTreeMap::new(), || {
@@ -867,10 +868,7 @@ impl DraftProxy {
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let user_error = selected_json(
-            &user_error_omit_code(json!([field]), message, None),
-            &error_selection,
-        );
+        let user_error = selected_json(&user_error, &error_selection);
         MutationOutcome::response(ok_json(json!({
             "data": {
                 response_key: selected_json(
@@ -1591,7 +1589,8 @@ impl DraftProxy {
             ));
         }
 
-        let strategy = resolved_string_field(&field.arguments, "strategy");
+        let strategy =
+            resolved_string_field(&field.arguments, "strategy").unwrap_or_else(|| "DEFAULT".into());
         let existing_variants = self.store.product_variants_for_product(&product.id);
         let existing_variant_count = existing_variants.len();
         let mut created_variants = Vec::new();
@@ -1621,30 +1620,28 @@ impl DraftProxy {
             self.stage_input_variant_metafields(&variant.id, input);
         }
 
-        // Apply the bulk-create variant strategy. `REMOVE_STANDALONE_VARIANT` drops the
-        // product's lone pre-existing variant; the default strategy only drops it when it
-        // is Shopify's auto-generated `Title: Default Title` standalone variant. With either
-        // removal, and whenever a strategy is supplied, the product's option values are
-        // rederived from the surviving variant set (existing values are preserved by name).
-        if let Some(strategy) = strategy.as_deref() {
-            let remove_existing = match strategy {
-                "REMOVE_STANDALONE_VARIANT" => existing_variant_count == 1,
-                "DEFAULT" => {
-                    existing_variant_count == 1
-                        && existing_variants
-                            .first()
-                            .is_some_and(Self::is_standalone_default_variant)
-                }
-                _ => false,
-            };
-            if remove_existing {
-                for variant in &existing_variants {
-                    self.store.delete_product_variant(&variant.id);
-                }
+        // Apply the bulk-create variant strategy. Shopify defaults omitted/null strategy
+        // to `DEFAULT`, which only drops the lone pre-existing variant when it is the
+        // auto-generated `Title: Default Title` standalone variant. `REMOVE_STANDALONE_VARIANT`
+        // drops any lone pre-existing variant. The option set is rederived from the surviving
+        // variants after strategy handling.
+        let remove_existing = match strategy.as_str() {
+            "REMOVE_STANDALONE_VARIANT" => existing_variant_count == 1,
+            "DEFAULT" => {
+                existing_variant_count == 1
+                    && existing_variants
+                        .first()
+                        .is_some_and(Self::is_standalone_default_variant)
             }
-            let final_variants = self.store.product_variants_for_product(&product.id);
-            self.recompute_product_options_from_variants(&product.id, &final_variants);
+            _ => false,
+        };
+        if remove_existing {
+            for variant in &existing_variants {
+                self.store.delete_product_variant(&variant.id);
+            }
         }
+        let final_variants = self.store.product_variants_for_product(&product.id);
+        self.recompute_product_options_from_variants(&product.id, &final_variants);
 
         self.sync_product_inventory_aggregates(&product.id);
 
@@ -1677,6 +1674,8 @@ impl DraftProxy {
             ));
         };
         let product_id = resolved_string_field(&field.arguments, "productId").unwrap_or_default();
+        let allow_partial_updates =
+            resolved_bool_field(&field.arguments, "allowPartialUpdates").unwrap_or(false);
         let variants_input = resolved_object_list_field(&field.arguments, "variants");
         // Hydrate the product together with the variants referenced by the update so
         // a cold backend stages both before the update is applied, matching the
@@ -1717,10 +1716,14 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let mut updated_variants = Vec::new();
+        let mut updated_variant_input_indexes = Vec::new();
+        let mut response_variant_ids = Vec::new();
         let mut position_moves = Vec::new();
+        let mut has_blocking_errors = false;
         for (index, input) in variants_input.iter().enumerate() {
             let prefix = ["variants".to_string(), index.to_string()];
             let Some(variant_id) = resolved_string_field(input, "id") else {
+                has_blocking_errors = true;
                 user_errors.push(user_error(
                     ["variants", &index.to_string(), "id"],
                     "Product variant is missing ID attribute",
@@ -1729,6 +1732,7 @@ impl DraftProxy {
                 continue;
             };
             let Some(existing) = self.store.product_variant_by_id(&variant_id).cloned() else {
+                has_blocking_errors = true;
                 user_errors.push(user_error(
                     ["variants", &index.to_string(), "id"],
                     "Product variant does not exist",
@@ -1737,6 +1741,7 @@ impl DraftProxy {
                 continue;
             };
             if existing.product_id != product.id {
+                has_blocking_errors = true;
                 user_errors.push(user_error(
                     ["variants", &index.to_string(), "id"],
                     "Product variant does not exist",
@@ -1744,19 +1749,34 @@ impl DraftProxy {
                 ));
                 continue;
             }
+            let mut input_errors = Vec::new();
+            let mut input_has_blocking_errors = false;
             if input.contains_key("inventoryQuantities") {
-                user_errors.push(user_error(
+                input_has_blocking_errors = true;
+                input_errors.push(user_error(
                     ["variants", &index.to_string(), "inventoryQuantities"],
                     "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
                     Some("NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"),
                 ));
             }
-            user_errors.extend(product_variant_input_user_errors_with_prefix(
+            input_errors.extend(product_variant_input_user_errors_with_prefix(
                 input, &prefix,
             ));
-            user_errors.extend(Self::product_variant_bulk_option_user_errors(
-                input, &product, index, true,
-            ));
+            let option_errors =
+                Self::product_variant_bulk_option_user_errors(input, &product, index, true);
+            if !option_errors.is_empty() {
+                input_has_blocking_errors = true;
+            }
+            input_errors.extend(option_errors);
+            if input_has_blocking_errors {
+                has_blocking_errors = true;
+            } else {
+                response_variant_ids.push(variant_id.clone());
+            }
+            if !input_errors.is_empty() {
+                user_errors.extend(input_errors);
+                continue;
+            }
             let mut variant = existing;
             apply_product_variant_input(&mut variant, input);
             Self::normalize_bulk_variant_title(&mut variant);
@@ -1764,13 +1784,25 @@ impl DraftProxy {
                 position_moves.push((variant.id.clone(), position, index));
             }
             updated_variants.push(variant);
+            updated_variant_input_indexes.push(index);
         }
-        if !user_errors.is_empty() {
+        Self::sort_user_errors_by_field_and_code(&mut user_errors);
+        if !user_errors.is_empty() && (!allow_partial_updates || updated_variants.is_empty()) {
+            let response_variants = if has_blocking_errors {
+                None
+            } else {
+                Some(
+                    response_variant_ids
+                        .iter()
+                        .filter_map(|id| self.store.product_variant_by_id(id).cloned())
+                        .collect(),
+                )
+            };
             return MutationOutcome::response(self.product_variants_bulk_response(
                 &field,
                 "productVariantsBulkUpdate",
                 Some(&product),
-                None,
+                response_variants,
                 user_errors,
             ));
         }
@@ -1778,8 +1810,11 @@ impl DraftProxy {
         for variant in &updated_variants {
             self.store.stage_product_variant(variant.clone());
         }
-        for (variant, input) in updated_variants.iter().zip(variants_input.iter()) {
-            self.stage_input_variant_metafields(&variant.id, input);
+        for (variant, input_index) in updated_variants
+            .iter()
+            .zip(updated_variant_input_indexes.iter())
+        {
+            self.stage_input_variant_metafields(&variant.id, &variants_input[*input_index]);
         }
         if !position_moves.is_empty() {
             self.store
@@ -1791,13 +1826,21 @@ impl DraftProxy {
         }
         let mut staged_ids = vec![product.id.clone()];
         staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
+        let response_variants = if has_blocking_errors {
+            updated_variants.clone()
+        } else {
+            response_variant_ids
+                .iter()
+                .filter_map(|id| self.store.product_variant_by_id(id).cloned())
+                .collect()
+        };
         MutationOutcome::staged(
             self.product_variants_bulk_response(
                 &field,
                 "productVariantsBulkUpdate",
                 self.store.product_by_id(&product.id),
-                Some(updated_variants),
-                Vec::new(),
+                Some(response_variants),
+                user_errors,
             ),
             LogDraft::staged("productVariantsBulkUpdate", "products", staged_ids),
         )
@@ -2062,6 +2105,39 @@ impl DraftProxy {
                 _ => None,
             }
         })
+    }
+
+    fn sort_user_errors_by_field_and_code(user_errors: &mut [Value]) {
+        user_errors.sort_by_key(|error| {
+            (
+                Self::user_error_field_sort_key(error),
+                Self::user_error_code_sort_key(error),
+            )
+        });
+    }
+
+    fn user_error_field_sort_key(error: &Value) -> Vec<String> {
+        match error.get("field") {
+            Some(Value::Array(field)) => field
+                .iter()
+                .map(|segment| {
+                    segment
+                        .as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| segment.to_string())
+                })
+                .collect(),
+            Some(Value::String(field)) => vec![field.clone()],
+            _ => Vec::new(),
+        }
+    }
+
+    fn user_error_code_sort_key(error: &Value) -> String {
+        match error.get("code") {
+            Some(Value::String(code)) => code.clone(),
+            Some(Value::Null) | None => String::new(),
+            Some(code) => code.to_string(),
+        }
     }
 
     fn product_for_bulk_variant_mutation_with_variant_ids(

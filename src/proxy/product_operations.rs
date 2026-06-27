@@ -1054,11 +1054,12 @@ fn product_set_shape_error_response(
     let variants = resolved_object_list_field(input, "variants");
     if variants.len() > 2048 {
         return Some(ok_json(json!({
-            "errors": [{
-                "message": format!("The input array size of {} is greater than the maximum allowed of 2048.", variants.len()),
-                "path": [response_key, "input", "variants"],
-                "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-            }]
+            "errors": [max_input_size_exceeded_error(
+                [response_key, "input", "variants"],
+                variants.len(),
+                2048,
+                None
+            )]
         })));
     }
     if let Some(quantities_len) = variants
@@ -1067,11 +1068,12 @@ fn product_set_shape_error_response(
         .find(|len| *len > 250)
     {
         return Some(ok_json(json!({
-            "errors": [{
-                "message": format!("The input array size of {} is greater than the maximum allowed of 250.", quantities_len),
-                "path": [response_key, "input", "variants", "inventoryQuantities"],
-                "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-            }]
+            "errors": [max_input_size_exceeded_error(
+                [response_key, "input", "variants", "inventoryQuantities"],
+                quantities_len,
+                250,
+                None
+            )]
         })));
     }
 

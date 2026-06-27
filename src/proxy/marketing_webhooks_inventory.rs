@@ -519,56 +519,32 @@ impl DraftProxy {
             .or_else(|| record["callbackUrl"].as_str())
             .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
+        let callback_err =
+            |message| user_error_omit_code(["webhookSubscription", "callbackUrl"], message, None);
         if uri.trim().is_empty() {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
-                "Address can't be blank",
-                None,
-            ));
+            errors.push(callback_err("Address can't be blank"));
         }
         if uri.starts_with("http://") {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
-                "Address protocol http:// is not supported",
-                None,
-            ));
+            errors.push(callback_err("Address protocol http:// is not supported"));
         }
         if uri.starts_with("kafka://") {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
-                "Address protocol kafka:// is not supported",
-                None,
-            ));
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
-                "Address is not a valid kafka topic",
-                None,
-            ));
+            errors.push(callback_err("Address protocol kafka:// is not supported"));
+            errors.push(callback_err("Address is not a valid kafka topic"));
         }
         if uri.len() > 65_535 {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
-                "Address is too big (maximum is 64 KB)",
-                None,
-            ));
+            errors.push(callback_err("Address is too big (maximum is 64 KB)"));
         }
         if webhook_uri_uses_disallowed_host(uri) {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
+            errors.push(callback_err(
                 "Address cannot be a Shopify or an internal domain",
-                None,
             ));
         }
         if let Some(pubsub_tail) = uri.strip_prefix("pubsub://") {
             let pubsub_parts = pubsub_tail.split_once(':');
             let (project, topic) = pubsub_parts.unwrap_or((pubsub_tail, ""));
             if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
-                errors.push(user_error_omit_code(
-                    ["webhookSubscription", "callbackUrl"],
-                    "Address protocol pubsub:// is not supported",
-                    None,
-                ));
-                errors.push(user_error_omit_code(["webhookSubscription", "callbackUrl"], "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic", None));
+                errors.push(callback_err("Address protocol pubsub:// is not supported"));
+                errors.push(callback_err("Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"));
             } else if !valid_gcp_project_id(project) {
                 if root_field.starts_with("pubSubWebhookSubscription") {
                     errors.push(user_error_omit_code(
@@ -577,16 +553,8 @@ impl DraftProxy {
                         None,
                     ));
                 } else {
-                    errors.push(user_error_omit_code(
-                        ["webhookSubscription", "callbackUrl"],
-                        "Address is invalid",
-                        None,
-                    ));
-                    errors.push(user_error_omit_code(
-                        ["webhookSubscription", "callbackUrl"],
-                        "Address is not a valid GCP project id.",
-                        None,
-                    ));
+                    errors.push(callback_err("Address is invalid"));
+                    errors.push(callback_err("Address is not a valid GCP project id."));
                 }
             } else if !valid_gcp_pubsub_topic_id(topic) {
                 if root_field.starts_with("pubSubWebhookSubscription") {
@@ -596,16 +564,8 @@ impl DraftProxy {
                         None,
                     ));
                 } else {
-                    errors.push(user_error_omit_code(
-                        ["webhookSubscription", "callbackUrl"],
-                        "Address is invalid",
-                        None,
-                    ));
-                    errors.push(user_error_omit_code(
-                        ["webhookSubscription", "callbackUrl"],
-                        "Address is not a valid GCP topic id.",
-                        None,
-                    ));
+                    errors.push(callback_err("Address is invalid"));
+                    errors.push(callback_err("Address is not a valid GCP topic id."));
                 }
             }
         }
@@ -675,10 +635,8 @@ impl DraftProxy {
                         == webhook_subscription_optional_string_key(record, "apiPermissionId")
             })
         {
-            errors.push(user_error_omit_code(
-                ["webhookSubscription", "callbackUrl"],
+            errors.push(callback_err(
                 "Address for this topic has already been taken",
-                None,
             ));
         }
         if let Some(name) = record["name"].as_str() {
@@ -697,10 +655,10 @@ impl DraftProxy {
                 errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
             }
             if name.chars().count() > 50 {
-                errors.push(user_error_omit_code(
+                errors.push(length_user_error(
                     ["webhookSubscription", "name"],
-                    "Name is too long (maximum is 50 characters)",
-                    None,
+                    "Name",
+                    LengthUserErrorBound::TooLong { maximum: 50 },
                 ));
             }
             if self
@@ -1629,7 +1587,7 @@ impl DraftProxy {
             ));
         }
         if resolved_string_field(input, "urlParameterValue")
-            .is_some_and(|value| json_string_value(&existing["urlParameterValue"]) != Some(value))
+            .is_some_and(|value| existing["urlParameterValue"].as_str() != Some(value.as_str()))
         {
             return Some(user_error(
                 ["input"],
@@ -1637,13 +1595,15 @@ impl DraftProxy {
                 Some("IMMUTABLE_URL_PARAMETER"),
             ));
         }
+        let existing_utm_value = |field| {
+            existing["utmParameters"][field]
+                .as_str()
+                .map(str::to_string)
+        };
         if (input.contains_key("utm") || selector_utm.is_some())
-            && (input_utm_value(input, selector_utm, "campaign")
-                != json_string_value(&existing["utmParameters"]["campaign"])
-                || input_utm_value(input, selector_utm, "source")
-                    != json_string_value(&existing["utmParameters"]["source"])
-                || input_utm_value(input, selector_utm, "medium")
-                    != json_string_value(&existing["utmParameters"]["medium"]))
+            && (input_utm_value(input, selector_utm, "campaign") != existing_utm_value("campaign")
+                || input_utm_value(input, selector_utm, "source") != existing_utm_value("source")
+                || input_utm_value(input, selector_utm, "medium") != existing_utm_value("medium"))
         {
             return Some(user_error(
                 ["input"],
@@ -2195,6 +2155,13 @@ impl DraftProxy {
     }
 
     fn stage_observed_inventory_location(&mut self, location: &Value) {
+        self.merge_staged_location(
+            location,
+            &[("__typename", json!("Location")), ("isActive", json!(true))],
+        );
+    }
+
+    fn merge_staged_location(&mut self, location: &Value, defaults: &[(&str, Value)]) {
         let Some(id) = location.get("id").and_then(Value::as_str) else {
             return;
         };
@@ -2211,12 +2178,11 @@ impl DraftProxy {
                 record.insert(key.clone(), value.clone());
             }
         }
-        record
-            .entry("__typename".to_string())
-            .or_insert_with(|| json!("Location"));
-        record
-            .entry("isActive".to_string())
-            .or_insert_with(|| json!(true));
+        for (key, value) in defaults {
+            record
+                .entry((*key).to_string())
+                .or_insert_with(|| value.clone());
+        }
         self.store
             .staged
             .locations
@@ -2590,7 +2556,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         if let Some(error_payload) =
-            self.inventory_set_quantities_existence_payload(field, &quantities)
+            self.inventory_existence_payload(field, &quantities, "quantities")
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
@@ -2618,15 +2584,13 @@ impl DraftProxy {
             level.insert(name.clone(), new_quantity);
             if name == "available" {
                 let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
-                let on_hand_after_change = old_on_hand + delta;
-                level.insert("on_hand".to_string(), on_hand_after_change);
+                level.insert("on_hand".to_string(), old_on_hand + delta);
                 level.entry("damaged".to_string()).or_insert(0);
                 self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
-                    on_hand_after_change,
                     None,
                     &location_id,
                     &location_name,
@@ -2641,7 +2605,6 @@ impl DraftProxy {
                 &item_id,
                 &name,
                 delta,
-                new_quantity,
                 None,
                 &location_id,
                 &location_name,
@@ -2700,7 +2663,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         if let Some(error_payload) =
-            self.inventory_set_on_hand_quantities_existence_payload(field, &set_quantities)
+            self.inventory_existence_payload(field, &set_quantities, "setQuantities")
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
@@ -2743,17 +2706,19 @@ impl DraftProxy {
                 "on_hand".to_string(),
             ));
             self.sync_variant_available_quantity(&item_id, "available");
-            changes.push(inventory_set_on_hand_change_json(
+            changes.push(inventory_change_json(
                 &item_id,
                 "available",
                 delta,
+                None,
                 &location_id,
                 &location_name,
             ));
-            changes.push(inventory_set_on_hand_change_json(
+            changes.push(inventory_change_json(
                 &item_id,
                 "on_hand",
                 delta,
+                None,
                 &location_id,
                 &location_name,
             ));
@@ -2805,7 +2770,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         if let Some(error_payload) =
-            self.inventory_adjust_quantities_existence_payload(field, &changes_input)
+            self.inventory_existence_payload(field, &changes_input, "changes")
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
@@ -2827,24 +2792,21 @@ impl DraftProxy {
                 .inventory_levels
                 .entry((item_id.clone(), location_id.clone()))
                 .or_default();
-            let after_change = {
+            {
                 let quantity = level.entry(name.clone()).or_insert(0);
                 *quantity += delta;
-                *quantity
-            };
+            }
             if name == "available" {
-                let on_hand_after_change = {
+                {
                     let on_hand = level.entry("on_hand".to_string()).or_insert(0);
                     *on_hand += delta;
-                    *on_hand
-                };
+                }
                 level.entry("damaged".to_string()).or_insert(0);
                 self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
-                    on_hand_after_change,
                     None,
                     &location_id,
                     &location_name,
@@ -2856,7 +2818,6 @@ impl DraftProxy {
                 &item_id,
                 &name,
                 delta,
-                after_change,
                 ledger.as_deref(),
                 &location_id,
                 &location_name,
@@ -2910,9 +2871,7 @@ impl DraftProxy {
                 return MutationFieldOutcome::unlogged(error_payload);
             }
         }
-        if let Some(error_payload) =
-            self.inventory_move_quantities_existence_payload(field, &changes_input)
-        {
+        if let Some(error_payload) = self.inventory_move_existence_payload(field, &changes_input) {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         for (index, change) in changes_input.iter().enumerate() {
@@ -2949,26 +2908,23 @@ impl DraftProxy {
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
-            let (from_after_change, to_after_change) = {
+            {
                 let level = self
                     .store
                     .staged
                     .inventory_levels
                     .entry((item_id.clone(), location_id.clone()))
                     .or_default();
-                let from_after_change = {
+                {
                     let from_quantity = level.entry(from_name.clone()).or_insert(0);
                     *from_quantity -= quantity;
-                    *from_quantity
-                };
-                let to_after_change = {
+                }
+                {
                     let to_quantity = level.entry(to_name.clone()).or_insert(0);
                     *to_quantity += quantity;
-                    *to_quantity
-                };
+                }
                 level.entry("on_hand".to_string()).or_insert(0);
-                (from_after_change, to_after_change)
-            };
+            }
             self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
             self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
             self.sync_variant_available_quantity(&item_id, &from_name);
@@ -2977,7 +2933,6 @@ impl DraftProxy {
                 &item_id,
                 &from_name,
                 -quantity,
-                from_after_change,
                 None,
                 &location_id,
                 &location_name,
@@ -2986,7 +2941,6 @@ impl DraftProxy {
                 &item_id,
                 &to_name,
                 quantity,
-                to_after_change,
                 ledger.as_deref(),
                 &location_id,
                 &location_name,
@@ -3011,148 +2965,84 @@ impl DraftProxy {
         )
     }
 
-    fn inventory_set_quantities_existence_payload(
+    fn inventory_existence_payload(
         &self,
         field: &RootFieldSelection,
-        quantities: &[BTreeMap<String, ResolvedValue>],
+        rows: &[BTreeMap<String, ResolvedValue>],
+        list_key: &str,
     ) -> Option<Value> {
         let mut errors = Vec::new();
-        for (index, quantity) in quantities.iter().enumerate() {
-            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
-            if !self.inventory_item_exists(&item_id) {
-                errors.push(inventory_unknown_inventory_item_error(vec![
-                    "input".to_string(),
-                    "quantities".to_string(),
-                    index.to_string(),
-                    "inventoryItemId".to_string(),
-                ]));
-            }
-            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
-            if !self.inventory_location_exists(&location_id) {
-                errors.push(inventory_unknown_location_error(vec![
-                    "input".to_string(),
-                    "quantities".to_string(),
-                    index.to_string(),
-                    "locationId".to_string(),
-                ]));
-            }
+        for (index, row) in rows.iter().enumerate() {
+            self.push_inventory_item_existence_error(&mut errors, row, list_key, index);
+            let location_id = resolved_string_field(row, "locationId").unwrap_or_default();
+            self.push_inventory_location_existence_error(
+                &mut errors,
+                &location_id,
+                list_key,
+                index,
+                &["locationId"],
+            );
         }
-        if errors.is_empty() {
-            None
-        } else {
-            Some(inventory_invalid_adjustment_payload(field, errors))
-        }
+        inventory_existence_error_payload(field, errors)
     }
 
-    fn inventory_set_on_hand_quantities_existence_payload(
-        &self,
-        field: &RootFieldSelection,
-        set_quantities: &[BTreeMap<String, ResolvedValue>],
-    ) -> Option<Value> {
-        let mut errors = Vec::new();
-        for (index, quantity) in set_quantities.iter().enumerate() {
-            let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
-            if !self.inventory_item_exists(&item_id) {
-                errors.push(inventory_unknown_inventory_item_error(vec![
-                    "input".to_string(),
-                    "setQuantities".to_string(),
-                    index.to_string(),
-                    "inventoryItemId".to_string(),
-                ]));
-            }
-            let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
-            if !self.inventory_location_exists(&location_id) {
-                errors.push(inventory_unknown_location_error(vec![
-                    "input".to_string(),
-                    "setQuantities".to_string(),
-                    index.to_string(),
-                    "locationId".to_string(),
-                ]));
-            }
-        }
-        if errors.is_empty() {
-            None
-        } else {
-            Some(inventory_invalid_adjustment_payload(field, errors))
-        }
-    }
-
-    fn inventory_adjust_quantities_existence_payload(
+    fn inventory_move_existence_payload(
         &self,
         field: &RootFieldSelection,
         changes: &[BTreeMap<String, ResolvedValue>],
     ) -> Option<Value> {
         let mut errors = Vec::new();
         for (index, change) in changes.iter().enumerate() {
-            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
-            if !self.inventory_item_exists(&item_id) {
-                errors.push(inventory_unknown_inventory_item_error(vec![
-                    "input".to_string(),
-                    "changes".to_string(),
-                    index.to_string(),
-                    "inventoryItemId".to_string(),
-                ]));
-            }
-            let location_id = resolved_string_field(change, "locationId").unwrap_or_default();
-            if !self.inventory_location_exists(&location_id) {
-                errors.push(inventory_unknown_location_error(vec![
-                    "input".to_string(),
-                    "changes".to_string(),
-                    index.to_string(),
-                    "locationId".to_string(),
-                ]));
-            }
-        }
-        if errors.is_empty() {
-            None
-        } else {
-            Some(inventory_invalid_adjustment_payload(field, errors))
-        }
-    }
-
-    fn inventory_move_quantities_existence_payload(
-        &self,
-        field: &RootFieldSelection,
-        changes: &[BTreeMap<String, ResolvedValue>],
-    ) -> Option<Value> {
-        let mut errors = Vec::new();
-        for (index, change) in changes.iter().enumerate() {
-            let item_id = resolved_string_field(change, "inventoryItemId").unwrap_or_default();
-            if !self.inventory_item_exists(&item_id) {
-                errors.push(inventory_unknown_inventory_item_error(vec![
-                    "input".to_string(),
-                    "changes".to_string(),
-                    index.to_string(),
-                    "inventoryItemId".to_string(),
-                ]));
-            }
+            self.push_inventory_item_existence_error(&mut errors, change, "changes", index);
             let from = resolved_object_field(change, "from").unwrap_or_default();
             let from_location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
-            if !self.inventory_location_exists(&from_location_id) {
-                errors.push(inventory_unknown_location_error(vec![
-                    "input".to_string(),
-                    "changes".to_string(),
-                    index.to_string(),
-                    "from".to_string(),
-                    "locationId".to_string(),
-                ]));
-            }
+            self.push_inventory_location_existence_error(
+                &mut errors,
+                &from_location_id,
+                "changes",
+                index,
+                &["from", "locationId"],
+            );
             let to = resolved_object_field(change, "to").unwrap_or_default();
             let to_location_id = resolved_string_field(&to, "locationId").unwrap_or_default();
-            if !self.inventory_location_exists(&to_location_id) {
-                errors.push(inventory_unknown_location_error(vec![
-                    "input".to_string(),
-                    "changes".to_string(),
-                    index.to_string(),
-                    "to".to_string(),
-                    "locationId".to_string(),
-                ]));
-            }
+            self.push_inventory_location_existence_error(
+                &mut errors,
+                &to_location_id,
+                "changes",
+                index,
+                &["to", "locationId"],
+            );
         }
-        if errors.is_empty() {
-            None
-        } else {
-            Some(inventory_invalid_adjustment_payload(field, errors))
+        inventory_existence_error_payload(field, errors)
+    }
+
+    fn push_inventory_item_existence_error(
+        &self,
+        errors: &mut Vec<Value>,
+        row: &BTreeMap<String, ResolvedValue>,
+        list_key: &str,
+        index: usize,
+    ) {
+        let item_id = resolved_string_field(row, "inventoryItemId").unwrap_or_default();
+        if !self.inventory_item_exists(&item_id) {
+            errors.push(inventory_unknown_inventory_item_error(
+                inventory_input_path(list_key, index, &["inventoryItemId"]),
+            ));
+        }
+    }
+
+    fn push_inventory_location_existence_error(
+        &self,
+        errors: &mut Vec<Value>,
+        location_id: &str,
+        list_key: &str,
+        index: usize,
+        field_path: &[&str],
+    ) {
+        if !self.inventory_location_exists(location_id) {
+            errors.push(inventory_unknown_location_error(inventory_input_path(
+                list_key, index, field_path,
+            )));
         }
     }
 
@@ -3165,14 +3055,17 @@ impl DraftProxy {
         let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
         let has_available = field.arguments.contains_key("available");
         let available = resolved_int_field(&field.arguments, "available");
+        let has_on_hand = field.arguments.contains_key("onHand");
+        let on_hand = resolved_int_field(&field.arguments, "onHand");
         let inventory_level_selection =
             selected_child_selection(&field.selection, "inventoryLevel").unwrap_or_default();
         let mut user_errors = Vec::new();
 
         if !self.inventory_item_exists(&inventory_item_id) {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["inventoryItemId"],
                 "The product couldn't be stocked because it wasn't found.",
+                None,
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -3181,15 +3074,20 @@ impl DraftProxy {
             ));
         }
         if available.is_some_and(|value| value < 0) {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["available"],
                 "Available must be greater than or equal to 0",
+                None,
             ));
         }
+        let on_hand_out_of_range = on_hand.is_some_and(|value| {
+            !(-INVENTORY_SET_QUANTITY_MAX..=INVENTORY_SET_QUANTITY_MAX).contains(&value)
+        });
         if !self.inventory_location_exists(&location_id) {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location wasn't found.",
+                None,
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -3198,10 +3096,35 @@ impl DraftProxy {
             ));
         }
         if !self.inventory_location_is_active(&location_id) {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["locationId"],
                 "The product couldn't be stocked because the location is not active.",
+                None,
             ));
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                None,
+                &field.selection,
+                user_errors,
+            ));
+        }
+        let location_name = self.inventory_location_display_name(&location_id);
+        if has_available && has_on_hand {
+            let message = format!(
+                "The product couldn't be stocked at {location_name} because not allowed to set available and on_hand quantities at the same time."
+            );
+            user_errors.push(inventory_activate_user_error(vec!["available"], &message));
+            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                None,
+                &field.selection,
+                user_errors,
+            ));
+        }
+        if on_hand_out_of_range {
+            let message = format!(
+                "The product couldn't be stocked at {location_name} because the quantity needs to be between -1 billion and 1 billion."
+            );
+            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
                 &field.selection,
@@ -3219,9 +3142,26 @@ impl DraftProxy {
         let was_active =
             existed_before && !self.store.staged.inactive_inventory_levels.contains(&key);
         if was_active && has_available {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
+                None,
+            ));
+            let level = self.inventory_level_for_payload(
+                &inventory_item_id,
+                &location_id,
+                &inventory_level_selection,
+            );
+            return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
+                level,
+                &field.selection,
+                user_errors,
+            ));
+        }
+        if was_active && has_on_hand {
+            user_errors.push(inventory_activate_user_error(
+                vec!["onHand"],
+                "Not allowed to set an on_hand quantity when the item is already active at the location.",
             ));
             let level = self.inventory_level_for_payload(
                 &inventory_item_id,
@@ -3240,9 +3180,10 @@ impl DraftProxy {
                 .len()
                 >= INVENTORY_MAX_ACTIVE_LEVELS
         {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["locationId"],
                 "The product couldn't be stocked because it has reached the maximum number of inventory locations.",
+                None,
             ));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
@@ -3260,19 +3201,23 @@ impl DraftProxy {
             // on_hand to that value. Reactivating an existing (inactive) level must
             // preserve its prior quantities, so only seed on a brand-new level.
             if !existed_before {
-                if let Some(value) = available {
-                    if value >= 0 {
-                        let updated_at = self.next_inventory_quantity_timestamp();
-                        if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
-                            level.insert("available".to_string(), value);
-                            level.insert("on_hand".to_string(), value);
-                        }
-                        self.stamp_inventory_quantity(
-                            &inventory_item_id,
-                            &location_id,
-                            "available",
-                            &updated_at,
-                        );
+                let available_seed = available.filter(|value| *value >= 0);
+                let on_hand_seed = on_hand.filter(|value| {
+                    (-INVENTORY_SET_QUANTITY_MAX..=INVENTORY_SET_QUANTITY_MAX).contains(value)
+                });
+                if let Some(value) = available_seed.or(on_hand_seed) {
+                    let updated_at = self.next_inventory_quantity_timestamp();
+                    if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
+                        level.insert("available".to_string(), value);
+                        level.insert("on_hand".to_string(), value);
+                    }
+                    self.stamp_inventory_quantity(
+                        &inventory_item_id,
+                        &location_id,
+                        "available",
+                        &updated_at,
+                    );
+                    if available_seed.is_some() {
                         self.stamp_inventory_quantity(
                             &inventory_item_id,
                             &location_id,
@@ -3363,7 +3308,7 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
 
         if !self.inventory_item_exists(&inventory_item_id) {
-            user_errors.push(inventory_bulk_toggle_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["inventoryItemId".to_string()],
                 "The inventory item couldn't be found.",
                 Some("INVENTORY_ITEM_NOT_FOUND"),
@@ -3387,7 +3332,7 @@ impl DraftProxy {
             if !self.inventory_location_exists(&location_id)
                 || !self.inventory_location_is_active(&location_id)
             {
-                user_errors.push(inventory_bulk_toggle_user_error(
+                user_errors.push(user_error_omit_code(
                     location_path.clone(),
                     "The quantity couldn't be updated because the location was not found.",
                     Some("LOCATION_NOT_FOUND"),
@@ -3429,7 +3374,7 @@ impl DraftProxy {
                     <= 1
                     && is_active
                 {
-                    user_errors.push(inventory_bulk_toggle_user_error(
+                    user_errors.push(user_error_omit_code(
                         location_path.clone(),
                         &format!(
                             "The variant couldn't be unstocked from {} because products need to be stocked at a minimum of 1 location.",
@@ -3499,7 +3444,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(self.inventory_item_update_payload(
                 None,
                 &field.selection,
-                vec![inventory_item_update_user_error(
+                vec![user_error_omit_code(
                     inventory_item_update_field_path(&["id"]),
                     "The product couldn't be updated because it does not exist.",
                     None,
@@ -5549,36 +5494,11 @@ impl DraftProxy {
                         .then_some("InventoryItem")
                 });
             match node_type {
-                Some("Location") => self.stage_inventory_transfer_location(node),
+                Some("Location") => self.merge_staged_location(&node, &[]),
                 Some("InventoryItem") => self.stage_inventory_transfer_inventory_item(node),
                 _ => {}
             }
         }
-    }
-
-    fn stage_inventory_transfer_location(&mut self, location: Value) {
-        let Some(id) = location
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-        else {
-            return;
-        };
-        let mut merged = self
-            .store
-            .staged
-            .locations
-            .get(&id)
-            .cloned()
-            .unwrap_or_else(|| json!({}));
-        if let (Some(existing), Some(incoming)) = (merged.as_object_mut(), location.as_object()) {
-            for (key, value) in incoming {
-                existing.insert(key.clone(), value.clone());
-            }
-        } else {
-            merged = location;
-        }
-        self.store.staged.locations.insert(id, merged);
     }
 
     fn stage_inventory_transfer_inventory_item(&mut self, item: Value) {
@@ -5670,8 +5590,8 @@ impl DraftProxy {
                 .staged
                 .inventory_levels
                 .insert((item_id.clone(), location_id.clone()), quantities);
-            if let Some(location) = level.get("location").cloned() {
-                self.stage_inventory_transfer_location(location);
+            if let Some(location) = level.get("location") {
+                self.merge_staged_location(location, &[]);
             }
         }
     }
@@ -5758,10 +5678,6 @@ fn input_utm_value(
         Some(ResolvedValue::Object(utm)) => resolved_string_field(utm, field),
         _ => selector_utm.and_then(|utm| resolved_string_field(utm, field)),
     }
-}
-
-fn json_string_value(value: &Value) -> Option<String> {
-    value.as_str().map(str::to_string)
 }
 
 fn marketing_activity_not_external_error() -> Value {
@@ -6303,28 +6219,12 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
     quantities
 }
 
-fn inventory_activate_user_error(field: Vec<&str>, message: &str) -> Value {
-    user_error_omit_code(field, message, None)
+fn inventory_activate_user_error(field_path: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field_path, message, None)
 }
 
 fn inventory_deactivate_user_error(message: &str) -> Value {
     user_error_omit_code(Value::Null, message, None)
-}
-
-fn inventory_bulk_toggle_user_error(
-    field: Vec<String>,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_omit_code(field, message, code)
-}
-
-fn inventory_item_update_user_error(
-    field: Vec<String>,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_omit_code(field, message, code)
 }
 
 fn inventory_item_update_variable_errors(
@@ -6357,7 +6257,7 @@ fn inventory_item_update_variable_errors(
 fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
     let mut errors = Vec::new();
     if resolved_f64_path(input, &["cost"]).is_some_and(|cost| cost < 0.0) {
-        errors.push(inventory_item_update_user_error(
+        errors.push(user_error_omit_code(
             inventory_item_update_field_path(&["input", "cost"]),
             "Cost must be greater than or equal to 0",
             Some("INVALID"),
@@ -6368,7 +6268,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     {
         if let Some(value) = resolved_f64_path(&weight, &["value"]) {
             if value < 0.0 {
-                errors.push(inventory_item_update_user_error(
+                errors.push(user_error_omit_code(
                     inventory_item_update_field_path(&["input", "measurement", "weight"]),
                     &format!(
                         "Measurement weight value {} kg must be >= 0 kg",
@@ -6381,7 +6281,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     }
     if let Some(country_code) = resolved_string_field(input, "countryCodeOfOrigin") {
         if !is_valid_country_code(&country_code) {
-            errors.push(inventory_item_update_user_error(
+            errors.push(user_error_omit_code(
                 inventory_item_update_field_path(&["input", "countryCodeOfOrigin"]),
                 "Country code of origin is invalid",
                 Some("INVALID"),
@@ -6390,7 +6290,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     }
     if let Some(province_code) = resolved_string_field(input, "provinceCodeOfOrigin") {
         if province_code.len() > 3 || !province_code.chars().all(|ch| ch.is_ascii_alphabetic()) {
-            errors.push(inventory_item_update_user_error(
+            errors.push(user_error_omit_code(
                 inventory_item_update_field_path(&["input", "provinceCodeOfOrigin"]),
                 "Province code of origin is invalid",
                 Some("INVALID"),
@@ -6399,7 +6299,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     }
     if let Some(hs_code) = resolved_string_field(input, "harmonizedSystemCode") {
         if !valid_harmonized_system_code(&hs_code) {
-            errors.push(inventory_item_update_user_error(
+            errors.push(user_error_omit_code(
                 inventory_item_update_field_path(&["input", "harmonizedSystemCode"]),
                 "Harmonized system code must be a number between six and thirteen digits",
                 Some("INVALID"),
@@ -6413,13 +6313,13 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     {
         if let Some(country_code) = resolved_string_field(row, "countryCode") {
             if !is_valid_country_code(&country_code) {
-                errors.push(inventory_item_update_user_error(
+                errors.push(user_error_omit_code(
                     inventory_item_update_field_path(&["input", "countryHarmonizedSystemCodes"]),
                     "Country code is invalid",
                     Some("INVALID"),
                 ));
             } else if !seen_country_codes.insert(country_code) {
-                errors.push(inventory_item_update_user_error(
+                errors.push(user_error_omit_code(
                     vec![
                         "input".to_string(),
                         "countryHarmonizedSystemCodes".to_string(),
@@ -6433,7 +6333,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
         }
         if let Some(hs_code) = resolved_string_field(row, "harmonizedSystemCode") {
             if !valid_harmonized_system_code(&hs_code) {
-                errors.push(inventory_item_update_user_error(
+                errors.push(user_error_omit_code(
                     inventory_item_update_field_path(&["input", "countryHarmonizedSystemCodes"]),
                     "Harmonized system code must be a number between six and thirteen digits",
                     Some("INVALID"),
@@ -6620,31 +6520,22 @@ fn inventory_invalid_adjustment_payload(
     )
 }
 
-fn inventory_set_on_hand_change_json(
-    item_id: &str,
-    name: &str,
-    delta: i64,
-    location_id: &str,
-    location_name: &str,
-) -> Value {
-    json!({
-        "name": name,
-        "delta": delta,
-        "quantityAfterChange": Value::Null,
-        "ledgerDocumentUri": Value::Null,
-        "item": {
-            "id": item_id
-        },
-        "location": {
-            "id": location_id,
-            "name": location_name
-        }
-    })
+fn inventory_existence_error_payload(
+    field: &RootFieldSelection,
+    user_errors: Vec<Value>,
+) -> Option<Value> {
+    (!user_errors.is_empty()).then(|| inventory_invalid_adjustment_payload(field, user_errors))
+}
+
+fn inventory_input_path(list_key: &str, index: usize, field_path: &[&str]) -> Vec<String> {
+    let mut path = vec!["input".to_string(), list_key.to_string(), index.to_string()];
+    path.extend(field_path.iter().map(|segment| (*segment).to_string()));
+    path
 }
 
 fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
     user_error(
-        json!(field),
+        field,
         "The specified inventory item could not be found.",
         Some("INVALID_INVENTORY_ITEM"),
     )
@@ -6652,7 +6543,7 @@ fn inventory_unknown_inventory_item_error(field: Vec<String>) -> Value {
 
 fn inventory_unknown_location_error(field: Vec<String>) -> Value {
     user_error(
-        json!(field),
+        field,
         "The specified location could not be found.",
         Some("INVALID_LOCATION"),
     )

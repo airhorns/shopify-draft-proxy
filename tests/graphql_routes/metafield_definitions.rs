@@ -2416,6 +2416,132 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
 }
 
 #[test]
+fn metafields_set_and_owner_reads_project_matching_definition() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/10173064872243";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionAssociationCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType type { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "custom",
+                "key": "specs",
+                "name": "Specs",
+                "type": "multi_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let created_definition = &create.body["data"]["metafieldDefinitionCreate"]["createdDefinition"];
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionAssociationSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              definition { id namespace key type { name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [
+                {
+                    "ownerId": owner_id,
+                    "namespace": "custom",
+                    "key": "specs",
+                    "type": "multi_line_text_field",
+                    "value": "hi"
+                },
+                {
+                    "ownerId": owner_id,
+                    "namespace": "unscoped",
+                    "key": "note",
+                    "type": "single_line_text_field",
+                    "value": "loose"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "custom",
+                "key": "specs",
+                "definition": {
+                    "id": created_definition["id"].clone(),
+                    "namespace": "custom",
+                    "key": "specs",
+                    "type": { "name": "multi_line_text_field" }
+                }
+            },
+            {
+                "namespace": "unscoped",
+                "key": "note",
+                "definition": null
+            }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionAssociationRead($id: ID!) {
+          product(id: $id) {
+            defined: metafield(namespace: "custom", key: "specs") {
+              namespace
+              key
+              definition { id namespace key type { name } }
+            }
+            undefined: metafield(namespace: "unscoped", key: "note") {
+              namespace
+              key
+              definition { id }
+            }
+          }
+        }
+        "#,
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["defined"],
+        json!({
+            "namespace": "custom",
+            "key": "specs",
+            "definition": {
+                "id": created_definition["id"].clone(),
+                "namespace": "custom",
+                "key": "specs",
+                "type": { "name": "multi_line_text_field" }
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["undefined"],
+        json!({
+            "namespace": "unscoped",
+            "key": "note",
+            "definition": null
+        })
+    );
+}
+
+#[test]
 fn metafield_definition_validation_rules_gate_metafields_set_values() {
     let mut proxy = snapshot_proxy();
     let owner_id = "gid://shopify/Product/10173064872244";

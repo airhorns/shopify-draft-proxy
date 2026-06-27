@@ -7,6 +7,11 @@ enum B2bCompanyLocationDeleteBlocker {
     StoreCredit,
 }
 
+enum B2bLocationNameFallback {
+    CompanyName,
+    ShippingAddressThenCompanyName,
+}
+
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
         let location_tail = resource_id_tail(location_id);
@@ -726,8 +731,12 @@ impl DraftProxy {
         // named from the companyLocation input or falling back to the company
         // name when no location input is supplied.
         let location_input = resolved_object_field(&input, "companyLocation").unwrap_or_default();
-        let (location, location_staged_ids) =
-            self.b2b_build_company_location(&id, &company, &location_input, false);
+        let (location, location_staged_ids) = self.b2b_build_company_location(
+            &id,
+            &company,
+            &location_input,
+            B2bLocationNameFallback::CompanyName,
+        );
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -902,8 +911,12 @@ impl DraftProxy {
             }
         }
 
-        let (location, staged_ids) =
-            self.b2b_build_company_location(&company_id, &company, &input, true);
+        let (location, staged_ids) = self.b2b_build_company_location(
+            &company_id,
+            &company,
+            &input,
+            B2bLocationNameFallback::ShippingAddressThenCompanyName,
+        );
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -978,7 +991,7 @@ impl DraftProxy {
                     vec![b2b_company_user_error(
                         vec!["input", "name"],
                         "Name can't be blank",
-                        "BLANK",
+                        BLANK_USER_ERROR_CODE,
                         None,
                     )],
                 ),
@@ -1199,11 +1212,11 @@ impl DraftProxy {
             return (
                 b2b_company_contact_payload(
                     None,
-                    vec![json!({
-                        "field": Value::Null,
-                        "message": "Company contact create input is empty.",
-                        "code": "NO_INPUT"
-                    })],
+                    vec![user_error(
+                        Value::Null,
+                        "Company contact create input is empty.",
+                        Some("NO_INPUT"),
+                    )],
                 ),
                 "failed",
                 Vec::new(),
@@ -1608,6 +1621,17 @@ impl DraftProxy {
         let assignment_id =
             resolved_string_field(&field.arguments, "companyContactRoleAssignmentId")
                 .unwrap_or_default();
+        let Some(company_contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
+            return (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "companyContact": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        };
         let assignment_matches_contact = self
             .store
             .staged
@@ -1628,13 +1652,6 @@ impl DraftProxy {
             );
         }
 
-        let company_contact = self
-            .store
-            .staged
-            .b2b_contacts
-            .get(&contact_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let _ = self.b2b_remove_role_assignment(&assignment_id);
         (
             json!({
@@ -1647,17 +1664,62 @@ impl DraftProxy {
         )
     }
 
-    /// Revokes contact role assignments by id, reporting a per-index
-    /// RESOURCE_NOT_FOUND for any unknown assignment id.
+    /// Revokes contact role assignments by id, validating the parent contact
+    /// first and reporting a per-index RESOURCE_NOT_FOUND for unknown or
+    /// differently-scoped assignment ids.
     pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "roleAssignmentIds");
+        let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
+        if assignment_ids.is_empty() && !revoke_all {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let ids_to_revoke = if revoke_all {
+            self.store
+                .staged
+                .b2b_role_assignments
+                .iter()
+                .filter(|(_, assignment)| {
+                    assignment["companyContactId"].as_str() == Some(contact_id.as_str())
+                })
+                .map(|(assignment_id, _)| assignment_id.clone())
+                .collect::<Vec<String>>()
+        } else {
+            assignment_ids.clone()
+        };
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
-        for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if self.b2b_remove_role_assignment(assignment_id).is_some() {
+        for (index, assignment_id) in ids_to_revoke.iter().enumerate() {
+            let assignment_matches_contact = self
+                .store
+                .staged
+                .b2b_role_assignments
+                .get(assignment_id)
+                .and_then(|assignment| assignment["companyContactId"].as_str())
+                == Some(contact_id.as_str());
+            if assignment_matches_contact {
+                let _ = self.b2b_remove_role_assignment(assignment_id);
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -1671,7 +1733,7 @@ impl DraftProxy {
         let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
-                "revokedRoleAssignmentIds": revoked_ids,
+                "revokedRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
                 "userErrors": user_errors
             }),
             status,
@@ -2366,18 +2428,32 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
+        let location_id =
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "rolesToRevoke");
+        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+            return (
+                json!({
+                    "revokedRoleAssignmentIds": Value::Null,
+                    "revokedCompanyContactRoleAssignmentIds": Value::Null,
+                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
-                if let Some(location_id) = assignment["companyLocationId"].as_str() {
-                    self.b2b_remove_location_assignment_id(
-                        location_id,
-                        "roleAssignmentIds",
-                        assignment_id,
-                    );
-                }
+            let assignment_matches_location = self
+                .store
+                .staged
+                .b2b_role_assignments
+                .get(assignment_id)
+                .and_then(|assignment| assignment["companyLocationId"].as_str())
+                == Some(location_id.as_str());
+            if assignment_matches_location {
+                let _ = self.b2b_remove_role_assignment(assignment_id);
                 revoked_ids.push(assignment_id.clone());
             } else {
                 user_errors.push(b2b_indexed_user_error(
@@ -2391,8 +2467,8 @@ impl DraftProxy {
         let status = b2b_bulk_status(&revoked_ids, &user_errors);
         (
             json!({
-                "revokedRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
-                "revokedCompanyContactRoleAssignmentIds": b2b_null_when_failed(status, json!(revoked_ids)),
+                "revokedRoleAssignmentIds": revoked_ids,
+                "revokedCompanyContactRoleAssignmentIds": revoked_ids,
                 "userErrors": user_errors
             }),
             status,
@@ -2759,7 +2835,7 @@ impl DraftProxy {
         company_id: &str,
         company: &Value,
         input: &BTreeMap<String, ResolvedValue>,
-        allow_address_name_fallback: bool,
+        name_fallback: B2bLocationNameFallback,
     ) -> (Value, Vec<String>) {
         let id = self.next_proxy_synthetic_gid("CompanyLocation");
         let mut staged_ids = vec![id.clone()];
@@ -2779,12 +2855,11 @@ impl DraftProxy {
                 b2b_company_address_json(&address_id, &address)
             })
         };
-        let name = b2b_location_name(
-            input,
-            company,
-            shipping_address.as_ref(),
-            allow_address_name_fallback,
-        );
+        let shipping_address_name_fallback = match name_fallback {
+            B2bLocationNameFallback::CompanyName => None,
+            B2bLocationNameFallback::ShippingAddressThenCompanyName => shipping_address.as_ref(),
+        };
+        let name = b2b_location_name(input, company, shipping_address_name_fallback);
         // Every location carries a buyerExperienceConfiguration; when none is
         // supplied Shopify still returns the all-default object (not null).
         let buyer_experience = b2b_buyer_experience_configuration_json(
@@ -4023,20 +4098,15 @@ fn b2b_location_name(
     input: &BTreeMap<String, ResolvedValue>,
     company: &Value,
     shipping_address: Option<&Value>,
-    allow_address_name_fallback: bool,
 ) -> String {
     resolved_string_field(input, "name")
         .map(|name| b2b_strip_html_tags(&name))
         .filter(|name| !name.trim().is_empty())
         .or_else(|| {
-            allow_address_name_fallback
-                .then(|| {
-                    shipping_address
-                        .and_then(|address| address["address1"].as_str())
-                        .map(str::to_string)
-                        .filter(|address1| !address1.trim().is_empty())
-                })
-                .flatten()
+            shipping_address
+                .and_then(|address| address["address1"].as_str())
+                .map(str::to_string)
+                .filter(|address1| !address1.trim().is_empty())
         })
         .or_else(|| company["name"].as_str().map(str::to_string))
         .unwrap_or_else(|| "B2B Draft".to_string())

@@ -919,6 +919,35 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        if input.contains_key("ruleSet") && collection_rule_set_rules_missing(&input) {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["ruleSet", "rules"],
+                    "Rules cannot be an empty set",
+                )],
+            ));
+        }
+
+        let initial_product_ids = list_string_field(&input, "products");
+        self.hydrate_missing_collection_baseline("", &initial_product_ids);
+        let product_errors =
+            collection_initial_product_user_errors(&self.store, &initial_product_ids);
+        if !product_errors.is_empty() {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                product_errors,
+            ));
+        }
+
         let title = resolved_string_field(&input, "title").unwrap_or_default();
         let id = self.next_proxy_synthetic_gid("Collection");
         let handle = self.collection_unique_handle(
@@ -926,8 +955,6 @@ impl DraftProxy {
             &title,
             None,
         );
-        let initial_product_ids = list_string_field(&input, "products");
-        self.hydrate_missing_collection_baseline("", &initial_product_ids);
         let mut collection = collection_from_input(&input, &id, &title, &handle, None);
         let products = initial_product_ids
             .into_iter()
@@ -1665,9 +1692,7 @@ fn collection_from_input(
         );
         object.insert(
             "ruleSet".to_string(),
-            resolved_object_field(input, "ruleSet")
-                .map(collection_rule_set_json)
-                .unwrap_or(Value::Null),
+            collection_create_rule_set_json(input).unwrap_or(Value::Null),
         );
         if let Some(description) = resolved_string_field(input, "descriptionHtml") {
             object.insert("descriptionHtml".to_string(), json!(description));
@@ -1677,6 +1702,27 @@ fn collection_from_input(
         }
     }
     collection
+}
+
+fn collection_initial_product_user_errors(store: &Store, product_ids: &[String]) -> Vec<Value> {
+    product_ids
+        .iter()
+        .enumerate()
+        .filter(|(_, id)| store.product_by_id(id).is_none())
+        .map(|(index, _)| {
+            user_error_omit_code(
+                vec!["products".to_string(), index.to_string()],
+                "Product does not exist",
+                None,
+            )
+        })
+        .collect()
+}
+
+fn collection_create_rule_set_json(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let rule_set = resolved_object_field(input, "ruleSet")?;
+    (!resolved_object_list_field(&rule_set, "rules").is_empty())
+        .then(|| collection_rule_set_json(rule_set))
 }
 
 /// Collection sort orders whose default product ordering is by recency (newest
@@ -1769,6 +1815,15 @@ fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
 fn collection_rule_set_rules_empty(input: &BTreeMap<String, ResolvedValue>) -> bool {
     resolved_object_field(input, "ruleSet")
         .map(|rule_set| resolved_object_list_field(&rule_set, "rules").is_empty())
+        .unwrap_or(false)
+}
+
+fn collection_rule_set_rules_missing(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_field(input, "ruleSet")
+        .map(|rule_set| {
+            !rule_set.contains_key("rules")
+                || matches!(rule_set.get("rules"), Some(ResolvedValue::Null))
+        })
         .unwrap_or(false)
 }
 

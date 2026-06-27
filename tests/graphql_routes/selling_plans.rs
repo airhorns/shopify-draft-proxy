@@ -103,6 +103,22 @@ fn selling_plan_group_nodes(proxy: &mut DraftProxy) -> Value {
         .clone()
 }
 
+fn selling_plan_group_plan_nodes(proxy: &mut DraftProxy, group_id: &str) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query SellingPlanGroupPlanNodesAfterUpdate($id: ID!) {
+              sellingPlanGroup(id: $id) {
+                sellingPlans(first: 5) { nodes { id } }
+              }
+            }
+            "#,
+            json!({ "id": group_id }),
+        ))
+        .body["data"]["sellingPlanGroup"]["sellingPlans"]["nodes"]
+        .clone()
+}
+
 fn selling_plan_input_with_policy(
     name: &str,
     options: Vec<&str>,
@@ -388,6 +404,209 @@ fn selling_plan_group_update_accepts_empty_create_list_without_lower_bound_rejec
             .len(),
         1
     );
+}
+
+#[test]
+fn selling_plan_group_update_rejects_deleting_final_plan_without_replacement() {
+    let mut proxy = snapshot_proxy();
+
+    let create = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Delete final plan seed"),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let plan_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteFinalSellingPlan($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id sellingPlans(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": { "sellingPlansToDelete": [plan_id] }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "sellingPlansToDelete"],
+                "message": "Selling plans to delete can't result in a selling plan group with no selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+            }
+        ])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["deletedSellingPlanIds"],
+        Value::Null
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"],
+        Value::Null
+    );
+    assert_eq!(
+        selling_plan_group_plan_nodes(&mut proxy, &group_id),
+        json!([{ "id": plan_id }])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][1]["status"], json!("failed"));
+    assert_eq!(log["entries"][1]["stagedResourceIds"], json!([]));
+}
+
+#[test]
+fn selling_plan_group_update_allows_deleting_some_but_not_all_plans() {
+    let mut proxy = snapshot_proxy();
+
+    let create = create_selling_plan_group(
+        &mut proxy,
+        json!({
+            "name": "Partial delete seed",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                valid_selling_plan_input("Monthly"),
+                valid_selling_plan_input("Weekly")
+            ]
+        }),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
+        ["sellingPlans"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let keep_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+        ["nodes"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteOneSellingPlan($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id sellingPlans(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": { "sellingPlansToDelete": [delete_id] }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["deletedSellingPlanIds"],
+        json!([delete_id])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["sellingPlans"]["nodes"],
+        json!([{ "id": keep_id }])
+    );
+    assert_eq!(
+        selling_plan_group_plan_nodes(&mut proxy, &group_id),
+        json!([{ "id": keep_id }])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(log["entries"][1]["stagedResourceIds"], json!([group_id]));
+}
+
+#[test]
+fn selling_plan_group_update_allows_deleting_final_plan_with_replacement() {
+    let mut proxy = snapshot_proxy();
+
+    let create = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Replacement plan seed"),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
+        ["sellingPlans"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReplaceFinalSellingPlan($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id sellingPlans(first: 5) { nodes { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": {
+                "sellingPlansToDelete": [delete_id],
+                "sellingPlansToCreate": [valid_selling_plan_input("Replacement")]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["deletedSellingPlanIds"],
+        json!([delete_id])
+    );
+    let replacement_plans = update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]
+        ["sellingPlans"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(replacement_plans.len(), 1);
+    assert_eq!(replacement_plans[0]["name"], json!("Replacement"));
+    assert_ne!(replacement_plans[0]["id"], json!(delete_id));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(log["entries"][1]["stagedResourceIds"], json!([group_id]));
 }
 
 #[test]
@@ -717,59 +936,6 @@ fn selling_plan_group_summary_matches_shopify_count_pluralization_and_discount_r
     assert_eq!(
         mixed_range.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
         json!("4 delivery frequencies, 10-20%·$5-$8 discount")
-    );
-
-    let zero_seed = create_selling_plan_group_with_summary(
-        &mut proxy,
-        json!({
-            "name": "Zero summary seed",
-            "options": ["Delivery frequency"],
-            "sellingPlansToCreate": [
-                selling_plan_input_with_policy(
-                    "Monthly",
-                    vec!["Monthly"],
-                    "PERCENTAGE",
-                    json!({ "percentage": 10 }),
-                )
-            ]
-        }),
-    );
-    let group_id = zero_seed.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
-        .as_str()
-        .expect("group id should be staged")
-        .to_string();
-    let plan_id = zero_seed.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]
-        ["sellingPlans"]["nodes"][0]["id"]
-        .as_str()
-        .expect("plan id should be staged")
-        .to_string();
-
-    let zero_plan_update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DeleteLastSellingPlanForSummary($id: ID!, $input: SellingPlanGroupInput!) {
-          sellingPlanGroupUpdate(id: $id, input: $input) {
-            sellingPlanGroup { id summary sellingPlans(first: 5) { nodes { id } } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "id": group_id,
-            "input": { "sellingPlansToDelete": [plan_id] }
-        }),
-    ));
-    assert_eq!(
-        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["summary"],
-        json!("")
-    );
-    assert_eq!(
-        zero_plan_update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["sellingPlans"]
-            ["nodes"],
-        json!([])
     );
 }
 

@@ -1,0 +1,181 @@
+{
+  "scenarioId": "inventory-activate-on-hand",
+  "operationNames": ["productSet", "inventoryActivate", "inventoryLevel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "route-version-parity", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-activate-on-hand.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-activate-on-hand-setup.graphql",
+    "variables": {
+      "input": {
+        "title": "Inventory activate onHand parity seed",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Case",
+            "position": 1,
+            "values": [{ "name": "Activate" }, { "name": "Conflict" }, { "name": "Out of range" }]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [{ "optionName": "Case", "name": "Activate" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              }
+            ]
+          },
+          {
+            "optionValues": [{ "optionName": "Case", "name": "Conflict" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              }
+            ]
+          },
+          {
+            "optionValues": [{ "optionName": "Case", "name": "Out of range" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "synchronous": true
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "activate-on-hand-success",
+        "capturePath": "$.cases.activateOnHand.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "selectedPaths": [
+          "$.inventoryLevel.isActive",
+          "$.inventoryLevel.quantities[0].name",
+          "$.inventoryLevel.quantities[0].quantity",
+          "$.inventoryLevel.quantities[1].name",
+          "$.inventoryLevel.quantities[1].quantity",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-activate-on-hand.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromCapturePath": "$.locations.secondary.id"
+            },
+            "onHand": 50,
+            "idempotencyKey": "inventory-activate-on-hand-success-parity"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "activate-on-hand-read-after-write",
+        "capturePath": "$.cases.activateOnHandRead.response.data.inventoryLevel",
+        "proxyPath": "$.data.inventoryLevel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-activate-on-hand-read.graphql",
+          "variables": {
+            "inventoryLevelId": {
+              "fromProxyResponse": "activate-on-hand-success",
+              "path": "$.data.inventoryActivate.inventoryLevel.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "available-and-on-hand-conflict",
+        "capturePath": "$.cases.availableOnHandConflict.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-activate-available-on-hand-conflict.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[1].inventoryItem.id"
+            },
+            "locationId": {
+              "fromCapturePath": "$.locations.secondary.id"
+            },
+            "available": 10,
+            "onHand": 20,
+            "idempotencyKey": "inventory-activate-available-on-hand-conflict-parity"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "already-active-on-hand-user-errors",
+        "capturePath": "$.cases.alreadyActiveOnHand.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-activate-on-hand.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromCapturePath": "$.locations.secondary.id"
+            },
+            "onHand": 5,
+            "idempotencyKey": "inventory-activate-on-hand-already-active-parity"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "on-hand-out-of-range-user-errors",
+        "capturePath": "$.cases.onHandOutOfRange.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-activate-on-hand.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[2].inventoryItem.id"
+            },
+            "locationId": {
+              "fromCapturePath": "$.locations.secondary.id"
+            },
+            "onHand": 1000000001,
+            "idempotencyKey": "inventory-activate-on-hand-out-of-range-parity"
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captures inventoryActivate onHand handling on Admin GraphQL 2026-04: fresh onHand seeding, downstream on_hand read-after-write, available+onHand conflict rejection, already-active onHand rejection, and onHand out-of-range rejection. Replay creates local inventory items through productSet and compares only stable quantity, nullability, and userError fields."
+}

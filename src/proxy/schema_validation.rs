@@ -360,8 +360,16 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
-    errors.extend(inventory_activation_user_error_code_selection_errors(
-        query, &document,
+    errors.extend(plain_user_error_code_selection_errors(
+        query,
+        &document,
+        &[
+            "inventoryActivate",
+            "inventoryDeactivate",
+            "shopLocaleEnable",
+            "shopLocaleUpdate",
+            "shopLocaleDisable",
+        ],
     ));
     errors
 }
@@ -723,16 +731,14 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     Some(OutputFieldType { named_type })
 }
 
-fn inventory_activation_user_error_code_selection_errors(
+fn plain_user_error_code_selection_errors(
     query: &str,
     document: &ParsedDocument,
+    root_names: &[&str],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field in &document.root_fields {
-        if !matches!(
-            field.name.as_str(),
-            "inventoryActivate" | "inventoryDeactivate"
-        ) {
+        if !root_names.contains(&field.name.as_str()) {
             continue;
         }
         let Some(user_errors_selection) = field
@@ -746,13 +752,9 @@ fn inventory_activation_user_error_code_selection_errors(
             if selection.name != "code" {
                 continue;
             }
-            let location = inventory_user_error_code_selection_location(
-                query,
-                field,
-                user_errors_selection,
-                selection,
-            )
-            .unwrap_or(SourceLocation { line: 1, column: 1 });
+            let location =
+                user_error_code_selection_location(query, field, user_errors_selection, selection)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 });
             errors.push(json!({
                 "message": "Field 'code' doesn't exist on type 'UserError'",
                 "locations": [{ "line": location.line, "column": location.column }],
@@ -773,7 +775,7 @@ fn inventory_activation_user_error_code_selection_errors(
     errors
 }
 
-fn inventory_user_error_code_selection_location(
+fn user_error_code_selection_location(
     query: &str,
     field: &RootFieldSelection,
     user_errors_selection: &SelectedField,
@@ -2567,6 +2569,10 @@ fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
             (
                 "variants".to_string(),
                 mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+            (
+                "allowPartialUpdates".to_string(),
+                mutation_arg(named("Boolean")),
             ),
         ]),
     );

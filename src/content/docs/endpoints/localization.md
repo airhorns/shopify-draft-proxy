@@ -48,6 +48,9 @@ unsupported locale codes, duplicate enables, missing locales whenever
 `shopLocaleUpdate` supplies `published`, enables beyond Shopify's captured
 20-language shop limit, and disables for non-enabled locales with captured
 Shopify-like `userErrors`.
+Those shop-locale mutation payloads expose Shopify's plain `UserError`
+shape: `field` and `message` are selectable, while selecting `code` is rejected
+as a top-level GraphQL `undefinedField` validation error.
 Market-web-presence IDs are filtered to known local or captured WebPresence IDs,
 and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields.
@@ -65,9 +68,12 @@ known localization Product resources plus normalized product state before
 applying translation-specific validation; unknown Product GIDs return
 `RESOURCE_NOT_FOUND` with `field: ["resourceId"]` and `translations: null`. The
 slice also validates enabled non-primary locale requirements, modeled Product
-translatable-key membership (`INVALID_KEY_FOR_MODEL`), digest mismatches,
-non-blank values, the 100-key mutation limit, market scope, and selected handle-normalization
-branches. Successful translations are staged in local translation state so
+translatable-key membership (`INVALID_KEY_FOR_MODEL`), market-scoped values that
+match an existing shop-level translation for the same resource/key/locale
+(`FAILS_RESOURCE_VALIDATION` / `Value cannot match original content`), digest
+mismatches, non-blank values, the 100-key mutation limit, market scope, and
+selected handle-normalization branches. Successful translations are staged in
+local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value in the `translationsRegister` echo and in downstream
@@ -76,8 +82,10 @@ refreshes that timestamp. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
-digest validation, so the local first `userErrors` entry follows that
-precedence.
+digest validation; the market-scoped value-matches-base-translation check runs
+before digest validation, so the local first `userErrors` entry follows that
+precedence. Captured Shopify behavior accepts a market-scoped value matching the
+source content when no shop-level translation exists for that locale/key.
 
 For modeled Product resources, `translatableResource`,
 `translatableResources`, and `translatableResourcesByIds` project
@@ -128,6 +136,8 @@ cleanly.
   markers
 - Product translatable-content parity:
   `config/parity-specs/localization/localization-translatable-content-product.json`
+- Shop-locale plain `UserError` parity:
+  `config/parity-specs/localization/localization-shop-locale-usererror-no-code.json`
 - Parity specs: `config/parity-specs/localization/*.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 

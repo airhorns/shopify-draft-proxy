@@ -6,6 +6,14 @@ mutation MetafieldDefinitionLifecycleMetafieldsSet($metafields: [MetafieldsSetIn
       key
       type
       value
+      definition {
+        id
+        namespace
+        key
+        type {
+          name
+        }
+      }
     }
     userErrors {
       field

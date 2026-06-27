@@ -1,0 +1,47 @@
+{
+  "scenarioId": "productVariantsBulkUpdate-allow-partial-and-error-order",
+  "operationNames": ["productVariantsBulkUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-payload-parity", "read-after-write-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-variants-bulk-update-allow-partial-and-error-order.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-allow-partial.graphql",
+    "variablesCapturePath": "$.partialUpdate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 evidence for productVariantsBulkUpdate allowPartialUpdates:true with one valid existing variant and one invalid existing variant. The same scenario also asserts the downstream read-after-write for the valid variant and Shopify's userErrors sorting by [field, code].",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "allow-partial-mutation-payload",
+        "capturePath": "$.partialUpdate.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "allow-partial-downstream-read",
+        "capturePath": "$.partialRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-allow-partial-downstream-read.graphql",
+          "variablesCapturePath": "$.partialRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "multi-error-field-code-ordering",
+        "capturePath": "$.errorOrdering.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-error-order.graphql",
+          "variablesCapturePath": "$.errorOrdering.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
