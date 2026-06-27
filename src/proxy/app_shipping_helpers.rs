@@ -1942,14 +1942,14 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "name"],
                 "Name can't be blank",
-                "BLANK",
+                BLANK_USER_ERROR_CODE,
                 None,
             ));
         } else if name.chars().count() > 255 {
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "name"],
                 "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
         }
@@ -1967,7 +1967,7 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "notes"],
                 "Notes is too long (maximum is 5000 characters)",
-                "TOO_LONG",
+                TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
         }
@@ -1994,14 +1994,14 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
             errors.push(b2b_company_user_error(
                 vec!["input", "name"],
                 "Name can't be blank",
-                "BLANK",
+                BLANK_USER_ERROR_CODE,
                 None,
             ));
         } else if name.chars().count() > 255 {
             errors.push(b2b_company_user_error(
                 vec!["input", "name"],
                 "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
         }
@@ -2027,7 +2027,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
                 "Notes is too long (maximum is 5000 characters)",
-                "TOO_LONG",
+                TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
         }
@@ -2045,7 +2045,7 @@ pub(in crate::proxy) fn b2b_external_id_errors(
         return vec![b2b_company_user_error(
             field,
             "External Id must be 64 characters or less.",
-            "TOO_LONG",
+            TOO_LONG_USER_ERROR_CODE,
             None,
         )];
     }
@@ -2082,12 +2082,9 @@ pub(in crate::proxy) fn b2b_company_user_error(
     code: &str,
     detail: Option<Value>,
 ) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code,
-        "detail": detail.unwrap_or(Value::Null)
-    })
+    let mut error = user_error(field, message, Some(code));
+    error["detail"] = detail.unwrap_or(Value::Null);
+    error
 }
 
 pub(in crate::proxy) fn b2b_contains_html_tags(value: &str) -> bool {
@@ -2190,42 +2187,42 @@ impl DraftProxy {
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
             return (
-                json!({
-                    "companyLocation": null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "The company location doesn't exist",
-                        "code": "RESOURCE_NOT_FOUND"
-                    }]
-                }),
+                b2b_company_location_payload(
+                    None,
+                    vec![user_error(
+                        ["companyLocationId"],
+                        "The company location doesn't exist",
+                        Some("RESOURCE_NOT_FOUND"),
+                    )],
+                ),
                 "failed",
                 Vec::new(),
             );
         }
         if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
             return (
-                json!({
-                    "companyLocation": null,
-                    "userErrors": [{
-                        "field": ["companyLocationId"],
-                        "message": "No tax settings input was provided",
-                        "code": "NO_INPUT"
-                    }]
-                }),
+                b2b_company_location_payload(
+                    None,
+                    vec![user_error(
+                        ["companyLocationId"],
+                        "No tax settings input was provided",
+                        Some("NO_INPUT"),
+                    )],
+                ),
                 "failed",
                 Vec::new(),
             );
         }
         if tax_exempt_is_null {
             return (
-                json!({
-                    "companyLocation": null,
-                    "userErrors": [{
-                        "field": ["taxExempt"],
-                        "message": "Tax exempt must be true or false",
-                        "code": "INVALID_INPUT"
-                    }]
-                }),
+                b2b_company_location_payload(
+                    None,
+                    vec![user_error(
+                        ["taxExempt"],
+                        "Tax exempt must be true or false",
+                        Some("INVALID_INPUT"),
+                    )],
+                ),
                 "failed",
                 Vec::new(),
             );

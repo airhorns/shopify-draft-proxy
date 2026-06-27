@@ -1323,7 +1323,7 @@ impl DraftProxy {
                 &json!({
                     "previewSubject": Value::Null,
                     "previewHtml": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Draft order not found" }]
+                    "userErrors": [user_error_omit_code(["id"], "Draft order not found", None)]
                 }),
                 &field.selection,
             );
@@ -1777,7 +1777,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "ID is required" }]
+                    "userErrors": [user_error_omit_code(["id"], "ID is required", None)]
                 }),
                 &field.selection,
             );
@@ -1786,7 +1786,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist" }]
+                    "userErrors": [user_error_omit_code(["id"], "Draft order does not exist", None)]
                 }),
                 &field.selection,
             );
@@ -1798,10 +1798,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": draft_order,
-                    "userErrors": [{
-                        "field": Value::Null,
-                        "message": "This order has been paid"
-                    }]
+                    "userErrors": [user_error_omit_code(Value::Null, "This order has been paid", None)]
                 }),
                 &field.selection,
             );
@@ -1811,11 +1808,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{
-                        "field": ["paymentGatewayId"],
-                        "message": "payment_gateway_not_found",
-                        "code": "INVALID"
-                    }]
+                    "userErrors": [user_error(["paymentGatewayId"], "payment_gateway_not_found", Some("INVALID"))]
                 }),
                 &field.selection,
             );
@@ -2073,7 +2066,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
-                    "userErrors": [{ "field": Value::Null, "message": "Draft order not found" }],
+                    "userErrors": [user_error_omit_code(Value::Null, "Draft order not found", None)],
                     "invoiceErrors": []
                 }),
                 &field.selection,
@@ -2099,10 +2092,11 @@ impl DraftProxy {
                 }));
             }
             if already_paid {
-                user_errors.push(json!({
-                    "field": Value::Null,
-                    "message": "Draft order Invoice can't be sent. This draft order is already paid."
-                }));
+                user_errors.push(user_error_omit_code(
+                    Value::Null,
+                    "Draft order Invoice can't be sent. This draft order is already paid.",
+                    None,
+                ));
             }
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
@@ -2241,11 +2235,11 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         for (index, tag) in normalized_tags.iter().enumerate() {
             if tag.chars().count() >= 256 {
-                user_errors.push(json!({
-                    "field": ["input", "tags", index.to_string()],
-                    "message": "tag_too_long",
-                    "code": "INVALID"
-                }));
+                user_errors.push(user_error(
+                    vec!["input".to_string(), "tags".to_string(), index.to_string()],
+                    "tag_too_long",
+                    Some("INVALID"),
+                ));
             }
         }
 
@@ -2254,11 +2248,11 @@ impl DraftProxy {
             if self.store.staged.draft_order_tags.contains_key(id) {
                 valid_ids.push(id.clone());
             } else {
-                user_errors.push(json!({
-                    "field": ["input", "ids", index.to_string()],
-                    "message": "Draft order does not exist",
-                    "code": "NOT_FOUND"
-                }));
+                user_errors.push(user_error(
+                    vec!["input".to_string(), "ids".to_string(), index.to_string()],
+                    "Draft order does not exist",
+                    Some("NOT_FOUND"),
+                ));
             }
         }
 
@@ -2281,11 +2275,11 @@ impl DraftProxy {
         });
         if too_many {
             user_errors.clear();
-            user_errors.push(json!({
-                "field": ["input", "tags"],
-                "message": "too_many_tags",
-                "code": "INVALID"
-            }));
+            user_errors.push(user_error(
+                ["input", "tags"],
+                "too_many_tags",
+                Some("INVALID"),
+            ));
             return selected_json(
                 &json!({ "job": Value::Null, "userErrors": user_errors }),
                 &field.selection,
@@ -2337,11 +2331,11 @@ impl DraftProxy {
                 current.retain(|tag| !tags.contains(&normalize_draft_order_tag(tag)));
                 updated_ids.push(id.clone());
             } else {
-                user_errors.push(json!({
-                    "field": ["input", "ids", index.to_string()],
-                    "message": "Draft order does not exist",
-                    "code": "NOT_FOUND"
-                }));
+                user_errors.push(user_error(
+                    vec!["input".to_string(), "ids".to_string(), index.to_string()],
+                    "Draft order does not exist",
+                    Some("NOT_FOUND"),
+                ));
             }
         }
         for id in updated_ids {

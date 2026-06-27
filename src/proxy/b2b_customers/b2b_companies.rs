@@ -977,7 +977,7 @@ impl DraftProxy {
                     vec![b2b_company_user_error(
                         vec!["input", "name"],
                         "Name can't be blank",
-                        "BLANK",
+                        BLANK_USER_ERROR_CODE,
                         None,
                     )],
                 ),
@@ -1198,11 +1198,11 @@ impl DraftProxy {
             return (
                 b2b_company_contact_payload(
                     None,
-                    vec![json!({
-                        "field": Value::Null,
-                        "message": "Company contact create input is empty.",
-                        "code": "NO_INPUT"
-                    })],
+                    vec![user_error(
+                        Value::Null,
+                        "Company contact create input is empty.",
+                        Some("NO_INPUT"),
+                    )],
                 ),
                 "failed",
                 Vec::new(),
