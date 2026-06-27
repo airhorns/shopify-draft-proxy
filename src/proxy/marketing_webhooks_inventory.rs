@@ -697,10 +697,10 @@ impl DraftProxy {
                 errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
             }
             if name.chars().count() > 50 {
-                errors.push(user_error_omit_code(
+                errors.push(length_user_error(
                     ["webhookSubscription", "name"],
-                    "Name is too long (maximum is 50 characters)",
-                    None,
+                    "Name",
+                    LengthUserErrorBound::TooLong { maximum: 50 },
                 ));
             }
             if self
