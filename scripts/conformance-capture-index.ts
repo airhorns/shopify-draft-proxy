@@ -1775,6 +1775,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variants-bulk-create-omitted-strategy',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-variants-bulk-create-omitted-strategy-conformance.mts',
+    purpose:
+      'productVariantsBulkCreate omitted strategy defaulting on a product with only Shopify standalone default variant.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productVariantsBulkCreate-omitted-strategy-default-standalone.json`,
+      'config/parity-specs/products/productVariantsBulkCreate-omitted-strategy-default-standalone.json',
+      'config/parity-requests/products/productVariantsBulkCreate-omitted-strategy.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, records omitted-strategy bulk variant create behavior, and deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-mutations',
     scriptPath: 'scripts/capture-product-variant-mutation-conformance.mts',
     purpose: 'Product variant create/update/delete mutation family.',

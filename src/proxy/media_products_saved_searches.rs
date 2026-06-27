@@ -1598,7 +1598,8 @@ impl DraftProxy {
             ));
         }
 
-        let strategy = resolved_string_field(&field.arguments, "strategy");
+        let strategy =
+            resolved_string_field(&field.arguments, "strategy").unwrap_or_else(|| "DEFAULT".into());
         let existing_variants = self.store.product_variants_for_product(&product.id);
         let existing_variant_count = existing_variants.len();
         let mut created_variants = Vec::new();
@@ -1628,30 +1629,28 @@ impl DraftProxy {
             self.stage_input_variant_metafields(&variant.id, input);
         }
 
-        // Apply the bulk-create variant strategy. `REMOVE_STANDALONE_VARIANT` drops the
-        // product's lone pre-existing variant; the default strategy only drops it when it
-        // is Shopify's auto-generated `Title: Default Title` standalone variant. With either
-        // removal, and whenever a strategy is supplied, the product's option values are
-        // rederived from the surviving variant set (existing values are preserved by name).
-        if let Some(strategy) = strategy.as_deref() {
-            let remove_existing = match strategy {
-                "REMOVE_STANDALONE_VARIANT" => existing_variant_count == 1,
-                "DEFAULT" => {
-                    existing_variant_count == 1
-                        && existing_variants
-                            .first()
-                            .is_some_and(Self::is_standalone_default_variant)
-                }
-                _ => false,
-            };
-            if remove_existing {
-                for variant in &existing_variants {
-                    self.store.delete_product_variant(&variant.id);
-                }
+        // Apply the bulk-create variant strategy. Shopify defaults omitted/null strategy
+        // to `DEFAULT`, which only drops the lone pre-existing variant when it is the
+        // auto-generated `Title: Default Title` standalone variant. `REMOVE_STANDALONE_VARIANT`
+        // drops any lone pre-existing variant. The option set is rederived from the surviving
+        // variants after strategy handling.
+        let remove_existing = match strategy.as_str() {
+            "REMOVE_STANDALONE_VARIANT" => existing_variant_count == 1,
+            "DEFAULT" => {
+                existing_variant_count == 1
+                    && existing_variants
+                        .first()
+                        .is_some_and(Self::is_standalone_default_variant)
             }
-            let final_variants = self.store.product_variants_for_product(&product.id);
-            self.recompute_product_options_from_variants(&product.id, &final_variants);
+            _ => false,
+        };
+        if remove_existing {
+            for variant in &existing_variants {
+                self.store.delete_product_variant(&variant.id);
+            }
         }
+        let final_variants = self.store.product_variants_for_product(&product.id);
+        self.recompute_product_options_from_variants(&product.id, &final_variants);
 
         self.sync_product_inventory_aggregates(&product.id);
 
