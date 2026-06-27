@@ -93,9 +93,13 @@ assigning a contact that exists on another staged company returns
 
 `companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`, and
 `companyLocationsDelete` stage the company-location lifecycle. Location create
-uses the Shopify-like fallback chain `input.name` -> `shippingAddress.address1`
--> company name. A present blank `companyLocationUpdate(input.name)` returns a
-`BLANK` user error without mutating the staged location. Bulk deletion returns
+rejects standalone address-only input with Shopify-like `NO_INPUT` and no staged
+location. When standalone create includes a non-address location attribute, the
+name fallback remains `input.name` -> `shippingAddress.address1` -> company name.
+The nested `companyCreate(input.companyLocation)` default location does not use
+`shippingAddress.address1` as the name fallback; it falls back from `input.name`
+to the company name. A present blank `companyLocationUpdate(input.name)` returns
+a `BLANK` user error without mutating the staged location. Bulk deletion returns
 per-index `RESOURCE_NOT_FOUND` errors at `["companyLocationIds", i]` while still
 deleting valid staged IDs.
 

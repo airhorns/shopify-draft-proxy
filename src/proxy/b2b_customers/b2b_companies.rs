@@ -727,7 +727,7 @@ impl DraftProxy {
         // name when no location input is supplied.
         let location_input = resolved_object_field(&input, "companyLocation").unwrap_or_default();
         let (location, location_staged_ids) =
-            self.b2b_build_company_location(&id, &company, &location_input);
+            self.b2b_build_company_location(&id, &company, &location_input, false);
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -868,6 +868,20 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if !b2b_location_create_has_meaningful_non_address_input(&input) {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![user_error(
+                        Value::Null,
+                        "Company location create input is empty.",
+                        Some("NO_INPUT"),
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
 
         // externalId length/charset/uniqueness is validated against every staged
         // location, so it lives here (with store access) rather than in the
@@ -888,7 +902,8 @@ impl DraftProxy {
             }
         }
 
-        let (location, staged_ids) = self.b2b_build_company_location(&company_id, &company, &input);
+        let (location, staged_ids) =
+            self.b2b_build_company_location(&company_id, &company, &input, true);
         let location_id = location["id"]
             .as_str()
             .expect("location must have an id")
@@ -2744,6 +2759,7 @@ impl DraftProxy {
         company_id: &str,
         company: &Value,
         input: &BTreeMap<String, ResolvedValue>,
+        allow_address_name_fallback: bool,
     ) -> (Value, Vec<String>) {
         let id = self.next_proxy_synthetic_gid("CompanyLocation");
         let mut staged_ids = vec![id.clone()];
@@ -2763,7 +2779,12 @@ impl DraftProxy {
                 b2b_company_address_json(&address_id, &address)
             })
         };
-        let name = b2b_location_name(input, company, shipping_address.as_ref());
+        let name = b2b_location_name(
+            input,
+            company,
+            shipping_address.as_ref(),
+            allow_address_name_fallback,
+        );
         // Every location carries a buyerExperienceConfiguration; when none is
         // supplied Shopify still returns the all-default object (not null).
         let buyer_experience = b2b_buyer_experience_configuration_json(
@@ -4002,18 +4023,34 @@ fn b2b_location_name(
     input: &BTreeMap<String, ResolvedValue>,
     company: &Value,
     shipping_address: Option<&Value>,
+    allow_address_name_fallback: bool,
 ) -> String {
     resolved_string_field(input, "name")
         .map(|name| b2b_strip_html_tags(&name))
         .filter(|name| !name.trim().is_empty())
         .or_else(|| {
-            shipping_address
-                .and_then(|address| address["address1"].as_str())
-                .map(str::to_string)
-                .filter(|address1| !address1.trim().is_empty())
+            allow_address_name_fallback
+                .then(|| {
+                    shipping_address
+                        .and_then(|address| address["address1"].as_str())
+                        .map(str::to_string)
+                        .filter(|address1| !address1.trim().is_empty())
+                })
+                .flatten()
         })
         .or_else(|| company["name"].as_str().map(str::to_string))
         .unwrap_or_else(|| "B2B Draft".to_string())
+}
+
+fn b2b_location_create_has_meaningful_non_address_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    input.iter().any(|(field, value)| {
+        !matches!(
+            field.as_str(),
+            "billingAddress" | "shippingAddress" | "billingSameAsShipping"
+        ) && !matches!(value, ResolvedValue::Null)
+    })
 }
 
 fn b2b_buyer_experience_configuration_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
