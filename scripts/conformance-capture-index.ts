@@ -2016,6 +2016,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'inventory',
+    captureId: 'inventory-activate-on-hand',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-activate-on-hand-conformance.ts',
+    purpose:
+      'inventoryActivate onHand fresh seeding, downstream on_hand read-after-write, available/onHand conflict, already-active onHand rejection, and out-of-range onHand rejection.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-activate-on-hand.json`,
+      'config/parity-specs/products/inventory-activate-on-hand.json',
+      'config/parity-requests/products/inventory-activate-on-hand-setup.graphql',
+      'config/parity-requests/products/inventory-activate-on-hand.graphql',
+      'config/parity-requests/products/inventory-activate-available-on-hand-conflict.graphql',
+      'config/parity-requests/products/inventory-activate-on-hand-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable tracked products, records activation validation branches, then deletes them.',
+    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
     domain: 'metafields',
     captureId: 'product-metafield-mutations',
     scriptPath: 'scripts/capture-product-metafield-mutation-conformance.mts',
