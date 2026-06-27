@@ -51,29 +51,22 @@ impl DraftProxy {
         &self,
         root_fields: &[RootFieldSelection],
     ) -> Value {
-        let mut fields = serde_json::Map::new();
-        for field in root_fields {
-            let value = match field.name.as_str() {
-                "product" => Some(self.product_by_id_field(field)),
-                "products" => Some(self.products_connection_field(field)),
-                "productsCount" => Some(self.products_count_field(field)),
-                "productByIdentifier" => Some(self.product_by_identifier_field(field)),
-                "productOperation" => Some(self.product_operation_by_id_field(field)),
-                "productVariant" => Some(self.product_variant_by_id_field(field)),
-                "inventoryItem" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.product_inventory_item_by_id_value(&id, &field.selection)
-                }
-                // Mixed reads pairing `product` with sibling `collection(id:)` lookups
-                // (e.g. collectionsToJoin downstream parity) resolve membership locally.
-                "collection" => Some(self.collection_membership_value(field)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(field.response_key.clone(), value);
+        root_payload_json(root_fields, |field| match field.name.as_str() {
+            "product" => Some(self.product_by_id_field(field)),
+            "products" => Some(self.products_connection_field(field)),
+            "productsCount" => Some(self.products_count_field(field)),
+            "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+            "productOperation" => Some(self.product_operation_by_id_field(field)),
+            "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "inventoryItem" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.product_inventory_item_by_id_value(&id, &field.selection)
             }
-        }
-        Value::Object(fields)
+            // Mixed reads pairing `product` with sibling `collection(id:)` lookups
+            // (e.g. collectionsToJoin downstream parity) resolve membership locally.
+            "collection" => Some(self.collection_membership_value(field)),
+            _ => None,
+        })
     }
 
     pub(in crate::proxy) fn product_operation_by_id_field(
@@ -175,7 +168,7 @@ impl DraftProxy {
         let product = match identifier.get("id") {
             Some(ResolvedValue::String(id)) => self.product_record_by_id(id),
             _ => match identifier.get("handle") {
-                Some(ResolvedValue::String(handle)) => self.product_record_by_handle(handle),
+                Some(ResolvedValue::String(handle)) => self.store.product_by_handle(handle),
                 _ => None,
             },
         };
@@ -268,13 +261,6 @@ impl DraftProxy {
         self.store.product_by_id(id)
     }
 
-    pub(in crate::proxy) fn product_record_by_handle(
-        &self,
-        handle: &str,
-    ) -> Option<&ProductRecord> {
-        self.store.product_by_handle(handle)
-    }
-
     pub(in crate::proxy) fn products_connection_field(&self, field: &RootFieldSelection) -> Value {
         self.products_connection_value(&field.arguments, &field.selection)
     }
@@ -352,7 +338,7 @@ impl DraftProxy {
         if let Some(response) = product_create_status_validation_error(request, query, variables) {
             return MutationOutcome::response(response);
         }
-        let Some(input) = product_create_input(query, variables) else {
+        let Some(input) = product_input(query, variables) else {
             let response_key = primary_root_field(query, variables)
                 .map(|field| field.response_key)
                 .unwrap_or_else(|| "productCreate".to_string());
@@ -1226,10 +1212,7 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -1541,7 +1524,7 @@ impl DraftProxy {
             ));
         }
         let Some(product) = self
-            .product_for_bulk_variant_mutation(request, &product_id)
+            .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &[])
             .cloned()
         else {
             return MutationOutcome::response(self.product_variants_bulk_response(
@@ -2075,21 +2058,10 @@ impl DraftProxy {
                     None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
-    }
-
-    fn product_for_bulk_variant_mutation(
-        &mut self,
-        request: &Request,
-        product_id: &str,
-    ) -> Option<&ProductRecord> {
-        self.product_for_bulk_variant_mutation_with_variant_ids(request, product_id, &[])
     }
 
     fn product_for_bulk_variant_mutation_with_variant_ids(
@@ -2152,7 +2124,7 @@ impl DraftProxy {
         root_field: &str,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        let user_errors = product_variant_input_user_errors(input);
+        let user_errors = product_variant_input_user_errors_with_prefix(input, &[]);
         if user_errors.is_empty() {
             None
         } else {
@@ -2177,8 +2149,6 @@ impl DraftProxy {
             selected_child_selection(payload_selection, "product").unwrap_or_default();
         let variant_selection =
             selected_child_selection(payload_selection, "productVariant").unwrap_or_default();
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" => Some(match product {
@@ -2201,10 +2171,7 @@ impl DraftProxy {
                     ),
                     None => Value::Null,
                 }),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -2513,13 +2480,11 @@ impl DraftProxy {
             primary_root_response_selection(query, &BTreeMap::new(), || {
                 "productVariantDelete".to_string()
             });
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
@@ -3068,10 +3033,7 @@ impl DraftProxy {
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &selection.selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         });

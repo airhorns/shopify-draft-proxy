@@ -11,8 +11,11 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        // Any function mutation marks the session as having local function
+        // state, so later reads serve locally (read-after-write / -delete)
+        // instead of forwarding the cold read to the upstream.
+        self.store.staged.functions_dirty = true;
+        root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "validationCreate" => self.function_validation_create_payload(request, field),
                 "validationUpdate" => self.function_validation_update_payload(field),
@@ -33,14 +36,8 @@ impl DraftProxy {
                 "taxAppConfigure" => self.function_tax_app_configure_payload(field),
                 _ => Value::Null,
             };
-            if !value.is_null() {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
+            (!value.is_null()).then(|| selected_json(&value, &field.selection))
+        })
     }
 
     pub(in crate::proxy) fn functions_metadata_read_data(
@@ -48,8 +45,7 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "validation" => resolved_string_field(&field.arguments, "id")
                     .and_then(|id| {
@@ -140,17 +136,13 @@ impl DraftProxy {
                 _ => Value::Null,
             };
             if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
+                Some(Value::Null)
             } else if field.name == "fulfillmentConstraintRules" {
-                data.insert(field.response_key.clone(), value);
+                Some(value)
             } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
+                Some(selected_json(&value, &field.selection))
             }
-        }
-        Value::Object(data)
+        })
     }
 
     fn fulfillment_constraint_rules_read_value(&self, field: &RootFieldSelection) -> Value {

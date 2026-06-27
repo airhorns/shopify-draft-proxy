@@ -140,7 +140,7 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
         json!(["US_CA_RESELLER_EXEMPTION"])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     assert!(entries
         .iter()
@@ -455,7 +455,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_glea
         valid.body["data"]["companyLocationUpdate"]["companyLocation"]
     );
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -823,7 +823,7 @@ fn b2b_company_delete_stages_cascade_and_preserves_commit_log() {
     assert_eq!(read.body["data"]["company"], Value::Null);
     assert_eq!(read.body["data"]["companyLocation"], Value::Null);
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     let delete_entry = entries
         .iter()
@@ -929,7 +929,7 @@ fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
     );
     assert_eq!(read.body["data"]["deleted"], Value::Null);
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -1203,7 +1203,7 @@ fn b2b_unknown_update_ids_return_resource_not_found_without_staging() {
         Value::Null
     );
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -1409,7 +1409,7 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
     ));
     assert_eq!(read_deleted.body["data"]["companyContact"], Value::Null);
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -1627,7 +1627,7 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
 fn b2b_company_contact_create_without_email_rejects_and_stages_nothing() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company(&mut proxy, "Missing Email Contact Co");
-    let state_before = proxy.get_state_snapshot();
+    let state_before = state_snapshot(&proxy);
 
     let rejected = proxy.process_request(json_graphql_request(
         r#"
@@ -1658,7 +1658,7 @@ fn b2b_company_contact_create_without_email_rejects_and_stages_nothing() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
 
     let b2b_read_after = proxy.process_request(json_graphql_request(
         r#"
@@ -1688,7 +1688,7 @@ fn b2b_company_contact_create_without_email_rejects_and_stages_nothing() {
     ));
     assert_eq!(customer_read_after.body["data"]["customer"], Value::Null);
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -1738,7 +1738,7 @@ fn b2b_company_create_nested_contact_without_email_is_atomic() {
         })
     );
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert!(state["stagedState"].get("b2bCompanies").is_none());
     assert!(state["stagedState"].get("b2bLocations").is_none());
     assert!(state["stagedState"].get("b2bContacts").is_none());
@@ -1756,7 +1756,7 @@ fn b2b_company_create_nested_contact_without_email_is_atomic() {
     ));
     assert_eq!(read_after.body["data"]["company"], Value::Null);
 
-    let entries = proxy.get_log_snapshot()["entries"]
+    let entries = log_snapshot(&proxy)["entries"]
         .as_array()
         .expect("log entries")
         .clone();
@@ -2355,7 +2355,7 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
         2
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     assert!(entries.iter().any(|entry| {
         entry["status"] == json!("staged")

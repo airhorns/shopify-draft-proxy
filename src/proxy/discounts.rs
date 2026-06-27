@@ -157,25 +157,20 @@ impl DraftProxy {
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
         self.hydrate_discount_context_refs(_request, &fields);
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         let mut top_level_errors = Vec::new();
-        for field in fields {
-            if let Some(error) = discount_field_top_level_error(&field) {
+        let data = root_payload_json(&fields, |field| {
+            if let Some(error) = discount_field_top_level_error(field) {
                 top_level_errors.push(error);
-                data.insert(field.response_key.clone(), Value::Null);
-                continue;
+                return Some(Value::Null);
             }
-            let outcome = self.discount_mutation_field(_request, &field);
+            let outcome = self.discount_mutation_field(_request, field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&outcome.value, &field.selection),
-            );
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(selected_json(&outcome.value, &field.selection))
+        });
+        let mut body = json!({ "data": data });
         if !top_level_errors.is_empty() {
             body["errors"] = Value::Array(top_level_errors);
         }
@@ -1444,8 +1439,7 @@ impl DraftProxy {
     }
 
     fn discounts_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "discountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -1513,9 +1507,8 @@ impl DraftProxy {
             } else {
                 selected_json(&value, &field.selection)
             };
-            data.insert(field.response_key.clone(), selected);
-        }
-        Value::Object(data)
+            Some(selected)
+        })
     }
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
@@ -3797,26 +3790,19 @@ pub(in crate::proxy) fn is_safe_no_data_node_gid(id: &str) -> bool {
 }
 
 pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
+    root_payload_json(fields, |field| {
+        Some(match field.name.as_str() {
             "cashTrackingSession"
             | "pointOfSaleDevice"
             | "dispute"
             | "disputeEvidence"
             | "shopPayPaymentRequestReceipt" => Value::Null,
             "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
-                selected_json(&empty_nodes_edges_connection(), &field.selection)
+                selected_empty_connection_json(&field.selection)
             }
             _ => Value::Null,
-        };
-        data.insert(field.response_key.clone(), value);
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn empty_nodes_edges_connection() -> Value {
-    connection_json_with_empty_edges(Vec::new())
+        })
+    })
 }
 
 pub(in crate::proxy) fn discount_bxgy_variable_error(

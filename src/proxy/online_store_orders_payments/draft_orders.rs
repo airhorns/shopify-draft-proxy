@@ -950,33 +950,36 @@ impl DraftProxy {
             }
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
                 "draftOrderCreate" => {
-                    self.stage_draft_order_create(request, query, variables, &field)
+                    self.stage_draft_order_create(request, query, variables, field)
                 }
                 "draftOrderUpdate" => {
-                    self.stage_draft_order_update(request, query, variables, &field)
+                    self.stage_draft_order_update(request, query, variables, field)
                 }
-                "draftOrderCalculate" => self.calculate_draft_order_payload(request, &field),
+                "draftOrderCalculate" => self.calculate_draft_order_payload(request, field),
                 "draftOrderDuplicate" => {
-                    self.stage_draft_order_duplicate(request, query, variables, &field)
+                    self.stage_draft_order_duplicate(request, query, variables, field)
                 }
                 "draftOrderDelete" => {
-                    self.stage_draft_order_delete(request, query, variables, &field)
+                    self.stage_draft_order_delete(request, query, variables, field)
                 }
                 "draftOrderBulkDelete" => {
-                    self.stage_draft_order_bulk_delete(request, query, variables, &field)
+                    self.stage_draft_order_bulk_delete(request, query, variables, field)
                 }
                 "draftOrderCreateFromOrder" => {
-                    self.stage_draft_order_create_from_order(request, query, variables, &field)
+                    self.stage_draft_order_create_from_order(request, query, variables, field)
                 }
                 "draftOrderInvoicePreview" => {
-                    self.draft_order_invoice_preview_payload(request, query, variables, &field)
+                    self.draft_order_invoice_preview_payload(request, query, variables, field)
                 }
-                "draftOrder" => self.staged_draft_order_read(&field),
-                "draftOrders" => self.staged_draft_orders_connection(&field),
+                "draftOrder" => self.staged_draft_order_read(field),
+                "draftOrders" => self.staged_draft_orders_connection(field),
                 "draftOrdersCount" => selected_json(
                     &json!({
                         "count": self
@@ -996,11 +999,17 @@ impl DraftProxy {
                     }),
                     &field.selection,
                 ),
-                _ => return None,
+                _ => {
+                    declined = true;
+                    return None;
+                }
             };
-            data.insert(field.response_key.clone(), value);
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(ok_json(json!({ "data": Value::Object(data) })))
+        Some(ok_json(json!({ "data": data })))
     }
 
     pub(super) fn stage_draft_order_create(
@@ -1946,23 +1955,33 @@ impl DraftProxy {
             }
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
                 "draftOrderCreate"
-                    if draft_order_create_first_line_title(&field).as_deref()
+                    if draft_order_create_first_line_title(field).as_deref()
                         == Some("Invoice error parity item") =>
                 {
-                    Some(self.draft_order_invoice_errors_create(&field, request, query, variables))
+                    Some(self.draft_order_invoice_errors_create(field, request, query, variables))
                 }
                 "draftOrderInvoiceSend" => {
-                    Some(self.draft_order_invoice_errors_send(&field, request, query, variables))
+                    Some(self.draft_order_invoice_errors_send(field, request, query, variables))
                 }
-                _ => return None,
-            }?;
-            data.insert(field.response_key.clone(), value);
+                _ => None,
+            };
+            let Some(value) = value else {
+                declined = true;
+                return None;
+            };
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(ok_json(json!({ "data": Value::Object(data) })))
+        Some(ok_json(json!({ "data": data })))
     }
 
     pub(in crate::proxy) fn draft_order_invoice_errors_create(
@@ -2160,17 +2179,27 @@ impl DraftProxy {
         if !has_bulk_tag_root && !has_managed_read {
             return None;
         }
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "draftOrder" => Some(self.draft_order_bulk_tag_read(&field)),
-                "draftOrderBulkAddTags" => Some(self.draft_order_bulk_add_tags(&field)),
-                "draftOrderBulkRemoveTags" => Some(self.draft_order_bulk_remove_tags(&field)),
+                "draftOrder" => Some(self.draft_order_bulk_tag_read(field)),
+                "draftOrderBulkAddTags" => Some(self.draft_order_bulk_add_tags(field)),
+                "draftOrderBulkRemoveTags" => Some(self.draft_order_bulk_remove_tags(field)),
                 _ => None,
-            }?;
-            data.insert(field.response_key.clone(), value);
+            };
+            let Some(value) = value else {
+                declined = true;
+                return None;
+            };
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {

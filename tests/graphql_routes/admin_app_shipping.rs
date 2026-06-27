@@ -739,7 +739,7 @@ fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_stagi
         "a",
     );
     assert_eq!(oversized_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -767,7 +767,7 @@ fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_stagi
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized bulk query must not append a mutation log entry"
     );
@@ -1263,7 +1263,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
 fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_error_shape() {
     let mut proxy = snapshot_proxy();
     let path = staged_bulk_mutation_upload_path(&mut proxy, "oversized-import.jsonl", "104857601");
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1293,7 +1293,7 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
             "code": "INVALID_STAGED_UPLOAD_FILE"
         }])
     );
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
 
     let current = proxy.process_request(json_graphql_request(
         r#"
@@ -1322,7 +1322,7 @@ fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_st
         oversized_mutation.len(),
         BULK_OPERATION_STORAGE_BYTE_LIMIT + 1
     );
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1350,7 +1350,7 @@ fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_st
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized bulk mutation must not append a mutation log entry"
     );
@@ -1506,7 +1506,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     // Run on a 2025-01 path (concurrent limit 1) so the staged CANCELING mutation would otherwise
     // throttle the run; the oversized-file error must take precedence over that throttle.
@@ -1541,7 +1541,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized validation must not append a bulk mutation log entry"
     );
@@ -1767,7 +1767,7 @@ fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
         json!({ "id": id }),
     ));
     assert_eq!(missing_read.body["data"]["bulkOperation"], Value::Null);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(log["entries"][0]["operationName"], Value::Null);
     assert_eq!(
@@ -1839,7 +1839,7 @@ fn bulk_operation_cancel_completed_staged_operation_echoes_terminal_without_muta
         read.body["data"]["currentBulkOperation"]["status"],
         json!("COMPLETED")
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
@@ -1887,13 +1887,7 @@ fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
             }]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
 }
 
 #[test]
@@ -2456,7 +2450,7 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
         json!([{ "field": ["email"], "message": "Email has already been taken" }])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
@@ -2623,7 +2617,7 @@ fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 5);
     assert_eq!(
@@ -2673,7 +2667,7 @@ fn customer_tax_exemption_roots_return_unknown_customer_user_errors() {
             json!([{ "field": ["customerId"], "message": "Customer does not exist." }])
         );
     }
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -2708,7 +2702,7 @@ fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
             && message.contains("CA_STATUS_CARD_EXEMPTION")
             && message.contains("CA_BC_RESELLER_EXEMPTION")
             && message.contains("US_CA_RESELLER_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -2745,7 +2739,7 @@ fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
         .as_str()
         .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
             && message.contains("CA_STATUS_CARD_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -3301,11 +3295,11 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        state_snapshot(&proxy)["stagedState"]["delegatedAccessTokens"],
         json!({})
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["status"],
+        log_snapshot(&proxy)["entries"][0]["status"],
         json!("failed")
     );
 
@@ -3346,10 +3340,10 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         );
     }
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        state_snapshot(&proxy)["stagedState"]["delegatedAccessTokens"],
         json!({})
     );
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -4664,11 +4658,8 @@ fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
         })
     );
 
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["products"],
-        json!({})
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
 }
 
 #[test]
@@ -4752,7 +4743,7 @@ fn data_sale_opt_out_stages_existing_customer_and_downstream_reads_without_upstr
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
         log["entries"][1]["interpreted"]["capability"],
@@ -4954,12 +4945,12 @@ fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
             "mutation payload for {email}"
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"],
+            log_snapshot(&proxy)["entries"],
             json!([]),
             "mutation log for {email}"
         );
         assert_eq!(
-            proxy.get_state_snapshot()["stagedState"]["customers"],
+            state_snapshot(&proxy)["stagedState"]["customers"],
             json!({}),
             "staged customers for {email}"
         );
@@ -5486,13 +5477,7 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
             ]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
     let leading_create = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "name": "\tFS Leading Whitespace rejected" }),
@@ -5520,13 +5505,7 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
             ]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
 
     let valid_create = proxy.process_request(json_graphql_request(
         create_query,
@@ -5544,19 +5523,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         .to_string();
     assert!(service_id.starts_with("gid://shopify/FulfillmentService/1"));
     assert!(location_id.starts_with("gid://shopify/Location/2"));
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
-    let update_log_len_before = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
-    let update_state_before = proxy.get_state_snapshot();
+    let update_log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let update_state_before = state_snapshot(&proxy);
     let leading_update = proxy.process_request(json_graphql_request(
         update_query,
         json!({ "id": service_id, "name": " FS Whitespace Update Rejected" }),
@@ -5571,13 +5541,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         update_log_len_before
     );
-    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+    assert_eq!(state_snapshot(&proxy), update_state_before);
 
     let trailing_update = proxy.process_request(json_graphql_request(
         update_query,
@@ -5593,13 +5560,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         update_log_len_before
     );
-    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+    assert_eq!(state_snapshot(&proxy), update_state_before);
 }
 
 #[test]
@@ -5949,10 +5913,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     );
 
     for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
-        let log_len_before = proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len();
+        let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
         let reserved = proxy.process_request(json_graphql_request(
             create_query,
             json!({ "name": reserved_name }),
@@ -5965,10 +5926,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
             })
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"]
-                .as_array()
-                .unwrap()
-                .len(),
+            log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
             log_len_before
         );
     }
@@ -5999,10 +5957,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     );
 
     for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
-        let log_len_before = proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len();
+        let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
         let update_reserved = proxy.process_request(json_graphql_request(
             update_query,
             json!({ "id": target_id, "name": reserved_name }),
@@ -6015,10 +5970,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
             })
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"]
-                .as_array()
-                .unwrap()
-                .len(),
+            log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
             log_len_before
         );
     }
@@ -6354,7 +6306,7 @@ fn carrier_service_create_missing_required_booleans_returns_coercion_errors_befo
         json!({}),
     ));
     assert_eq!(services.body["data"]["carrierServices"]["nodes"], json!([]));
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -6381,10 +6333,7 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         .unwrap()
         .to_string();
 
-    let log_len_after_create = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_after_create = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let blank_name_update = proxy.process_request(json_graphql_request(
         r#"
@@ -6412,10 +6361,7 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_after_create
     );
     let after_blank_name_update = proxy.process_request(json_graphql_request(
@@ -7004,7 +6950,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         Value::Null
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
@@ -7104,7 +7050,7 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
         update.body["data"]["deliveryProfileUpdate"]["profile"]
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
@@ -7349,7 +7295,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         json!({ "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["shippingPackages"]
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"]
             ["gid://shopify/ShippingPackage/1"]["updatedAt"],
         json!("2024-01-01T00:00:01.000Z")
     );
@@ -7362,7 +7308,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         make_default.body["data"]["shippingPackageMakeDefault"],
         json!({ "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
         json!(false)
@@ -7383,7 +7329,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         restore.body["data"]["shippingPackageUpdate"],
         json!({ "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
         json!(true)
@@ -7401,7 +7347,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         delete.body["data"]["shippingPackageDelete"],
         json!({ "deletedId": "gid://shopify/ShippingPackage/1", "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["deletedShippingPackageIds"]["gid://shopify/ShippingPackage/1"],
         json!(true)
@@ -7410,7 +7356,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         .get("gid://shopify/ShippingPackage/1")
         .is_none());
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["operationName"],
         json!("shippingPackageUpdate")
@@ -7531,12 +7477,12 @@ fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
         Value::Null
     );
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["locations"][location_id.as_str()]["localPickupSettingsV2"],
         Value::Null
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
         log["entries"][1]["interpreted"]["primaryRootField"],
@@ -7632,13 +7578,7 @@ fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
         inactive.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
         json!("ACTIVE_LOCATION_NOT_FOUND")
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -7762,7 +7702,7 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["shippingPackages"],
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"],
         json!({})
     );
 }
@@ -7902,7 +7842,7 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
         2
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 3);
     assert_eq!(entries[1]["status"], json!("staged"));
@@ -8097,10 +8037,7 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         "ACCOUNT_NOT_FOUND",
     );
 
-    let entries = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     assert_eq!(
         entries, 2,
         "only customerCreate and the successful setup credit should be staged"
@@ -8153,10 +8090,7 @@ fn store_credit_credit_accepts_live_accepted_ordinary_currency() {
     );
     assert_eq!(transaction["account"]["owner"]["id"], json!(customer_id));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         2,
         "customerCreate and successful CHF credit should be staged"
     );
@@ -8197,10 +8131,7 @@ fn store_credit_result_only_currency_codes_return_top_level_error_without_stagin
     }
 
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "result-only currency failures should not stage store-credit mutations"
     );
@@ -8302,10 +8233,7 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
     assert!(message.contains("notify"));
     assert!(message.contains("attribution"));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "invalid schema variables should not stage store-credit mutations"
     );

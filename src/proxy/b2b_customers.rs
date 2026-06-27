@@ -168,28 +168,21 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "customer" => Some(self.customer_read_field(field)),
-                "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(self.customers_list_field(field)),
-                "customersCount" => Some(selected_json(
-                    &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
-                    &field.selection,
-                )),
-                "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
-                "job" => Some(self.customer_merge_job_node_field(field)),
-                "node" if self.customer_merge_job_reference(field) => {
-                    Some(self.customer_merge_job_node_field(field))
-                }
-                _ => None,
-            };
-            if let Some(value) = value {
-                data.insert(field.response_key.clone(), value);
+        root_payload_json(fields, |field| match field.name.as_str() {
+            "customer" => Some(self.customer_read_field(field)),
+            "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
+            "customers" => Some(self.customers_list_field(field)),
+            "customersCount" => Some(selected_json(
+                &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
+                &field.selection,
+            )),
+            "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
+            "job" => Some(self.customer_merge_job_node_field(field)),
+            "node" if self.customer_merge_job_reference(field) => {
+                Some(self.customer_merge_job_node_field(field))
             }
-        }
-        Value::Object(data)
+            _ => None,
+        })
     }
 
     /// The store-wide total customer count: the seeded live baseline (or the
@@ -317,18 +310,16 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "storeCreditAccount" {
-                continue;
+                return None;
             }
             let value = resolved_string_field(&field.arguments, "id")
                 .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
                 .map(|account| self.selected_store_credit_account(account, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn store_credit_account_mutation(
@@ -344,25 +335,24 @@ impl DraftProxy {
         if let Some(response) = store_credit_result_only_currency_response(&fields) {
             return MutationOutcome::response(response);
         }
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             if !matches!(
                 field.name.as_str(),
                 "storeCreditAccountCredit" | "storeCreditAccountDebit"
             ) {
-                continue;
+                return None;
             }
-            let outcome = self.store_credit_account_mutation_field(&field);
+            let outcome = self.store_credit_account_mutation_field(field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(field.response_key.clone(), outcome.value);
-        }
-        if data.is_empty() {
+            Some(outcome.value)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
         }
-        let response = ok_json(json!({ "data": Value::Object(data) }));
+        let response = ok_json(json!({ "data": data }));
         if log_drafts.is_empty() {
             MutationOutcome::response(response)
         } else if root_field == "storeCreditAccountCredit"
@@ -939,11 +929,10 @@ impl DraftProxy {
             return json_error(400, "Unsupported mixed customer mutation selection");
         }
 
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, staged_ids, field_errors) =
-                self.customer_mutation_payload(request, &field);
+                self.customer_mutation_payload(request, field);
             // A top-level GraphQL error whose path points at this root field means
             // the field itself resolves to `null` in `data` (GraphQL error
             // propagation), not `{customer:null,userErrors:[]}`. This mirrors
@@ -959,9 +948,9 @@ impl DraftProxy {
             } else {
                 selected_json(&payload, &field.selection)
             };
-            data.insert(field.response_key.clone(), rendered);
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(rendered)
+        });
+        let mut body = json!({ "data": data });
         if !errors.is_empty() {
             body["errors"] = Value::Array(errors);
         }
@@ -991,17 +980,6 @@ impl DraftProxy {
                 Vec::new(),
             ),
         }
-    }
-
-    /// Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
-    /// id. The local-runtime conformance fixtures compare these ids strictly and
-    /// expect the plain form, while every live-hybrid scenario that surfaces a
-    /// fabricated customer id matches it with the lenient `shopify-gid:Customer`
-    /// matcher (which accepts any `gid://shopify/Customer/...`). Read routing keys
-    /// on `staged.customers.contains_key(id)`, so the proxy stays internally
-    /// consistent without needing the `?shopify-draft-proxy=synthetic` marker.
-    fn next_customer_gid(&mut self, _normalized: &NormalizedCustomerInput) -> String {
-        self.next_synthetic_gid("Customer")
     }
 
     fn customer_create_payload(
@@ -1053,7 +1031,10 @@ impl DraftProxy {
             );
         }
 
-        let id = self.next_customer_gid(&normalized);
+        // Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
+        // id. Local-runtime fixtures compare these ids strictly, while live-hybrid
+        // scenarios use the lenient `shopify-gid:Customer` matcher.
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let verified_email_default = customer_create_verified_email_default(request, &normalized);
         let mut customer =
@@ -1112,9 +1093,8 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut top_errors = Vec::new();
-        for field in &fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, staged_ids, field_top_errors) = match field.name.as_str() {
                 "customerAddressCreate" => self.customer_address_create(field),
                 "customerAddressUpdate" => self.customer_address_update(field),
@@ -1134,9 +1114,9 @@ impl DraftProxy {
             } else {
                 selected_json(&payload, &field.selection)
             };
-            data.insert(field.response_key.clone(), rendered);
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(rendered)
+        });
+        let mut body = json!({ "data": data });
         if !top_errors.is_empty() {
             body["errors"] = Value::Array(top_errors);
         }
@@ -1740,7 +1720,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let id = self.next_customer_gid(&normalized);
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let customer = customer_record_from_parts(&id, None, &normalized, &timestamp, true);
         self.store
@@ -2224,18 +2204,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let (payload, staged_id) = self.customer_tax_exemptions_field_payload(field, request);
             if let Some(id) = staged_id {
                 self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
             }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
-            );
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+            Some(selected_json(&payload, &field.selection))
+        });
+        ok_json(json!({ "data": data }))
     }
 
     fn customer_tax_exemptions_field_payload(
@@ -2335,27 +2311,23 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let outcome =
-                self.customer_marketing_consent_update_field(&field, request, query, variables);
+                self.customer_marketing_consent_update_field(field, request, query, variables);
             if let Some(error) = outcome.top_level_error {
                 errors.push(error);
-                data.insert(field.response_key.clone(), Value::Null);
+                Some(Value::Null)
             } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&outcome.payload, &field.selection),
-                );
+                Some(selected_json(&outcome.payload, &field.selection))
             }
-        }
+        });
 
         let mut response = serde_json::Map::new();
         if !errors.is_empty() {
             response.insert("errors".to_string(), Value::Array(errors));
         }
-        response.insert("data".to_string(), Value::Object(data));
+        response.insert("data".to_string(), data);
         ok_json(Value::Object(response))
     }
 
@@ -5118,15 +5090,11 @@ fn normalize_merged_customer_defaults(customer: &mut Value) {
         customer["lastOrder"] = Value::Null;
     }
     if customer["addressesV2"].is_null() {
-        customer["addressesV2"] = empty_nodes_connection();
+        customer["addressesV2"] = nodes_connection(Vec::new());
     }
     if customer["metafields"].is_null() {
-        customer["metafields"] = empty_nodes_connection();
+        customer["metafields"] = nodes_connection(Vec::new());
     }
-}
-
-fn empty_nodes_connection() -> Value {
-    nodes_connection(Vec::new())
 }
 
 /// Basic email format validation matching Shopify's rules:

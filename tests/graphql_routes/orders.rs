@@ -437,11 +437,11 @@ fn return_reason_hydrated_proxy(fixture: &Value) -> DraftProxy {
 }
 
 fn assert_no_return_validation_side_effects(proxy: &DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     assert_eq!(state["stagedState"]["orders"], json!({}));
     assert_eq!(state["stagedState"]["returns"], json!({}));
     assert_eq!(state["stagedState"]["returnsByOrder"], json!({}));
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(proxy)["entries"], json!([]));
 }
 
 fn live_return_reason_validation_proxy(upstream_calls: Arc<AtomicUsize>) -> DraftProxy {
@@ -940,7 +940,7 @@ fn return_request_accepts_public_other_reason_inputs_without_note() {
         .as_str()
         .is_some_and(|id| id.starts_with("gid://shopify/Return/")));
     assert_eq!(
-        explicit_other_proxy.get_state_snapshot()["stagedState"]["returns"]
+        state_snapshot(&explicit_other_proxy)["stagedState"]["returns"]
             .as_object()
             .unwrap()
             .len(),
@@ -963,7 +963,7 @@ fn return_request_accepts_public_other_reason_inputs_without_note() {
         .as_str()
         .is_some_and(|id| id.starts_with("gid://shopify/Return/")));
     assert_eq!(
-        definition_proxy.get_state_snapshot()["stagedState"]["returns"]
+        state_snapshot(&definition_proxy)["stagedState"]["returns"]
             .as_object()
             .unwrap()
             .len(),
@@ -1007,7 +1007,7 @@ fn remove_from_return_rejects_closed_return_without_state_changes() {
     let closed_return = close.body["data"]["returnClose"]["return"].clone();
     assert_eq!(closed_return["status"], json!("CLOSED"));
     assert_eq!(closed_return["totalQuantity"], json!(2));
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let rejected = remove_from_return_for_test(
         &mut proxy,
@@ -1024,7 +1024,7 @@ fn remove_from_return_rejects_closed_return_without_state_changes() {
             "code": "INVALID_STATE"
         }])
     );
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
 
     let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
     assert_eq!(read_after["return"], closed_return);
@@ -1425,7 +1425,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
         json!(1)
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 4);
     assert_eq!(
@@ -1690,7 +1690,7 @@ fn fulfillment_event_create_stages_event_and_top_level_read_after_write() {
         event_id
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(
         entries
@@ -1742,7 +1742,7 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -1871,7 +1871,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         json!("CANCELLED")
     );
 
-    let operation_names = proxy.get_log_snapshot()["entries"]
+    let operation_names = log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -1941,7 +1941,7 @@ fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
         .as_str()
         .unwrap()
         .starts_with("gid://shopify/FulfillmentEvent/"));
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 4);
     assert_eq!(
         log["entries"][3]["operationName"],
@@ -2029,7 +2029,7 @@ fn fulfillment_event_create_hydrates_real_fulfillment_without_passthrough_mutati
         .body
         .contains("ShippingFulfillmentEventCreateFulfillmentHydrate"));
     assert!(!forwarded[0].body.contains("FulfillmentEventCreateHydrated"));
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["operationName"],
         json!("fulfillmentEventCreate")
@@ -2069,7 +2069,7 @@ fn fulfillment_event_create_invalid_status_variable_fails_schema_validation() {
         .as_str()
         .unwrap()
         .contains("Expected \"NOT_A_FULFILLMENT_EVENT_STATUS\" to be one of"));
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -2115,7 +2115,7 @@ fn fulfillment_tracking_update_hydrates_existing_fulfillment() {
     // (stage-one fulfillment lookup, then stage-two order read) before staging the
     // tracking update, so the LiveHybrid transport sees two forwarded reads.
     assert_eq!(forwarded.lock().unwrap().len(), 2);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["operationName"],
         "fulfillmentTrackingInfoUpdate"
@@ -2385,7 +2385,7 @@ fn order_close_and_open_stage_lifecycle_state_and_reads() {
         open.body["data"]["openAlias"]["order"]
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["operationName"], json!("orderClose"));
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert!(log["entries"][1]["rawBody"]
@@ -2439,7 +2439,7 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][0]["status"], json!("failed"));
     assert_eq!(log["entries"][0]["operationName"], json!("orderClose"));
     assert_eq!(log["entries"][1]["status"], json!("failed"));
@@ -2727,7 +2727,7 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
         json!([{ "field": ["orderId"], "message": "Order has already been cancelled", "code": "INVALID" }])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][0]["operationName"], json!("orderCreate"));
     assert_eq!(log["entries"][1]["operationName"], json!("orderCancel"));
     assert_eq!(
@@ -4857,7 +4857,7 @@ fn payment_terms_omitted_template_id_create_coerces_update_defaults() {
         create.body["errors"][0]["extensions"]["problems"][0]["path"],
         json!(["paymentTermsTemplateId"])
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let setup = proxy.process_request(json_graphql_request(
         create_query,
@@ -5527,7 +5527,7 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
         create_attrs_for_log.push(attrs);
     }
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"]
             .as_array()
@@ -6261,7 +6261,7 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
         json!("Transaction does not exist")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     assert_eq!(entries.len(), 4);
     assert!(entries[0]["rawBody"]
@@ -6395,7 +6395,7 @@ fn order_mark_as_paid_stages_from_stored_order_without_money_selection() {
         paid_order["totalReceivedSet"]
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     assert_eq!(entries.len(), 2);
     assert!(entries[1]["rawBody"]
@@ -6432,11 +6432,8 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         unknown.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
         json!("Order does not exist")
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["orders"],
-        json!({})
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["orders"], json!({}));
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -6568,7 +6565,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         json!("Order cannot be marked as paid.")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("log entries");
     let staged_mark_as_paid_entries = entries
         .iter()
@@ -7375,7 +7372,7 @@ fn refund_create_stages_refund_and_downstream_order_reads() {
         json!({ "amount": "5.0", "currencyCode": "CAD" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["operationName"], json!("refundCreate"));
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
@@ -7541,7 +7538,7 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         json!("Quantity cannot refund more items than were purchased")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().expect("log entries").len(), 1);
     assert_eq!(log["entries"][0]["operationName"], json!("orderCreate"));
 }
@@ -7585,7 +7582,7 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
     ));
     assert_eq!(valid_send.body, fixture["validSend"]["response"]);
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]["data"]
             ["__draftProxyInvoiceSend"],
@@ -7593,7 +7590,7 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
             ["data"]["__draftProxyInvoiceSend"]
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"]
         .as_array()
         .expect("invoice send log entries should be an array");
@@ -7821,7 +7818,7 @@ fn order_delete_stages_local_tombstone_cascade_and_not_found_errors() {
         json!({ "count": 0, "precision": "EXACT" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0]["operationName"], json!("orderCreate"));
@@ -7839,13 +7836,7 @@ fn order_delete_stages_local_tombstone_cascade_and_not_found_errors() {
         repeat.body["data"]["orderDelete"]["userErrors"],
         json!([{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }])
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 
     let paid = proxy.process_request(json_graphql_request(
         create_query,
