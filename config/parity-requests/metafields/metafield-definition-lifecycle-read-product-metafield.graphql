@@ -1,4 +1,10 @@
-query MetafieldDefinitionLifecycleReadProductMetafield($productId: ID!, $namespace: String!, $key: String!) {
+query MetafieldDefinitionLifecycleReadProductMetafield(
+  $productId: ID!
+  $namespace: String!
+  $key: String!
+  $looseNamespace: String!
+  $looseKey: String!
+) {
   product(id: $productId) {
     id
     metafield(namespace: $namespace, key: $key) {
@@ -7,6 +13,24 @@ query MetafieldDefinitionLifecycleReadProductMetafield($productId: ID!, $namespa
       key
       type
       value
+      definition {
+        id
+        namespace
+        key
+        type {
+          name
+        }
+      }
+    }
+    looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {
+      id
+      namespace
+      key
+      type
+      value
+      definition {
+        id
+      }
     }
   }
 }
