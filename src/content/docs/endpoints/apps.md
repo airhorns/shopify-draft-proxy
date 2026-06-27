@@ -67,6 +67,7 @@ Delegated-token behavior:
 - Empty scopes, non-positive `expiresIn`, unknown scope handles, active delegate-token parents, and delegated expiry beyond the parent token return Shopify-like userErrors without staging.
 - Request-owned parent-token context is modeled with `x-shopify-draft-proxy-access-token-expires-at`; permanent parent tokens omit that header.
 - `delegateAccessTokenDestroy` hashes the raw token, checks app ownership and parent/delegate hierarchy, marks allowed delegate tokens destroyed locally, and returns non-null shop payloads on success and user-error branches.
+- `delegateAccessTokenCreate` and `delegateAccessTokenDestroy` project selected `shop` payload fields from the effective shop state, including restored or hydrated shop identity, instead of using a helper-owned default shop record.
 - Unknown/repeated tokens, parent self-destroy, cross-app, and non-parent hierarchy attempts return captured userErrors and leave token state unchanged.
 
 Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. Delegated token raw values are returned only in mutation payloads and are intentionally absent from `__meta/state`.

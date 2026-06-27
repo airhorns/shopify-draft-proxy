@@ -47,7 +47,10 @@ every store-property document.
 
 Shop reads have a local store-backed slice for selected shop metadata,
 including staged shop policies, publication aggregates, primary domain, and safe
-empty or null shapes. `shopPolicyUpdate` is dispatched by root field, stages
+empty or null shapes. LiveHybrid reads hydrate the connected shop when upstream
+or cassette data is available; pure snapshot/cold fallback uses a neutral
+synthetic `Shopify Draft Proxy` shop identity instead of a captured real store.
+`shopPolicyUpdate` is dispatched by root field, stages
 policy body/title/URL/timestamps in the Rust store, preserves the original raw
 mutation for commit replay, and exposes read-after-write behavior through
 `shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
@@ -152,6 +155,8 @@ where captured.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json`
   and
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
+- Non-harry shop identity parity:
+  `config/parity-specs/store-properties/shop-baseline-non-harry.json`
 
 ### Validation
 
@@ -161,3 +166,4 @@ where captured.
 - `corepack pnpm rust:test`
 - `corepack pnpm conformance:check`
 - `corepack pnpm lint`
+- `corepack pnpm parity -- shop-baseline-non-harry`

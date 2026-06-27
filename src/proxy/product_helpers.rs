@@ -619,7 +619,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "productId")?;
-        let media_ids = resolved_string_list_field_unsorted(arguments, "mediaIds");
+        let media_ids = list_string_field(arguments, "mediaIds");
 
         if !self.ensure_product_for_media(request, &product_id) {
             return Some(json!({
@@ -943,10 +943,7 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
             Some(transaction) => selected_json(transaction, &selection.selection),
             None => Value::Null,
         }),
-        "userErrors" => Some(selected_user_errors(
-            user_errors.as_slice(),
-            &selection.selection,
-        )),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
         _ => None,
     })
 }
@@ -967,10 +964,7 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "userErrors" => Some(selected_user_errors(
-            user_errors.as_slice(),
-            &selection.selection,
-        )),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
         _ => None,
     })
 }
@@ -2619,7 +2613,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
             "Price can't be blank",
             Some("INVALID"),
         ));
-    } else if let Some(price) = resolved_variant_decimal(input, "price") {
+    } else if let Some(price) = resolved_f64_path(input, &["price"]) {
         if price < 0.0 {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["price"]),
@@ -2635,7 +2629,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
         }
     }
 
-    if let Some(compare_at_price) = resolved_variant_decimal(input, "compareAtPrice") {
+    if let Some(compare_at_price) = resolved_f64_path(input, &["compareAtPrice"]) {
         if compare_at_price >= 1_000_000_000_000_000_000.0 {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["compareAtPrice"]),
@@ -2731,7 +2725,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
         if let Some(measurement) = resolved_object_field(&inventory_item, "measurement") {
             if let Some(weight) = resolved_object_field(&measurement, "weight") {
-                if let Some(value) = resolved_variant_decimal(&weight, "value") {
+                if let Some(value) = resolved_f64_path(&weight, &["value"]) {
                     if value < 0.0 {
                         errors.push(user_error(
                             variant_weight_error_field(field_prefix),
@@ -2778,15 +2772,6 @@ fn variant_weight_error_field(prefix: &[String]) -> Value {
         prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
     } else {
         prefixed_error_field(prefix, &[])
-    }
-}
-
-fn resolved_variant_decimal(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<f64> {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
-        Some(ResolvedValue::Int(value)) => Some(*value as f64),
-        Some(ResolvedValue::Float(value)) => Some(*value),
-        _ => None,
     }
 }
 

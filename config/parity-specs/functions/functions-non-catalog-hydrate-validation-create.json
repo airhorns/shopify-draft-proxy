@@ -1,0 +1,34 @@
+{
+  "scenarioId": "functions-non-catalog-hydrate-validation-create",
+  "operationNames": ["validationCreate", "shopifyFunctions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "payload-shape",
+    "user-errors-parity",
+    "function-hydration",
+    "side-effect-boundary"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-non-catalog-hydrate-validation-create.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-non-catalog-hydrate-validation-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.validationWrongApi.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "non-catalog-function-hydrated-validation-create-wrong-api",
+        "capturePath": "$.validationWrongApi.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate"
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for validationCreate resolving a released Function id that was not present in the removed local Functions catalog. The proxy request starts with no seeded Function metadata; replay can only produce the Shopify wrong-API userError after matching the FunctionHydrateById upstreamCalls cassette for the selected non-validation Function."
+}

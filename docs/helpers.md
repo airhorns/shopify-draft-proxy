@@ -68,8 +68,8 @@ Use these helpers before adding resource-local `ResolvedValue` serializers.
 - `resolved_value_json(...)` converts GraphQL `ResolvedValue` trees into JSON while preserving strings, numbers, booleans, nulls, lists, and objects.
 - `resolved_variables_json(...)` serializes resolved variable maps for log metadata and validation payloads.
 - `resolved_value_string(...)` reads a string from a single `ResolvedValue`.
-- `resolved_string_arg(...)` and `resolved_i64_field(...)` read string and integer scalars from resolved argument/input maps.
-- `list_object_field(...)` and `list_string_field(...)` read object and string lists from resolved argument/input maps.
+- `resolved_string_field(...)` and `resolved_int_field(...)` read string and integer scalars from resolved argument/input maps.
+- `resolved_object_list_field(...)` and `list_string_field(...)` read object and string lists from resolved argument/input maps.
 
 Input readers that need the inverse conversion from JSON into resolved GraphQL values should use `resolved_value_from_json(...)` in `src/proxy/routing.rs`.
 
@@ -78,7 +78,7 @@ Input readers that need the inverse conversion from JSON into resolved GraphQL v
 Check the existing metafield helpers before adding metafield-specific parsing or projection.
 
 - `src/proxy/media_products_saved_searches.rs` owns `owner_metafields_set(...)`, `owner_metafields_read(...)`, and metafield definition pinning/lifecycle read handlers.
-- `src/proxy/metafields_orders_payments.rs` owns `metafield_json_value(...)`, `custom_data_metafield_type_matrix_record(...)`, `canonical_app_metafield_namespace(...)`, and shared `metafield_definition_*` value/ID helpers.
+- `src/proxy/metafields_orders_payments.rs` owns `metafield_json_value(...)`, `canonical_app_metafield_namespace(...)`, and shared `metafield_definition_*` value/ID helpers.
 
 Owner-specific validation and storage should stay in the owning domain branch, but scalar parsing and projection should reuse shared helpers when possible.
 

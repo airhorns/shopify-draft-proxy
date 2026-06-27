@@ -158,9 +158,9 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
     money_set_pair(
-        &format_order_amount(left_shop + right_shop),
+        &format_money_amount(left_shop + right_shop),
         &shop_currency,
-        &format_order_amount(left_presentment + right_presentment),
+        &format_money_amount(left_presentment + right_presentment),
         &presentment_currency,
     )
 }
@@ -335,27 +335,7 @@ pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, cod
 }
 
 pub(in crate::proxy) fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    money_set(&format_order_amount(amount), currency_code)
-}
-
-pub(in crate::proxy) fn order_create_money_bag(
-    amount: f64,
-    currency_code: &str,
-    presentment_currency_code: &str,
-) -> Value {
-    let amount = format_order_amount(amount);
-    money_set_pair(&amount, currency_code, &amount, presentment_currency_code)
-}
-
-pub(in crate::proxy) fn format_order_amount(amount: f64) -> String {
-    let rounded = (amount * 100.0).round() / 100.0;
-    let formatted = format!("{rounded:.2}");
-    let trimmed = formatted.trim_end_matches('0');
-    if trimmed.ends_with('.') {
-        format!("{trimmed}0")
-    } else {
-        trimmed.to_string()
-    }
+    money_set(&format_money_amount(amount), currency_code)
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -381,7 +361,7 @@ pub(in crate::proxy) fn money_input(
         Some(BTreeMap::from([
             (
                 "amount".to_string(),
-                ResolvedValue::String(format_order_amount(amount)),
+                ResolvedValue::String(format_money_amount(amount)),
             ),
             ("currencyCode".to_string(), ResolvedValue::String(currency)),
         ]))
@@ -457,6 +437,44 @@ pub(in crate::proxy) fn order_update_phone_is_valid(phone: &str) -> bool {
             .all(|character| character == '+' || character.is_ascii_digit())
 }
 
+const CANADIAN_PROVINCE_CODES: &[&str] = &[
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+];
+const UNITED_STATES_PROVINCE_CODES: &[&str] = &[
+    "AK", "AL", "AR", "AS", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "FM", "GA", "GU", "HI", "IA",
+    "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MH", "MI", "MN", "MO", "MP", "MS", "MT",
+    "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "PR", "PW", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VA", "VI", "VT", "WA", "WI", "WV", "WY",
+];
+const AUSTRALIAN_PROVINCE_CODES: &[&str] = &["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
+
+fn country_province_rule(
+    country_code: &str,
+) -> Option<(&'static str, &'static str, &'static [&'static str])> {
+    match country_code {
+        "AU" => Some(("State", "Australia", AUSTRALIAN_PROVINCE_CODES)),
+        "CA" => Some(("Province", "Canada", CANADIAN_PROVINCE_CODES)),
+        "US" => Some(("State", "United States", UNITED_STATES_PROVINCE_CODES)),
+        _ => None,
+    }
+}
+
+fn order_update_invalid_province_message(
+    country_code: &str,
+    province_code: &str,
+) -> Option<String> {
+    if province_code.is_empty() {
+        return None;
+    }
+    let (label, country_name, valid_codes) = country_province_rule(country_code)?;
+    (!valid_codes.contains(&province_code)).then(|| {
+        format!(
+            "{label} is not a valid {} in {country_name}",
+            label.to_ascii_lowercase()
+        )
+    })
+}
+
 pub(in crate::proxy) fn order_update_shipping_address_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -483,10 +501,10 @@ pub(in crate::proxy) fn order_update_shipping_address_errors(
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
         .unwrap_or_default();
     let province_code = resolved_string_field(input, "provinceCode").unwrap_or_default();
-    if country_code == "US" && province_code == "ON" {
+    if let Some(message) = order_update_invalid_province_message(&country_code, &province_code) {
         errors.push(json!({
             "field": ["shippingAddress", "province"],
-            "message": "State is not a valid state in United States"
+            "message": message
         }));
     }
     errors
@@ -648,7 +666,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
     currency_code: &str,
     presentment_currency_code: &str,
 ) -> (Value, f64, f64) {
-    let quantity = resolved_i64_field(input, "quantity").unwrap_or(1).max(0);
+    let quantity = resolved_int_field(input, "quantity").unwrap_or(1).max(0);
     let price_input = resolved_object_field(input, "priceSet")
         .or_else(|| resolved_object_field(input, "originalUnitPriceSet"))
         .unwrap_or_default();
@@ -665,11 +683,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .and_then(resolved_money_currency)
         .unwrap_or_else(|| presentment_currency_code.to_string());
     let tax_lines = order_create_tax_lines(input, "taxLines", currency_code);
-    let tax_total = tax_lines
-        .iter()
-        .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
-        .sum::<f64>();
+    let tax_total = sum_money_set(&tax_lines, "priceSet");
     let applied_discounts = resolved_object_list_field(input, "appliedDiscounts")
         .into_iter()
         .map(|discount| {
@@ -682,7 +696,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
             json!({
                 "title": resolved_string_field(&discount, "title").unwrap_or_default(),
                 "value": {
-                    "amount": format_order_amount(amount),
+                    "amount": format_money_amount(amount),
                     "currencyCode": currency
                 }
             })
@@ -730,21 +744,21 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
         "originalUnitPriceSet": json!({
             "shopMoney": {
-                "amount": format_order_amount(unit_amount),
+                "amount": format_money_amount(unit_amount),
                 "currencyCode": line_currency
             },
             "presentmentMoney": {
-                "amount": format_order_amount(presentment_amount),
+                "amount": format_money_amount(presentment_amount),
                 "currencyCode": presentment_currency
             }
         }),
         "priceSet": json!({
             "shopMoney": {
-                "amount": format_order_amount(unit_amount),
+                "amount": format_money_amount(unit_amount),
                 "currencyCode": currency_code
             },
             "presentmentMoney": {
-                "amount": format_order_amount(presentment_amount),
+                "amount": format_money_amount(presentment_amount),
                 "currencyCode": presentment_currency_code
             }
         }),
@@ -814,7 +828,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": money_set(&format_order_amount(amount), &currency)
+        "amountSet": money_set(&format_money_amount(amount), &currency)
     })
 }
 
@@ -836,8 +850,7 @@ pub(in crate::proxy) fn order_create_financial_status(
         .iter()
         .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
         .filter(|transaction| transaction["status"] == "SUCCESS")
-        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
+        .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
     if received <= 0.0 || received + 0.005 >= total {
         "PAID".to_string()
@@ -859,12 +872,10 @@ pub(in crate::proxy) fn order_create_payment_fields(
         .iter()
         .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
         .filter(|transaction| transaction["status"] == "SUCCESS")
-        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .filter_map(|amount| amount.parse::<f64>().ok())
+        .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
     let capturable = authorization
-        .and_then(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
-        .and_then(|amount| amount.parse::<f64>().ok())
+        .and_then(|transaction| money_set_amount(&transaction["amountSet"]))
         .unwrap_or(0.0);
     let outstanding = if authorization.is_some() {
         0.0
@@ -872,7 +883,7 @@ pub(in crate::proxy) fn order_create_payment_fields(
         (total - received).max(0.0)
     };
     order["capturable"] = json!(capturable > 0.0);
-    order["totalCapturable"] = json!(format_order_amount(capturable));
+    order["totalCapturable"] = json!(format_money_amount(capturable));
     order["totalCapturableSet"] = order_create_money_set(capturable, currency_code);
     order["totalOutstandingSet"] = order_create_money_set(outstanding, currency_code);
     order["totalReceivedSet"] = order_create_money_set(received, currency_code);
@@ -933,10 +944,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .iter()
             .enumerate()
         {
-            if !matches!(
-                tax_line.get("rate"),
-                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
-            ) {
+            if resolved_number_field(tax_line, "rate").is_none() {
                 return Some(order_create_error(
                     vec![
                         json!("order"),
@@ -960,10 +968,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .iter()
             .enumerate()
         {
-            if !matches!(
-                tax_line.get("rate"),
-                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
-            ) {
+            if resolved_number_field(tax_line, "rate").is_none() {
                 return Some(order_create_error(
                     vec![
                         json!("order"),
@@ -1078,7 +1083,7 @@ impl DraftProxy {
             .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"));
         if all_reads {
             let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
-                "order" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                "order" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                     self.store.staged.orders.contains_key(&id)
                         || self.store.staged.orders.is_tombstoned(&id)
                 }),
@@ -1096,16 +1101,29 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "orderCreate" => self.stage_order_create(request, query, variables, &field),
-                "orderUpdate" => self.stage_order_update(request, query, variables, &field)?,
+                "orderCreate" => self.stage_order_create(request, query, variables, field),
+                "orderUpdate" => {
+                    let Some(value) = self.stage_order_update(request, query, variables, field)
+                    else {
+                        declined = true;
+                        return None;
+                    };
+                    value
+                }
                 "orderClose" | "orderOpen" => {
-                    self.stage_order_lifecycle(request, query, variables, &field)
+                    self.stage_order_lifecycle(request, query, variables, field)
                 }
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        declined = true;
+                        return None;
+                    };
                     let order = self
                         .store
                         .staged
@@ -1115,13 +1133,19 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&order, &field.selection)
                 }
-                "orders" => self.staged_orders_connection(&field),
-                "ordersCount" => self.staged_orders_count(&field),
-                _ => return None,
+                "orders" => self.staged_orders_connection(field),
+                "ordersCount" => self.staged_orders_count(field),
+                _ => {
+                    declined = true;
+                    return None;
+                }
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     /// Full order projections from the seeded catalog that match a connection's
@@ -1132,9 +1156,9 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Vec<Value> {
-        let query_arg = resolved_string_arg(arguments, "query").unwrap_or_default();
+        let query_arg = resolved_string_field(arguments, "query").unwrap_or_default();
         // Enum arguments resolve to their variant name as a string.
-        let sort_key = resolved_string_arg(arguments, "sortKey").unwrap_or_default();
+        let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_default();
         let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
         let mut matched = self
             .store
@@ -1169,7 +1193,7 @@ impl DraftProxy {
     /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
         let matched = self
             .store
             .staged
@@ -1359,7 +1383,7 @@ impl DraftProxy {
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
                 if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
-                    let quantity = resolved_i64_field(&line_item, "quantity").unwrap_or(1);
+                    let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
                     self.decrement_inventory_item_available(&inventory_item_id, quantity);
                 }
             }
@@ -1865,11 +1889,7 @@ impl DraftProxy {
                 let shipping_currency =
                     input_money_currency(&price_input).unwrap_or_else(|| currency_code.clone());
                 let tax_lines = order_create_tax_lines(&shipping_line, "taxLines", &currency_code);
-                tax_total += tax_lines
-                    .iter()
-                    .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
-                    .filter_map(|amount| amount.parse::<f64>().ok())
-                    .sum::<f64>();
+                tax_total += sum_money_set(&tax_lines, "priceSet");
                 json!({
                     "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
                     "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
@@ -1880,11 +1900,7 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
-        let shipping_total = shipping_lines
-            .iter()
-            .filter_map(|line| line["originalPriceSet"]["shopMoney"]["amount"].as_str())
-            .filter_map(|amount| amount.parse::<f64>().ok())
-            .sum::<f64>();
+        let shipping_total = sum_money_set(&shipping_lines, "originalPriceSet");
         let (discount_total, discount_codes) =
             order_create_discount_amount(order_input, &currency_code);
         let total = (subtotal + shipping_total + tax_total - discount_total).max(0.0);
@@ -1940,7 +1956,7 @@ impl DraftProxy {
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
             "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
             "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
-            "totalShippingPriceSet": order_create_money_bag(shipping_total, &currency_code, &presentment_currency_code),
+            "totalShippingPriceSet": money_bag_from_amount(shipping_total, &currency_code, &presentment_currency_code),
             "totalTaxSet": order_create_money_set(tax_total, &currency_code),
             "currentTotalTaxSet": order_create_money_set(tax_total, &currency_code),
             "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
@@ -1957,11 +1973,11 @@ impl DraftProxy {
         if let Some(object) = order.as_object_mut() {
             object.insert(
                 "currentTotalPriceSet".to_string(),
-                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             );
             object.insert(
                 "totalPriceSet".to_string(),
-                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             );
         }
         order_create_payment_fields(&mut order, &transactions, total, &currency_code);
@@ -2066,12 +2082,10 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
-            let order_arg = field.arguments.get("order")?;
-            if let ResolvedValue::Object(order_input) = order_arg {
-                let email = resolved_string_field(order_input, "email").unwrap_or_default();
-                if !email.starts_with("order-customer-") {
-                    return None;
-                }
+            let order_input = resolved_object_field(&field.arguments, "order")?;
+            let email = resolved_string_field(&order_input, "email").unwrap_or_default();
+            if !email.starts_with("order-customer-") {
+                return None;
             }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
@@ -2171,7 +2185,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         code: Option<&str>,
     ) -> Result<String, Value> {
-        let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let calculated_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self
             .store
             .staged
@@ -2198,7 +2212,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         // The edit targets an order that lives in the backend, not one created
         // locally in this scenario. Forward a hydrate read and observe it so the
         // edit session is built from real order state instead of requiring a
@@ -2285,7 +2299,7 @@ impl DraftProxy {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };
-        let variant_id = resolved_string_arg(&field.arguments, "variantId").unwrap_or_default();
+        let variant_id = resolved_string_field(&field.arguments, "variantId").unwrap_or_default();
         if resource_id_tail(&variant_id) == "0" {
             return order_edit_error_response(
                 field,
@@ -2438,7 +2452,8 @@ impl DraftProxy {
                 )],
             );
         }
-        let line_item_id = resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
+        let line_item_id =
+            resolved_string_field(&field.arguments, "lineItemId").unwrap_or_default();
         let mut session = self
             .store
             .staged
@@ -2504,7 +2519,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
-        let title = resolved_string_arg(&field.arguments, "title").unwrap_or_default();
+        let title = resolved_string_field(&field.arguments, "title").unwrap_or_default();
         if title.trim().is_empty() {
             return order_edit_error_response(
                 field,
@@ -2609,7 +2624,8 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
-        let line_item_id = resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
+        let line_item_id =
+            resolved_string_field(&field.arguments, "lineItemId").unwrap_or_default();
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
             None => {
@@ -2698,7 +2714,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let discount_application_id =
-            resolved_string_arg(&field.arguments, "discountApplicationId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "discountApplicationId").unwrap_or_default();
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
             for line in lines.iter_mut() {
                 if let Some(discounts) = line.get_mut("discounts").and_then(Value::as_array_mut) {
@@ -2815,7 +2831,7 @@ impl DraftProxy {
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
         let shipping_line_id =
-            resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "shippingLineId").unwrap_or_default();
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
@@ -2894,7 +2910,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let shipping_line_id =
-            resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "shippingLineId").unwrap_or_default();
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
@@ -2998,7 +3014,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        let order_id = resolved_string_field(&field.arguments, "orderId")?;
         if !self.store.staged.orders.contains_key(&order_id) {
             return Some(selected_json(
                 &json!({
@@ -3094,27 +3110,37 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "customerCreate" => self.order_customer_paths_customer_create(&field),
-                "companyCreate" => self.order_customer_paths_company_create(&field),
+                "customerCreate" => self.order_customer_paths_customer_create(field),
+                "companyCreate" => self.order_customer_paths_company_create(field),
                 "companyAssignCustomerAsContact" => {
-                    self.order_customer_paths_assign_customer(&field)
+                    self.order_customer_paths_assign_customer(field)
                 }
-                "orderCreate" => self.order_customer_paths_order_create(&field),
+                "orderCreate" => self.order_customer_paths_order_create(field),
                 "orderCancel" => {
-                    self.order_customer_paths_cancel_order(request, query, variables, &field)
+                    self.order_customer_paths_cancel_order(request, query, variables, field)
                 }
-                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, &field)),
+                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, field)),
                 "orderCustomerRemove" => {
-                    Some(self.order_customer_remove_error_paths(request, &field))
+                    Some(self.order_customer_remove_error_paths(request, field))
                 }
                 _ => None,
-            }?;
-            data.insert(field.response_key.clone(), value);
+            };
+            let Some(value) = value else {
+                declined = true;
+                return None;
+            };
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_customer_create(
@@ -3169,25 +3195,25 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let company_id = resolved_string_arg(&field.arguments, "companyId")?;
+        let company_id = resolved_string_field(&field.arguments, "companyId")?;
         // Only the orderCustomerSet/Remove error-path flow's sentinel customer
         // (email "order-customer-...") is owned here; all other company-contact
         // assignments belong to the general b2b handler.
-        let is_order_customer_flow = resolved_string_arg(&field.arguments, "customerId")
+        let is_order_customer_flow = resolved_string_field(&field.arguments, "customerId")
             .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
             .and_then(|customer| customer["email"].as_str().map(str::to_string))
             .is_some_and(|email| email.starts_with("order-customer-"));
         if !is_order_customer_flow {
             return None;
         }
-        if let Some(customer_id) = resolved_string_arg(&field.arguments, "customerId") {
+        if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
             self.store
                 .staged
                 .order_customer_contact_customer_ids
                 .insert(customer_id.clone());
         }
         let customer_id =
-            resolved_string_arg(&field.arguments, "customerId").unwrap_or_else(|| {
+            resolved_string_field(&field.arguments, "customerId").unwrap_or_else(|| {
                 "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()
             });
         Some(selected_json(
@@ -3208,8 +3234,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_arg = field.arguments.get("order")?;
-        let email = resolved_object_string(order_arg, "email").unwrap_or_default();
+        let order_input = resolved_object_field(&field.arguments, "order")?;
+        let email = resolved_string_field(&order_input, "email").unwrap_or_default();
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
         }
@@ -3221,16 +3247,10 @@ impl DraftProxy {
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let customer_id = match order_arg {
-            ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
-            _ => None,
-        };
+        let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = match order_arg {
-            ResolvedValue::Object(fields) => draft_order_purchasing_entity(fields),
-            _ => Value::Null,
-        };
+        let purchasing_entity = draft_order_purchasing_entity(&order_input);
         let order = json!({
             "id": id,
             "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
@@ -3253,7 +3273,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        let order_id = resolved_string_field(&field.arguments, "orderId")?;
         let refund_method_cancel = field.arguments.contains_key("refundMethod");
         let order_locally_known = self.store.staged.orders.contains_key(&order_id)
             || self
@@ -3285,7 +3305,7 @@ impl DraftProxy {
                 "userErrors": [error]
             })
         };
-        if let Some(staff_note) = resolved_string_arg(&field.arguments, "staffNote") {
+        if let Some(staff_note) = resolved_string_field(&field.arguments, "staffNote") {
             if staff_note.chars().count() > 255 {
                 return Some(selected_json(
                     &error_payload(
@@ -3362,7 +3382,7 @@ impl DraftProxy {
             }
 
             let reason =
-                resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+                resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
             let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
@@ -3434,7 +3454,7 @@ impl DraftProxy {
             .order_customer_cancelled_ids
             .insert(order_id.clone());
         let reason =
-            resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+            resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
         let timestamp = self.order_cancel_timestamp();
         order["closed"] = json!(true);
         order["closedAt"] = json!(timestamp.clone());
@@ -3474,8 +3494,8 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
-        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
@@ -3585,7 +3605,7 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
-        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
             && !order_id.contains(SYNTHETIC_MARKER)
             && !self

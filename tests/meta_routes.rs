@@ -573,7 +573,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!(["gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"]),
     );
 
-    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/3634391580978\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
+    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
     let mut update_proxy = snapshot_proxy();
     let update = update_proxy.process_request(graphql_request(
         &json!({ "query": update_query }).to_string(),
@@ -589,10 +589,10 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchUpdate",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 
-    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/3634391580978\" }) { deletedSavedSearchId userErrors { field message } } }";
+    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\" }) { deletedSavedSearchId userErrors { field message } } }";
     let mut delete_proxy = snapshot_proxy();
     let delete = delete_proxy.process_request(graphql_request(
         &json!({ "query": delete_query }).to_string(),
@@ -600,7 +600,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
     assert_eq!(delete.status, 200);
     assert_eq!(
         delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
-        json!("gid://shopify/SavedSearch/3634391580978")
+        json!("gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic")
     );
     assert_single_local_staged_log(
         &delete_proxy,
@@ -608,7 +608,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchDelete",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 }
 
@@ -775,6 +775,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             {
                 "baseState": {
                     "availableLocales": null,
+                    "giftCardConfiguration": null,
+                    "giftCards": {},
                     "localizationProductIds": [
                         "gid://shopify/Product/9801098789170"
                     ],
@@ -1174,6 +1176,81 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         next_create.body["data"]["productCreate"]["product"]["id"],
         json!("gid://shopify/Product/5?shopify-draft-proxy=synthetic")
     );
+}
+
+#[test]
+fn restore_state_round_trips_dumped_staged_counter_fields() {
+    let mut dump = snapshot_proxy()
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-26T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let staged_state = dump["state"]["stagedState"].as_object_mut().unwrap();
+    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(17));
+    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(23));
+    staged_state.insert("nextDraftOrderId".to_string(), json!(29));
+    staged_state.insert("nextCustomerPaymentMethodId".to_string(), json!(31));
+    staged_state.insert("nextOrderCustomerOrderId".to_string(), json!(37));
+    staged_state.insert("nextDraftOrderBulkTagJobId".to_string(), json!(41));
+    staged_state.insert("nextInventoryQuantityTimestamp".to_string(), json!(43));
+    staged_state.insert("nextB2bCompanyId".to_string(), json!(47));
+    staged_state.insert("nextB2bContactId".to_string(), json!(53));
+    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(59));
+    staged_state.insert(
+        "orderCustomerOrders".to_string(),
+        json!({
+            "gid://shopify/Order/37": {
+                "id": "gid://shopify/Order/37"
+            }
+        }),
+    );
+    staged_state.insert(
+        "b2bCompanies".to_string(),
+        json!({
+            "gid://shopify/Company/47": {
+                "id": "gid://shopify/Company/47"
+            }
+        }),
+    );
+    let counter_fields = [
+        "nextStoreCreditAccountId",
+        "nextStoreCreditTransactionId",
+        "nextDraftOrderId",
+        "nextCustomerPaymentMethodId",
+        "nextOrderCustomerOrderId",
+        "nextDraftOrderBulkTagJobId",
+        "nextInventoryQuantityTimestamp",
+        "nextB2bCompanyId",
+        "nextB2bContactId",
+        "nextB2bContactRoleAssignmentId",
+    ];
+    let expected_counters = counter_fields
+        .iter()
+        .map(|field| (*field, dump["state"]["stagedState"][field].clone()))
+        .collect::<Vec<_>>();
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_dump = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-26T00:00:01.000Z" }).to_string(),
+    ));
+    assert_eq!(restored_dump.status, 200);
+    for (field, expected) in expected_counters {
+        assert_eq!(
+            restored_dump.body["state"]["stagedState"][field], expected,
+            "staged counter {field} should round-trip through restore"
+        );
+    }
 }
 
 #[test]

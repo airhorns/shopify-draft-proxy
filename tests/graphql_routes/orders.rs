@@ -2743,6 +2743,11 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
         json!([])
     );
     let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let expected_read = |key: &str, id: &Value| {
+        let mut expected = fixture["expected"][key].clone();
+        expected["data"]["draftOrder"]["id"] = id.clone();
+        expected
+    };
 
     let partial_add = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
@@ -2764,7 +2769,7 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     ));
     assert_eq!(
         read_after_partial.body,
-        fixture["expected"]["readAfterPartialSuccess"]
+        expected_read("readAfterPartialSuccess", &draft_order_id)
     );
 
     let long_tag = proxy.process_request(json_graphql_request(
@@ -2794,7 +2799,7 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     ));
     assert_eq!(
         read_after_remove.body,
-        fixture["expected"]["readAfterNormalizedRemove"]
+        expected_read("readAfterNormalizedRemove", &draft_order_id)
     );
 
     let too_many = proxy.process_request(json_graphql_request(
@@ -3057,6 +3062,110 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
 }
 
 #[test]
+fn draft_orders_count_applies_query_filter_like_connection() {
+    let mut proxy = snapshot_proxy();
+
+    for (email, tags) in [
+        ("count-match@example.test", json!(["match-tag"])),
+        ("count-miss@example.test", json!(["other-tag"])),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateCountedDraft($input: DraftOrderInput!) {
+              draftOrderCreate(input: $input) {
+                draftOrder { id email tags }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "email": email,
+                    "tags": tags,
+                    "lineItems": [{
+                        "title": "Count query item",
+                        "quantity": 1,
+                        "originalUnitPrice": "5.00"
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["draftOrderCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FilterDraftOrders($emailQuery: String!, $tagQuery: String!, $statusQuery: String!) {
+          byEmail: draftOrders(first: 10, query: $emailQuery) {
+            nodes { id email }
+          }
+          byEmailCount: draftOrdersCount(query: $emailQuery) {
+            count
+            precision
+          }
+          byTag: draftOrders(first: 10, query: $tagQuery) {
+            nodes { id tags }
+          }
+          byTagCount: draftOrdersCount(query: $tagQuery) {
+            count
+            precision
+          }
+          byStatus: draftOrders(first: 10, query: $statusQuery) {
+            nodes { id status }
+          }
+          byStatusCount: draftOrdersCount(query: $statusQuery) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({
+            "emailQuery": "email:count-match@example.test",
+            "tagQuery": "tag:match-tag",
+            "statusQuery": "status:open"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byEmail"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        read.body["data"]["byEmailCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["byTag"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        read.body["data"]["byTagCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["byStatus"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        read.body["data"]["byStatusCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
@@ -3224,6 +3333,66 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     );
 
     assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn draft_order_variant_unavailable_uses_hydrated_store_state() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("variant hydrate request body parses");
+        assert_eq!(
+            body["operationName"],
+            json!("OrdersDraftOrderVariantHydrate")
+        );
+        assert_eq!(
+            body["variables"]["id"],
+            json!("gid://shopify/ProductVariant/424243")
+        );
+        captured_calls.lock().unwrap().push(body);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "productVariant": Value::Null } }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderCreateUnavailableVariant($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "unavailable-variant@example.com",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/424243",
+                    "quantity": 1
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"],
+        json!({
+            "draftOrder": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Product with ID 424243 is no longer available."
+            }]
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -6463,6 +6632,121 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
 }
 
 #[test]
+fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCompletableDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              status
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  sku
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-completion-any-email@example.com",
+                "shippingLine": {
+                    "title": "Local courier",
+                    "priceWithCurrency": { "amount": "3.25", "currencyCode": "CAD" }
+                },
+                "lineItems": [
+                    {
+                        "title": "Completion service",
+                        "quantity": 2,
+                        "originalUnitPrice": "12.50",
+                        "sku": "COMPLETE-A"
+                    },
+                    {
+                        "title": "Completion add-on",
+                        "quantity": 1,
+                        "originalUnitPrice": "4.00",
+                        "sku": "COMPLETE-B"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    assert_eq!(
+        draft["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "32.25", "currencyCode": "CAD" })
+    );
+    assert_eq!(draft["lineItems"]["nodes"].as_array().unwrap().len(), 2);
+    let draft_id = draft["id"].clone();
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CompleteDraft($id: ID!) {
+          draftOrderComplete(id: $id, sourceName: "checkout-ui", paymentPending: false) {
+            draftOrder {
+              id
+              status
+              order {
+                id
+                sourceName
+                displayFinancialStatus
+                currentTotalPriceSet { shopMoney { amount currencyCode } }
+                lineItems {
+                  nodes {
+                    id
+                    title
+                    quantity
+                    sku
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": draft_id.clone() }),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    let completed_draft = &complete.body["data"]["draftOrderComplete"]["draftOrder"];
+    assert_eq!(completed_draft["id"], draft_id);
+    assert_eq!(completed_draft["status"], json!("COMPLETED"));
+    let order = &completed_draft["order"];
+    assert_eq!(order["id"], json!("gid://shopify/Order/1"));
+    assert_eq!(order["sourceName"], json!("347082227713"));
+    assert_eq!(order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        order["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "32.25", "currencyCode": "CAD" })
+    );
+    assert_eq!(order["lineItems"]["nodes"].as_array().unwrap().len(), 2);
+    assert_ne!(
+        order["lineItems"]["nodes"][0]["id"],
+        json!("gid://shopify/LineItem/5")
+    );
+    assert_eq!(order["lineItems"]["nodes"][1]["sku"], json!("COMPLETE-B"));
+}
+
+#[test]
 fn draft_order_complete_rejects_already_completed_draft_without_rewriting_order() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -6570,7 +6854,7 @@ fn draft_order_complete_dispatches_by_root_for_ordinary_operation_names() {
             mutation MakeDraft {
               draftOrderCreate(
                 input: {
-                  email: "complete-readback@example.test"
+                  email: "ordinary-completion-root@example.com"
                   lineItems: [{ title: "Completion service", quantity: 2, originalUnitPrice: "12.50", sku: "COMPLETE" }]
                 }
               ) {
@@ -7191,6 +7475,85 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
 }
 
 #[test]
+fn order_update_rejects_invalid_country_province_pairs_generally() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForProvinceValidation($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id shippingAddress { countryCodeV2 provinceCode } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "province-validation@example.test",
+                "lineItems": [{
+                    "title": "Province validation item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "9.00", "currencyCode": "CAD" } }
+                }],
+                "shippingAddress": {
+                    "firstName": "Valid",
+                    "lastName": "Province",
+                    "address1": "1 Main St",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5V 2T6"
+                }
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderInvalidProvince($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id shippingAddress { countryCodeV2 provinceCode } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": order_id,
+                "shippingAddress": {
+                    "firstName": "Invalid",
+                    "lastName": "Province",
+                    "address1": "1 Main St",
+                    "city": "Toronto",
+                    "countryCodeV2": "CA",
+                    "provinceCode": "NY",
+                    "zip": "M5V 2T6"
+                }
+            }
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["data"]["orderUpdate"],
+        json!({
+            "order": {
+                "id": create.body["data"]["orderCreate"]["order"]["id"].clone(),
+                "shippingAddress": {
+                    "countryCodeV2": "CA",
+                    "provinceCode": "ON"
+                }
+            },
+            "userErrors": [{
+                "field": ["shippingAddress", "province"],
+                "message": "Province is not a valid province in Canada"
+            }]
+        })
+    );
+}
+
+#[test]
 fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
     let fulfillment_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
@@ -7738,6 +8101,133 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     assert_eq!(
         two_gateways.body,
         fixture["operations"]["twoGatewayObjects"]["response"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_remote_create_rejects_blank_gateway_required_fields() {
+    let cases = [
+        (
+            "braintree blank customer_id",
+            r#"braintreePaymentMethod: { customerId: "", paymentMethodToken: "tok_x" }"#,
+            [
+                "remote_reference",
+                "braintree_payment_method",
+                "customer_id",
+            ],
+            "INVALID",
+            "customer_id can't be blank",
+        ),
+        (
+            "braintree blank payment_method_token",
+            r#"braintreePaymentMethod: { customerId: "cus_x", paymentMethodToken: "" }"#,
+            [
+                "remote_reference",
+                "braintree_payment_method",
+                "payment_method_token",
+            ],
+            "INVALID",
+            "payment_method_token can't be blank",
+        ),
+        (
+            "authorize.net blank customer_profile_id",
+            r#"authorizeNetCustomerPaymentProfile: { customerProfileId: "", customerPaymentProfileId: "pay_x" }"#,
+            [
+                "remote_reference",
+                "authorize_net_customer_payment_profile",
+                "customer_profile_id",
+            ],
+            "INVALID",
+            "customer_profile_id can't be blank",
+        ),
+        (
+            "adyen blank shopper_reference",
+            r#"adyenPaymentMethod: { shopperReference: "", storedPaymentMethodId: "stored_x" }"#,
+            [
+                "remote_reference",
+                "adyen_payment_method",
+                "shopper_reference",
+            ],
+            "INVALID",
+            "shopper_reference can't be blank",
+        ),
+        (
+            "adyen blank stored_payment_method_id",
+            r#"adyenPaymentMethod: { shopperReference: "shopper_x", storedPaymentMethodId: "" }"#,
+            [
+                "remote_reference",
+                "adyen_payment_method",
+                "stored_payment_method_id",
+            ],
+            "INVALID",
+            "stored_payment_method_id can't be blank",
+        ),
+    ];
+
+    for (name, remote_reference, field_path, code, message) in cases {
+        let mut proxy = snapshot_proxy();
+        let query = format!(
+            r#"
+            mutation CustomerPaymentMethodRemoteCreateBlankGatewayField {{
+              customerPaymentMethodRemoteCreate(
+                customerId: "gid://shopify/Customer/1"
+                remoteReference: {{ {remote_reference} }}
+              ) {{
+                customerPaymentMethod {{ id }}
+                userErrors {{ field code message }}
+              }}
+            }}
+        "#
+        );
+
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
+
+        assert_eq!(response.status, 200, "{name}");
+        let payload = &response.body["data"]["customerPaymentMethodRemoteCreate"];
+        assert_eq!(payload["customerPaymentMethod"], Value::Null, "{name}");
+        assert_eq!(
+            payload["userErrors"],
+            json!([{
+                "field": field_path,
+                "code": code,
+                "message": message
+            }]),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardinality() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRemoteCreateTwoNonStripeGatewayObjects {
+          customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/1"
+            remoteReference: {
+              braintreePaymentMethod: { customerId: "cus_x", paymentMethodToken: "tok_x" }
+              authorizeNetCustomerPaymentProfile: { customerProfileId: "profile_x", customerPaymentProfileId: "pay_x" }
+            }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"]["customerPaymentMethodRemoteCreate"];
+    assert_eq!(payload["customerPaymentMethod"], Value::Null);
+    assert_eq!(
+        payload["userErrors"],
+        json!([{
+            "field": ["remote_reference"],
+            "code": "INVALID",
+            "message": "Remote reference must contain exactly one payment method."
+        }])
     );
 }
 

@@ -63,6 +63,7 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // cannot be deleted) from real store state rather than guessing.
 const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
+const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -470,9 +471,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "deliveryProfile" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.delivery_profile_for_read(&id)
@@ -482,11 +482,9 @@ impl DraftProxy {
                 "deliveryProfiles" => {
                     self.delivery_profiles_connection_json(&field.arguments, &field.selection)
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn delivery_profile_mutation(
@@ -499,26 +497,25 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Invalid delivery profile mutation");
         };
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, ids) = match field.name.as_str() {
-                "deliveryProfileCreate" => self.delivery_profile_create_payload(&field, request),
-                "deliveryProfileUpdate" => self.delivery_profile_update_payload(&field, request),
-                "deliveryProfileRemove" => self.delivery_profile_remove_payload(&field, request),
-                _ => continue,
+                "deliveryProfileCreate" => self.delivery_profile_create_payload(field, request),
+                "deliveryProfileUpdate" => self.delivery_profile_update_payload(field, request),
+                "deliveryProfileRemove" => self.delivery_profile_remove_payload(field, request),
+                _ => return None,
             };
             if !ids.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, &field.name, ids);
             }
-            data.insert(field.response_key.clone(), payload);
-        }
-        if data.is_empty() {
+            Some(payload)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             json_error(
                 501,
                 &format!("Unsupported delivery profile mutation {root_field}"),
             )
         } else {
-            ok_json(json!({ "data": Value::Object(data) }))
+            ok_json(json!({ "data": data }))
         }
     }
 
@@ -608,33 +605,11 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return (
-                delivery_profile_remove_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    vec![user_error_omit_code(
-                        Value::Null,
-                        "Cannot delete the default profile.",
-                        None,
-                    )],
-                ),
-                Vec::new(),
-            );
+            return delivery_profile_remove_default_payload(&field.selection);
         }
         if profile.is_none() {
             if self.delivery_profile_hydrates_as_default(&id, request) {
-                return (
-                    delivery_profile_remove_payload_json(
-                        Value::Null,
-                        &field.selection,
-                        vec![user_error_omit_code(
-                            Value::Null,
-                            "Cannot delete the default profile.",
-                            None,
-                        )],
-                    ),
-                    Vec::new(),
-                );
+                return delivery_profile_remove_default_payload(&field.selection);
             }
             return (
                 delivery_profile_remove_payload_json(
@@ -690,7 +665,7 @@ impl DraftProxy {
         &mut self,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let location_ids = resolved_string_list_field_unsorted(input, "locations");
+        let location_ids = list_string_field(input, "locations");
         let locations = location_ids
             .into_iter()
             .map(|id| delivery_profile_location_record(&id))
@@ -786,7 +761,7 @@ impl DraftProxy {
             "operator": resolved_string_field(input, "operator").unwrap_or_else(|| "LESS_THAN_OR_EQUAL_TO".to_string()),
             "conditionCriteria": {
                 "__typename": "MoneyV2",
-                "amount": resolved_money_amount_string(criteria.get("amount")),
+                "amount": money_amount_string_from_resolved(criteria.get("amount")),
                 "currencyCode": resolved_string_field(&criteria, "currencyCode").unwrap_or_else(|| "USD".to_string())
             }
         })
@@ -797,7 +772,7 @@ impl DraftProxy {
         profile: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
     ) {
-        let delete_ids = resolved_string_list_field_unsorted(input, "conditionsToDelete")
+        let delete_ids = list_string_field(input, "conditionsToDelete")
             .into_iter()
             .collect::<BTreeSet<_>>();
         for group in profile["profileLocationGroups"]
@@ -844,9 +819,7 @@ impl DraftProxy {
                 continue;
             };
             if let Some(locations) = group["locationGroup"]["locations"].as_array_mut() {
-                for location_id in
-                    resolved_string_list_field_unsorted(&group_update, "locationsToAdd")
-                {
+                for location_id in list_string_field(&group_update, "locationsToAdd") {
                     if !locations.iter().any(|location| {
                         location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
                     }) {
@@ -929,13 +902,13 @@ impl DraftProxy {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        for variant_id in resolved_string_list_field_unsorted(input, "variantsToAssociate") {
+        for variant_id in list_string_field(input, "variantsToAssociate") {
             if !variant_ids.contains(&variant_id) {
                 variant_ids.push(variant_id);
             }
         }
         if !create {
-            let removals = resolved_string_list_field_unsorted(input, "variantsToDissociate")
+            let removals = list_string_field(input, "variantsToDissociate")
                 .into_iter()
                 .collect::<BTreeSet<_>>();
             variant_ids.retain(|variant_id| !removals.contains(variant_id));
@@ -1123,42 +1096,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let mut locations = self.effective_shipping_locations();
-        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-            locations.truncate(limit);
-        }
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| location_selected_json(location, &selection.selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| {
-                            let edge = json!({
-                                "cursor": location.get("id").and_then(Value::as_str).unwrap_or_default(),
-                                "node": location
-                            });
-                            selected_json(&edge, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(
-                    &empty_page_info(),
-                    &selection.selection,
-                )),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(fields)
+        location_connection_json(self.effective_shipping_locations(), arguments, selections)
     }
 
     fn effective_shipping_locations(&self) -> Vec<Value> {
@@ -1314,20 +1252,19 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let payload = match field.name.as_str() {
                 "locationLocalPickupEnable" => {
-                    self.location_local_pickup_enable_payload(&field, request, query, variables)
+                    self.location_local_pickup_enable_payload(field, request, query, variables)
                 }
                 "locationLocalPickupDisable" => {
-                    self.location_local_pickup_disable_payload(&field, request, query, variables)
+                    self.location_local_pickup_disable_payload(field, request, query, variables)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key, payload);
-        }
-        if data.is_empty() {
+            Some(payload)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return json_error(
                 501,
                 &format!(
@@ -1336,7 +1273,7 @@ impl DraftProxy {
                 ),
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     fn location_local_pickup_enable_payload(
@@ -1949,70 +1886,12 @@ impl DraftProxy {
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         if let Some(name) = resolved_string_field(input, "name") {
-            if name.trim().is_empty() {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "Add a location name",
-                    Some("BLANK"),
-                ));
-            } else if name.chars().count() > 100 {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "Use a shorter location name (up to 100 characters)",
-                    Some("TOO_LONG"),
-                ));
-            } else if self.location_name_exists_except(&name, location_id) {
-                errors.push(user_error(
-                    ["input", "name"],
-                    "You already have a location with this name",
-                    Some("TAKEN"),
-                ));
+            if let Some(error) = self.location_name_user_error(&name, Some(location_id)) {
+                errors.push(error);
             }
         }
-        if let Some(address) = resolved_object_field(input, "address") {
-            if resolved_string_field(&address, "address1")
-                .is_some_and(|address1| address1.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "address1"],
-                    "Use a shorter name for the street (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "city")
-                .is_some_and(|city| city.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "city"],
-                    "Use a shorter city name (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(user_error(
-                    ["input", "address", "zip"],
-                    "Use a shorter postal / ZIP code (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-        }
-        for (index, metafield) in resolved_object_list_field(input, "metafields")
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
-                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(user_error(
-                        json!(["input", "metafields", (index + 1).to_string(), "type"]),
-                        &format!(
-                            "Type must be one of the following: {}.",
-                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
-                        ),
-                        Some("INVALID_TYPE"),
-                    ));
-                }
-            }
-        }
+        errors.extend(location_address_length_user_errors(input, true));
+        errors.extend(location_metafield_type_user_errors(input, 1));
         // Shopify refuses to disable online-order fulfillment on the last
         // location that still fulfills online orders.
         if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
@@ -2031,6 +1910,34 @@ impl DraftProxy {
                     .get("name")
                     .and_then(Value::as_str)
                     .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+        })
+    }
+
+    fn location_name_user_error(&self, name: &str, except_id: Option<&str>) -> Option<Value> {
+        if name.trim().is_empty() {
+            return Some(user_error(
+                ["input", "name"],
+                "Add a location name",
+                Some("BLANK"),
+            ));
+        }
+        if name.chars().count() > 100 {
+            return Some(user_error(
+                ["input", "name"],
+                "Use a shorter location name (up to 100 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        let name_exists = match except_id {
+            Some(except_id) => self.location_name_exists_except(name, except_id),
+            None => self.location_name_exists(name),
+        };
+        name_exists.then(|| {
+            user_error(
+                ["input", "name"],
+                "You already have a location with this name",
+                Some("TAKEN"),
+            )
         })
     }
 
@@ -2090,60 +1997,11 @@ impl DraftProxy {
     fn location_add_user_errors(&self, input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
-        if name.trim().is_empty() {
-            errors.push(user_error(
-                ["input", "name"],
-                "Add a location name",
-                Some("BLANK"),
-            ));
-        } else if name.chars().count() > 100 {
-            errors.push(user_error(
-                ["input", "name"],
-                "Use a shorter location name (up to 100 characters)",
-                Some("TOO_LONG"),
-            ));
-        } else if self.location_name_exists(&name) {
-            errors.push(user_error(
-                ["input", "name"],
-                "You already have a location with this name",
-                Some("TAKEN"),
-            ));
+        if let Some(error) = self.location_name_user_error(&name, None) {
+            errors.push(error);
         }
-        if let Some(address) = resolved_object_field(input, "address") {
-            if resolved_string_field(&address, "address1")
-                .is_some_and(|address1| address1.chars().count() > 255)
-            {
-                errors.push(user_error(
-                    ["input", "address", "address1"],
-                    "Use a shorter name for the street (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
-                errors.push(user_error(
-                    ["input", "address", "zip"],
-                    "Use a shorter postal / ZIP code (up to 255 characters)",
-                    Some("TOO_LONG"),
-                ));
-            }
-        }
-        for (index, metafield) in resolved_object_list_field(input, "metafields")
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
-                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
-                    errors.push(user_error(
-                        json!(["input", "metafields", index.to_string(), "type"]),
-                        &format!(
-                            "Type must be one of the following: {}.",
-                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
-                        ),
-                        Some("INVALID_TYPE"),
-                    ));
-                }
-            }
-        }
+        errors.extend(location_address_length_user_errors(input, false));
+        errors.extend(location_metafield_type_user_errors(input, 0));
         if self.location_limit_reached() {
             errors.push(user_error(
                 ["input"],
@@ -2414,10 +2272,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        let data = root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "location" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.location_for_read(&id)
@@ -2441,12 +2298,11 @@ impl DraftProxy {
                     location.unwrap_or(Value::Null)
                 }
                 "locations" => self.locations_connection_json(&field.arguments, &field.selection),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
+                _ => return None,
+            })
+        });
         let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), Value::Object(data));
+        body.insert("data".to_string(), data);
         if !errors.is_empty() {
             body.insert("errors".to_string(), Value::Array(errors));
         }
@@ -2507,7 +2363,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let mut locations = self
+        let locations = self
             .store
             .staged
             .locations
@@ -2516,41 +2372,7 @@ impl DraftProxy {
             .filter(|id| !self.store.staged.locations.is_tombstoned(id))
             .filter_map(|id| self.store.staged.locations.get(id).cloned())
             .collect::<Vec<_>>();
-        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-            locations.truncate(limit);
-        }
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| location_selected_json(location, &selection.selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    locations
-                        .iter()
-                        .map(|location| {
-                            let edge = json!({
-                                "cursor": location.get("id").and_then(Value::as_str).unwrap_or_default(),
-                                "node": location
-                            });
-                            selected_json(&edge, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(selected_json(
-                    &empty_page_info(),
-                    &selection.selection,
-                )),
-                _ => None,
-            };
-            if let Some(value) = value {
-                fields.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(fields)
+        location_connection_json(locations, arguments, selections)
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -2821,11 +2643,10 @@ impl DraftProxy {
         if all_connection_reads && self.shipping_fulfillment_orders().is_empty() {
             return (self.upstream_transport)(request.clone());
         }
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        let data = root_payload_json(&fields, |field| {
+            Some(match field.name.as_str() {
                 "fulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.ensure_shipping_fulfillment_order_hydrated(request, &id);
                     let fulfillment_order = self
                         .shipping_fulfillment_order_by_id(&id)
@@ -2856,7 +2677,7 @@ impl DraftProxy {
                     // requests, and a non-empty location list narrows to the
                     // matching assigned locations.
                     let assignment_status =
-                        resolved_string_arg(&field.arguments, "assignmentStatus");
+                        resolved_string_field(&field.arguments, "assignmentStatus");
                     let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
                     let nodes = self
                         .shipping_fulfillment_orders()
@@ -2905,11 +2726,10 @@ impl DraftProxy {
                         value_id_cursor,
                     )
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key, value);
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+                _ => return None,
+            })
+        });
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn shipping_fulfillment_order_mutation_response(
@@ -3286,7 +3106,7 @@ impl DraftProxy {
             Ok(preamble) => preamble,
             Err(response) => return response,
         };
-        let hold_ids = resolved_string_list_field_unsorted(&arguments, "holdIds");
+        let hold_ids = list_string_field(&arguments, "holdIds");
         let external_id = resolved_string_field(&arguments, "externalId");
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut released = Value::Null;
@@ -3702,7 +3522,7 @@ impl DraftProxy {
                 query,
                 variables,
             );
-        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        let ids = list_string_field(&arguments, "fulfillmentOrderIds");
         for id in &ids {
             self.ensure_shipping_fulfillment_order_hydrated(request, id);
         }
@@ -4220,7 +4040,7 @@ impl DraftProxy {
             primary_root_response_parts(query, variables, || {
                 "fulfillmentOrdersSetFulfillmentDeadline".to_string()
             });
-        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        let ids = list_string_field(&arguments, "fulfillmentOrderIds");
         let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
         let unknown = ids
             .iter()
@@ -4280,12 +4100,11 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse shipping fulfillment-order order read");
         };
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        let data = root_payload_json(&fields, |field| {
+            Some(match field.name.as_str() {
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")
-                        .or_else(|| resolved_string_arg(&field.arguments, "orderId"))
+                    let id = resolved_string_field(&field.arguments, "id")
+                        .or_else(|| resolved_string_field(&field.arguments, "orderId"))
                         .unwrap_or_default();
                     let order = self
                         .store
@@ -4302,7 +4121,7 @@ impl DraftProxy {
                     selected_json(&order, &field.selection)
                 }
                 "fulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let fulfillment_order = self
                         .shipping_fulfillment_order_by_id(&id)
                         .unwrap_or(Value::Null);
@@ -4336,11 +4155,10 @@ impl DraftProxy {
                         value_id_cursor,
                     )
                 }
-                _ => continue,
-            };
-            data.insert(field.response_key, value);
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+                _ => return None,
+            })
+        });
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
@@ -4353,8 +4171,8 @@ impl DraftProxy {
         };
         fields.iter().any(|field| match field.name.as_str() {
             "order" => {
-                let order_id = resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_arg(&field.arguments, "orderId"));
+                let order_id = resolved_string_field(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(&field.arguments, "orderId"));
                 let selects_fulfillment_orders =
                     selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
                 selects_fulfillment_orders
@@ -4531,10 +4349,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> (Value, Vec<Value>) {
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        let data = root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "segment" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     match self.store.staged.segments.get(&id) {
@@ -4583,13 +4400,12 @@ impl DraftProxy {
                     Some(connection) => {
                         project_seeded_connection(connection, &field.arguments, &field.selection)
                     }
-                    None => continue,
+                    None => return None,
                 },
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        (Value::Object(data), errors)
+                _ => return None,
+            })
+        });
+        (data, errors)
     }
 
     pub(in crate::proxy) fn segment_mutation(
@@ -4818,10 +4634,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "customerSegmentMembersQuery" {
-                continue;
+                return None;
             }
             let value = field
                 .arguments
@@ -4836,9 +4651,8 @@ impl DraftProxy {
                 })
                 .map(|query| selected_json(&query, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn customer_segment_members_query_create(
@@ -4934,53 +4748,47 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
         let mut handled = false;
-        for field in fields {
-            match field.name.as_str() {
-                "fulfillmentService" => {
-                    handled = true;
-                    let value = field
-                        .arguments
-                        .get("id")
-                        .and_then(resolved_value_string)
-                        .and_then(|id| {
-                            if self.store.staged.fulfillment_services.is_tombstoned(&id) {
-                                None
-                            } else {
-                                self.store.staged.fulfillment_services.get(&id).cloned()
-                            }
-                        })
-                        .map(|service| selected_json(&service, &field.selection))
-                        .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), value);
-                }
-                "location" => {
-                    let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
-                        continue;
-                    };
-                    if self
-                        .store
-                        .staged
-                        .fulfillment_service_locations
-                        .is_tombstoned(&id)
-                    {
-                        handled = true;
-                        data.insert(field.response_key.clone(), Value::Null);
-                    } else if let Some(location) =
-                        self.store.staged.fulfillment_service_locations.get(&id)
-                    {
-                        handled = true;
-                        data.insert(
-                            field.response_key.clone(),
-                            selected_json(location, &field.selection),
-                        );
-                    }
-                }
-                _ => {}
+        let data = root_payload_json(fields, |field| match field.name.as_str() {
+            "fulfillmentService" => {
+                handled = true;
+                let value = field
+                    .arguments
+                    .get("id")
+                    .and_then(resolved_value_string)
+                    .and_then(|id| {
+                        if self.store.staged.fulfillment_services.is_tombstoned(&id) {
+                            None
+                        } else {
+                            self.store.staged.fulfillment_services.get(&id).cloned()
+                        }
+                    })
+                    .map(|service| selected_json(&service, &field.selection))
+                    .unwrap_or(Value::Null);
+                Some(value)
             }
-        }
-        handled.then_some(Value::Object(data))
+            "location" => {
+                let id = field.arguments.get("id").and_then(resolved_value_string)?;
+                if self
+                    .store
+                    .staged
+                    .fulfillment_service_locations
+                    .is_tombstoned(&id)
+                {
+                    handled = true;
+                    Some(Value::Null)
+                } else if let Some(location) =
+                    self.store.staged.fulfillment_service_locations.get(&id)
+                {
+                    handled = true;
+                    Some(selected_json(location, &field.selection))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
+        handled.then_some(data)
     }
 
     pub(in crate::proxy) fn fulfillment_service_name_or_handle_exists(
@@ -5053,6 +4861,32 @@ impl DraftProxy {
         }
     }
 
+    fn fulfillment_service_validation_errors(
+        &self,
+        name: &str,
+        callback_url: Option<&str>,
+        except_id: Option<&str>,
+        validate_name_shape: bool,
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        if validate_name_shape {
+            user_errors.extend(fulfillment_service_name_user_errors(name));
+        }
+        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url) {
+            user_errors.push(error);
+        }
+        if fulfillment_service_name_is_reserved(name) {
+            user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
+        } else if self.fulfillment_service_name_or_handle_exists(name, except_id) {
+            user_errors.push(user_error_omit_code(
+                ["name"],
+                "Name has already been taken",
+                None,
+            ));
+        }
+        user_errors
+    }
+
     pub(in crate::proxy) fn fulfillment_service_mutation(
         &mut self,
         root_field: &str,
@@ -5063,26 +4897,25 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Invalid fulfillment service mutation");
         };
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, ids) = match field.name.as_str() {
-                "fulfillmentServiceCreate" => self.fulfillment_service_create_payload(&field),
-                "fulfillmentServiceUpdate" => self.fulfillment_service_update_payload(&field),
-                "fulfillmentServiceDelete" => self.fulfillment_service_delete_payload(&field),
-                _ => continue,
+                "fulfillmentServiceCreate" => self.fulfillment_service_create_payload(field),
+                "fulfillmentServiceUpdate" => self.fulfillment_service_update_payload(field),
+                "fulfillmentServiceDelete" => self.fulfillment_service_delete_payload(field),
+                _ => return None,
             };
             if !ids.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, &field.name, ids);
             }
-            data.insert(field.response_key.clone(), payload);
-        }
-        if data.is_empty() {
+            Some(payload)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             json_error(
                 501,
                 &format!("Unsupported fulfillment service mutation {root_field}"),
             )
         } else {
-            ok_json(json!({ "data": Value::Object(data) }))
+            ok_json(json!({ "data": data }))
         }
     }
 
@@ -5101,24 +4934,8 @@ impl DraftProxy {
             .arguments
             .get("callbackUrl")
             .and_then(resolved_value_string);
-        let mut user_errors = Vec::new();
-        if name.trim().is_empty() {
-            user_errors.push(user_error_omit_code(["name"], "Name can't be blank", None));
-        } else {
-            user_errors.extend(fulfillment_service_name_whitespace_errors(&name));
-        }
-        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
-            user_errors.push(error);
-        }
-        if fulfillment_service_name_is_reserved(&name) {
-            user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
-        } else if self.fulfillment_service_name_or_handle_exists(&name, None) {
-            user_errors.push(user_error_omit_code(
-                ["name"],
-                "Name has already been taken",
-                None,
-            ));
-        }
+        let user_errors =
+            self.fulfillment_service_validation_errors(&name, callback_url.as_deref(), None, true);
         if !user_errors.is_empty() {
             return (
                 fulfillment_service_payload_json(
@@ -5207,59 +5024,19 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         };
-        let name_user_errors = if field.arguments.contains_key("name") {
-            if name.trim().is_empty() {
-                vec![user_error_omit_code(["name"], "Name can't be blank", None)]
-            } else {
-                fulfillment_service_name_whitespace_errors(&name)
-            }
-        } else {
-            vec![]
-        };
-        if !name_user_errors.is_empty() {
+        let user_errors = self.fulfillment_service_validation_errors(
+            &name,
+            callback_url.as_deref(),
+            Some(&id),
+            field.arguments.contains_key("name"),
+        );
+        if !user_errors.is_empty() {
             return (
                 fulfillment_service_payload_json(
                     Value::Null,
                     &field.selection,
                     &service_selection,
-                    name_user_errors,
-                ),
-                vec![],
-            );
-        }
-        if fulfillment_service_name_is_reserved(&name) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![user_error_omit_code(["name"], "Name is reserved", None)],
-                ),
-                vec![],
-            );
-        }
-        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![error],
-                ),
-                vec![],
-            );
-        }
-        if self.fulfillment_service_name_or_handle_exists(&name, Some(&id)) {
-            return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    vec![user_error_omit_code(
-                        ["name"],
-                        "Name has already been taken",
-                        None,
-                    )],
+                    user_errors,
                 ),
                 vec![],
             );
@@ -5402,16 +5179,13 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "carrierService" => self.carrier_service_detail_field(field),
                 "carrierServices" => self.carrier_services_connection_field(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn carrier_service_detail_field(
@@ -5486,23 +5260,22 @@ impl DraftProxy {
                 }
             }
         }
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let payload = match field.name.as_str() {
                 "carrierServiceCreate" => {
-                    self.carrier_service_create_field(&field, query, variables, request)
+                    self.carrier_service_create_field(field, query, variables, request)
                 }
                 "carrierServiceUpdate" => {
-                    self.carrier_service_update_field(&field, query, variables, request)
+                    self.carrier_service_update_field(field, query, variables, request)
                 }
                 "carrierServiceDelete" => {
-                    self.carrier_service_delete_field(&field, query, variables, request)
+                    self.carrier_service_delete_field(field, query, variables, request)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), payload);
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+            Some(payload)
+        });
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn carrier_service_create_field(
@@ -5854,6 +5627,113 @@ impl DraftProxy {
                 "primaryRootField": root_field
             }
         }));
+    }
+}
+
+fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Value, Vec<String>) {
+    (
+        delivery_profile_remove_payload_json(
+            Value::Null,
+            selections,
+            vec![user_error_omit_code(
+                Value::Null,
+                DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE,
+                None,
+            )],
+        ),
+        Vec::new(),
+    )
+}
+
+fn location_connection_json(
+    mut locations: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
+        locations.truncate(limit);
+    }
+    selected_typed_connection(
+        &locations,
+        selections,
+        location_selected_json,
+        value_id_cursor,
+        |selections| selected_json(&empty_page_info(), selections),
+    )
+}
+
+fn location_address_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    include_city: bool,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(address) = resolved_object_field(input, "address") {
+        if resolved_string_field(&address, "address1")
+            .is_some_and(|address1| address1.chars().count() > 255)
+        {
+            errors.push(user_error(
+                ["input", "address", "address1"],
+                "Use a shorter name for the street (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        if include_city
+            && resolved_string_field(&address, "city")
+                .is_some_and(|city| city.chars().count() > 255)
+        {
+            errors.push(user_error(
+                ["input", "address", "city"],
+                "Use a shorter city name (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+        if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
+            errors.push(user_error(
+                ["input", "address", "zip"],
+                "Use a shorter postal / ZIP code (up to 255 characters)",
+                Some("TOO_LONG"),
+            ));
+        }
+    }
+    errors
+}
+
+fn location_metafield_type_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    index_base: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let invalid_type_message = format!(
+        "Type must be one of the following: {}.",
+        LOCATION_METAFIELD_VALID_TYPES.join(", ")
+    );
+    for (index, metafield) in resolved_object_list_field(input, "metafields")
+        .into_iter()
+        .enumerate()
+    {
+        if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
+            if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
+                errors.push(user_error(
+                    json!([
+                        "input",
+                        "metafields",
+                        (index + index_base).to_string(),
+                        "type"
+                    ]),
+                    &invalid_type_message,
+                    Some("INVALID_TYPE"),
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn fulfillment_service_name_user_errors(name: &str) -> Vec<Value> {
+    if name.trim().is_empty() {
+        vec![user_error_omit_code(["name"], "Name can't be blank", None)]
+    } else {
+        fulfillment_service_name_whitespace_errors(name)
     }
 }
 
@@ -6575,10 +6455,7 @@ fn location_payload_selected_json(
             } else {
                 location_selected_json(&location, &selection.selection)
             }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -6592,10 +6469,9 @@ fn location_delete_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "locationDeleteUserErrors" | "userErrors" => {
+                selected_user_errors_field(user_errors.as_slice(), selection)
+            }
             _ => None,
         }
     })
@@ -6669,10 +6545,7 @@ fn location_local_pickup_enable_payload_selected_json(
             } else {
                 selected_json(&settings, &selection.selection)
             }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -6686,10 +6559,7 @@ fn location_local_pickup_disable_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "locationId" => Some(json!(location_id)),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -6715,10 +6585,9 @@ fn location_activate_payload_selected_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "location" => Some(location_selected_json(&location, &selection.selection)),
-            "locationActivateUserErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "locationActivateUserErrors" => {
+                selected_user_errors_field(user_errors.as_slice(), selection)
+            }
             _ => None,
         }
     })
@@ -7073,42 +6942,44 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut log_root: Option<String> = None;
-        for field in fields.iter().filter(|field| {
-            matches!(
-                field.name.as_str(),
-                "flowGenerateSignature" | "flowTriggerReceive"
-            )
-        }) {
+        let mut top_level_error = None;
+        let data = root_payload_json(&fields, |field| {
+            if top_level_error.is_some() {
+                return None;
+            }
             match field.name.as_str() {
                 "flowGenerateSignature" => {
                     match self.flow_generate_signature_field(field, query, variables) {
                         FlowFieldResult::Payload { value, staged } => {
-                            data.insert(field.response_key.clone(), value);
                             if staged {
                                 log_root.get_or_insert_with(|| field.name.clone());
                             }
+                            Some(value)
                         }
                         FlowFieldResult::TopLevelError(error) => {
-                            return ok_json(error);
+                            top_level_error = Some(ok_json(error));
+                            None
                         }
                     }
                 }
                 "flowTriggerReceive" => {
                     let (value, staged) = self.flow_trigger_receive_field(field);
-                    data.insert(field.response_key.clone(), value);
                     if staged {
                         log_root.get_or_insert_with(|| field.name.clone());
                     }
+                    Some(value)
                 }
-                _ => {}
+                _ => None,
             }
+        });
+        if let Some(response) = top_level_error {
+            return response;
         }
         if let Some(log_root) = log_root {
             self.record_mutation_log_entry(request, query, variables, &log_root, Vec::new());
         }
-        if data.is_empty() {
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             json_error(
                 501,
                 &format!(
@@ -7134,12 +7005,12 @@ impl DraftProxy {
             return FlowFieldResult::TopLevelError(error);
         }
 
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !id.starts_with("gid://shopify/FlowActionDefinition/") {
             return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
         }
 
-        let payload = resolved_string_arg(&field.arguments, "payload").unwrap_or_default();
+        let payload = resolved_string_field(&field.arguments, "payload").unwrap_or_default();
         let Ok(payload_json) = serde_json::from_str::<Value>(&payload) else {
             let value = selected_json(
                 &json!({
@@ -7492,14 +7363,31 @@ fn segment_user_error(field: Value, message: &str) -> Value {
     user_error_typed_omit_code("UserError", field, message, None)
 }
 
+fn segment_presence_user_error(field: impl Into<UserErrorField>, field_name: &str) -> Value {
+    let mut error = presence_user_error(field, field_name);
+    error["__typename"] = json!("UserError");
+    error
+}
+
+fn segment_length_user_error(
+    field: impl Into<UserErrorField>,
+    field_name: &str,
+    bound: LengthUserErrorBound,
+) -> Value {
+    let mut error = length_user_error(field, field_name, bound);
+    error["__typename"] = json!("UserError");
+    error
+}
+
 fn segment_name_user_errors(name: &str) -> Vec<Value> {
     let stripped = name.trim();
     if stripped.is_empty() {
-        vec![segment_user_error(json!(["name"]), "Name can't be blank")]
+        vec![segment_presence_user_error(["name"], "Name")]
     } else if stripped.chars().count() > 255 {
-        vec![segment_user_error(
-            json!(["name"]),
-            "Name is too long (maximum is 255 characters)",
+        vec![segment_length_user_error(
+            ["name"],
+            "Name",
+            LengthUserErrorBound::TooLong { maximum: 255 },
         )]
     } else {
         Vec::new()
@@ -7508,12 +7396,13 @@ fn segment_name_user_errors(name: &str) -> Vec<Value> {
 
 fn segment_query_user_errors(query: &str) -> Vec<Value> {
     if query.trim().is_empty() {
-        return vec![segment_user_error(json!(["query"]), "Query can't be blank")];
+        return vec![segment_presence_user_error(["query"], "Query")];
     }
     if query.chars().count() > 5000 {
-        return vec![segment_user_error(
-            json!(["query"]),
-            "Query is too long (maximum is 5000 characters)",
+        return vec![segment_length_user_error(
+            ["query"],
+            "Query",
+            LengthUserErrorBound::TooLong { maximum: 5000 },
         )];
     }
     segment_query_grammar_user_errors(query)

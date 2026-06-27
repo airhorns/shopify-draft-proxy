@@ -4,7 +4,7 @@ pub(super) use std::sync::{Arc, Mutex};
 pub(super) use serde_json::{json, Value};
 pub(super) use shopify_draft_proxy::graphql::OperationType;
 pub(super) use shopify_draft_proxy::operation_registry::{
-    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+    CapabilityDomain, OperationRegistryEntry,
 };
 pub(super) use shopify_draft_proxy::proxy::{
     Config, DraftProxy, ProductRecord, ReadMode, Request, Response,
@@ -115,17 +115,14 @@ pub(super) fn create_legacy_variant(
 pub(super) fn registry_entry(
     name: &str,
     operation_type: OperationType,
-    execution: CapabilityExecution,
     implemented: bool,
 ) -> OperationRegistryEntry {
     OperationRegistryEntry {
         name: name.to_string(),
         operation_type,
         domain: CapabilityDomain::Products,
-        execution,
         implemented,
         match_names: vec![name.to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-        support_notes: None,
     }
 }

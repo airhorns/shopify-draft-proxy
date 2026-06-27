@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::proxy) fn saved_search_connection_json(
     records: &[SavedSearchRecord],
     root_selection: &[SelectedField],
+    api_client_id: &str,
     has_next_page: bool,
     has_previous_page: bool,
 ) -> Value {
@@ -13,7 +14,8 @@ pub(in crate::proxy) fn saved_search_connection_json(
             saved_search_json_with_query(
                 record,
                 selections,
-                &saved_search_read_query(&record.query),
+                &saved_search_read_query_for_api_client(&record.query, api_client_id),
+                api_client_id,
             )
         },
         saved_search_cursor,
@@ -32,8 +34,9 @@ pub(in crate::proxy) fn saved_search_json_with_query(
     record: &SavedSearchRecord,
     selections: &[SelectedField],
     query_display: &str,
+    api_client_id: &str,
 ) -> Value {
-    let filters = saved_search_filters(query_display);
+    let filters = saved_search_filters_for_api_client(query_display, api_client_id);
     let legacy_id = saved_search_legacy_resource_id(&record.id);
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("SavedSearch")),
@@ -129,20 +132,21 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
     record: Option<&SavedSearchRecord>,
     payload_selections: &[SelectedField],
     saved_search_selections: &[SelectedField],
+    api_client_id: &str,
     user_errors: Vec<Value>,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
             "savedSearch" => Some(match record {
-                Some(record) => {
-                    saved_search_json_with_query(record, saved_search_selections, &record.query)
-                }
+                Some(record) => saved_search_json_with_query(
+                    record,
+                    saved_search_selections,
+                    &record.query,
+                    api_client_id,
+                ),
                 None => Value::Null,
             }),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -274,6 +278,7 @@ pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(
     deleted_id: Option<&str>,
+    shop: &Value,
     payload_selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
@@ -283,7 +288,7 @@ pub(in crate::proxy) fn saved_search_delete_payload_json(
                 Some(id) => json!(id),
                 None => Value::Null,
             }),
-            "shop" => Some(selected_json(&default_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(shop, &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
         }
@@ -454,15 +459,51 @@ fn saved_search_base_filter_key(key: &str) -> &str {
         .trim_end_matches("_max")
 }
 
-pub(in crate::proxy) fn normalize_saved_search_query(query: &str) -> String {
-    query.replace("metafields.$app.", "metafields.app--347082227713.")
+const DEFAULT_SAVED_SEARCH_API_CLIENT_ID: &str = "shopify-draft-proxy-local-app";
+
+pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) -> String {
+    request_header(request, "x-shopify-draft-proxy-api-client-id")
+        .map(|value| saved_search_namespace_api_client_id(&value))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_SAVED_SEARCH_API_CLIENT_ID.to_string())
 }
 
-pub(in crate::proxy) fn saved_search_read_query(query: &str) -> String {
-    let namespace_normalized = normalize_saved_search_query(query);
+fn saved_search_namespace_api_client_id(value: &str) -> String {
+    let tail = value
+        .trim()
+        .strip_prefix("gid://shopify/App/")
+        .unwrap_or_else(|| value.trim());
+    tail.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        .collect()
+}
+
+pub(in crate::proxy) fn normalize_saved_search_query_for_api_client(
+    query: &str,
+    api_client_id: &str,
+) -> String {
+    let api_client_id = saved_search_namespace_api_client_id(api_client_id);
+    let api_client_id = if api_client_id.is_empty() {
+        DEFAULT_SAVED_SEARCH_API_CLIENT_ID
+    } else {
+        api_client_id.as_str()
+    };
+    query.replace(
+        "metafields.$app.",
+        &format!("metafields.app--{api_client_id}."),
+    )
+}
+
+pub(in crate::proxy) fn saved_search_read_query_for_api_client(
+    query: &str,
+    api_client_id: &str,
+) -> String {
+    let namespace_normalized = normalize_saved_search_query_for_api_client(query, api_client_id);
     let quote_normalized = namespace_normalized.replace('\'', "\"");
     let canonical = canonical_saved_search_query(&quote_normalized);
-    if saved_search_filters(&canonical).is_empty() && canonical.contains('-') {
+    if saved_search_filters_for_api_client(&canonical, api_client_id).is_empty()
+        && canonical.contains('-')
+    {
         canonical.replace('-', "\\-")
     } else {
         canonical
@@ -556,58 +597,53 @@ pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
 pub(in crate::proxy) fn default_saved_searches(resource_type: &str) -> Vec<SavedSearchRecord> {
     match resource_type {
         "ORDER" => vec![
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634391515442",
+            default_saved_search_record(
+                "default-order-unfulfilled",
                 "Unfulfilled",
                 "status:open fulfillment_status:unshipped,partial",
                 "ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634391548210",
+            default_saved_search_record(
+                "default-order-unpaid",
                 "Unpaid",
                 "status:open financial_status:unpaid",
                 "ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634391580978",
-                "Open",
-                "status:open",
-                "ORDER",
-            ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634391613746",
+            default_saved_search_record("default-order-open", "Open", "status:open", "ORDER"),
+            default_saved_search_record(
+                "default-order-archived",
                 "Archived",
                 "status:closed",
                 "ORDER",
             ),
         ],
         "DRAFT_ORDER" => vec![
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634390597938",
+            default_saved_search_record(
+                "default-draft-order-open-and-invoice-sent",
                 "Open and invoice sent",
                 "status:open_and_invoice_sent",
                 "DRAFT_ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634390630706",
+            default_saved_search_record(
+                "default-draft-order-open",
                 "Open",
                 "status:open",
                 "DRAFT_ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634390663474",
+            default_saved_search_record(
+                "default-draft-order-invoice-sent",
                 "Invoice sent",
                 "status:invoice_sent",
                 "DRAFT_ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634390696242",
+            default_saved_search_record(
+                "default-draft-order-completed",
                 "Completed",
                 "status:completed",
                 "DRAFT_ORDER",
             ),
-            saved_search_record(
-                "gid://shopify/SavedSearch/3634390729010",
+            default_saved_search_record(
+                "default-draft-order-submitted-for-review",
                 "Submitted for review",
                 "status:open source:online_store",
                 "DRAFT_ORDER",
@@ -647,6 +683,20 @@ pub(in crate::proxy) fn saved_search_record(
     }
 }
 
+pub(in crate::proxy) fn default_saved_search_record(
+    id_suffix: &str,
+    name: &str,
+    query: &str,
+    resource_type: &str,
+) -> SavedSearchRecord {
+    saved_search_record(
+        &synthetic_shopify_gid("SavedSearch", id_suffix),
+        name,
+        query,
+        resource_type,
+    )
+}
+
 pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> String {
     format!("cursor:{}", record.id)
 }
@@ -656,7 +706,14 @@ pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {
 }
 
 pub(in crate::proxy) fn saved_search_filters(query: &str) -> Vec<(String, String)> {
-    let query = normalize_saved_search_query(query);
+    saved_search_filters_for_api_client(query, DEFAULT_SAVED_SEARCH_API_CLIENT_ID)
+}
+
+pub(in crate::proxy) fn saved_search_filters_for_api_client(
+    query: &str,
+    api_client_id: &str,
+) -> Vec<(String, String)> {
+    let query = normalize_saved_search_query_for_api_client(query, api_client_id);
     let tokens = saved_search_query_tokens(&query);
     let grouped = query.contains(" OR ") || query.contains('(') || query.contains(')');
     tokens
@@ -730,9 +787,11 @@ pub(in crate::proxy) fn saved_search_query_tokens(query: &str) -> Vec<String> {
 impl DraftProxy {
     pub(in crate::proxy) fn saved_search_overlay_read_fields(
         &self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        let api_client_id = saved_search_request_api_client_id(request);
         let mut fields = serde_json::Map::new();
         for field in root_fields(query, variables).unwrap_or_default() {
             if !is_saved_search_root(&field.name) {
@@ -740,7 +799,7 @@ impl DraftProxy {
             }
             fields.insert(
                 field.response_key.clone(),
-                self.saved_search_connection_field(&field),
+                self.saved_search_connection_field(&field, &api_client_id),
             );
         }
         Value::Object(fields)
@@ -749,6 +808,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn saved_search_connection_field(
         &self,
         field: &RootFieldSelection,
+        api_client_id: &str,
     ) -> Value {
         let resource_type = saved_search_resource_type(&field.name);
         let mut records = self.saved_search_records_for_resource(resource_type);
@@ -785,7 +845,13 @@ impl DraftProxy {
             has_next_page = total_after_cursor > limit;
             records.truncate(limit);
         }
-        saved_search_connection_json(&records, &field.selection, has_next_page, has_previous_page)
+        saved_search_connection_json(
+            &records,
+            &field.selection,
+            api_client_id,
+            has_next_page,
+            has_previous_page,
+        )
     }
 
     pub(in crate::proxy) fn saved_search_records_for_resource(
@@ -809,32 +875,32 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn saved_search_mutation_fields(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let mut data = serde_json::Map::new();
+        let api_client_id = saved_search_request_api_client_id(request);
         let mut log_drafts = Vec::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let data = root_payload_json(&fields, |field| {
             let outcome = match field.name.as_str() {
-                "savedSearchCreate" => self.saved_search_create_field(&field),
-                "savedSearchUpdate" => self.saved_search_update_field(&field),
-                "savedSearchDelete" => self.saved_search_delete_field(&field),
-                _ => continue,
+                "savedSearchCreate" => self.saved_search_create_field(field, &api_client_id),
+                "savedSearchUpdate" => self.saved_search_update_field(field, &api_client_id),
+                "savedSearchDelete" => self.saved_search_delete_field(field),
+                _ => return None,
             };
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(field.response_key.clone(), outcome.value);
-        }
-        MutationOutcome::with_log_drafts(
-            ok_json(json!({ "data": Value::Object(data) })),
-            log_drafts,
-        )
+            Some(outcome.value)
+        });
+        MutationOutcome::with_log_drafts(ok_json(json!({ "data": data })), log_drafts)
     }
 
     pub(in crate::proxy) fn saved_search_create_field(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: &str,
     ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
         let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
@@ -843,6 +909,7 @@ impl DraftProxy {
                 None,
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 vec![json!({
                     "field": ["input"],
                     "message": "Saved search input is required"
@@ -889,6 +956,7 @@ impl DraftProxy {
                 None,
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 user_errors,
             ));
         }
@@ -896,7 +964,7 @@ impl DraftProxy {
         let record = SavedSearchRecord {
             id: id.clone(),
             name,
-            query: normalize_saved_search_query(&search_query),
+            query: normalize_saved_search_query_for_api_client(&search_query, api_client_id),
             resource_type,
         };
         self.store.stage_saved_search(record.clone());
@@ -905,6 +973,7 @@ impl DraftProxy {
                 Some(&record),
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 Vec::new(),
             ),
             LogDraft::staged("savedSearchCreate", "saved_searches", vec![id]),
@@ -914,6 +983,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn saved_search_update_field(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: &str,
     ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
         let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
@@ -922,6 +992,7 @@ impl DraftProxy {
                 None,
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 vec![json!({
                     "field": ["input"],
                     "message": "Saved search input is required"
@@ -935,6 +1006,7 @@ impl DraftProxy {
                 None,
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 vec![json!({
                     "field": ["input", "id"],
                     "message": "Saved Search does not exist"
@@ -946,7 +1018,8 @@ impl DraftProxy {
         let requested_query =
             resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
         let mut updated = existing.clone();
-        updated.query = normalize_saved_search_query(&requested_query);
+        updated.query =
+            normalize_saved_search_query_for_api_client(&requested_query, api_client_id);
         let mut user_errors = Vec::new();
         let name_is_blank = requested_name.trim().is_empty();
         if name_is_blank {
@@ -981,6 +1054,7 @@ impl DraftProxy {
                 Some(&updated),
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 user_errors,
             ));
         }
@@ -991,6 +1065,7 @@ impl DraftProxy {
                 Some(&updated),
                 payload_selection,
                 &saved_search_selection,
+                api_client_id,
                 Vec::new(),
             ),
             LogDraft::staged(
@@ -1011,8 +1086,10 @@ impl DraftProxy {
             .and_then(|input| resolved_string_field(input, "id"))
             .unwrap_or_default();
         let deleted = self.store.delete_saved_search(&id);
+        let shop = self.store.effective_shop();
         let value = saved_search_delete_payload_json(
             if deleted { Some(&id) } else { None },
+            &shop,
             &field.selection,
             if deleted {
                 Vec::new()

@@ -97,12 +97,12 @@ impl DraftProxy {
     fn discount_read_field_is_cold(&self, field: &RootFieldSelection) -> bool {
         match field.name.as_str() {
             "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => {
-                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !self.store.staged.discounts.contains_key(&id)
                     && !self.store.staged.discounts.is_tombstoned(&id)
             }
             "codeDiscountNodeByCode" => {
-                let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
                 !self
                     .store
                     .staged
@@ -114,7 +114,7 @@ impl DraftProxy {
             | "automaticDiscountNodes"
             | "codeDiscountNodes" => !self.has_staged_discounts(),
             "discountRedeemCodeBulkCreation" => {
-                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !self
                     .store
                     .staged
@@ -157,25 +157,20 @@ impl DraftProxy {
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
         self.hydrate_discount_context_refs(_request, &fields);
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         let mut top_level_errors = Vec::new();
-        for field in fields {
-            if let Some(error) = discount_field_top_level_error(&field) {
+        let data = root_payload_json(&fields, |field| {
+            if let Some(error) = discount_field_top_level_error(field) {
                 top_level_errors.push(error);
-                data.insert(field.response_key.clone(), Value::Null);
-                continue;
+                return Some(Value::Null);
             }
-            let outcome = self.discount_mutation_field(_request, &field);
+            let outcome = self.discount_mutation_field(_request, field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&outcome.value, &field.selection),
-            );
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(selected_json(&outcome.value, &field.selection))
+        });
+        let mut body = json!({ "data": data });
         if !top_level_errors.is_empty() {
             body["errors"] = Value::Array(top_level_errors);
         }
@@ -394,50 +389,24 @@ impl DraftProxy {
         let Some(context) = record.get_mut("context") else {
             return;
         };
-        if let Some(customers) = context.get_mut("customers").and_then(Value::as_array_mut) {
-            for customer in customers {
-                let Some(id) = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(display_name) = self
-                    .store
-                    .staged
-                    .customers
-                    .get(&id)
-                    .and_then(|record| record.get("displayName"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    customer["displayName"] = display_name;
-                }
-            }
-        }
-        if let Some(segments) = context.get_mut("segments").and_then(Value::as_array_mut) {
-            for segment in segments {
-                let Some(id) = segment
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    continue;
-                };
-                if let Some(name) = self
-                    .store
-                    .staged
-                    .segments
-                    .get(&id)
-                    .and_then(|record| record.get("name"))
-                    .filter(|value| !value.is_null())
-                    .cloned()
-                {
-                    segment["name"] = name;
-                }
-            }
-        }
+        backfill_context_names(context, "customers", "id", "displayName", |id| {
+            self.store
+                .staged
+                .customers
+                .get(id)
+                .and_then(|record| record.get("displayName"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
+        backfill_context_names(context, "segments", "id", "name", |id| {
+            self.store
+                .staged
+                .segments
+                .get(id)
+                .and_then(|record| record.get("name"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        });
     }
 
     /// Forward a single batched `nodes(ids:)` lookup for every product / variant /
@@ -782,7 +751,7 @@ impl DraftProxy {
         discount_kind: &str,
         typename: &str,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
         let existing_record = self.discount_record(&id).cloned();
         let user_errors = match existing_record.as_ref() {
@@ -914,7 +883,7 @@ impl DraftProxy {
         discount_kind: &str,
         typename: &str,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
         let mut errors = if self.discount_record(&id).is_none() {
             vec![discount_user_error(
@@ -964,7 +933,7 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let activating = field.name.ends_with("Activate");
         let mut record = match self.discount_record(&id).cloned() {
             Some(record) => record,
@@ -1116,7 +1085,7 @@ impl DraftProxy {
     }
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let exists = self.discount_record(&id).is_some();
         if !exists {
             return MutationFieldOutcome::unlogged(discount_delete_payload(
@@ -1281,24 +1250,24 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let discount_id = resolved_field_string_arg(field, "discountId").unwrap_or_default();
+        let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), "MAX_INPUT_SIZE_EXCEEDED")]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [user_error_with_extra_info(["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["codes"], "Codes can't be blank", "BLANK")]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1400,11 +1369,11 @@ impl DraftProxy {
                 )]
             }));
         }
-        let discount_id = resolved_field_string_arg(field, "discountId").unwrap_or_default();
+        let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
@@ -1430,7 +1399,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["search"], "'Search' can't be blank.", "BLANK")]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1438,7 +1407,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
+                "userErrors": [discount_user_error(vec!["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID")]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
@@ -1470,25 +1439,24 @@ impl DraftProxy {
     }
 
     fn discounts_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "discountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id).map(discount_admin_node_for_record)
                 }
                 "codeDiscountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id).map(discount_node_for_record)
                 }
                 "automaticDiscountNode" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
                         .filter(|record| discount_kind(record) == "automatic")
                         .map(discount_node_for_record)
                 }
                 "codeDiscountNodeByCode" => {
-                    let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                    let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
                     self.store
                         .staged
                         .discount_code_index
@@ -1524,7 +1492,7 @@ impl DraftProxy {
                     "precision": "EXACT"
                 })),
                 "discountRedeemCodeBulkCreation" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .discount_redeem_code_bulk_creations
@@ -1539,13 +1507,12 @@ impl DraftProxy {
             } else {
                 selected_json(&value, &field.selection)
             };
-            data.insert(field.response_key.clone(), selected);
-        }
-        Value::Object(data)
+            Some(selected)
+        })
     }
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
-        let query = resolved_field_string_arg(field, "query").unwrap_or_default();
+        let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
         self.store
             .staged
             .discounts
@@ -1630,9 +1597,6 @@ impl DraftProxy {
                 function_handle.as_deref(),
             )
             .or_else(|| {
-                function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
-            })
-            .or_else(|| {
                 self.fetch_shopify_function(
                     request,
                     function_id.as_deref(),
@@ -1643,7 +1607,8 @@ impl DraftProxy {
             return Err(app_discount_user_error(
                 [input_arg, field_name],
                 &format!(
-                    "Function {identifier} not found. Ensure that it is released in the current app ({MODELED_FUNCTION_APP_ID}), and that the app is installed."
+                    "Function {identifier} not found. Ensure that it is released in the current app ({}), and that the app is installed.",
+                    request_api_client_id(request)
                 ),
                 Some("INVALID"),
             ));
@@ -1783,6 +1748,32 @@ impl DraftProxy {
             None
         } else {
             Some(candidate)
+        }
+    }
+}
+
+fn backfill_context_names<F>(
+    context: &mut Value,
+    array_key: &str,
+    source_field: &str,
+    dest_field: &str,
+    lookup: F,
+) where
+    F: Fn(&str) -> Option<Value>,
+{
+    let Some(items) = context.get_mut(array_key).and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in items {
+        let Some(id) = item
+            .get(source_field)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        if let Some(value) = lookup(&id) {
+            item[dest_field] = value;
         }
     }
 }
@@ -2159,19 +2150,10 @@ fn discount_context_customer_selection_user_error(
 /// return the resolved input object. The public Admin API names the create/update
 /// input argument after the discount kind (e.g. `basicCodeDiscount`), not `input`.
 fn discount_field_input(field: &RootFieldSelection) -> Option<BTreeMap<String, ResolvedValue>> {
-    let input_arg = match field.name.as_str() {
-        "discountCodeBasicCreate" | "discountCodeBasicUpdate" => "basicCodeDiscount",
-        "discountCodeBxgyCreate" | "discountCodeBxgyUpdate" => "bxgyCodeDiscount",
-        "discountCodeFreeShippingCreate" | "discountCodeFreeShippingUpdate" => {
-            "freeShippingCodeDiscount"
-        }
-        "discountAutomaticBasicCreate" | "discountAutomaticBasicUpdate" => "automaticBasicDiscount",
-        "discountAutomaticBxgyCreate" | "discountAutomaticBxgyUpdate" => "automaticBxgyDiscount",
-        "discountAutomaticFreeShippingCreate" | "discountAutomaticFreeShippingUpdate" => {
-            "freeShippingAutomaticDiscount"
-        }
-        _ => return None,
-    };
+    let input_arg = discount_mutation_input_arg(&field.name)?;
+    if matches!(input_arg, "codeAppDiscount" | "automaticAppDiscount") {
+        return None;
+    }
     discount_input(field, input_arg)
 }
 
@@ -3474,23 +3456,8 @@ fn resolved_decimal_text_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Option<String> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}
-
-fn shopify_decimal_text(value: &str) -> String {
-    let Ok(parsed) = value.parse::<f64>() else {
-        return value.to_string();
-    };
-    let mut formatted = parsed.to_string();
-    if !formatted.contains('.') {
-        formatted.push_str(".0");
-    }
-    formatted
+    let root = ResolvedValue::Object(input.clone());
+    resolved_decimal_text(resolved_object_path(Some(&root), path))
 }
 
 fn resolved_scalar_text_path(
@@ -3593,30 +3560,35 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     }
 }
 
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
+pub(in crate::proxy) fn gift_card_create_record(
+    id: &str,
+    last_characters: &str,
+    code: &str,
+    amount: &str,
+    currency_code: &str,
+    notify: bool,
+) -> Value {
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "2053",
-        "maskedCode": "•••• •••• •••• 2053",
+        "lastCharacters": last_characters,
+        "maskedCode": format!("•••• •••• •••• {last_characters}"),
+        "giftCardCode": code,
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
-        "expiresOn": "2027-04-26",
-        "note": "HAR-310 conformance gift card",
+        "expiresOn": null,
+        "note": null,
         "templateSuffix": null,
         "createdAt": "2026-04-29T09:31:02Z",
         "updatedAt": "2026-04-29T09:31:02Z",
-        "initialValue": money_value("5.0", "CAD"),
-        "balance": money_value("5.0", "CAD"),
-        "customer": { "id": "gid://shopify/Customer/10552623464754" },
-        "recipientAttributes": {
-            "message": "HAR-464 recipient message",
-            "preferredName": "HAR-464 recipient",
-            "sendNotificationAt": null,
-            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
-        },
+        "initialValue": money_value(amount, currency_code),
+        "balance": money_value(amount, currency_code),
+        "customer": null,
+        "recipientAttributes": null,
+        "notify": notify,
+        "source": "api_client",
         "transactions": {
             "nodes": [],
             "edges": [],
@@ -3625,10 +3597,10 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
     })
 }
 
-pub(in crate::proxy) fn gift_card_configuration_record() -> Value {
+pub(in crate::proxy) fn gift_card_configuration_record(currency_code: &str) -> Value {
     json!({
-        "issueLimit": money_value("3000.0", "CAD"),
-        "purchaseLimit": money_value("14000.0", "CAD")
+        "issueLimit": money_value("3000.0", currency_code),
+        "purchaseLimit": money_value("14000.0", currency_code)
     })
 }
 
@@ -3639,6 +3611,25 @@ pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction
             "edges": [],
             "pageInfo": empty_page_info()
         });
+    } else {
+        if !card["transactions"]
+            .get("nodes")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["nodes"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("edges")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["edges"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("pageInfo")
+            .is_some_and(Value::is_object)
+        {
+            card["transactions"]["pageInfo"] = empty_page_info();
+        }
     }
     if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
         nodes.push(transaction);
@@ -3799,9 +3790,8 @@ pub(in crate::proxy) fn is_safe_no_data_node_gid(id: &str) -> bool {
 }
 
 pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
+    root_payload_json(fields, |field| {
+        Some(match field.name.as_str() {
             "cashTrackingSession"
             | "pointOfSaleDevice"
             | "dispute"
@@ -3811,10 +3801,8 @@ pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelect
                 selected_empty_connection_json(&field.selection)
             }
             _ => Value::Null,
-        };
-        data.insert(field.response_key.clone(), value);
-    }
-    Value::Object(data)
+        })
+    })
 }
 
 pub(in crate::proxy) fn discount_bxgy_variable_error(
@@ -4130,16 +4118,6 @@ pub(in crate::proxy) fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec
             })
             .collect(),
         _ => Vec::new(),
-    }
-}
-
-pub(in crate::proxy) fn resolved_field_string_arg(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<String> {
-    match field.arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
     }
 }
 

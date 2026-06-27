@@ -199,17 +199,14 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
                 "product" => self.product_by_id_field(field),
                 "job" => self.collection_job_read(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     // Serve a top-level `collections(query:, sortKey:)` read entirely from the
@@ -225,10 +222,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "collections" {
-                continue;
+                return None;
             }
             let value = match self
                 .store
@@ -241,9 +237,8 @@ impl DraftProxy {
                 }
                 None => selected_empty_connection_json(&field.selection),
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     /// True once a scenario has seeded (or staged) publications, switching the
@@ -350,9 +345,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "publication" => self.publication_root_value(field),
                 "channel" => self.channel_root_value(field),
                 "channels" => self.channels_root_value(field),
@@ -364,11 +358,9 @@ impl DraftProxy {
                     )
                 }
                 "product" | "collection" => self.publishable_resource_root_value(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     /// The set of publication gids a resource (product/collection) is published on.
@@ -614,17 +606,19 @@ impl DraftProxy {
             root_field,
             "publishablePublishToCurrentChannel" | "publishableUnpublishToCurrentChannel"
         );
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut early_response = None;
+        let data = root_payload_json(&fields, |field| {
+            if early_response.is_some() {
+                return None;
+            }
             if field.name != root_field {
-                continue;
+                return None;
             }
-            if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
-                return response;
+            if let Some(response) = publishable_empty_string_publication_error(root_field, field) {
+                early_response = Some(response);
+                return None;
             }
-            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
-                continue;
-            };
+            let resource_id = resolved_string_field(&field.arguments, "id")?;
             let user_errors =
                 publishable_publication_input_errors(field.arguments.get("input"), to_current);
             if user_errors.is_empty() {
@@ -666,16 +660,16 @@ impl DraftProxy {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(selected_user_errors(
-                        user_errors.as_slice(),
-                        &selection.selection,
-                    )),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 }
             });
-            data.insert(field.response_key, payload);
+            Some(payload)
+        });
+        if let Some(response) = early_response {
+            return response;
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn observe_collection_passthrough_response(
@@ -932,7 +926,7 @@ impl DraftProxy {
             &title,
             None,
         );
-        let initial_product_ids = resolved_string_list_field_unsorted(&input, "products");
+        let initial_product_ids = list_string_field(&input, "products");
         self.hydrate_missing_collection_baseline("", &initial_product_ids);
         let mut collection = collection_from_input(&input, &id, &title, &handle, None);
         let products = initial_product_ids
@@ -1124,7 +1118,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let requested_product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let requested_product_ids = list_string_field(&arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
         if let Some(response) = self.collection_membership_guard_response(
             query,
@@ -1172,7 +1166,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let product_ids = list_string_field(&arguments, "productIds");
         if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
             return MutationOutcome::response(collection_product_ids_too_long_response(
                 root_field,
@@ -1276,7 +1270,7 @@ impl DraftProxy {
             let new_position = resolved_string_field(&move_input, "newPosition")
                 .and_then(|value| value.parse::<usize>().ok())
                 .or_else(|| {
-                    resolved_i64_field(&move_input, "newPosition")
+                    resolved_int_field(&move_input, "newPosition")
                         .map(|value| value.max(0) as usize)
                 })
                 .unwrap_or(0);
@@ -1417,8 +1411,6 @@ impl DraftProxy {
             .collection_payload_root_field(query, variables)
             .map(|field| (field.response_key, field.selection))
             .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
@@ -1427,7 +1419,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
@@ -1445,15 +1437,13 @@ impl DraftProxy {
             .collection_payload_root_field(query, variables)
             .map(|field| (field.response_key, field.selection))
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
