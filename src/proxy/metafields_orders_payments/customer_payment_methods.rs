@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 
 pub(in crate::proxy) fn customer_payment_method_seed_record(
     id: &str,
@@ -971,4 +972,69 @@ impl DraftProxy {
         payload.insert("userErrors".to_string(), json!(user_errors));
         selected_json(&Value::Object(payload), selection)
     }
+}
+
+fn base64_urlsafe_no_pad(input: &str) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(input)
+}
+
+fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(input)
+        .ok()
+}
+
+/// Recover the source `customerPaymentMethodId` encoded inside an
+/// `encryptedDuplicationData` token produced by
+/// `customer_payment_method_duplication_data`. Returns `None` for any token the
+/// local engine did not mint.
+fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> {
+    let payload = token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
+    let bytes = base64_urlsafe_no_pad_decode(payload)?;
+    let decoded: Value = serde_json::from_slice(&bytes).ok()?;
+    decoded
+        .get("customerPaymentMethodId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -> bool {
+    if field.name != "customerCreate" {
+        return false;
+    }
+    let Some(ResolvedValue::Object(input)) = field.arguments.get("input") else {
+        return false;
+    };
+    if input.len() != 1
+        || !matches!(
+            input.get("email"),
+            Some(ResolvedValue::String(email)) if !email.trim().is_empty()
+        )
+    {
+        return false;
+    }
+
+    let has_customer_id = field.selection.iter().any(|selection| {
+        selection.name == "customer"
+            && selection
+                .selection
+                .iter()
+                .any(|customer_field| customer_field.name == "id")
+    });
+    let selections_are_seed_shape = field.selection.iter().all(|selection| {
+        matches!(selection.name.as_str(), "customer" | "userErrors")
+            && selection
+                .selection
+                .iter()
+                .all(|child| match selection.name.as_str() {
+                    "customer" => child.name == "id" && child.selection.is_empty(),
+                    "userErrors" => {
+                        matches!(child.name.as_str(), "field" | "code" | "message")
+                            && child.selection.is_empty()
+                    }
+                    _ => false,
+                })
+    });
+
+    has_customer_id && selections_are_seed_shape
 }
