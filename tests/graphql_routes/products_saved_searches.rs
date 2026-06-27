@@ -1466,6 +1466,144 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
 }
 
 #[test]
+fn product_variants_bulk_create_omitted_strategy_removes_default_standalone_variant() {
+    let forwarded = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            panic!("product create and bulk variant create should stage locally")
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateStandaloneDefaultProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 10) {
+                nodes { title selectedOptions { name value } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Omitted strategy source" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["variants"]["nodes"],
+        json!([{
+            "title": "Default Title",
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }]
+        }])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return a product id")
+        .to_string();
+
+    let bulk_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkCreateWithOmittedStrategy(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product {
+              options { name values optionValues { name hasVariants } }
+              variants(first: 10) {
+                nodes { title selectedOptions { name value } }
+              }
+            }
+            productVariants { title selectedOptions { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "price": "25.00",
+                "optionValues": [{ "optionName": "Title", "name": "Default Blue" }],
+                "inventoryItem": {
+                    "sku": "OMITTED-DEFAULT",
+                    "tracked": true,
+                    "requiresShipping": true
+                }
+            }]
+        }),
+    ));
+
+    assert_eq!(bulk_create.status, 200);
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    let expected_variants = json!([{
+        "title": "Default Blue",
+        "selectedOptions": [{ "name": "Title", "value": "Default Blue" }]
+    }]);
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["productVariants"],
+        expected_variants
+    );
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["variants"]["nodes"],
+        expected_variants
+    );
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["product"]["options"],
+        json!([{
+            "name": "Title",
+            "values": ["Default Blue"],
+            "optionValues": [{ "name": "Default Blue", "hasVariants": true }]
+        }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadBulkCreateWithOmittedStrategy($productId: ID!) {
+          product(id: $productId) {
+            options { name values optionValues { name hasVariants } }
+            variants(first: 10) {
+              nodes { title selectedOptions { name value } }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"],
+        expected_variants
+    );
+    assert_eq!(
+        read.body["data"]["product"]["options"],
+        json!([{
+            "name": "Title",
+            "values": ["Default Blue"],
+            "optionValues": [{ "name": "Default Blue", "hasVariants": true }]
+        }])
+    );
+    assert_eq!(*forwarded.lock().unwrap(), 0);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][1]["interpreted"]["capability"],
+        json!({
+            "operationName": "productVariantsBulkCreate",
+            "domain": "products",
+            "execution": "stage-locally"
+        })
+    );
+}
+
+#[test]
 fn product_variants_bulk_create_rejects_inventory_quantity_caps_atomically() {
     let product_id = "gid://shopify/Product/1";
     let mutation = r#"
