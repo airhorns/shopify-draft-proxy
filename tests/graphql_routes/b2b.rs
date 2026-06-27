@@ -2243,7 +2243,6 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
             "input": {
                 "company": { "name": "Acme B2B" },
                 "companyLocation": {
-                    "name": null,
                     "shippingAddress": { "address1": "123 Main", "city": "Boston", "countryCode": "US" },
                     "billingSameAsShipping": true
                 }
@@ -2258,7 +2257,7 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
     let company = &create_company.body["data"]["companyCreate"]["company"];
     let company_id = company["id"].as_str().expect("company id").to_string();
     let first_location = &company["locations"]["nodes"][0];
-    assert_eq!(first_location["name"], json!("123 Main"));
+    assert_eq!(first_location["name"], json!("Acme B2B"));
     assert_eq!(first_location["billingSameAsShipping"], json!(true));
     assert_eq!(
         first_location["shippingAddress"]["id"],
@@ -2334,6 +2333,14 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
             .unwrap()
             .len(),
         2
+    );
+    assert_eq!(
+        read.body["data"]["company"]["locations"]["nodes"][0]["name"],
+        json!("Acme B2B")
+    );
+    assert_eq!(
+        read.body["data"]["company"]["locations"]["nodes"][1]["name"],
+        json!("456 Side")
     );
     assert_eq!(
         read.body["data"]["companyLocation"]["shippingAddress"]["address1"],

@@ -1,0 +1,66 @@
+{
+  "scenarioId": "company_create_location_name_fallback",
+  "operationNames": ["companyCreate", "company"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/company_location_name_fallback.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-company-create.graphql",
+    "variablesCapturePath": "$.nestedCompanyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for nested companyCreate(input.companyLocation) when the location has no name but has shippingAddress.address1. Live Shopify 2026-04 names the nested default location from the company name and preserves that value on the downstream company(id:) read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "nested-company-create-location-name-fallback",
+        "capturePath": "$.nestedCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable default location IDs."
+          }
+        ]
+      },
+      {
+        "name": "nested-company-read-location-name-fallback",
+        "capturePath": "$.nestedCompanyRead.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The downstream proxy read targets the locally staged company ID."
+          },
+          {
+            "path": "$.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The downstream proxy read uses the locally staged default location ID."
+          }
+        ]
+      }
+    ]
+  }
+}

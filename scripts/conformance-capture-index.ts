@@ -484,6 +484,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'company-location-name-fallback',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-company-location-name-fallback-conformance.mts',
+    purpose:
+      'Divergent B2B location name fallbacks for nested companyCreate(input.companyLocation) versus standalone companyLocationCreate when no location name is supplied and shippingAddress.address1 is present.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}company_location_name_fallback.json`,
+      'config/parity-specs/b2b/company_create_location_name_fallback.json',
+      'config/parity-specs/b2b/company_location_create_name_fallback.json',
+    ],
+    cleanupBehavior:
+      'Creates two disposable B2B companies, records the nested and standalone location-name fallback payloads, then deletes both companies during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-update-customer-readback',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-update-customer-readback-conformance.mts',

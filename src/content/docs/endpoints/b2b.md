@@ -72,7 +72,10 @@ company name length, strip HTML from accepted names, validate `externalId`
 character set, length, and duplicates, reject HTML or overlong notes, and
 reject `companyUpdate(input.customerSince)` without mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
-role setup when those input objects are present.
+role setup when those input objects are present. Its nested
+`input.companyLocation` name follows Shopify's create-time fallback of
+`companyLocation.name` -> company name, without using
+`shippingAddress.address1`.
 
 `companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
 `companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
