@@ -877,6 +877,20 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        if !b2b_location_create_has_meaningful_non_address_input(&input) {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![user_error(
+                        Value::Null,
+                        "Company location create input is empty.",
+                        Some("NO_INPUT"),
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
 
         // externalId length/charset/uniqueness is validated against every staged
         // location, so it lives here (with store access) rather than in the
@@ -4096,6 +4110,17 @@ fn b2b_location_name(
         })
         .or_else(|| company["name"].as_str().map(str::to_string))
         .unwrap_or_else(|| "B2B Draft".to_string())
+}
+
+fn b2b_location_create_has_meaningful_non_address_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    input.iter().any(|(field, value)| {
+        !matches!(
+            field.as_str(),
+            "billingAddress" | "shippingAddress" | "billingSameAsShipping"
+        ) && !matches!(value, ResolvedValue::Null)
+    })
 }
 
 fn b2b_buyer_experience_configuration_json(input: &BTreeMap<String, ResolvedValue>) -> Value {

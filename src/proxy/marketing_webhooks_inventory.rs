@@ -6219,6 +6219,10 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
     quantities
 }
 
+fn inventory_activate_user_error(field_path: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field_path, message, None)
+}
+
 fn inventory_deactivate_user_error(message: &str) -> Value {
     user_error_omit_code(Value::Null, message, None)
 }

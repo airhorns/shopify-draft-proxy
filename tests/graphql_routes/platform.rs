@@ -3848,7 +3848,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
         json!("AWAITING_RETURN_ITEMS")
     );
 }
