@@ -1156,8 +1156,8 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         .expect("backup region id is selected")
         .to_string();
     assert!(
-        region_id.starts_with("gid://shopify/MarketRegionCountry/local-"),
-        "locally staged market region ids must be synthetic, got {region_id}"
+        region_id.starts_with("gid://shopify/Market/Region/"),
+        "locally staged market region ids must come from the modeled market region node, got {region_id}"
     );
 
     let read = proxy.process_request(json_graphql_request(

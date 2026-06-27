@@ -4485,6 +4485,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-region-node-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-region-node-shape-conformance.mts',
+    purpose:
+      'marketCreate country region node id/name/code/__typename payload shape plus downstream market(id:) read-after-write.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-region-node-shape.json`,
+      'config/parity-specs/markets/market-create-region-node-shape.json',
+      'config/parity-requests/markets/market-create-region-node-shape.graphql',
+      'config/parity-requests/markets/market-create-region-node-shape-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable Canada region market, reads it back, then deletes the created market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-price-inclusions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-price-inclusions-conformance.mts',
