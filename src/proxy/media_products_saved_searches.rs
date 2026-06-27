@@ -402,10 +402,10 @@ impl DraftProxy {
             if handle.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![user_error_omit_code(
+                    vec![length_user_error(
                         ["handle"],
-                        "Handle is too long (maximum is 255 characters)",
-                        None,
+                        "Handle",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
                     )],
                 ));
             }
@@ -414,10 +414,10 @@ impl DraftProxy {
             if vendor.chars().count() > 255 {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
-                    vec![user_error_omit_code(
+                    vec![length_user_error(
                         ["vendor"],
-                        "Vendor is too long (maximum is 255 characters)",
-                        None,
+                        "Vendor",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
                     )],
                 ));
             }
@@ -427,15 +427,15 @@ impl DraftProxy {
                 return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![
-                        user_error_omit_code(
+                        length_user_error(
                             ["productType"],
-                            "Product type is too long (maximum is 255 characters)",
-                            None,
+                            "Product type",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
                         ),
-                        user_error_omit_code(
+                        length_user_error(
                             ["customProductType"],
-                            "Custom product type is too long (maximum is 255 characters)",
-                            None,
+                            "Custom product type",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
                         ),
                     ],
                 ));
@@ -719,12 +719,12 @@ impl DraftProxy {
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.len() > 250 {
                 return MutationOutcome::response(ok_json(json!({
-                    "errors": [{
-                        "message": format!("The input array size of {} is greater than the maximum allowed of 250.", tags.len()),
-                        "locations": [{"line": 3, "column": 5}],
-                        "path": ["productUpdate", "product", "tags"],
-                        "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-                    }]
+                    "errors": [max_input_size_exceeded_error(
+                        ["productUpdate", "product", "tags"],
+                        tags.len(),
+                        250,
+                        Some(json!([{"line": 3, "column": 5}]))
+                    )]
                 })));
             }
         }
@@ -748,8 +748,7 @@ impl DraftProxy {
             return self.product_update_field_user_error(
                 query,
                 &existing,
-                "title",
-                "Title can't be blank",
+                presence_user_error(["title"], "Title"),
             );
         }
 
@@ -758,8 +757,11 @@ impl DraftProxy {
                 return self.product_update_field_user_error(
                     query,
                     &existing,
-                    "handle",
-                    "Handle is too long (maximum is 255 characters)",
+                    length_user_error(
+                        ["handle"],
+                        "Handle",
+                        LengthUserErrorBound::TooLong { maximum: 255 },
+                    ),
                 );
             }
         }
@@ -856,8 +858,7 @@ impl DraftProxy {
         &self,
         query: &str,
         existing: &ProductRecord,
-        field: &str,
-        message: &str,
+        user_error: Value,
     ) -> MutationOutcome {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, &BTreeMap::new(), || {
@@ -867,10 +868,7 @@ impl DraftProxy {
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let user_error = selected_json(
-            &user_error_omit_code(json!([field]), message, None),
-            &error_selection,
-        );
+        let user_error = selected_json(&user_error, &error_selection);
         MutationOutcome::response(ok_json(json!({
             "data": {
                 response_key: selected_json(
