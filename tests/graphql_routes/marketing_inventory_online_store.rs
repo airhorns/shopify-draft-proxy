@@ -6320,6 +6320,228 @@ fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
 }
 
 #[test]
+fn metaobject_entry_online_store_template_suffix_persists_across_local_lifecycle() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOnlineStoreDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type capabilities { onlineStore { enabled } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "online_store_suffix_test",
+            "name": "Online Store Suffix Test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {"onlineStore": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              fields { key value }
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              fields { key value }
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query ReadMetaobject($id: ID!, $handle: MetaobjectHandleInput!) {
+          detail: metaobject(id: $id) { capabilities { onlineStore { templateSuffix } } }
+          byHandle: metaobjectByHandle(handle: $handle) { capabilities { onlineStore { templateSuffix } } }
+        }
+        "#;
+
+    let omitted = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "omitted",
+            "fields": [{"key": "title", "value": "Omitted"}]
+        }}),
+    ));
+    assert_eq!(
+        omitted.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        Value::Null
+    );
+
+    let empty = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "empty",
+            "capabilities": {"onlineStore": {"templateSuffix": ""}},
+            "fields": [{"key": "title", "value": "Empty"}]
+        }}),
+    ));
+    assert_eq!(
+        empty.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        empty.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("")
+    );
+
+    let custom = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "custom",
+            "capabilities": {"onlineStore": {"templateSuffix": "custom"}},
+            "fields": [{"key": "title", "value": "Custom"}, {"key": "body", "value": "Original"}]
+        }}),
+    ));
+    assert_eq!(
+        custom.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        custom.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("custom")
+    );
+    let custom_id = custom.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let custom_handle = custom.body["data"]["metaobjectCreate"]["metaobject"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_custom = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "id": custom_id,
+            "handle": {"type": "online_store_suffix_test", "handle": custom_handle}
+        }),
+    ));
+    assert_eq!(
+        read_custom.body["data"]["detail"]["capabilities"]["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+    assert_eq!(
+        read_custom.body["data"]["byHandle"]["capabilities"]["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+
+    let unrelated_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": custom.body["data"]["metaobjectCreate"]["metaobject"]["id"], "metaobject": {
+            "fields": [{"key": "body", "value": "Changed"}]
+        }}),
+    ));
+    assert_eq!(
+        unrelated_update.body["data"]["metaobjectUpdate"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+
+    let explicit_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": custom.body["data"]["metaobjectCreate"]["metaobject"]["id"], "metaobject": {
+            "capabilities": {"onlineStore": {"templateSuffix": "updated"}}
+        }}),
+    ));
+    assert_eq!(
+        explicit_update.body["data"]["metaobjectUpdate"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("updated")
+    );
+
+    let upsert_create = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {
+                "capabilities": {"onlineStore": {"templateSuffix": "upserted"}},
+                "fields": [{"key": "title", "value": "Upserted"}, {"key": "body", "value": "Original"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("upserted")
+    );
+
+    let upsert_update_preserve = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {"fields": [{"key": "body", "value": "Upsert changed"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_update_preserve.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("upserted")
+    );
+
+    let upsert_update_empty = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {"capabilities": {"onlineStore": {"templateSuffix": ""}}}
+        }),
+    ));
+    assert_eq!(
+        upsert_update_empty.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("")
+    );
+}
+
+#[test]
 fn metaobject_auto_handles_and_fallback_display_names_follow_core_shapes() {
     let mut proxy = snapshot_proxy();
 
