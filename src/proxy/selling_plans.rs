@@ -217,6 +217,21 @@ impl DraftProxy {
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
         }
+        let user_errors = selling_plan_group_update_model_user_errors(&group, &input);
+        if !user_errors.is_empty() {
+            return self.selling_plan_failed_outcome(
+                &field.name,
+                selling_plan_group_update_payload(
+                    None,
+                    None,
+                    user_errors,
+                    payload_selection,
+                    &field.response_key,
+                    self,
+                ),
+                "Selling plan group update would delete every existing selling plan without a replacement; original raw mutation retained for observability.",
+            );
+        }
 
         if let Some(name) = resolved_string_field(&input, "name") {
             group.name = name;
@@ -1018,6 +1033,32 @@ fn selling_plan_group_create_model_user_errors(
     }
 
     errors
+}
+
+fn selling_plan_group_update_model_user_errors(
+    group: &SellingPlanGroupRecord,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let plans_to_create = resolved_object_list_field(input, "sellingPlansToCreate");
+    let plan_ids_to_delete = resolved_string_list_field(input, "sellingPlansToDelete");
+    if plans_to_create.is_empty()
+        && !plan_ids_to_delete.is_empty()
+        && !group.selling_plans.is_empty()
+    {
+        let deletes_every_existing_plan = group
+            .selling_plans
+            .iter()
+            .all(|plan| plan_ids_to_delete.iter().any(|id| id == &plan.id));
+        if deletes_every_existing_plan {
+            return vec![user_error(
+                ["input", "sellingPlansToDelete"],
+                "Selling plans to delete can't result in a selling plan group with no selling plan.",
+                Some("SELLING_PLAN_COUNT_LOWER_BOUND"),
+            )];
+        }
+    }
+
+    Vec::new()
 }
 
 fn selling_plan_input_user_errors(

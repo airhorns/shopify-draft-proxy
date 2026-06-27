@@ -1,0 +1,11 @@
+query ReadSellingPlanGroupForPlanCount($id: ID!) {
+  sellingPlanGroup(id: $id) {
+    id
+    sellingPlans(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}
