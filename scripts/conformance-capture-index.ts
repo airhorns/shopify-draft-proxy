@@ -695,7 +695,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
     purpose:
-      'B2B empty-object input validation for company/contact/location update roots and company contact create, plus readback proving the validation branches are no-ops.',
+      'B2B empty-object input validation for company/contact/location update roots, company contact create, and address-only company location create, plus readback proving the validation branches are no-ops.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-no-input-validation.json`,
@@ -705,13 +705,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/b2b/b2b-no-input-validation-company-update.graphql',
       'config/parity-requests/b2b/b2b-no-input-validation-contact-create.graphql',
       'config/parity-requests/b2b/b2b-no-input-validation-contact-update.graphql',
+      'config/parity-requests/b2b/b2b-no-input-validation-location-create.graphql',
       'config/parity-requests/b2b/b2b-no-input-validation-location-update.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable company with a contact and location, records validation failures and unchanged readback, then deletes the company during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The capture also records null-only probes showing the public schema does not treat null-only keys as a uniform NO_INPUT branch.',
+      'The capture also records null-only probes showing the public schema does not treat null-only keys as a uniform NO_INPUT branch, plus address-only companyLocationCreate evidence for NO_INPUT.',
   },
   {
     domain: 'b2b',
