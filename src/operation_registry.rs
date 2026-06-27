@@ -175,7 +175,6 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-
 fn debug_assert_default_registry_local_routing_contract(registry: &[OperationRegistryEntry]) {
     static CHECKED: OnceLock<()> = OnceLock::new();
     CHECKED.get_or_init(|| {

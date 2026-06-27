@@ -301,10 +301,7 @@ impl DraftProxy {
         let data = root_payload_json(&fields, |field| match field.name.as_str() {
             "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
             "orders" => Some(connection_json(Vec::new())),
-            "ordersCount" => Some(selected_json(
-                &count_object(0),
-                &field.selection,
-            )),
+            "ordersCount" => Some(selected_json(&count_object(0), &field.selection)),
             _ => None,
         });
         ok_json(json!({ "data": data }))

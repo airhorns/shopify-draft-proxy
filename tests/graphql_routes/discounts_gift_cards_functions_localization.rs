@@ -5903,7 +5903,7 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
             "missingCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The customer could not be found.", "code": "CUSTOMER_NOT_FOUND" }] },
             "longRecipientName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
             "longRecipientMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
-            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] }
+            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] }
         })
     );
 }
@@ -5931,10 +5931,95 @@ fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
     assert_eq!(
         response.body["data"],
         json!({
-            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
-            "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
-            "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
+            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
+            "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
+            "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
             "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input.", "code": "INVALID" }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_create_and_repeated_updates_use_synthetic_clock_timestamps() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampCreate {
+          giftCardCreate(input: { initialValue: "10", code: "synthetictime" }) {
+            giftCard { id createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let gift_card = &create.body["data"]["giftCardCreate"]["giftCard"];
+    let gift_card_id = json_string(&gift_card["id"], "created gift card id");
+    assert_eq!(gift_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(gift_card["updatedAt"], json!("2024-01-01T00:00:01.000Z"));
+
+    let first_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampFirstUpdate($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "first synthetic timestamp update" }) {
+            giftCard { id note createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id.clone() }),
+    ));
+    assert_eq!(
+        first_update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+    let first_card = &first_update.body["data"]["giftCardUpdate"]["giftCard"];
+    assert_eq!(first_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(first_card["updatedAt"], json!("2024-01-01T00:00:02.000Z"));
+
+    let second_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampSecondUpdate($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "second synthetic timestamp update" }) {
+            giftCard { id note createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id.clone() }),
+    ));
+    assert_eq!(
+        second_update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+    let second_card = &second_update.body["data"]["giftCardUpdate"]["giftCard"];
+    assert_eq!(second_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(second_card["updatedAt"], json!("2024-01-01T00:00:03.000Z"));
+    assert!(
+        second_card["updatedAt"].as_str().unwrap() > first_card["updatedAt"].as_str().unwrap(),
+        "giftCardUpdate.updatedAt should advance between writes"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query GiftCardSyntheticTimestampRead($id: ID!) {
+          giftCard(id: $id) { id note createdAt updatedAt }
+        }
+        "#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["giftCard"],
+        json!({
+            "id": second_card["id"].clone(),
+            "note": "second synthetic timestamp update",
+            "createdAt": "2024-01-01T00:00:01.000Z",
+            "updatedAt": "2024-01-01T00:00:03.000Z"
         })
     );
 }
@@ -6215,7 +6300,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "futureDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
             "preEpochDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
             "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
-            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-04-29T09:31:02Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2024-01-01T00:00:01.000Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
         })
     );
 
@@ -6236,7 +6321,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "balance": { "amount": "10.0", "currencyCode": "CAD" },
             "transactions": {
                 "nodes": [{
-                    "processedAt": "2026-04-29T09:31:02Z",
+                    "processedAt": "2024-01-01T00:00:01.000Z",
                     "amount": { "amount": "5.0", "currencyCode": "CAD" }
                 }]
             }

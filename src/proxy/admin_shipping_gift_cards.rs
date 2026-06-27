@@ -1868,7 +1868,7 @@ impl DraftProxy {
             location["metafields"] = Value::Array(metafields);
         }
         location["hasActiveInventory"] = json!(self.location_has_inventory(&location_id));
-        location["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+        location["updatedAt"] = json!(self.next_product_timestamp());
     }
 
     /// Validates a `locationEdit` input against the staged record, mirroring the
@@ -2015,6 +2015,7 @@ impl DraftProxy {
     ) -> Value {
         let address_input = resolved_object_field(input, "address").unwrap_or_default();
         let address = location_address_json(&address_input);
+        let timestamp = self.next_product_timestamp();
         json!({
             "__typename": "Location",
             "id": id,
@@ -2030,8 +2031,8 @@ impl DraftProxy {
             "shipsInventory": true,
             "address": address,
             "metafields": self.location_metafields_from_input(id, input),
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "updatedAt": "2024-01-01T00:00:00.000Z"
+            "createdAt": timestamp.clone(),
+            "updatedAt": timestamp
         })
     }
 
@@ -4427,7 +4428,7 @@ impl DraftProxy {
         if fields.is_empty() {
             return json_error(400, "Operation has no root field");
         }
-        let now = "2026-01-01T00:00:00Z";
+        let now = self.next_product_timestamp();
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         for field in fields {

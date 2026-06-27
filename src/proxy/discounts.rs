@@ -3559,6 +3559,7 @@ pub(in crate::proxy) fn gift_card_create_record(
     currency_code: &str,
     notify: bool,
 ) -> Value {
+    let timestamp = default_product_timestamp();
     json!({
         "__typename": "GiftCard",
         "id": id,
@@ -3572,8 +3573,8 @@ pub(in crate::proxy) fn gift_card_create_record(
         "expiresOn": null,
         "note": null,
         "templateSuffix": null,
-        "createdAt": "2026-04-29T09:31:02Z",
-        "updatedAt": "2026-04-29T09:31:02Z",
+        "createdAt": timestamp.clone(),
+        "updatedAt": timestamp,
         "initialValue": money_value(amount, currency_code),
         "balance": money_value(amount, currency_code),
         "customer": null,
