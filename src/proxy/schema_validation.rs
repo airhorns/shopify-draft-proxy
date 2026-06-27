@@ -2847,6 +2847,26 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
+    let parsed: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+
+    for input_object_name in [
+        "MarketCurrencySettingsUpdateInput",
+        "MarketCreateInput",
+        "MarketUpdateInput",
+    ] {
+        if let Some((name, fields)) = captured_input_object_fields(&parsed, input_object_name) {
+            schema.input_objects.insert(name, fields);
+        }
+    }
+    for mutation_name in ["marketCreate", "marketUpdate"] {
+        if let Some((name, arguments)) = captured_mutation_arguments(&parsed, mutation_name) {
+            schema.mutation_fields.insert(name, arguments);
+        }
+    }
+
     // CatalogCreateInput on Admin API 2026-04: `context` is a required
     // (non-null) input field. Omitting it must surface a top-level
     // INVALID_VARIABLE coercion error before the local catalog handler runs.

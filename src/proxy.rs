@@ -1146,7 +1146,7 @@ impl Store {
         shop
     }
 
-    fn shop_currency_code(&self) -> String {
+    pub(in crate::proxy) fn shop_currency_code(&self) -> String {
         self.base
             .shop
             .get("currencyCode")

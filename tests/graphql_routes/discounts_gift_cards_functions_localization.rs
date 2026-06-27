@@ -228,6 +228,48 @@ fn set_gift_card_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
     });
 }
 
+fn stage_market(proxy: &mut DraftProxy, name: &str, country_code: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation StageMarketForLocalization($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "name": name, "regions": [{ "countryCode": country_code }] } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &response.body["data"]["marketCreate"]["market"]["id"],
+        "staged market id",
+    )
+}
+
+fn stage_web_presence(proxy: &mut DraftProxy, subfolder_suffix: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation StageWebPresenceForLocalization($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "defaultLocale": "en", "subfolderSuffix": subfolder_suffix } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &response.body["data"]["webPresenceCreate"]["webPresence"]["id"],
+        "staged web presence id",
+    )
+}
+
 fn function_metadata_record(
     id: &str,
     title: &str,
@@ -3594,25 +3636,26 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
         json!([{ "locale": "en", "published": true }])
     );
 
+    let known_presence = stage_web_presence(&mut proxy, "fr");
     let lifecycle = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($known: ID!) {
           enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message } }
           update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
         }"#,
-        json!({ "known": "gid://shopify/MarketWebPresence/known" }),
+        json!({ "known": known_presence }),
     ));
     assert_eq!(lifecycle.status, 200);
     assert_eq!(
         lifecycle.body["data"]["update"]["shopLocale"],
         json!({
             "locale": "fr",
-            "name": "French",
-            "published": true,
-            "marketWebPresences": [{
-                "id": "gid://shopify/MarketWebPresence/known",
-                "__typename": "MarketWebPresence",
-                "defaultLocale": { "locale": "en" }
-            }]
+                "name": "French",
+                "published": true,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
         })
     );
 
@@ -4327,6 +4370,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
         enable.body["data"]["shopLocaleEnable"]["userErrors"],
         json!([])
     );
+    let market_id = stage_market(&mut proxy, "Localization Market", "CA");
 
     let product_register = proxy.process_request(json_graphql_request(
         r#"mutation RegisterProductTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
@@ -4339,7 +4383,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
             "resourceId": product_id,
             "translations": [
                 { "locale": "fr", "key": "title", "value": "Titre produit", "translatableContentDigest": product_title_digest },
-                { "locale": "fr", "key": "product_type", "value": "Produit", "translatableContentDigest": product_type_digest, "marketId": "gid://shopify/Market/123" }
+                { "locale": "fr", "key": "product_type", "value": "Produit", "translatableContentDigest": product_type_digest, "marketId": market_id }
             ]
         }),
     ));
@@ -4368,11 +4412,11 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
     );
 
     let read = proxy.process_request(json_graphql_request(
-        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!) {
+        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!, $marketId: ID!) {
           direct: translatableResource(resourceId: $productId) {
             resourceId
             allFr: translations(locale: "fr") { key value locale market { id } }
-            marketFr: translations(locale: "fr", marketId: "gid://shopify/Market/123") { key value locale market { id } }
+            marketFr: translations(locale: "fr", marketId: $marketId) { key value locale market { id } }
           }
           byType: translatableResources(first: 2, resourceType: PRODUCT) {
             aliasedNodes: nodes { resourceId translations(locale: "fr") { key value } }
@@ -4386,7 +4430,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
           }
           missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") { resourceId }
         }"#,
-        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id] }),
+        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id], "marketId": market_id }),
     ));
 
     assert_eq!(read.status, 200);
@@ -4394,12 +4438,12 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
         read.body["data"]["direct"]["allFr"],
         json!([
             { "key": "title", "value": "Titre produit", "locale": "fr", "market": null },
-            { "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }
+            { "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": market_id } }
         ])
     );
     assert_eq!(
         read.body["data"]["direct"]["marketFr"],
-        json!([{ "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }])
+        json!([{ "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": market_id } }])
     );
     assert_eq!(
         read.body["data"]["byType"]["aliasedNodes"][0]["translations"],
@@ -4577,38 +4621,198 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
 
     let unknown_market = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/999999" }] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/424242" }] }),
     ));
     assert_eq!(
         unknown_market.body["data"]["translationsRegister"]["translations"],
-        Value::Null
+        json!([])
     );
     assert_eq!(
         unknown_market.body["data"]["translationsRegister"]["userErrors"][0]["code"],
         json!("MARKET_DOES_NOT_EXIST")
     );
 
+    let market_id = stage_market(&mut proxy, "Spanish Translation Market", "CA");
     let registered = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/123" }] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": market_id }] }),
     ));
     assert_eq!(
         registered.body["data"]["translationsRegister"]["translations"][0]["market"]["id"],
-        json!("gid://shopify/Market/123")
+        json!(market_id)
+    );
+
+    let packing_slip = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/PackingSlipTemplate/4834722098",
+            "translations": [{
+                "locale": "es",
+                "key": "body",
+                "value": "Cuerpo",
+                "translatableContentDigest": "digest-body",
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        packing_slip.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "key"],
+                "message": "Key body cannot be customized for a market; it can only be translated.",
+                "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+            }]
+        })
     );
 
     let removed = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsMarketScopedRemove($resourceId: ID!, $keys: [String!]!, $locales: [String!]!, $marketIds: [ID!]!) { translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "keys": ["title"], "locales": ["es"], "marketIds": ["gid://shopify/Market/123"] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "keys": ["title"], "locales": ["es"], "marketIds": [market_id] }),
     ));
     assert_eq!(
         removed.body["data"]["translationsRemove"]["translations"][0]["market"]["id"],
-        json!("gid://shopify/Market/123")
+        json!(market_id)
     );
     assert_eq!(
         removed.body["data"]["translationsRemove"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
+    let market_id = "gid://shopify/Market/999999123";
+    let web_presence_id = "gid://shopify/MarketWebPresence/9999999999";
+    let title_digest = fallback_product_title_digest();
+    let upstream_hits = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let market_id = market_id.to_string();
+        let web_presence_id = web_presence_id.to_string();
+        move |request| {
+            captured_hits.lock().unwrap().push(request.body.clone());
+            assert!(
+                request.body.contains("LocalizationMutationTargetsHydrate"),
+                "only localization target hydration should hit upstream, got: {}",
+                request.body
+            );
+            let node = if request.body.contains(&web_presence_id) {
+                json!({
+                    "__typename": "MarketWebPresence",
+                    "id": web_presence_id,
+                    "subfolderSuffix": "fr",
+                    "domain": null,
+                    "rootUrls": [],
+                    "defaultLocale": { "locale": "en", "name": "English", "primary": true, "published": true },
+                    "alternateLocales": [],
+                    "markets": { "nodes": [] }
+                })
+            } else {
+                json!({
+                    "__typename": "Market",
+                    "id": market_id,
+                    "name": "Sentinel-looking market",
+                    "handle": "sentinel-looking-market",
+                    "status": "ACTIVE",
+                    "type": "REGION"
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [node] } }),
+            }
+        }
+    });
+
+    let enable_es = proxy.process_request(json_graphql_request(
+        r#"mutation EnableSpanish { shopLocaleEnable(locale: "es") { userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        enable_es.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let register = proxy.process_request(json_graphql_request(
+        r#"mutation RegisterSentinelMarketTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo",
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["translations"][0]["market"]["id"],
+        json!(market_id)
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"mutation RemoveSentinelMarketTranslation($resourceId: ID!, $keys: [String!]!, $locales: [String!]!, $marketIds: [ID!]!) {
+          translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "keys": ["title"],
+            "locales": ["es"],
+            "marketIds": [market_id]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["translationsRemove"]["translations"][0]["market"]["id"],
+        json!(market_id)
+    );
+    assert_eq!(
+        remove.body["data"]["translationsRemove"]["userErrors"],
+        json!([])
+    );
+
+    let enable_fr = proxy.process_request(json_graphql_request(
+        r#"mutation EnableFrenchWithSentinelWebPresence($id: ID!) {
+          shopLocaleEnable(locale: "fr", marketWebPresenceIds: [$id]) {
+            shopLocale { locale marketWebPresences { id __typename defaultLocale { locale } } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": web_presence_id }),
+    ));
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["shopLocale"]["marketWebPresences"],
+        json!([{ "id": web_presence_id, "__typename": "MarketWebPresence", "defaultLocale": { "locale": "en" } }])
+    );
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 2);
+    assert!(hits.iter().any(|body| body.contains(market_id)));
+    assert!(hits.iter().any(|body| body.contains(web_presence_id)));
 }
 
 #[test]
@@ -4698,14 +4902,14 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
                 "key": "title",
                 "value": "",
                 "translatableContentDigest": "digest",
-                "marketId": "gid://shopify/Market/999999"
+                "marketId": "gid://shopify/Market/424242"
             }]
         }),
     ));
     assert_eq!(
         unknown_market_blank.body["data"]["translationsRegister"],
         json!({
-            "translations": null,
+            "translations": [],
             "userErrors": [{
                 "field": ["translations", "0", "marketId"],
                 "message": "The market corresponding to the `marketId` argument doesn't exist",
@@ -5057,7 +5261,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
 #[test]
 fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
-    let known_presence = "gid://shopify/MarketWebPresence/known";
+    let known_presence = stage_web_presence(&mut proxy, "it");
     let unknown_presence = "gid://shopify/MarketWebPresence/9999999999";
 
     let lifecycle = proxy.process_request(json_graphql_request(
@@ -5421,6 +5625,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
     );
 
     let mut remove_proxy = snapshot_proxy();
+    let market_id = stage_market(&mut remove_proxy, "Remove Combination Market", "CA");
     for locale in ["es", "fr"] {
         let enable = remove_proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
@@ -5443,8 +5648,8 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
         json!({
             "resourceId": "gid://shopify/Product/9801098789170",
             "translations": [
-                { "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/123" },
-                { "locale": "es", "key": "body_html", "value": "Cuerpo", "translatableContentDigest": "digest", "marketId": "gid://shopify/Market/123" },
+                { "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": market_id },
+                { "locale": "es", "key": "body_html", "value": "Cuerpo", "translatableContentDigest": "digest", "marketId": market_id },
                 { "locale": "fr", "key": "title", "value": "Titre", "translatableContentDigest": title_digest }
             ]
         }),
@@ -5468,7 +5673,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             "resourceId": "gid://shopify/Product/9801098789170",
             "keys": ["title", "body_html"],
             "locales": ["es", "fr"],
-            "marketIds": ["gid://shopify/Market/123"]
+            "marketIds": [market_id]
         }),
     ));
     let removed = remove.body["data"]["translationsRemove"]["translations"]

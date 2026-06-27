@@ -1607,6 +1607,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.localization_mutation_preflight(&fields, request);
                 let data = self.localization_mutation_data(&fields);
                 self.record_mutation_log_entry(
                     request,
