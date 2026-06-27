@@ -4749,7 +4749,7 @@ fn localization_translations_register_accepts_market_original_without_shop_level
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "es" }),
     ));
@@ -4861,7 +4861,7 @@ fn localization_translations_register_accepts_market_original_without_shop_level
 
     let enable_fr = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4910,7 +4910,7 @@ fn localization_translations_register_rejects_market_value_matching_shop_level_t
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
