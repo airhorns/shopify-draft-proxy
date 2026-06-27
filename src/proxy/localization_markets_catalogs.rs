@@ -787,7 +787,7 @@ impl DraftProxy {
         }
 
         let mut updated_market = existing_market;
-        Self::apply_market_update_scalar_fields(&mut updated_market, &input);
+        Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
         selected_json(
@@ -799,6 +799,7 @@ impl DraftProxy {
     fn apply_market_update_scalar_fields(
         market: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
+        market_id: &str,
     ) {
         let Some(object) = market.as_object_mut() else {
             return;
@@ -849,10 +850,7 @@ impl DraftProxy {
         }
         if market_update_region_input_present(input) {
             let region_codes = market_region_country_codes(input);
-            let region_nodes = region_codes
-                .iter()
-                .map(|code| json!({"code": code}))
-                .collect::<Vec<_>>();
+            let region_nodes = market_region_country_nodes(market_id, &region_codes);
             object.insert("regionCodes".to_string(), json!(region_codes));
             object.insert(
                 "type".to_string(),

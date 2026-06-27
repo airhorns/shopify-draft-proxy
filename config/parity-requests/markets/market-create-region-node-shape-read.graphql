@@ -1,0 +1,19 @@
+query MarketCreateRegionNodeShapeRead($id: ID!) {
+  market(id: $id) {
+    id
+    conditions {
+      regionsCondition {
+        regions(first: 10) {
+          nodes {
+            id
+            name
+            __typename
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }
+      }
+    }
+  }
+}

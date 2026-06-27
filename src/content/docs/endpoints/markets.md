@@ -71,6 +71,10 @@ presence relations; rejects captured status/enabled mismatches, incompatible
 price inclusions, invalid or unsupported country regions, duplicate region
 codes, invalid names, duplicate names, and generated-handle collisions; and
 retains original raw mutations for commit replay on successful staging.
+Staged country-region nodes are stored as `MarketRegionCountry` records with a
+stable synthesized `id`, deterministic ISO country `name`, `code`, and
+`__typename`, so mutation payloads and downstream `market` / `markets` overlay
+reads expose the same region-node shape.
 Unsupported country-region validation is driven by a generated Shopify-derived
 Markets set captured from live `CountryCode` enum probes; the 2026-04 evidence
 rejects `AN`, `BV`, `CU`, `HM`, `IR`, `KP`, and `SY` before staging.
@@ -145,6 +149,8 @@ derivations are not synthesized beyond the checked-in evidence.
 
 - Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
+- Market region-node shape parity: `config/parity-specs/markets/market-create-region-node-shape.json`
+- Market region-node shape capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-region-node-shape.json`
 - Unsupported market country-region parity: `config/parity-specs/markets/market-create-unsupported-country-region.json`
 - Unsupported market country-region capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json`
 - Markets parity specs: `config/parity-specs/markets/*.json`
@@ -155,5 +161,6 @@ derivations are not synthesized beyond the checked-in evidence.
 ### Validation
 
 - `corepack pnpm parity -- market-create-unsupported-country-region`
+- `corepack pnpm parity -- market-create-region-node-shape`
 - `corepack pnpm lint`
 - `corepack pnpm rust:test`

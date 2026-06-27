@@ -1,0 +1,137 @@
+{
+  "capturedAt": "2026-06-27T09:55:48.726Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "marketCreate country region node identity fields and read-after-write shape",
+  "cases": [
+    {
+      "name": "marketCreate returns MarketRegionCountry identity fields",
+      "query": "mutation MarketCreateRegionNodeShape($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      conditions {\n        regionsCondition {\n          regions(first: 10) {\n            nodes {\n              id\n              name\n              __typename\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Region Node 20260627095547",
+          "conditions": {
+            "regionsCondition": {
+              "regions": [
+                {
+                  "countryCode": "CA"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98685485362",
+                "conditions": {
+                  "regionsCondition": {
+                    "regions": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                          "name": "Canada",
+                          "__typename": "MarketRegionCountry",
+                          "code": "CA"
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "market read-after-create returns MarketRegionCountry identity fields",
+      "query": "query MarketCreateRegionNodeShapeRead($id: ID!) {\n  market(id: $id) {\n    id\n    conditions {\n      regionsCondition {\n        regions(first: 10) {\n          nodes {\n            id\n            name\n            __typename\n            ... on MarketRegionCountry {\n              code\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98685485362"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/98685485362",
+              "conditions": {
+                "regionsCondition": {
+                  "regions": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                        "name": "Canada",
+                        "__typename": "MarketRegionCountry",
+                        "code": "CA"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "marketDelete": {
+      "query": "#graphql\nmutation MarketCreateRegionNodeShapeCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98685485362"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98685485362",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
