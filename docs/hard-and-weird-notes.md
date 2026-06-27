@@ -923,7 +923,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
   - `extensions.code: "RESOURCE_NOT_FOUND"`
   - `data.fulfillmentCreate: null`
 - practical consequence: the proxy can safely mirror that invalid-id branch in both `snapshot` mode and `live-hybrid` now, without pretending it already knows how to stage successful fulfillments or downstream fulfillment reads
-- nearby fulfillment roots are split into two layers under the current host credential:
+- nearby fulfillment roots were initially split into two layers under the host credential:
   - safe pre-access GraphQL validation branches
     - `fulfillmentTrackingInfoUpdate` inline missing `fulfillmentId` -> `missingRequiredArguments`
     - `fulfillmentTrackingInfoUpdate` inline `fulfillmentId: null` -> `argumentLiteralsIncompatible`
@@ -931,7 +931,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
     - `fulfillmentCancel` inline missing `id` -> `missingRequiredArguments`
     - `fulfillmentCancel` inline `id: null` -> `argumentLiteralsIncompatible`
     - `fulfillmentCancel` missing required `$id` -> `INVALID_VARIABLE`
-  - broader happy-path probes with concrete ids were still blocked differently under the host credential at that point:
+  - broader happy-path probes with concrete ids were blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
 
@@ -940,8 +940,9 @@ Practical rule:
 - treat `fulfillmentCreate` invalid-id handling as the first evidence-backed fulfillment increment, but do not stop there once later fulfillment roots reveal their own safe pre-access validation slices
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
 - do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `src/content/docs/endpoints/orders.md` and `src/content/docs/endpoints/shipping-fulfillments.md`
+- a later Admin GraphQL 2026-04 capture records concrete fulfillment state behavior: already-cancelled `fulfillmentCancel`, cancelled `fulfillmentTrackingInfoUpdate`, cancelled `fulfillmentEventCreate`, and `fulfillmentCancel` after a delivered event all return payload success with empty `userErrors`
 - once a fulfillment root has evidence-backed behavior, keep the operation registry and executable parity evidence aligned instead of leaving implemented behavior as free-text notes only
-- keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
+- keep current fulfillment lifecycle behavior machine-readable in parity specs; use access-denied notes only for branches that a fresh capture still cannot reach
 
 ### Current: Fulfillment services couple tightly to locations, but their handles do not follow renames
 

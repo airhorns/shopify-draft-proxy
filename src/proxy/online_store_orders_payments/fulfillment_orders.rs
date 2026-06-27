@@ -463,12 +463,6 @@ pub(in crate::proxy) fn fulfillment_create_invalid_id_error(
     }))
 }
 
-pub(in crate::proxy) fn fulfillment_accepts_events(fulfillment: &Value) -> bool {
-    !fulfillment_status_is(fulfillment, "CANCELLED")
-        && !fulfillment_status_is(fulfillment, "FAILURE")
-        && !fulfillment_status_is(fulfillment, "ERROR")
-}
-
 pub(in crate::proxy) fn fulfillment_event_nullable_string(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
@@ -1611,19 +1605,6 @@ impl DraftProxy {
         }) else {
             return Self::fulfillment_event_create_missing_fulfillment_payload(field);
         };
-        if !fulfillment_accepts_events(fulfillment) {
-            return selected_json(
-                &json!({
-                    "fulfillmentEvent": Value::Null,
-                    "userErrors": [orders_error(
-                        &["fulfillmentEvent", "fulfillmentId"],
-                        "fulfillment_is_cancelled",
-                        "INVALID"
-                    )]
-                }),
-                &field.selection,
-            );
-        }
 
         let event_id = self.next_proxy_synthetic_gid("FulfillmentEvent");
         let event = fulfillment_event_record(event_id.clone(), &input, &status);
@@ -1664,18 +1645,13 @@ impl DraftProxy {
         let fulfillment = order_fulfillments_mut(&mut order)?
             .iter_mut()
             .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
-        if fulfillment_status_is(fulfillment, "CANCELLED") {
-            return Some(selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
-                }),
-                &field.selection,
-            ));
-        }
+        let preserve_lifecycle_status = fulfillment_status_is(fulfillment, "CANCELLED")
+            || fulfillment_display_status_is(fulfillment, "DELIVERED");
         fulfillment["trackingInfo"] = json!(tracking_info);
-        fulfillment["status"] = json!("SUCCESS");
-        fulfillment["displayStatus"] = json!("FULFILLED");
+        if !preserve_lifecycle_status {
+            fulfillment["status"] = json!("SUCCESS");
+            fulfillment["displayStatus"] = json!("FULFILLED");
+        }
         fulfillment["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
         let updated = fulfillment.clone();
         self.store
@@ -1711,19 +1687,22 @@ impl DraftProxy {
             .iter_mut()
             .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
         if fulfillment_status_is(fulfillment, "CANCELLED") {
+            let cancelled = fulfillment.clone();
+            self.store
+                .staged
+                .orders
+                .insert(order_id.clone(), order.clone());
+            self.record_staged_orders_log_entry(
+                request,
+                query,
+                variables,
+                "fulfillmentCancel",
+                vec![order_id, fulfillment_id],
+            );
             return Some(selected_json(
                 &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_cannot_be_cancelled", "INVALID")]
-                }),
-                &field.selection,
-            ));
-        }
-        if fulfillment_display_status_is(fulfillment, "DELIVERED") {
-            return Some(selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_already_delivered", "INVALID")]
+                    "fulfillment": cancelled,
+                    "userErrors": []
                 }),
                 &field.selection,
             ));
