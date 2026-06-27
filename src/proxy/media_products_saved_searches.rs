@@ -168,7 +168,7 @@ impl DraftProxy {
         let product = match identifier.get("id") {
             Some(ResolvedValue::String(id)) => self.product_record_by_id(id),
             _ => match identifier.get("handle") {
-                Some(ResolvedValue::String(handle)) => self.product_record_by_handle(handle),
+                Some(ResolvedValue::String(handle)) => self.store.product_by_handle(handle),
                 _ => None,
             },
         };
@@ -261,13 +261,6 @@ impl DraftProxy {
         self.store.product_by_id(id)
     }
 
-    pub(in crate::proxy) fn product_record_by_handle(
-        &self,
-        handle: &str,
-    ) -> Option<&ProductRecord> {
-        self.store.product_by_handle(handle)
-    }
-
     pub(in crate::proxy) fn products_connection_field(&self, field: &RootFieldSelection) -> Value {
         self.products_connection_value(&field.arguments, &field.selection)
     }
@@ -345,7 +338,7 @@ impl DraftProxy {
         if let Some(response) = product_create_status_validation_error(request, query, variables) {
             return MutationOutcome::response(response);
         }
-        let Some(input) = product_create_input(query, variables) else {
+        let Some(input) = product_input(query, variables) else {
             let response_key = primary_root_field(query, variables)
                 .map(|field| field.response_key)
                 .unwrap_or_else(|| "productCreate".to_string());
@@ -1531,7 +1524,7 @@ impl DraftProxy {
             ));
         }
         let Some(product) = self
-            .product_for_bulk_variant_mutation(request, &product_id)
+            .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &[])
             .cloned()
         else {
             return MutationOutcome::response(self.product_variants_bulk_response(
@@ -2071,14 +2064,6 @@ impl DraftProxy {
         })
     }
 
-    fn product_for_bulk_variant_mutation(
-        &mut self,
-        request: &Request,
-        product_id: &str,
-    ) -> Option<&ProductRecord> {
-        self.product_for_bulk_variant_mutation_with_variant_ids(request, product_id, &[])
-    }
-
     fn product_for_bulk_variant_mutation_with_variant_ids(
         &mut self,
         request: &Request,
@@ -2139,7 +2124,7 @@ impl DraftProxy {
         root_field: &str,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        let user_errors = product_variant_input_user_errors(input);
+        let user_errors = product_variant_input_user_errors_with_prefix(input, &[]);
         if user_errors.is_empty() {
             None
         } else {

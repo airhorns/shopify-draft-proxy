@@ -996,13 +996,6 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn product_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    product_json_with_currency(product, selections, "USD")
-}
-
 pub(in crate::proxy) fn product_json_with_currency(
     product: &ProductRecord,
     selections: &[SelectedField],
@@ -1407,13 +1400,6 @@ pub(in crate::proxy) fn product_variant_connection_with_fallback_json(
         &connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info),
         selections,
     )
-}
-
-pub(in crate::proxy) fn product_variant_json_without_parent(
-    variant: &ProductVariantRecord,
-    selections: &[SelectedField],
-) -> Value {
-    product_variant_json(variant, None, selections)
 }
 
 pub(in crate::proxy) fn product_variant_json(
@@ -2616,12 +2602,6 @@ pub(in crate::proxy) fn resolved_product_variant_selected_options(
     }
 }
 
-pub(in crate::proxy) fn product_variant_input_user_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Vec<Value> {
-    product_variant_input_user_errors_with_prefix(input, &[])
-}
-
 pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     input: &BTreeMap<String, ResolvedValue>,
     field_prefix: &[String],
@@ -2861,13 +2841,6 @@ pub(in crate::proxy) fn product_delete_async_duplicate_payload() -> Value {
             "message": "Another operation already in progress. Please wait until current one is finished."
         }]
     })
-}
-
-pub(in crate::proxy) fn product_create_input(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<BTreeMap<String, ResolvedValue>> {
-    product_input(query, variables)
 }
 
 /// Extract the taxonomy category GID from a product mutation input. Shopify accepts

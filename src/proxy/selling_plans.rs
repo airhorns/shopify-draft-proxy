@@ -749,7 +749,7 @@ impl DraftProxy {
                     &products,
                     &selection.arguments,
                     &selection.selection,
-                    product_json,
+                    |product, selections| product_json_with_currency(product, selections, "USD"),
                     |product| product.id.clone(),
                 ))
             }

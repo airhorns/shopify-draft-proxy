@@ -285,7 +285,7 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
     );
     assert_eq!(*hits.lock().unwrap(), 1);
     assert_eq!(
-        passthrough.get_log_snapshot(),
+        log_snapshot(&passthrough),
         json!({
             "entries": [{
                 "id": "log-1",
@@ -428,7 +428,7 @@ fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
         json!({ "count": 0 })
     );
 
-    let log_roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+    let log_roots: Vec<Value> = log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -1309,7 +1309,7 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 0 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let variable_unknown_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
@@ -1352,7 +1352,7 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 0 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -1442,13 +1442,7 @@ fn webhook_subscription_duplicate_scope_includes_format_filter_and_api_permissio
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 3 })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 }
 
 #[test]
@@ -1575,10 +1569,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
         "only the valid control create should stage a record"
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "coercion errors should not append mutation log entries"
     );
@@ -1818,10 +1809,7 @@ fn webhook_eventbridge_cloud_delivery_rejects_non_json_format_without_staging() 
         "only the valid JSON setup creates should stage records"
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         2,
         "rejected cloud-format create/update attempts should not append mutation log entries"
     );
@@ -2092,7 +2080,7 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         json!({ "count": 2 })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .unwrap()
             .len(),

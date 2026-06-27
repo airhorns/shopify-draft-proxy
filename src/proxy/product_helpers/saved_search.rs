@@ -11,7 +11,12 @@ pub(in crate::proxy) fn saved_search_connection_json(
         records,
         root_selection,
         |record, selections| {
-            saved_search_read_json_for_api_client(record, selections, api_client_id)
+            saved_search_json_with_query(
+                record,
+                selections,
+                &saved_search_read_query_for_api_client(&record.query, api_client_id),
+                api_client_id,
+            )
         },
         saved_search_cursor,
         |page_info_selection| {
@@ -22,19 +27,6 @@ pub(in crate::proxy) fn saved_search_connection_json(
                 has_previous_page,
             )
         },
-    )
-}
-
-pub(in crate::proxy) fn saved_search_read_json_for_api_client(
-    record: &SavedSearchRecord,
-    selections: &[SelectedField],
-    api_client_id: &str,
-) -> Value {
-    saved_search_json_with_query(
-        record,
-        selections,
-        &saved_search_read_query_for_api_client(&record.query, api_client_id),
-        api_client_id,
     )
 }
 

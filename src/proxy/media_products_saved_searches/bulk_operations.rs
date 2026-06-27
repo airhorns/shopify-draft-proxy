@@ -279,7 +279,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        if let Some(operation_id) = self.throttled_query_bulk_operation_id(request) {
+        if let Some(operation_id) = self.throttled_bulk_operation_id("QUERY", request) {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{
@@ -438,7 +438,7 @@ impl DraftProxy {
                 )],
             );
         }
-        if let Some(operation_id) = self.throttled_mutation_bulk_operation_id(request) {
+        if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
@@ -499,14 +499,6 @@ impl DraftProxy {
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
-    }
-
-    fn throttled_query_bulk_operation_id(&self, request: &Request) -> Option<String> {
-        self.throttled_bulk_operation_id("QUERY", request)
-    }
-
-    fn throttled_mutation_bulk_operation_id(&self, request: &Request) -> Option<String> {
-        self.throttled_bulk_operation_id("MUTATION", request)
     }
 
     fn throttled_bulk_operation_id(

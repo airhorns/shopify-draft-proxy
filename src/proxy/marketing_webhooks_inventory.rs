@@ -1855,9 +1855,7 @@ impl DraftProxy {
                     .map(|variant| variant.inventory_item.requires_shipping)
                     .unwrap_or(true))),
                 "variant" => Some(match variant_for_payload.as_ref() {
-                    Some(variant) => {
-                        product_variant_json_without_parent(variant, &selection.selection)
-                    }
+                    Some(variant) => product_variant_json(variant, None, &selection.selection),
                     None => selected_json(
                         &json!({
                             "id": variant_id,
