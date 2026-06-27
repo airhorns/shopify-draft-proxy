@@ -424,6 +424,30 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
         }])
     );
 
+    let duplicated_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicatedUnknownMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "one": "gid://shopify/Customer/999999999999999",
+            "two": "gid://shopify/Customer/999999999999999"
+        }),
+    ));
+    assert_eq!(
+        duplicated_unknown.body["data"]["customerMerge"]["userErrors"],
+        json!([{
+            "field": ["customerOneId"],
+            "message": "Customer does not exist with ID 999999999999999",
+            "code": "INVALID_CUSTOMER_ID"
+        }])
+    );
+
     let missing = proxy.process_request(json_graphql_request(
         r#"
         mutation MissingArgumentNameDoesNotMatter($one: ID!) {
