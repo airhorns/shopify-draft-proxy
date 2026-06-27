@@ -237,17 +237,17 @@ impl DraftProxy {
         let payload = if locale == "en" {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
             })
         } else if self.localization_available_locale_name(&locale).is_none() {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid", "INVALID")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid")]
             })
         } else if self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken")]
             })
         } else if self
             .localization_shop_locales(None)
@@ -258,10 +258,10 @@ impl DraftProxy {
         {
             json!({
                 "shopLocale": null,
-                "userErrors": [user_error(Value::Null, &format!(
+                "userErrors": [user_error_omit_code(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
-                    ), Some("SHOP_LOCALE_LIMIT_REACHED"))]
+                    ), None)]
             })
         } else {
             let name = self
@@ -303,7 +303,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
                 }),
                 &field.selection,
             );
@@ -314,7 +314,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
                 }),
                 &field.selection,
             );
@@ -369,12 +369,12 @@ impl DraftProxy {
         let payload = if locale == "en" {
             json!({
                 "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
             })
         } else if !self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
             })
         } else {
             self.store.staged.shop_locales.remove(&locale);

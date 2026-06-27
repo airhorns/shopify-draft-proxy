@@ -48,6 +48,9 @@ unsupported locale codes, duplicate enables, missing locales whenever
 `shopLocaleUpdate` supplies `published`, enables beyond Shopify's captured
 20-language shop limit, and disables for non-enabled locales with captured
 Shopify-like `userErrors`.
+Those shop-locale mutation payloads expose Shopify's plain `UserError`
+shape: `field` and `message` are selectable, while selecting `code` is rejected
+as a top-level GraphQL `undefinedField` validation error.
 Market-web-presence IDs are filtered to known local or captured WebPresence IDs,
 and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields.
@@ -128,6 +131,8 @@ cleanly.
   markers
 - Product translatable-content parity:
   `config/parity-specs/localization/localization-translatable-content-product.json`
+- Shop-locale plain `UserError` parity:
+  `config/parity-specs/localization/localization-shop-locale-usererror-no-code.json`
 - Parity specs: `config/parity-specs/localization/*.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 

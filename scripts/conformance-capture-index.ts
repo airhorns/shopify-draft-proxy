@@ -3786,6 +3786,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-shop-locale-usererror-no-code',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-usererror-no-code-conformance.mts',
+    purpose:
+      'shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject userErrors.code selection because their payloads expose plain UserError.',
+    requiredAuthScopes: ['read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-usererror-no-code.json`,
+      'config/parity-specs/localization/localization-shop-locale-usererror-no-code.json',
+      'config/parity-requests/localization/localization-shop-locale-usererror-no-code.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; selecting userErrors.code fails before shop-locale resolvers run, so no locale state is mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-translations-digest-mismatch',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-digest-mismatch-conformance.mts',
