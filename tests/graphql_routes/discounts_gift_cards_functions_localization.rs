@@ -433,6 +433,12 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
     })
 }
 
+fn cad_snapshot_proxy() -> DraftProxy {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
+    proxy
+}
+
 fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, input_arg: &str) {
     assert_eq!(data[alias][node_field], json!(null));
     assert_eq!(
@@ -6463,8 +6469,7 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
 
 #[test]
 fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
-    let mut proxy = snapshot_proxy();
-    seed_legacy_gift_card_base_state(&mut proxy);
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!, $futureDebitInput: GiftCardDebitInput!, $preEpochDebitInput: GiftCardDebitInput!) {
@@ -6729,8 +6734,7 @@ fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_field
 
 #[test]
 fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_paths() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardMutationUserErrorCodes {
@@ -6769,8 +6773,7 @@ fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_path
 
 #[test]
 fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation IssueGiftCards($validCode: String!, $tooLongCode: String!, $missingCustomerId: ID!) {
@@ -7216,8 +7219,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
 
 #[test]
 fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -7392,8 +7394,7 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
 
 #[test]
 fn gift_card_credit_debit_preserve_optional_transaction_notes() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -7478,8 +7479,7 @@ fn gift_card_credit_debit_preserve_optional_transaction_notes() {
 
 #[test]
 fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
-    let mut proxy = snapshot_proxy();
-    seed_legacy_gift_card_base_state(&mut proxy);
+    let mut proxy = cad_snapshot_proxy();
 
     let empty = proxy.process_request(json_graphql_request(
         r#"query GiftCardReadEvidence($unknownId: ID!, $query: String!) {
@@ -7595,8 +7595,7 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
 
 #[test]
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -7697,8 +7696,7 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
 
 #[test]
 fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let setup = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardExpiryUtcFallbackSetup {
@@ -7758,8 +7756,7 @@ fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
 
 #[test]
 fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
-    let mut proxy = snapshot_proxy();
-    seed_legacy_gift_card_base_state(&mut proxy);
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
@@ -8672,7 +8669,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_eq!(
         created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
             ["automaticDiscount"]["maximumShippingPrice"],
-        json!({ "amount": "20.0", "currencyCode": "CAD" })
+        json!({ "amount": "20.0", "currencyCode": "USD" })
     );
     let code_id = json_string(
         &created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
@@ -9044,7 +9041,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "10.0", "currencyCode": "CAD" },
+            "amount": { "amount": "10.0", "currencyCode": "USD" },
             "appliesOnEachItem": true
         })
     );
@@ -9124,7 +9121,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "7.0", "currencyCode": "CAD" },
+            "amount": { "amount": "7.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );
@@ -9215,7 +9212,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["automaticDiscount"]["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "4.0", "currencyCode": "CAD" },
+            "amount": { "amount": "4.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );
@@ -9279,7 +9276,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"]["effect"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "3.0", "currencyCode": "CAD" },
+            "amount": { "amount": "3.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );

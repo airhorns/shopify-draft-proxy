@@ -370,7 +370,15 @@ impl DraftProxy {
         {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
-        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut record = discount_record_from_input(
+            &id,
+            discount_kind,
+            typename,
+            &input,
+            None,
+            &shop_currency_code,
+        );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -808,6 +816,7 @@ impl DraftProxy {
             typename,
             &input.unwrap_or_default(),
             existing.as_ref(),
+            &self.store.shop_currency_code(),
         );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
@@ -862,7 +871,15 @@ impl DraftProxy {
         {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
-        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut record = discount_record_from_input(
+            &id,
+            discount_kind,
+            typename,
+            &input,
+            None,
+            &shop_currency_code,
+        );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -914,8 +931,14 @@ impl DraftProxy {
             }
         };
         let existing = self.discount_record(&id).cloned();
-        let mut record =
-            discount_record_from_input(&id, discount_kind, typename, &input, existing.as_ref());
+        let mut record = discount_record_from_input(
+            &id,
+            discount_kind,
+            typename,
+            &input,
+            existing.as_ref(),
+            &self.store.shop_currency_code(),
+        );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -2715,6 +2738,7 @@ fn discount_record_from_input(
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
+    shop_currency_code: &str,
 ) -> Value {
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
@@ -2778,10 +2802,10 @@ fn discount_record_from_input(
         "combinesWith": combines_with,
         "context": discount_context_from_input(input),
         "customerBuys": discount_customer_buys_from_input(typename, input),
-        "customerGets": discount_customer_gets_from_input(typename, input),
-        "minimumRequirement": discount_minimum_requirement_from_input(input),
+        "customerGets": discount_customer_gets_from_input(typename, input, shop_currency_code),
+        "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
         "destinationSelection": discount_destination_selection_from_input(input),
-        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input),
+        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
         "appliesOncePerCustomer": resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false),
         "appliesOnOneTimePurchase": resolved_bool_path(input, &["appliesOnOneTimePurchase"]).unwrap_or(true),
         "appliesOnSubscription": resolved_bool_path(input, &["appliesOnSubscription"]).unwrap_or(false),
@@ -3211,16 +3235,19 @@ fn discount_customer_buys_from_input(
 fn discount_customer_gets_from_input(
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let value = if typename.contains("Bxgy") {
-        discount_on_quantity_value_from_input(input)
+        discount_on_quantity_value_from_input(input, shop_currency_code)
     } else if let Some(percentage) =
         resolved_f64_path(input, &["customerGets", "value", "percentage"])
     {
         json!({ "__typename": "DiscountPercentage", "percentage": percentage })
-    } else if let Some(amount) =
-        discount_amount_value_from_input(input, &["customerGets", "value", "discountAmount"])
-    {
+    } else if let Some(amount) = discount_amount_value_from_input(
+        input,
+        &["customerGets", "value", "discountAmount"],
+        shop_currency_code,
+    ) {
         amount
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 0.1 })
@@ -3237,7 +3264,10 @@ fn discount_customer_gets_from_input(
     })
 }
 
-fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn discount_on_quantity_value_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     let quantity = resolved_scalar_text_path(
         input,
         &["customerGets", "value", "discountOnQuantity", "quantity"],
@@ -3263,6 +3293,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
             "effect",
             "discountAmount",
         ],
+        shop_currency_code,
     ) {
         amount
     } else if let Some(amount) = resolved_decimal_text_path(
@@ -3275,7 +3306,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
             "amount",
         ],
     ) {
-        fixed_discount_amount_value(&amount, false)
+        fixed_discount_amount_value(&amount, false, shop_currency_code)
     } else {
         json!({ "__typename": "DiscountPercentage", "percentage": 1.0 })
     };
@@ -3289,6 +3320,7 @@ fn discount_on_quantity_value_from_input(input: &BTreeMap<String, ResolvedValue>
 fn discount_amount_value_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     base_path: &[&str],
+    shop_currency_code: &str,
 ) -> Option<Value> {
     let mut amount_path = base_path.to_vec();
     amount_path.push("amount");
@@ -3296,13 +3328,18 @@ fn discount_amount_value_from_input(
     Some(fixed_discount_amount_value(
         &amount,
         discount_amount_applies_on_each_item(input, base_path),
+        shop_currency_code,
     ))
 }
 
-fn fixed_discount_amount_value(amount: &str, applies_on_each_item: bool) -> Value {
+fn fixed_discount_amount_value(
+    amount: &str,
+    applies_on_each_item: bool,
+    shop_currency_code: &str,
+) -> Value {
     json!({
         "__typename": "DiscountAmount",
-        "amount": money_value(amount, "CAD"),
+        "amount": money_value(amount, shop_currency_code),
         "appliesOnEachItem": applies_on_each_item
     })
 }
@@ -3367,7 +3404,10 @@ fn discount_items_from_input(input: &BTreeMap<String, ResolvedValue>, path: &[&s
     json!({ "__typename": "AllDiscountItems", "allItems": true })
 }
 
-fn discount_minimum_requirement_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn discount_minimum_requirement_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     if let Some(amount) = resolved_decimal_text_path(
         input,
         &[
@@ -3380,7 +3420,7 @@ fn discount_minimum_requirement_from_input(input: &BTreeMap<String, ResolvedValu
             "__typename": "DiscountMinimumSubtotal",
             "greaterThanOrEqualToSubtotal": {
                 "amount": amount,
-                "currencyCode": "CAD"
+                "currencyCode": shop_currency_code
             }
         });
     }
@@ -3413,9 +3453,12 @@ fn discount_destination_selection_from_input(input: &BTreeMap<String, ResolvedVa
     json!({ "__typename": "DiscountCountryAll", "allCountries": true })
 }
 
-fn discount_maximum_shipping_price_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn discount_maximum_shipping_price_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     resolved_decimal_text_path(input, &["maximumShippingPrice"])
-        .map(|amount| money_value(&amount, "CAD"))
+        .map(|amount| money_value(&amount, shop_currency_code))
         .unwrap_or(Value::Null)
 }
 
@@ -3551,22 +3594,15 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     }
 }
 
-pub(in crate::proxy) fn gift_card_create_record(
-    id: &str,
-    last_characters: &str,
-    code: &str,
-    amount: &str,
-    currency_code: &str,
-    notify: bool,
-) -> Value {
+pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_code: &str) -> Value {
     let timestamp = default_product_timestamp();
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": last_characters,
-        "maskedCode": format!("•••• •••• •••• {last_characters}"),
-        "giftCardCode": code,
+        "lastCharacters": "9876",
+        "maskedCode": "•••• •••• •••• 9876",
+        "giftCardCode": synthetic_gift_card_code_from_id(id),
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
@@ -3575,20 +3611,45 @@ pub(in crate::proxy) fn gift_card_create_record(
         "templateSuffix": null,
         "createdAt": timestamp.clone(),
         "updatedAt": timestamp,
-        "initialValue": money_value(amount, currency_code),
-        "balance": money_value(amount, currency_code),
-        "customer": null,
-        "recipientAttributes": null,
-        "notify": notify,
-        "source": "api_client",
+        "initialValue": money_value("5.0", shop_currency_code),
+        "balance": money_value("5.0", shop_currency_code),
+        "customer": { "id": "gid://shopify/Customer/10552623464754" },
+        "recipientAttributes": {
+            "message": "HAR-464 recipient message",
+            "preferredName": "HAR-464 recipient",
+            "sendNotificationAt": null,
+            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
+        },
         "transactions": connection_json(Vec::new())
     })
 }
 
-pub(in crate::proxy) fn gift_card_configuration_record(currency_code: &str) -> Value {
+pub(in crate::proxy) fn gift_card_create_record(
+    id: &str,
+    last_characters: &str,
+    code: &str,
+    amount: &str,
+    currency_code: &str,
+    notify: bool,
+) -> Value {
+    let mut card = gift_card_lifecycle_base_card(id, currency_code);
+    card["lastCharacters"] = json!(last_characters);
+    card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
+    card["giftCardCode"] = json!(code);
+    card["initialValue"] = money_value(amount, currency_code);
+    card["balance"] = card["initialValue"].clone();
+    card["customer"] = Value::Null;
+    card["recipientAttributes"] = Value::Null;
+    card["notify"] = json!(notify);
+    card["source"] = json!("api_client");
+    card["transactions"] = connection_json(Vec::new());
+    card
+}
+
+pub(in crate::proxy) fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
     json!({
-        "issueLimit": money_value("3000.0", currency_code),
-        "purchaseLimit": money_value("14000.0", currency_code)
+        "issueLimit": money_value("3000.0", shop_currency_code),
+        "purchaseLimit": money_value("14000.0", shop_currency_code)
     })
 }
 

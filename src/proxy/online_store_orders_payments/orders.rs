@@ -102,12 +102,13 @@ pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
 pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     money_set: &Value,
     order: &Value,
+    shop_currency_code: &str,
 ) -> Value {
     let shop_amount =
         payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
         payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
@@ -132,9 +133,14 @@ pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
         .unwrap_or(0.0)
 }
 
-pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
-    let left = order_money_set_with_presentment_fallback(left, order);
-    let right = order_money_set_with_presentment_fallback(right, order);
+pub(in crate::proxy) fn add_order_money_sets(
+    left: &Value,
+    right: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
+    let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
+    let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
     let left_shop = payment_money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
@@ -149,7 +155,7 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
         .unwrap_or(right_shop);
     let shop_currency = payment_money_currency(&right, "shopMoney")
         .or_else(|| payment_money_currency(&left, "shopMoney"))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
@@ -161,10 +167,14 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
     )
 }
 
-pub(in crate::proxy) fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
+pub(in crate::proxy) fn zero_order_money_set_like(
+    money_set: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
@@ -630,6 +640,7 @@ pub(in crate::proxy) fn order_create_discount_amount(
 
 pub(in crate::proxy) fn order_create_line_item_discount_allocations(
     discounts: &[Value],
+    currency_code: &str,
 ) -> Vec<Value> {
     discounts
         .iter()
@@ -643,7 +654,7 @@ pub(in crate::proxy) fn order_create_line_item_discount_allocations(
             let currency = value
                 .get("currencyCode")
                 .and_then(Value::as_str)
-                .unwrap_or("CAD");
+                .unwrap_or(currency_code);
             Some(json!({ "allocatedAmountSet": order_create_money_set(amount, currency) }))
         })
         .collect()
@@ -730,7 +741,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "fulfillmentStatus": resolved_string_field(input, "fulfillmentStatus"),
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
-        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
+        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
         "originalUnitPriceSet": json!({
             "shopMoney": {
                 "amount": format_money_amount(unit_amount),
@@ -1843,7 +1854,7 @@ impl DraftProxy {
     ) -> Value {
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
-            .unwrap_or_else(|| "CAD".to_string());
+            .unwrap_or_else(|| self.store.shop_currency_code());
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
             .unwrap_or_else(|| currency_code.clone());

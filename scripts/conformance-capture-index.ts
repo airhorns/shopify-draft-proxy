@@ -3041,6 +3041,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-summary.json`,
       'config/parity-specs/selling-plans/sellingPlanGroup-summary.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupShopCurrency.graphql',
       'config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql',
       'config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql',
     ],
