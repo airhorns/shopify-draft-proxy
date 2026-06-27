@@ -3987,6 +3987,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-value-matches-original',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-value-matches-original-conformance.mts',
+    purpose:
+      'translationsRegister market-scoped VALUE_MATCHES_ORIGINAL_CONTENT validation, digest precedence, downstream no-stage behavior, and accepted sibling branches.',
+    requiredAuthScopes: [
+      'read_markets',
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-value-matches-original.json`,
+      'config/parity-specs/localization/localization-translations-value-matches-original.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enables Spanish only when needed, captures market-scoped value-matches-original rejection and accepted sibling rows, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-collection-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-collection-translations-conformance.mts',

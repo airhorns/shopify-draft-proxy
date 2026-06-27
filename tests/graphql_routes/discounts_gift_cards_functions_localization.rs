@@ -4716,6 +4716,276 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
 }
 
 #[test]
+fn localization_translations_register_accepts_market_original_without_shop_level_base() {
+    let market_id = "gid://shopify/Market/123";
+    let original_title = fallback_product_title_value();
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateValueMatchProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": original_title,
+                "handle": "market-value-match-original-product"
+            }
+        }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let resource_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "es" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let market_original = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_original = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_original.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo local",
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_accept = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_accept.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let enable_fr = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "fr",
+            "market": null
+        }])
+    );
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_translations_register_rejects_market_value_matching_shop_level_translation() {
+    let resource_id = "gid://shopify/Product/9801098789170";
+    let market_id = "gid://shopify/Market/123";
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": "invalid-digest-is-suppressed",
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "value"],
+                "message": "Value cannot match original content",
+                "code": "FAILS_RESOURCE_VALIDATION"
+            }]
+        })
+    );
+
+    let downstream_after_reject = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_reject.body["data"]["translatableResource"]["translations"],
+        json!([])
+    );
+}
+
+#[test]
 fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_commit() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);
@@ -9240,8 +9510,12 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     );
 }
 
+fn fallback_product_title_value() -> &'static str {
+    "The Inventory Not Tracked Snowboard"
+}
+
 fn fallback_product_title_digest() -> String {
-    localization_content_digest("The Inventory Not Tracked Snowboard")
+    localization_content_digest(fallback_product_title_value())
 }
 
 fn content_digest(content: &Value, key: &str) -> String {
