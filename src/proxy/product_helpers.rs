@@ -1772,7 +1772,7 @@ impl ProductSearchTerm {
             return true;
         }
         match self.field.as_deref() {
-            Some("status") => product.status.eq_ignore_ascii_case(value),
+            Some("status") => product.status == value,
             Some("vendor") => product_search_string_matches(&product.vendor, value),
             Some("product_type") => product_search_string_matches(&product.product_type, value),
             Some("title") => product_search_string_matches(&product.title, value),

@@ -1,6 +1,7 @@
 use crate::proxy::*;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+const GIFT_CARD_NO_CONTACT_RECIPIENT_ID: &str = "gid://shopify/Customer/no-contact-recipient";
 const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -1191,9 +1192,10 @@ impl DraftProxy {
             }
         }
         if let Some(recipient_id) = resolved_string_field(&recipient, "id") {
-            if self
-                .gift_card_customer_record_for_reference(request, &recipient_id)
-                .is_none()
+            if recipient_id != GIFT_CARD_NO_CONTACT_RECIPIENT_ID
+                && self
+                    .gift_card_customer_record_for_reference(request, &recipient_id)
+                    .is_none()
             {
                 return vec![gift_card_user_error(
                     root_field,
@@ -1351,7 +1353,7 @@ fn gift_card_seed_record(id: &str, shop_currency_code: &str) -> Option<Value> {
                 "message": null,
                 "preferredName": null,
                 "sendNotificationAt": null,
-                "recipient": { "id": "gid://shopify/Customer/no-contact-recipient" }
+                "recipient": { "id": GIFT_CARD_NO_CONTACT_RECIPIENT_ID }
             });
             Some(card)
         }

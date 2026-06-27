@@ -1645,11 +1645,7 @@ fn metaobject_mixed_reference_value_error(
         return None;
     }
     let context = context?;
-    let Some(record) = context.proxy.metaobject_by_id(value) else {
-        return Some(
-            "Value must belong to one of the specified metaobject definitions.".to_string(),
-        );
-    };
+    let record = context.proxy.metaobject_by_id(value)?;
     let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
         return Some(
             "Value must belong to one of the specified metaobject definitions.".to_string(),
@@ -2134,41 +2130,40 @@ fn metaobject_create_validation_errors(
         if context.is_some_and(|context| context.validate_existing_values)
             && !provided_keys.contains(key)
         {
-            let Some(value) = input_values.get(key).filter(|value| !value.is_empty()) else {
-                continue;
-            };
-            let field_type = field_definition["type"]["name"]
-                .as_str()
-                .unwrap_or_default();
-            let validations = field_definition["validations"]
-                .as_array()
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
-            if let Some(error) = metaobject_field_value_error(
-                context,
-                key,
-                field_type,
-                value,
-                validations,
-                is_update,
-            ) {
-                errors.push(metaobject_user_error(
-                    vec!["metaobject"],
-                    &error.message,
-                    error.code,
-                    json!(key),
-                    error.element_index,
-                ));
-            } else if metaobject_value_uses_generic_fallback(field_type)
-                && !metaobject_value_matches_type(field_type, value)
-            {
-                errors.push(metaobject_user_error(
-                    vec!["metaobject"],
-                    &format!("Value is invalid for field \"{key}\"."),
-                    "INVALID_VALUE",
-                    json!(key),
-                    Value::Null,
-                ));
+            if let Some(value) = input_values.get(key).filter(|value| !value.is_empty()) {
+                let field_type = field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or_default();
+                let validations = field_definition["validations"]
+                    .as_array()
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                if let Some(error) = metaobject_field_value_error(
+                    context,
+                    key,
+                    field_type,
+                    value,
+                    validations,
+                    is_update,
+                ) {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject"],
+                        &error.message,
+                        error.code,
+                        json!(key),
+                        error.element_index,
+                    ));
+                } else if metaobject_value_uses_generic_fallback(field_type)
+                    && !metaobject_value_matches_type(field_type, value)
+                {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject"],
+                        &format!("Value is invalid for field \"{key}\"."),
+                        "INVALID_VALUE",
+                        json!(key),
+                        Value::Null,
+                    ));
+                }
             }
         }
         if field_definition

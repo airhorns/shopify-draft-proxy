@@ -6367,6 +6367,60 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
 }
 
 #[test]
+fn gift_card_notification_created_no_contact_recipient_emits_null_field() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateNoContactRecipient($recipientId: ID!) {
+          giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) {
+            giftCard {
+              id
+              recipientAttributes { recipient { id } }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "recipientId": "gid://shopify/Customer/no-contact-recipient" }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["giftCard"]["recipientAttributes"]["recipient"]["id"],
+        json!("gid://shopify/Customer/no-contact-recipient")
+    );
+    let gift_card_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"]
+        .as_str()
+        .expect("gift card id")
+        .to_string();
+
+    let notify = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotifyNoContactRecipient($id: ID!) {
+          giftCardSendNotificationToRecipient(id: $id) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+
+    assert_eq!(
+        notify.body["data"]["giftCardSendNotificationToRecipient"],
+        json!({
+            "giftCard": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "The recipient has no contact information (e.g. email address or phone number)."
+            }]
+        })
+    );
+}
+
+#[test]
 fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_card_state() {
     let entitlement_error = json!([{ "field": null, "code": null, "message": "Gift cards are unavailable on your plan." }]);
     let trial_error = json!([{

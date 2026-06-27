@@ -5727,6 +5727,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         // `normalize_money_amount` canonicalizes the input "57.00" to "57.0".
         json!({ "amount": "57.0", "currencyCode": "CAD" })
     );
+    assert_payment_terms_due_state(
+        &create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let multiple = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
@@ -5770,6 +5775,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     let draft_terms_id =
         draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    assert_payment_terms_due_state(
+        &draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let draft_delete = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5822,6 +5832,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     let cascade_order_terms_id =
         cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    assert_payment_terms_due_state(
+        &cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let cascade_order_delete = proxy.process_request(json_graphql_request(
         include_str!(

@@ -1104,6 +1104,41 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         })
     );
 
+    let current_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateCurrentCountry {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/local-CA",
+                "name": "Canada",
+                "code": "CA"
+            },
+            "userErrors": []
+        })
+    );
+    let current_region = current_country.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+
+    let current_node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionCurrentCountryNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [current_region["id"].as_str().unwrap()] }),
+    ));
+    assert_eq!(current_node.body["data"]["nodes"][0], current_region);
+
     let created_market = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateJapanMarket {

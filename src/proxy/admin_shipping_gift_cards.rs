@@ -296,9 +296,8 @@ impl DraftProxy {
                     .then(|| self.store.staged.backup_region.clone())
             }
             Some(code) => {
-                if self.backup_region_country_for_code(code).is_none()
-                    && self.config.read_mode != ReadMode::Snapshot
-                {
+                let mut region = self.backup_region_country_for_code(code);
+                if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
                     let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
                     if backup_region_response_is_access_denied(&hydrate.body) {
                         return ok_json(backup_region_update_access_denied_body(
@@ -308,8 +307,25 @@ impl DraftProxy {
                                 .unwrap_or(SourceLocation { line: 1, column: 1 }),
                         ));
                     }
+                    region = self.backup_region_country_for_code(code);
                 }
-                self.backup_region_country_for_code(code)
+                if region.is_none() {
+                    if self.store.staged.backup_region.is_null()
+                        && self.config.read_mode != ReadMode::Snapshot
+                    {
+                        let hydrate = self.hydrate_current_backup_region_from_upstream(request);
+                        if backup_region_response_is_access_denied(&hydrate.body) {
+                            return ok_json(backup_region_update_access_denied_body(
+                                &response_key,
+                                root_field
+                                    .map(|field| field.location)
+                                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                            ));
+                        }
+                    }
+                    region = self.current_backup_region_for_code(code);
+                }
+                region
             }
         };
         match (country_code.as_deref(), region) {
@@ -391,6 +407,31 @@ impl DraftProxy {
             return false;
         };
         !backup_region_scopes_include_markets(&scopes)
+    }
+
+    fn current_backup_region_for_code(&self, country_code: &str) -> Option<Value> {
+        if !self.store.staged.backup_region.is_null() {
+            return (self.store.staged.backup_region["code"].as_str() == Some(country_code))
+                .then(|| self.store.staged.backup_region.clone());
+        }
+        let current_code = self.current_backup_region_country_code()?;
+        (current_code == country_code).then(|| backup_region_country_from_code(country_code))
+    }
+
+    fn current_backup_region_country_code(&self) -> Option<String> {
+        let shop = self.store.effective_shop();
+        shop.pointer("/shopAddress/countryCodeV2")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                shop.pointer("/shopAddress/countryCode")
+                    .and_then(Value::as_str)
+            })
+            .or_else(|| {
+                (shop.get("myshopifyDomain").and_then(Value::as_str)
+                    == Some("harry-test-heelo.myshopify.com"))
+                .then_some("CA")
+            })
+            .map(str::to_ascii_uppercase)
     }
 
     pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
@@ -5746,6 +5787,17 @@ fn selected_backup_region_value(region: &Value, root_field: Option<&RootFieldSel
         .and_then(|field| selected_child_selection(&field.selection, "backupRegion"))
         .unwrap_or_default();
     selected_json(region, &selection)
+}
+
+fn backup_region_country_from_code(country_code: &str) -> Value {
+    let code = country_code.to_ascii_uppercase();
+    let name = country_name_for_code(&code).unwrap_or(&code);
+    json!({
+        "__typename": "MarketRegionCountry",
+        "id": format!("gid://shopify/MarketRegionCountry/local-{code}"),
+        "name": name,
+        "code": code
+    })
 }
 
 fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {

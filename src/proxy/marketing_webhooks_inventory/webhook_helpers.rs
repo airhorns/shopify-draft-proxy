@@ -1,12 +1,10 @@
 use super::*;
 
-pub(in crate::proxy) const WEBHOOK_CLOUD_CALLBACK_URL_PLACEHOLDER: &str = "https://eventbridge.arn";
-
-pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> &str {
+pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> Option<&str> {
     if uri.starts_with("arn:aws:events:") || uri.starts_with("pubsub://") {
-        WEBHOOK_CLOUD_CALLBACK_URL_PLACEHOLDER
+        None
     } else {
-        uri
+        Some(uri)
     }
 }
 
