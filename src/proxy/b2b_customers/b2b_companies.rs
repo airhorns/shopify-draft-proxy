@@ -2224,7 +2224,7 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         let mut seen_input = BTreeSet::new();
         for (index, staff_id) in staff_ids.iter().enumerate() {
-            if !b2b_valid_staff_member_id(staff_id) {
+            if !self.b2b_valid_staff_member_id(staff_id) {
                 user_errors.push(b2b_indexed_user_error(
                     "staffMemberIds",
                     index,
@@ -3535,6 +3535,19 @@ impl DraftProxy {
             .cloned()
     }
 
+    fn b2b_valid_staff_member_id(&self, id: &str) -> bool {
+        shopify_gid_resource_type(id) == Some("StaffMember")
+            && self
+                .store
+                .staged
+                .b2b_staff_assignments
+                .values()
+                .any(|assignment| {
+                    assignment["staffMemberId"].as_str() == Some(id)
+                        || assignment["staffMember"]["id"].as_str() == Some(id)
+                })
+    }
+
     fn b2b_role_assignment_for(
         &self,
         location_id: &str,
@@ -4499,11 +4512,4 @@ where
     if let Some(ids) = record[field].as_array_mut() {
         ids.retain(|id| id.as_str().is_some_and(&mut retain));
     }
-}
-
-fn b2b_valid_staff_member_id(id: &str) -> bool {
-    shopify_gid_resource_type(id) == Some("StaffMember")
-        && resource_id_tail(id)
-            .parse::<u64>()
-            .is_ok_and(|tail| (1..=100).contains(&tail))
 }

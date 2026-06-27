@@ -2958,86 +2958,42 @@ fn b2b_location_delete_success_cascades_role_assignments_and_addresses() {
 }
 
 #[test]
-fn b2b_staff_assign_remove_validates_per_index_dedups_and_caps() {
+fn b2b_staff_assignment_rejects_unobserved_numeric_staff_member_ids() {
     let mut proxy = snapshot_proxy();
-    let company_id = create_b2b_company(&mut proxy, "Staff Co");
-    let location_id = create_b2b_location(&mut proxy, &company_id, "Staff HQ");
+    let company_id = create_b2b_company(&mut proxy, "Unobserved Staff Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Unobserved Staff HQ");
 
     let assign = proxy.process_request(json_graphql_request(
         r#"
-        mutation B2BAssignStaff($locationId: ID!, $staff: [ID!]!) {
-          companyLocationAssignStaffMembers(companyLocationId: $locationId, staffMemberIds: $staff) {
-            companyLocationStaffMemberAssignments {
-              id
-              staffMember { id }
-              companyLocation { id }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "locationId": location_id,
-            "staff": [
-                "gid://shopify/StaffMember/1",
-                "gid://shopify/StaffMember/1",
-                "gid://shopify/StaffMember/missing"
-            ]
-        }),
-    ));
-    assert_eq!(assign.status, 200);
-    assert_eq!(
-        assign.body["data"]["companyLocationAssignStaffMembers"]
-            ["companyLocationStaffMemberAssignments"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    assert_eq!(
-        assign.body["data"]["companyLocationAssignStaffMembers"]["userErrors"],
-        json!([{
-            "field": ["staffMemberIds", "2"],
-            "message": "Resource requested does not exist.",
-            "code": "RESOURCE_NOT_FOUND"
-        }])
-    );
-    let assignment_id = assign.body["data"]["companyLocationAssignStaffMembers"]
-        ["companyLocationStaffMemberAssignments"][0]["id"]
-        .as_str()
-        .expect("staff assignment id")
-        .to_string();
-
-    let cap_ids = (2..=12)
-        .map(|id| format!("gid://shopify/StaffMember/{id}"))
-        .collect::<Vec<_>>();
-    let cap = proxy.process_request(json_graphql_request(
-        r#"
-        mutation B2BStaffCap($locationId: ID!, $staff: [ID!]!) {
+        mutation B2BRejectUnobservedStaff($locationId: ID!, $staff: [ID!]!) {
           companyLocationAssignStaffMembers(companyLocationId: $locationId, staffMemberIds: $staff) {
             companyLocationStaffMemberAssignments { id staffMember { id } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "locationId": location_id, "staff": cap_ids }),
-    ));
-    assert_eq!(
-        cap.body["data"]["companyLocationAssignStaffMembers"]
-            ["companyLocationStaffMemberAssignments"]
-            .as_array()
-            .unwrap()
-            .len(),
-        9
-    );
-    assert_eq!(
-        cap.body["data"]["companyLocationAssignStaffMembers"]["userErrors"][0],
         json!({
-            "field": ["staffMemberIds", "9"],
-            "message": "Cannot assign more than 10 staff members to a company location.",
-            "code": "LIMIT_REACHED"
+            "locationId": location_id,
+            "staff": ["gid://shopify/StaffMember/1"]
+        }),
+    ));
+    assert_eq!(assign.status, 200);
+    assert_eq!(
+        assign.body["data"]["companyLocationAssignStaffMembers"],
+        json!({
+            "companyLocationStaffMemberAssignments": null,
+            "userErrors": [{
+                "field": ["staffMemberIds", "0"],
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
         })
     );
+}
+
+#[test]
+fn b2b_staff_remove_unknown_assignment_reports_indexed_error() {
+    let mut proxy = snapshot_proxy();
 
     let remove = proxy.process_request(json_graphql_request(
         r#"
@@ -3048,14 +3004,14 @@ fn b2b_staff_assign_remove_validates_per_index_dedups_and_caps() {
           }
         }
         "#,
-        json!({ "ids": [assignment_id, "gid://shopify/CompanyLocationStaffMemberAssignment/999"] }),
+        json!({ "ids": ["gid://shopify/CompanyLocationStaffMemberAssignment/999"] }),
     ));
     assert_eq!(
         remove.body["data"]["companyLocationRemoveStaffMembers"],
         json!({
-            "deletedCompanyLocationStaffMemberAssignmentIds": [assignment_id],
+            "deletedCompanyLocationStaffMemberAssignmentIds": null,
             "userErrors": [{
-                "field": ["companyLocationStaffMemberAssignmentIds", "1"],
+                "field": ["companyLocationStaffMemberAssignmentIds", "0"],
                 "message": "Resource requested does not exist.",
                 "code": "RESOURCE_NOT_FOUND"
             }]

@@ -231,6 +231,7 @@ describe('Rust HTTP adapter route surface', () => {
             nextStoreCreditAccountId: 1,
             nextStoreCreditTransactionId: 1,
             giftCards: {},
+            locallyCreatedCustomerIds: [],
             taggableResources: {},
             orders: {},
             deletedOrderIds: [],
