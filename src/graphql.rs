@@ -90,6 +90,16 @@ pub enum OperationType {
     Subscription,
 }
 
+impl OperationType {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            Self::Query => "query",
+            Self::Mutation => "mutation",
+            Self::Subscription => "subscription",
+        }
+    }
+}
+
 impl ParsedOperation {
     pub fn primary_root_field(&self) -> Option<&str> {
         self.root_fields.first().map(String::as_str)
@@ -404,11 +414,7 @@ fn graphql_named_type<'a>(type_: &'a Type<'a, &'a str>) -> Option<&'a str> {
 }
 
 fn operation_path(operation_type: OperationType, name: Option<&str>) -> String {
-    let operation_type = match operation_type {
-        OperationType::Query => "query",
-        OperationType::Mutation => "mutation",
-        OperationType::Subscription => "subscription",
-    };
+    let operation_type = operation_type.keyword();
     name.map_or_else(
         || operation_type.to_string(),
         |name| format!("{operation_type} {name}"),
