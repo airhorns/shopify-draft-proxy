@@ -375,7 +375,9 @@ impl DraftProxy {
         {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
-        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        let summary = self.discount_summary_for_input(typename, &input);
+        let mut record =
+            discount_record_from_input(&id, discount_kind, typename, &input, None, summary);
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -806,13 +808,16 @@ impl DraftProxy {
                 user_errors,
             ));
         }
+        let input = input.unwrap_or_default();
         let existing = self.discount_record(&id).cloned();
+        let summary = self.discount_summary_for_input(typename, &input);
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
-            &input.unwrap_or_default(),
+            &input,
             existing.as_ref(),
+            summary,
         );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
@@ -867,7 +872,9 @@ impl DraftProxy {
         {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
-        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        let summary = self.discount_summary_for_input(typename, &input);
+        let mut record =
+            discount_record_from_input(&id, discount_kind, typename, &input, None, summary);
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -919,8 +926,15 @@ impl DraftProxy {
             }
         };
         let existing = self.discount_record(&id).cloned();
-        let mut record =
-            discount_record_from_input(&id, discount_kind, typename, &input, existing.as_ref());
+        let summary = self.discount_summary_for_input(typename, &input);
+        let mut record = discount_record_from_input(
+            &id,
+            discount_kind,
+            typename,
+            &input,
+            existing.as_ref(),
+            summary,
+        );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -1756,6 +1770,113 @@ impl DraftProxy {
         } else {
             Some(candidate)
         }
+    }
+
+    fn discount_summary_for_input(
+        &self,
+        typename: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
+        if typename.contains("Bxgy") {
+            return discount_bxgy_summary(input);
+        }
+        if typename.contains("FreeShipping") {
+            return self.discount_free_shipping_summary_for_input(typename, input);
+        }
+        if typename.contains("Basic") {
+            return self.discount_basic_summary_for_input(input);
+        }
+        "Discount".to_string()
+    }
+
+    fn discount_basic_summary_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
+        discount_summary_with_parts(
+            format!(
+                "{} {}",
+                discount_amount_off_summary_value(input),
+                self.discount_basic_scope_for_input(input)
+            ),
+            [discount_minimum_requirement_summary(input)],
+        )
+    }
+
+    fn discount_free_shipping_summary_for_input(
+        &self,
+        typename: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
+        let scope = if typename.starts_with("DiscountAutomatic") {
+            "all products".to_string()
+        } else {
+            discount_purchase_scope_summary(input, &[], "all products", false)
+        };
+        discount_summary_with_parts(
+            format!("Free shipping on {scope}"),
+            [
+                discount_minimum_requirement_summary(input),
+                Some(discount_destination_summary(input)),
+                discount_maximum_shipping_price_summary(input),
+                resolved_bool_path(input, &["appliesOncePerCustomer"])
+                    .unwrap_or(false)
+                    .then(|| "One use per customer".to_string()),
+            ],
+        )
+    }
+
+    fn discount_basic_scope_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
+        if let Some(title) = self.discount_product_title_scope(input, &["customerGets", "items"]) {
+            return title;
+        }
+        discount_purchase_scope_summary(
+            input,
+            &["customerGets"],
+            "entire order",
+            self.shop_sells_subscriptions.unwrap_or(false),
+        )
+    }
+
+    fn discount_product_title_scope(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        path: &[&str],
+    ) -> Option<String> {
+        let mut products_path = path.to_vec();
+        products_path.extend(["products", "productsToAdd"]);
+        let products = resolved_string_list_path(input, &products_path);
+        if products.len() == 1 {
+            if let Some(title) = self.discount_product_title_for_gid(&products[0]) {
+                return Some(title);
+            }
+        }
+
+        let mut variants_path = path.to_vec();
+        variants_path.extend(["products", "productVariantsToAdd"]);
+        let variants = resolved_string_list_path(input, &variants_path);
+        if products.is_empty() && variants.len() == 1 {
+            if let Some(title) = self.discount_product_title_for_gid(&variants[0]) {
+                return Some(title);
+            }
+        }
+        None
+    }
+
+    fn discount_product_title_for_gid(&self, gid: &str) -> Option<String> {
+        if gid.starts_with("gid://shopify/Product/") {
+            return self
+                .store
+                .product_by_id(gid)
+                .map(|product| product.title.clone())
+                .filter(|title| !title.trim().is_empty());
+        }
+        if gid.starts_with("gid://shopify/ProductVariant/") {
+            let variant = self.store.product_variant_by_id(gid)?;
+            return self
+                .store
+                .product_by_id(&variant.product_id)
+                .map(|product| product.title.clone())
+                .filter(|title| !title.trim().is_empty());
+        }
+        None
     }
 }
 
@@ -2728,6 +2849,7 @@ fn discount_record_from_input(
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
+    summary: String,
 ) -> Value {
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
@@ -2806,7 +2928,7 @@ fn discount_record_from_input(
         "metafields": discount_metafields_from_input(input)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
-        "summary": discount_summary_for_input(typename, input)
+        "summary": summary
     })
 }
 
@@ -3248,8 +3370,8 @@ fn discount_customer_gets_from_input(
         } else {
             json!({ "__typename": "AllDiscountItems", "allItems": true })
         },
-        "appliesOnOneTimePurchase": true,
-        "appliesOnSubscription": false
+        "appliesOnOneTimePurchase": resolved_bool_path(input, &["customerGets", "appliesOnOneTimePurchase"]).unwrap_or(true),
+        "appliesOnSubscription": resolved_bool_path(input, &["customerGets", "appliesOnSubscription"]).unwrap_or(false)
     })
 }
 
@@ -3529,15 +3651,6 @@ fn compare_resource_ids(left: &str, right: &str) -> std::cmp::Ordering {
     }
 }
 
-fn discount_summary_for_input(typename: &str, input: &BTreeMap<String, ResolvedValue>) -> String {
-    if typename.contains("FreeShipping") {
-        return "Free shipping".to_string();
-    } else if typename.contains("Bxgy") {
-        return discount_bxgy_summary(input);
-    }
-    "Discount".to_string()
-}
-
 fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     let buy_quantity =
         resolved_i64_path(input, &["customerBuys", "value", "quantity"]).unwrap_or(1);
@@ -3565,6 +3678,136 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
         let percent = (effect_percentage * 100.0).round() as i64;
         format!("Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} at {percent}% off")
     }
+}
+
+fn discount_amount_off_summary_value(input: &BTreeMap<String, ResolvedValue>) -> String {
+    if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
+        return format!(
+            "{}% off",
+            discount_percentage_summary_number(percentage * 100.0)
+        );
+    }
+    if let Some(amount) = resolved_decimal_text_path(
+        input,
+        &["customerGets", "value", "discountAmount", "amount"],
+    ) {
+        return format!("{} off", discount_money_summary_amount(&amount));
+    }
+    "10% off".to_string()
+}
+
+fn discount_purchase_scope_summary(
+    input: &BTreeMap<String, ResolvedValue>,
+    base_path: &[&str],
+    default_scope: &str,
+    subscription_capable_default: bool,
+) -> String {
+    let mut one_time_path = base_path.to_vec();
+    one_time_path.push("appliesOnOneTimePurchase");
+    let mut subscription_path = base_path.to_vec();
+    subscription_path.push("appliesOnSubscription");
+    let applies_on_one_time = resolved_bool_path(input, &one_time_path);
+    let applies_on_subscription = resolved_bool_path(input, &subscription_path);
+    match (applies_on_one_time, applies_on_subscription) {
+        (Some(false), Some(true)) => "subscription products".to_string(),
+        (Some(true), Some(false)) => "one-time purchase products".to_string(),
+        (Some(true), Some(true)) => "all products".to_string(),
+        (None, None) if subscription_capable_default => "one-time purchase products".to_string(),
+        _ => default_scope.to_string(),
+    }
+}
+
+fn discount_minimum_requirement_summary(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    if let Some(amount) = resolved_decimal_text_path(
+        input,
+        &[
+            "minimumRequirement",
+            "subtotal",
+            "greaterThanOrEqualToSubtotal",
+        ],
+    ) {
+        return Some(format!(
+            "Minimum purchase of {}",
+            discount_money_summary_amount(&amount)
+        ));
+    }
+    resolved_i64_path(
+        input,
+        &[
+            "minimumRequirement",
+            "quantity",
+            "greaterThanOrEqualToQuantity",
+        ],
+    )
+    .map(|quantity| format!("Minimum quantity of {quantity}"))
+}
+
+fn discount_destination_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_object_path(Some(&input_value), &["destination", "countries"]).is_some() {
+        let countries = resolved_string_list_path(input, &["destination", "countries", "add"]);
+        return match countries.as_slice() {
+            [country] => format!("For {}", discount_country_summary_name(country)),
+            countries => format!("For {} countries", countries.len()),
+        };
+    }
+    "For all countries".to_string()
+}
+
+fn discount_maximum_shipping_price_summary(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<String> {
+    resolved_decimal_text_path(input, &["maximumShippingPrice"]).map(|amount| {
+        format!(
+            "Applies to shipping rates under {}",
+            discount_money_summary_amount(&amount)
+        )
+    })
+}
+
+fn discount_summary_with_parts(
+    lead: String,
+    parts: impl IntoIterator<Item = Option<String>>,
+) -> String {
+    std::iter::once(lead)
+        .chain(parts.into_iter().flatten())
+        .collect::<Vec<_>>()
+        .join(" • ")
+}
+
+fn discount_percentage_summary_number(value: f64) -> String {
+    let rounded = value.round();
+    if (value - rounded).abs() < 0.000_000_1 {
+        return format!("{rounded:.0}");
+    }
+    trim_decimal_zeros(&format!("{value:.2}"))
+}
+
+fn discount_money_summary_amount(amount: &str) -> String {
+    let parsed = amount.trim().parse::<f64>().unwrap_or(0.0).abs();
+    format!("${parsed:.2}")
+}
+
+fn trim_decimal_zeros(value: &str) -> String {
+    value
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_string()
+}
+
+fn discount_country_summary_name(country_code: &str) -> String {
+    match country_code {
+        "AU" => "Australia",
+        "CA" => "Canada",
+        "DE" => "Germany",
+        "DK" => "Denmark",
+        "FR" => "France",
+        "GB" => "United Kingdom",
+        "JP" => "Japan",
+        "US" => "United States",
+        _ => country_code,
+    }
+    .to_string()
 }
 
 pub(in crate::proxy) fn gift_card_create_record(

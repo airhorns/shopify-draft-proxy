@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for singular native DiscountCodeBasic detail roots after creating a temporary code discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/codeDiscountNode/codeDiscountNodeByCode reads.",
+  "notes": "Executable parity coverage for singular native DiscountCodeBasic detail roots after creating a temporary code discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/codeDiscountNode/codeDiscountNodeByCode reads. The summary target explicitly protects Shopify's computed amount-off summary string.",
   "comparison": {
     "mode": "strict-json",
     "targets": [
@@ -19,6 +19,12 @@
         "name": "discount-code-basic-detail-data",
         "capturePath": "$.response.data",
         "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "discount-code-basic-detail-summary",
+        "capturePath": "$.response.data.discountNode.discount.summary",
+        "proxyPath": "$.data.discountNode.discount.summary",
         "upstreamCapturePath": null
       }
     ],
