@@ -2269,7 +2269,10 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
         mutation B2BLocationCreateFallback($companyId: ID!) {
           companyLocationCreate(
             companyId: $companyId,
-            input: { shippingAddress: { address1: "456 Side", city: "Austin", countryCode: "US" } }
+            input: {
+              phone: "+14155550100",
+              shippingAddress: { address1: "456 Side", city: "Austin", countryCode: "US" }
+            }
           ) {
             companyLocation { id name company { id name } shippingAddress { id address1 } billingAddress { id address1 } }
             userErrors { field message code }
@@ -2370,6 +2373,76 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
             && entry["stagedResourceIds"]
                 .as_array()
                 .is_some_and(|ids| ids.iter().any(|id| id == &json!(second_location_id)))
+    }));
+}
+
+#[test]
+fn b2b_company_location_create_address_only_returns_no_input_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Address Only Co");
+
+    let create_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLocationCreateAddressOnly($companyId: ID!) {
+          companyLocationCreate(
+            companyId: $companyId,
+            input: { shippingAddress: { address1: "Only Address", countryCode: "US" } }
+          ) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(create_location.status, 200);
+    assert_eq!(
+        create_location.body["data"]["companyLocationCreate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Company location create input is empty.",
+                "code": "NO_INPUT"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLocationCreateAddressOnlyRead($companyId: ID!) {
+          company(id: $companyId) {
+            locations(first: 5) { nodes { id name } }
+          }
+          companyLocations(first: 5) { nodes { id name } }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["locations"]["nodes"]
+            .as_array()
+            .expect("company locations")
+            .len(),
+        1
+    );
+    assert_eq!(
+        read.body["data"]["companyLocations"]["nodes"]
+            .as_array()
+            .expect("all locations")
+            .len(),
+        1
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("log entries");
+    assert!(entries.iter().any(|entry| {
+        entry["status"] == json!("failed")
+            && entry["interpreted"]["primaryRootField"] == json!("companyLocationCreate")
+            && entry["stagedResourceIds"]
+                .as_array()
+                .is_some_and(|ids| ids.is_empty())
     }));
 }
 
