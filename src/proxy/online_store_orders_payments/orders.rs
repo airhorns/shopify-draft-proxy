@@ -330,15 +330,7 @@ pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) 
 }
 
 pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-pub(in crate::proxy) fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    money_set(&format_money_amount(amount), currency_code)
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -604,7 +596,7 @@ pub(in crate::proxy) fn order_create_tax_lines(
             json!({
                 "title": resolved_string_field(&tax_line, "title").unwrap_or_default(),
                 "rate": resolved_number_field(&tax_line, "rate").unwrap_or(0.0),
-                "priceSet": order_create_money_set(price, &price_currency)
+                "priceSet": money_bag(price, &price_currency)
             })
         })
         .collect()
@@ -655,7 +647,7 @@ pub(in crate::proxy) fn order_create_line_item_discount_allocations(
                 .get("currencyCode")
                 .and_then(Value::as_str)
                 .unwrap_or(currency_code);
-            Some(json!({ "allocatedAmountSet": order_create_money_set(amount, currency) }))
+            Some(json!({ "allocatedAmountSet": money_bag(amount, currency) }))
         })
         .collect()
 }
@@ -828,7 +820,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": money_set(&format_money_amount(amount), &currency)
+        "amountSet": money_bag(amount, &currency)
     })
 }
 
@@ -864,6 +856,7 @@ pub(in crate::proxy) fn order_create_payment_fields(
     transactions: &[Value],
     total: f64,
     currency_code: &str,
+    presentment_currency_code: &str,
 ) {
     let authorization = transactions
         .iter()
@@ -884,10 +877,14 @@ pub(in crate::proxy) fn order_create_payment_fields(
     };
     order["capturable"] = json!(capturable > 0.0);
     order["totalCapturable"] = json!(format_money_amount(capturable));
-    order["totalCapturableSet"] = order_create_money_set(capturable, currency_code);
-    order["totalOutstandingSet"] = order_create_money_set(outstanding, currency_code);
-    order["totalReceivedSet"] = order_create_money_set(received, currency_code);
-    order["netPaymentSet"] = order_create_money_set(received, currency_code);
+    order["totalCapturableSet"] =
+        money_bag_from_amount(capturable, currency_code, presentment_currency_code);
+    order["totalOutstandingSet"] =
+        money_bag_from_amount(outstanding, currency_code, presentment_currency_code);
+    order["totalReceivedSet"] =
+        money_bag_from_amount(received, currency_code, presentment_currency_code);
+    order["netPaymentSet"] =
+        money_bag_from_amount(received, currency_code, presentment_currency_code);
     order["paymentGatewayNames"] = Value::Array(
         transactions
             .iter()
@@ -1594,6 +1591,15 @@ impl DraftProxy {
             })
     }
 
+    pub(super) fn order_id_for_fulfillment_order(
+        &mut self,
+        fulfillment_order_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        self.staged_order_id_for_fulfillment_order(fulfillment_order_id)
+            .or_else(|| self.hydrate_order_for_fulfillment_order(fulfillment_order_id, request))
+    }
+
     pub(super) fn stage_hydrated_order(&mut self, mut order: Value) -> Option<String> {
         normalize_hydrated_order(&mut order);
         let id = order.get("id").and_then(Value::as_str)?.to_string();
@@ -1894,8 +1900,8 @@ impl DraftProxy {
                     "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
                     "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
                     "source": resolved_string_field(&shipping_line, "source").unwrap_or_default(),
-                    "originalPriceSet": order_create_money_set(amount, &shipping_currency),
-                    "priceSet": order_create_money_set(amount, &shipping_currency),
+                    "originalPriceSet": money_bag(amount, &shipping_currency),
+                    "priceSet": money_bag(amount, &shipping_currency),
                     "taxLines": tax_lines
                 })
             })
@@ -1954,15 +1960,15 @@ impl DraftProxy {
             "customAttributes": order_create_custom_attributes(order_input, "customAttributes"),
             "billingAddress": order_create_address(resolved_object_field(order_input, "billingAddress")),
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
-            "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
-            "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
+            "subtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
+            "currentSubtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
             "totalShippingPriceSet": money_bag_from_amount(shipping_total, &currency_code, &presentment_currency_code),
-            "totalTaxSet": order_create_money_set(tax_total, &currency_code),
-            "currentTotalTaxSet": order_create_money_set(tax_total, &currency_code),
-            "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
-            "currentTotalDiscountsSet": order_create_money_set(discount_total, &currency_code),
-            "currentTotalPriceSet": order_create_money_set(total, &currency_code),
-            "totalPriceSet": order_create_money_set(total, &currency_code),
+            "totalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
+            "currentTotalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
+            "totalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
+            "currentTotalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
+            "currentTotalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
+            "totalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
@@ -1970,17 +1976,13 @@ impl DraftProxy {
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
         });
-        if let Some(object) = order.as_object_mut() {
-            object.insert(
-                "currentTotalPriceSet".to_string(),
-                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
-            );
-            object.insert(
-                "totalPriceSet".to_string(),
-                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
-            );
-        }
-        order_create_payment_fields(&mut order, &transactions, total, &currency_code);
+        order_create_payment_fields(
+            &mut order,
+            &transactions,
+            total,
+            &currency_code,
+            &presentment_currency_code,
+        );
         order
     }
 
