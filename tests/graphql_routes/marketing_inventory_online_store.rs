@@ -3159,6 +3159,24 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
         })
     );
 
+    let on_hand_too_low = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-on-hand-too-low-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-too-low", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        on_hand_too_low.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be lower than -1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_LOW"
+            }]
+        })
+    );
+
     let available_too_low = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "set-available-too-low-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-too-low", "quantities": [
