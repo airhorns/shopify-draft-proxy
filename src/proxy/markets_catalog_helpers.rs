@@ -1161,6 +1161,7 @@ pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
         "VND" => "Vietnamese Dong",
         "VUV" => "Vanuatu Vatu",
         "WST" => "Samoan Tala",
+        "XAF" => "Central African CFA Franc",
         "XCD" => "East Caribbean Dollar",
         "YER" => "Yemeni Rial",
         "ZAR" => "South African Rand",
@@ -1327,10 +1328,6 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: 
 
 pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) -> Value {
     user_error_omit_code(field, message, None)
-}
-
-pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
-    !id.contains("9999999999") && !id.contains("unknown")
 }
 
 pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {

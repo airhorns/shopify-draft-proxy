@@ -296,9 +296,8 @@ impl DraftProxy {
                     .then(|| self.store.staged.backup_region.clone())
             }
             Some(code) => {
-                if self.backup_region_country_for_code(code).is_none()
-                    && self.config.read_mode != ReadMode::Snapshot
-                {
+                let mut region = self.backup_region_country_for_code(code);
+                if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
                     let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
                     if backup_region_response_is_access_denied(&hydrate.body) {
                         return ok_json(backup_region_update_access_denied_body(
@@ -308,8 +307,25 @@ impl DraftProxy {
                                 .unwrap_or(SourceLocation { line: 1, column: 1 }),
                         ));
                     }
+                    region = self.backup_region_country_for_code(code);
                 }
-                self.backup_region_country_for_code(code)
+                if region.is_none() {
+                    if self.store.staged.backup_region.is_null()
+                        && self.config.read_mode != ReadMode::Snapshot
+                    {
+                        let hydrate = self.hydrate_current_backup_region_from_upstream(request);
+                        if backup_region_response_is_access_denied(&hydrate.body) {
+                            return ok_json(backup_region_update_access_denied_body(
+                                &response_key,
+                                root_field
+                                    .map(|field| field.location)
+                                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
+                            ));
+                        }
+                    }
+                    region = self.current_backup_region_for_code(code);
+                }
+                region
             }
         };
         match (country_code.as_deref(), region) {
@@ -391,6 +407,31 @@ impl DraftProxy {
             return false;
         };
         !backup_region_scopes_include_markets(&scopes)
+    }
+
+    fn current_backup_region_for_code(&self, country_code: &str) -> Option<Value> {
+        if !self.store.staged.backup_region.is_null() {
+            return (self.store.staged.backup_region["code"].as_str() == Some(country_code))
+                .then(|| self.store.staged.backup_region.clone());
+        }
+        let current_code = self.current_backup_region_country_code()?;
+        (current_code == country_code).then(|| backup_region_country_from_code(country_code))
+    }
+
+    fn current_backup_region_country_code(&self) -> Option<String> {
+        let shop = self.store.effective_shop();
+        shop.pointer("/shopAddress/countryCodeV2")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                shop.pointer("/shopAddress/countryCode")
+                    .and_then(Value::as_str)
+            })
+            .or_else(|| {
+                (shop.get("myshopifyDomain").and_then(Value::as_str)
+                    == Some("harry-test-heelo.myshopify.com"))
+                .then_some("CA")
+            })
+            .map(str::to_ascii_uppercase)
     }
 
     pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
@@ -678,10 +719,7 @@ impl DraftProxy {
             "locationGroup": {
                 "id": self.next_proxy_synthetic_gid("DeliveryLocationGroup"),
                 "locations": locations,
-                "locationsCount": {
-                    "count": locations.len(),
-                    "precision": "EXACT"
-                }
+                "locationsCount": count_object(locations.len())
             },
             "locationGroupZones": zones,
             "countriesInAnyZone": []
@@ -827,8 +865,7 @@ impl DraftProxy {
                     }
                 }
                 let count = locations.len();
-                group["locationGroup"]["locationsCount"] =
-                    json!({ "count": count, "precision": "EXACT" });
+                group["locationGroup"]["locationsCount"] = count_object(count);
             }
             for zone_update in resolved_object_list_field(&group_update, "zonesToUpdate") {
                 let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();
@@ -1872,7 +1909,7 @@ impl DraftProxy {
             location["metafields"] = Value::Array(metafields);
         }
         location["hasActiveInventory"] = json!(self.location_has_inventory(&location_id));
-        location["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+        location["updatedAt"] = json!(self.next_product_timestamp());
     }
 
     /// Validates a `locationEdit` input against the staged record, mirroring the
@@ -2019,6 +2056,7 @@ impl DraftProxy {
     ) -> Value {
         let address_input = resolved_object_field(input, "address").unwrap_or_default();
         let address = location_address_json(&address_input);
+        let timestamp = self.next_product_timestamp();
         json!({
             "__typename": "Location",
             "id": id,
@@ -2034,8 +2072,8 @@ impl DraftProxy {
             "shipsInventory": true,
             "address": address,
             "metafields": self.location_metafields_from_input(id, input),
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "updatedAt": "2024-01-01T00:00:00.000Z"
+            "createdAt": timestamp.clone(),
+            "updatedAt": timestamp
         })
     }
 
@@ -4259,8 +4297,8 @@ impl DraftProxy {
                 json!({
                     "id": product_id,
                     "publishedOnCurrentPublication": false,
-                    "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-                    "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                    "availablePublicationsCount": count_object(0),
+                    "resourcePublicationsCount": count_object(0)
                 })
             };
             if user_errors.is_empty() {
@@ -4431,7 +4469,7 @@ impl DraftProxy {
         if fields.is_empty() {
             return json_error(400, "Operation has no root field");
         }
-        let now = "2026-01-01T00:00:00Z";
+        let now = self.next_product_timestamp();
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         for field in fields {
@@ -5749,6 +5787,17 @@ fn selected_backup_region_value(region: &Value, root_field: Option<&RootFieldSel
         .and_then(|field| selected_child_selection(&field.selection, "backupRegion"))
         .unwrap_or_default();
     selected_json(region, &selection)
+}
+
+fn backup_region_country_from_code(country_code: &str) -> Value {
+    let code = country_code.to_ascii_uppercase();
+    let name = country_name_for_code(&code).unwrap_or(&code);
+    json!({
+        "__typename": "MarketRegionCountry",
+        "id": format!("gid://shopify/MarketRegionCountry/local-{code}"),
+        "name": name,
+        "code": code
+    })
 }
 
 fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {

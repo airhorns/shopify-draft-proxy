@@ -7,7 +7,7 @@ fn record_matches_type(record: &Value, typename: &str) -> bool {
         || record
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with(&format!("gid://shopify/{typename}/")))
+            .is_some_and(|id| is_shopify_gid_of_type(id, typename))
 }
 
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {

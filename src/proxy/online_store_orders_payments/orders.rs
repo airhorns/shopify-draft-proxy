@@ -79,12 +79,8 @@ pub(in crate::proxy) fn order_line_inventory_item_id(
     line_item: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
     resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId").map(|variant_id| {
-            format!(
-                "gid://shopify/InventoryItem/{}",
-                resource_id_tail(&variant_id)
-            )
-        })
+        resolved_string_field(line_item, "variantId")
+            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
     })
 }
 
@@ -106,12 +102,13 @@ pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
 pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     money_set: &Value,
     order: &Value,
+    shop_currency_code: &str,
 ) -> Value {
     let shop_amount =
         payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
         payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
@@ -136,9 +133,14 @@ pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
         .unwrap_or(0.0)
 }
 
-pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
-    let left = order_money_set_with_presentment_fallback(left, order);
-    let right = order_money_set_with_presentment_fallback(right, order);
+pub(in crate::proxy) fn add_order_money_sets(
+    left: &Value,
+    right: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
+    let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
+    let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
     let left_shop = payment_money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
@@ -153,7 +155,7 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
         .unwrap_or(right_shop);
     let shop_currency = payment_money_currency(&right, "shopMoney")
         .or_else(|| payment_money_currency(&left, "shopMoney"))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
@@ -165,10 +167,14 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
     )
 }
 
-pub(in crate::proxy) fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
+pub(in crate::proxy) fn zero_order_money_set_like(
+    money_set: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
@@ -209,10 +215,7 @@ pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
 pub(in crate::proxy) fn orders_empty_count_payload() -> Value {
     json!({
         "data": {
-            "ordersCount": {
-                "count": 0,
-                "precision": "EXACT"
-            }
+            "ordersCount": count_object(0)
         }
     })
 }
@@ -556,11 +559,7 @@ pub(in crate::proxy) fn order_update_metafields(
                 })
                 .and_then(|m| m["id"].as_str().map(str::to_string))
                 .unwrap_or_else(|| {
-                    format!(
-                        "gid://shopify/Metafield/{}{}",
-                        resource_id_tail(order_id),
-                        index + 1
-                    )
+                    shopify_gid("Metafield", format!("{}{}", resource_id_tail(order_id), index + 1))
                 });
             Some(json!({
                 "id": metafield_id,
@@ -641,6 +640,7 @@ pub(in crate::proxy) fn order_create_discount_amount(
 
 pub(in crate::proxy) fn order_create_line_item_discount_allocations(
     discounts: &[Value],
+    currency_code: &str,
 ) -> Vec<Value> {
     discounts
         .iter()
@@ -654,7 +654,7 @@ pub(in crate::proxy) fn order_create_line_item_discount_allocations(
             let currency = value
                 .get("currencyCode")
                 .and_then(Value::as_str)
-                .unwrap_or("CAD");
+                .unwrap_or(currency_code);
             Some(json!({ "allocatedAmountSet": order_create_money_set(amount, currency) }))
         })
         .collect()
@@ -741,7 +741,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "fulfillmentStatus": resolved_string_field(input, "fulfillmentStatus"),
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
-        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
+        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
         "originalUnitPriceSet": json!({
             "shopMoney": {
                 "amount": format_money_amount(unit_amount),
@@ -1206,7 +1206,7 @@ impl DraftProxy {
             _ => (matched, "EXACT"),
         };
         selected_json(
-            &json!({ "count": count, "precision": precision }),
+            &count_object_with_precision(count, precision),
             &field.selection,
         )
     }
@@ -1854,7 +1854,7 @@ impl DraftProxy {
     ) -> Value {
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
-            .unwrap_or_else(|| "CAD".to_string());
+            .unwrap_or_else(|| self.store.shop_currency_code());
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
             .unwrap_or_else(|| currency_code.clone());
@@ -2257,10 +2257,7 @@ impl DraftProxy {
                 )],
             );
         }
-        let calculated_id = format!(
-            "gid://shopify/CalculatedOrder/{}",
-            resource_id_tail(&order_id)
-        );
+        let calculated_id = shopify_gid("CalculatedOrder", resource_id_tail(&order_id));
         let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
         let session = oe_build_session(&order, &calculated_id, &session_id);
         let view = oe_calc_order_view(&session);

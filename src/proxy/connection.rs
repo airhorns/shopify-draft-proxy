@@ -18,6 +18,20 @@ pub(in crate::proxy) fn empty_page_info() -> Value {
     connection_page_info(false, false, None, None)
 }
 
+pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
+    count_object_with_precision(count, "EXACT")
+}
+
+pub(in crate::proxy) fn count_object_with_precision(
+    count: impl serde::Serialize,
+    precision: &str,
+) -> Value {
+    json!({
+        "count": count,
+        "precision": precision
+    })
+}
+
 pub(in crate::proxy) fn connection_window<T, F>(
     records: &[T],
     arguments: &BTreeMap<String, ResolvedValue>,

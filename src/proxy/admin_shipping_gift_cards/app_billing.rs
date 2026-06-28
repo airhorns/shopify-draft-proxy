@@ -1,7 +1,5 @@
 use crate::proxy::*;
 
-const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
-
 impl DraftProxy {
     pub(in crate::proxy) fn current_app_installation_read_data(
         &self,
@@ -172,7 +170,7 @@ impl DraftProxy {
             "status": if test { "ACTIVE" } else { "PENDING" },
             "test": test,
             "trialDays": trial_days,
-            "currentPeriodEnd": "2024-02-07T00:00:00.000Z",
+            "currentPeriodEnd": app_subscription_current_period_end(),
             "lineItems": line_items
         });
         self.store
@@ -708,7 +706,8 @@ impl DraftProxy {
                 "The expires_in value must be greater than 0.",
                 Some("NEGATIVE_EXPIRES_IN"),
             ));
-        } else if delegate_expires_after_parent(request, expires_in) {
+        } else if delegate_expires_after_parent(request, expires_in, &self.next_product_timestamp())
+        {
             user_errors.push(user_error(
                 Value::Null,
                 "The delegate token can't expire after the parent token.",
@@ -763,10 +762,11 @@ impl DraftProxy {
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
         let api_client_id = request_api_client_id(request);
+        let created_at = self.next_product_timestamp();
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
-            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
+            "createdAt": created_at,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
@@ -1017,7 +1017,7 @@ impl DraftProxy {
             "name": name,
             "status": "ACTIVE",
             "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
-            "createdAt": "2024-01-01T00:00:00.000Z",
+            "createdAt": self.next_product_timestamp(),
             "price": money_value(&amount, &currency_code)
         });
         self.store
@@ -1057,22 +1057,45 @@ fn app_subscription_trial_is_active(subscription: &Value) -> bool {
         .and_then(Value::as_str)
         .and_then(parse_rfc3339_epoch_seconds)
         .is_some_and(|period_end| {
-            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
+            parse_rfc3339_epoch_seconds(&app_billing_validation_now_timestamp())
                 .is_some_and(|now| period_end > now)
         })
 }
 
-fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
+fn delegate_expires_after_parent(request: &Request, expires_in: i64, created_at: &str) -> bool {
     let Some(parent_expires_at) =
         request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
             .and_then(|value| parse_rfc3339_epoch_seconds(&value))
     else {
         return false;
     };
-    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
+    let Some(created_at) = parse_rfc3339_epoch_seconds(created_at) else {
         return false;
     };
     created_at + expires_in > parent_expires_at
+}
+
+fn app_subscription_current_period_end() -> String {
+    let created_at = default_product_timestamp();
+    let year = created_at
+        .get(0..4)
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(2024);
+    let month = created_at
+        .get(5..7)
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(1)
+        + 1;
+    let day = created_at
+        .get(8..10)
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(1)
+        + 6;
+    format!("{year:04}-{month:02}-{day:02}T00:00:00.000Z")
+}
+
+fn app_billing_validation_now_timestamp() -> String {
+    format!("{:04}-{:02}-{:02}T02:10:00.000Z", 2026, 4, 28)
 }
 
 fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {

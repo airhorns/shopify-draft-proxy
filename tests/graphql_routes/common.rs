@@ -76,6 +76,19 @@ pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) ->
     )
 }
 
+pub(super) fn restore_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
 pub(super) fn product_fixture(path: &str) -> Value {
     serde_json::from_str(path).expect("product fixture must parse")
 }

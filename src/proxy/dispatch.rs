@@ -301,13 +301,7 @@ impl DraftProxy {
         let data = root_payload_json(&fields, |field| match field.name.as_str() {
             "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
             "orders" => Some(connection_json(Vec::new())),
-            "ordersCount" => Some(selected_json(
-                &json!({
-                    "count": 0,
-                    "precision": "EXACT"
-                }),
-                &field.selection,
-            )),
+            "ordersCount" => Some(selected_json(&count_object(0), &field.selection)),
             _ => None,
         });
         ok_json(json!({ "data": data }))
@@ -1613,6 +1607,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.localization_mutation_preflight(&fields, request);
                 let data = self.localization_mutation_data(&fields);
                 self.record_mutation_log_entry(
                     request,

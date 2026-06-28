@@ -71,6 +71,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     api_client_id: Option<String>,
+    timestamp: &str,
 ) -> Value {
     let old = existing.cloned().unwrap_or_else(|| json!({}));
     let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
@@ -144,12 +145,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
-        .unwrap_or_else(|| {
-            format!(
-                "gid://shopify/MarketingEvent/{}",
-                numeric.parse::<u64>().unwrap_or(1) + 1
-            )
-        });
+        .unwrap_or_else(|| shopify_gid("MarketingEvent", numeric.parse::<u64>().unwrap_or(1) + 1));
     let status_label = marketing_status_label(&status, &tactic, None);
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)
@@ -168,14 +164,18 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let scheduled_to_end_at = resolved_string_field(&input, "scheduledEnd")
         .map(Value::String)
         .unwrap_or_else(|| old["marketingEvent"]["scheduledToEndAt"].clone());
+    let created_at = old["createdAt"].as_str().unwrap_or(timestamp);
+    let started_at = old["marketingEvent"]["startedAt"]
+        .as_str()
+        .unwrap_or(timestamp);
     json!({
         "__typename": "MarketingActivity",
         "id": id,
         "apiClientId": api_client_id,
         "title": title,
         "remoteId": remote_id,
-        "createdAt": old["createdAt"].as_str().unwrap_or("2026-05-05T00:00:00Z"),
-        "updatedAt": "2026-05-05T00:00:00Z",
+        "createdAt": created_at,
+        "updatedAt": timestamp,
         "status": status,
         "statusLabel": status_label,
         "targetStatus": null,
@@ -201,8 +201,8 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             "type": tactic,
             "remoteId": remote_id,
             "channelHandle": channel_handle,
-            "startedAt": "2026-05-05T00:00:00Z",
-            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
+            "startedAt": started_at,
+            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!(timestamp) } else { Value::Null },
             "scheduledToEndAt": scheduled_to_end_at,
             "manageUrl": remote_url,
             "previewUrl": preview_url,

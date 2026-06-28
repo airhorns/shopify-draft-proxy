@@ -1146,7 +1146,7 @@ impl Store {
         shop
     }
 
-    fn shop_currency_code(&self) -> String {
+    pub(in crate::proxy) fn shop_currency_code(&self) -> String {
         self.base
             .shop
             .get("currencyCode")
@@ -1154,6 +1154,15 @@ impl Store {
             .filter(|currency| !currency.is_empty())
             .unwrap_or("USD")
             .to_string()
+    }
+
+    fn shop_money_format(&self) -> Option<String> {
+        self.base
+            .shop
+            .pointer("/currencyFormats/moneyFormat")
+            .and_then(Value::as_str)
+            .filter(|format| !format.is_empty())
+            .map(str::to_string)
     }
 
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
@@ -1897,6 +1906,7 @@ mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
+mod scalar_helpers;
 mod schema_validation;
 mod selection;
 mod selling_plans;
@@ -1924,6 +1934,8 @@ pub(in crate::proxy) use self::product_options::*;
 pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;

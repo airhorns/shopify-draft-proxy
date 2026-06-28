@@ -293,7 +293,7 @@ await writeFile(
       storeDomain,
       apiVersion,
       scope:
-        'catalogContextUpdate required-context validation, remove-only update, duplicate market add behavior, and catalog-not-found typing',
+        'catalogContextUpdate required-context validation, remove-only update, duplicate market add behavior, catalog-not-found typing, and catalogsCount after catalog writes',
       setup: {
         suffix,
         createdMarketIds,

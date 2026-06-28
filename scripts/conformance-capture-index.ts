@@ -3042,6 +3042,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-summary.json`,
       'config/parity-specs/selling-plans/sellingPlanGroup-summary.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupShopCurrency.graphql',
       'config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql',
       'config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql',
     ],
@@ -4729,18 +4730,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-market-currency-settings-conformance.mts',
     purpose:
-      'marketCreate currencySettings localCurrencies and roundingEnabled accepted shapes, read-after-write, and baseCurrencyManualRate positive-value validation.',
+      'marketCreate currencySettings localCurrencies and roundingEnabled accepted shapes, read-after-write, baseCurrencyManualRate positive-value validation, and CurrencyCode enum coercion.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-currency-settings.json`,
       'config/parity-specs/markets/market-create-currency-settings-euro-name.json',
+      'config/parity-specs/markets/market-create-currency-settings-enum-coercion.json',
       'config/parity-specs/markets/market-create-currency-settings-flags.json',
       'config/parity-specs/markets/market-create-currency-settings-manual-rate-validation.json',
+      'config/parity-specs/markets/market-create-currency-settings-xaf-base-currency.json',
       'config/parity-requests/markets/market-create-currency-settings.graphql',
       'config/parity-requests/markets/market-create-currency-settings-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable Markets Home markets with currencySettings flags and a non-USD base currency, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
+      'Creates disposable Markets Home markets with currencySettings flags and non-USD base currencies, reads them back, captures validation-only manual-rate and invalid-currency branches, then deletes created markets in reverse order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4749,7 +4752,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-context-update-conformance.ts',
     purpose:
-      'catalogContextUpdate required-context validation, remove-only context updates, duplicate market add behavior, catalog-not-found typing, and downstream catalog reads.',
+      'catalogContextUpdate required-context validation, remove-only context updates, duplicate market add behavior, catalog-not-found typing, downstream catalog reads, and catalogsCount after catalog writes.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}catalog-context-update-lifecycle.json`,
@@ -8887,21 +8890,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-conformance.mts',
-    purpose: 'Admin platform utility roots and staff/access blocker evidence.',
+    purpose:
+      'Admin platform utility roots, backupRegion current-region update/readback, MarketRegionCountry node readback, and staff/access blocker evidence.',
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
       `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-backup-region-update.json',
       'config/parity-specs/admin-platform/admin-platform-job-arbitrary-gid.json',
+      'config/parity-specs/admin-platform/admin-platform-market-region-node-read.json',
       'config/parity-specs/admin-platform/admin-platform-node-malformed-gid.json',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-read.graphql',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-idempotent.graphql',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-invalid.graphql',
       'config/parity-requests/admin-platform/admin-platform-job-arbitrary-gid.graphql',
+      'config/parity-requests/admin-platform/admin-platform-market-region-node-read.graphql',
       'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-node.graphql',
       'config/parity-requests/admin-platform/admin-platform-node-malformed-gid-nodes.graphql',
       'config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-validation.json',
       'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
-    cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
+    cleanupBehavior:
+      'Read-only, blocked-root, and idempotent current backup-region capture; no net Shopify state change or cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -20,7 +20,7 @@ fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
     assert_eq!(line["taxable"], json!(true));
     assert_eq!(
         line["originalUnitPriceSet"]["shopMoney"],
-        json!({ "amount": "19.95", "currencyCode": "CAD" })
+        json!({ "amount": "19.95", "currencyCode": "USD" })
     );
     assert_eq!(
         line["variant"],
@@ -42,9 +42,73 @@ fn assert_draft_order_custom_line(line: &Value) {
     assert_eq!(line["taxable"], json!(false));
     assert_eq!(
         line["originalUnitPriceSet"]["shopMoney"],
-        json!({ "amount": "7.5", "currencyCode": "CAD" })
+        json!({ "amount": "7.5", "currencyCode": "USD" })
     );
     assert_eq!(line["variant"], Value::Null);
+}
+
+#[test]
+fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "EUR");
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderWithPresentmentCurrency($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              currencyCode
+              presentmentCurrencyCode
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) {
+                nodes {
+                  originalUnitPriceSet {
+                    shopMoney { amount currencyCode }
+                    presentmentMoney { amount currencyCode }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "presentment-currency@example.test",
+                "presentmentCurrency": "USD",
+                "lineItems": [{
+                    "title": "Presentment line",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "10.00", "currencyCode": "EUR" },
+                        "presentmentMoney": { "amount": "12.00", "currencyCode": "USD" }
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &response.body["data"]["orderCreate"]["order"];
+    assert_eq!(order["currencyCode"], json!("EUR"));
+    assert_eq!(order["presentmentCurrencyCode"], json!("USD"));
+    assert_eq!(
+        order["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "EUR" })
+    );
+    assert_eq!(
+        order["lineItems"]["nodes"][0]["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "EUR" })
+    );
+    assert_eq!(
+        order["lineItems"]["nodes"][0]["originalUnitPriceSet"]["presentmentMoney"],
+        json!({ "amount": "12.0", "currencyCode": "USD" })
+    );
 }
 
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
@@ -2202,11 +2266,11 @@ fn order_create_line_item_fields_and_currency_defaults_are_staged() {
     assert_eq!(custom.body["data"]["orderCreate"]["userErrors"], json!([]));
     assert_eq!(
         custom.body["data"]["orderCreate"]["order"]["currencyCode"],
-        json!("CAD")
+        json!("USD")
     );
     assert_eq!(
         custom.body["data"]["orderCreate"]["order"]["presentmentCurrencyCode"],
-        json!("CAD")
+        json!("USD")
     );
     let custom_line = &custom.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0];
     assert_eq!(custom_line["giftCard"], json!(true));
@@ -3139,7 +3203,7 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     assert_eq!(
         calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]["totalPriceSet"]
             ["shopMoney"],
-        json!({ "amount": "7.5", "currencyCode": "CAD" })
+        json!({ "amount": "7.5", "currencyCode": "USD" })
     );
 
     let duplicate = proxy.process_request(json_graphql_request(
@@ -3797,6 +3861,7 @@ fn draft_order_applied_discount_validation_replays_captured_shapes() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5662,6 +5727,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         // `normalize_money_amount` canonicalizes the input "57.00" to "57.0".
         json!({ "amount": "57.0", "currencyCode": "CAD" })
     );
+    assert_payment_terms_due_state(
+        &create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let multiple = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
@@ -5705,6 +5775,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     let draft_terms_id =
         draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    assert_payment_terms_due_state(
+        &draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let draft_delete = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5757,6 +5832,11 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     let cascade_order_terms_id =
         cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    assert_payment_terms_due_state(
+        &cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-06-04T00:00:00Z",
+    );
 
     let cascade_order_delete = proxy.process_request(json_graphql_request(
         include_str!(

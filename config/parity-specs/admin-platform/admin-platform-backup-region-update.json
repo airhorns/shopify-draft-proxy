@@ -14,7 +14,18 @@
   "notes": "HAR-374 executable parity for idempotent current-region backupRegionUpdate success, downstream backupRegion read-after-write, and unknown country validation. Broader country mappings remain constrained to captured evidence.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.backupRegion.id",
+        "matcher": "shopify-gid:MarketRegionCountry",
+        "reason": "The proxy derives the current backup-region country from local shop state and stages a synthetic MarketRegionCountry ID; Shopify returns an opaque live-store region ID."
+      },
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:MarketRegionCountry",
+        "reason": "The proxy derives the current backup-region country from local shop state and stages a synthetic MarketRegionCountry ID; Shopify returns an opaque live-store region ID."
+      }
+    ],
     "targets": [
       {
         "name": "idempotent-update-data",
