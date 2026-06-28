@@ -343,10 +343,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_customer_create(&mut self, field: &RootFieldSelection) -> Value {
-        let id = format!(
-            "gid://shopify/Customer/{}",
-            self.store.staged.customers.len() + 1
-        );
+        let id = shopify_gid("Customer", self.store.staged.customers.len() + 1);
         let record = json!({ "id": id });
         self.store.staged.customers.insert(id, record.clone());
         selected_json(
@@ -949,9 +946,9 @@ impl DraftProxy {
     }
 
     fn next_customer_payment_method_gid(&mut self) -> String {
-        let id = format!(
-            "gid://shopify/CustomerPaymentMethod/{}",
-            self.store.staged.next_customer_payment_method_id
+        let id = shopify_gid(
+            "CustomerPaymentMethod",
+            self.store.staged.next_customer_payment_method_id,
         );
         self.store.staged.next_customer_payment_method_id += 1;
         id

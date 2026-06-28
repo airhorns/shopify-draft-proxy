@@ -1,10 +1,7 @@
 use super::*;
 
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
-    json!({
-        "nodes": nodes,
-        "pageInfo": empty_page_info()
-    })
+    connection_json(nodes)
 }
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {

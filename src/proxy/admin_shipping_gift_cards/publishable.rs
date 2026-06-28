@@ -88,8 +88,8 @@ impl DraftProxy {
                 json!({
                     "id": product_id,
                     "publishedOnCurrentPublication": false,
-                    "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-                    "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                    "availablePublicationsCount": count_object(0),
+                    "resourcePublicationsCount": count_object(0)
                 })
             };
             if user_errors.is_empty() {

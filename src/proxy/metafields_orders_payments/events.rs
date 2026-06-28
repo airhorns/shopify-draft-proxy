@@ -4,11 +4,7 @@ pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> 
     root_payload_json(fields, |field| match field.name.as_str() {
         "event" => Some(Value::Null),
         "events" => Some(selected_json(
-            &json!({
-                "nodes": [],
-                "edges": [],
-                "pageInfo": empty_page_info()
-            }),
+            &connection_json(Vec::new()),
             &field.selection,
         )),
         "eventsCount" => Some(event_count_empty_json(&field.selection)),

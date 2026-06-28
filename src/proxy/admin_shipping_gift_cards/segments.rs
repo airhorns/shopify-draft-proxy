@@ -88,7 +88,7 @@ impl DraftProxy {
         if fields.is_empty() {
             return json_error(400, "Operation has no root field");
         }
-        let now = "2026-01-01T00:00:00Z";
+        let now = self.next_product_timestamp();
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         for field in fields {

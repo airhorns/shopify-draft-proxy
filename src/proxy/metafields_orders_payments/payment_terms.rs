@@ -67,6 +67,16 @@ pub(in crate::proxy) fn payment_terms_success_record(
             )
         })
         .unwrap_or((None, None));
+    let payment_schedule_connection = connection_json_with_cursor(
+        schedules.as_array().cloned().unwrap_or_default(),
+        |_, node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .map(|id| format!("cursor:{id}"))
+                .unwrap_or_default()
+        },
+        connection_page_info(false, false, start_cursor, end_cursor),
+    );
     json!({
         "id": id,
         "due": terms_due,
@@ -75,10 +85,7 @@ pub(in crate::proxy) fn payment_terms_success_record(
         "paymentTermsName": name,
         "paymentTermsType": terms_type,
         "translatedName": name,
-        "paymentSchedules": {
-            "nodes": schedules,
-            "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
-        }
+        "paymentSchedules": payment_schedule_connection
     })
 }
 
@@ -209,10 +216,12 @@ fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) 
     else {
         return false;
     };
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+    let Some(now_epoch) =
+        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2024-01-01T00:00:00Z")
+    else {
         return false;
     };
-    due_at_epoch <= now.as_secs() as i64
+    due_at_epoch <= now_epoch
 }
 
 /// Builds a materialized PaymentSchedule node from the owner money and the
@@ -402,7 +411,7 @@ pub(in crate::proxy) fn payment_terms_create_value(
             &field.selection,
         ));
     }
-    if let Some(id) = reference_id.strip_prefix("gid://shopify/Order/") {
+    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "Order") {
         if id == "123" {
             return Err(payment_terms_payload_value(
                 Value::Null,
@@ -415,7 +424,7 @@ pub(in crate::proxy) fn payment_terms_create_value(
             ));
         }
     }
-    if let Some(id) = reference_id.strip_prefix("gid://shopify/DraftOrder/") {
+    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "DraftOrder") {
         if id == "999999" {
             return Err(payment_terms_payload_value(
                 Value::Null,

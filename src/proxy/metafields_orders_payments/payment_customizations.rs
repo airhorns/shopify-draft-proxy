@@ -222,8 +222,7 @@ pub(in crate::proxy) fn payment_customization_function_matches(
 }
 
 pub(in crate::proxy) fn payment_customization_function_key(value: &str) -> String {
-    value
-        .strip_prefix("gid://shopify/ShopifyFunction/")
+    shopify_gid_tail_for_type(value, "ShopifyFunction")
         .unwrap_or(value)
         .replace(
             "conformance-payment-customization",

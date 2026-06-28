@@ -83,6 +83,54 @@ const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "hand-synthesized from checked-in cap
 const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str =
     "synthesized from live capture setup before disposable cleanup";
 
+const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationMutationTargetsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Market {
+      id
+      name
+      handle
+      status
+      type
+    }
+    ... on MarketWebPresence {
+      id
+      subfolderSuffix
+      domain {
+        id
+        host
+        url
+        sslEnabled
+      }
+      rootUrls {
+        locale
+        url
+      }
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      alternateLocales {
+        locale
+        name
+        primary
+        published
+      }
+      markets(first: 250) {
+        nodes {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}"#;
+
 /// Synthetic `updatedAt` stamped on locally-staged market localizations. The specs
 /// match this field loosely (`iso-timestamp` / `non-empty-string`), so a fixed
 /// deterministic value keeps state round-tripping reproducible.
@@ -180,6 +228,75 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn localization_mutation_preflight(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let ids = self
+            .localization_mutation_target_ids(fields)
+            .into_iter()
+            .filter(|id| {
+                (id.starts_with("gid://shopify/Market/") && !self.market_exists(id))
+                    || (id.starts_with("gid://shopify/MarketWebPresence/")
+                        && !self.market_web_presence_exists(id))
+            })
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY,
+                "operationName": "LocalizationMutationTargetsHydrate",
+                "variables": { "ids": ids }
+            }),
+        );
+        if response.status < 400 {
+            self.hydrate_markets_from_upstream(&response.body);
+        }
+    }
+
+    fn localization_mutation_target_ids(&self, fields: &[RootFieldSelection]) -> Vec<String> {
+        let mut ids = Vec::new();
+        for field in fields {
+            match field.name.as_str() {
+                "shopLocaleEnable" => {
+                    ids.extend(resolved_string_list_arg(
+                        &field.arguments,
+                        "marketWebPresenceIds",
+                    ));
+                }
+                "shopLocaleUpdate" => {
+                    let input =
+                        resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
+                    ids.extend(resolved_string_list_field_unsorted(
+                        &input,
+                        "marketWebPresenceIds",
+                    ));
+                }
+                "translationsRegister" => {
+                    for translation in resolved_list_arg(&field.arguments, "translations") {
+                        if let Some(market_id) = resolved_object_string(&translation, "marketId") {
+                            ids.push(market_id);
+                        }
+                    }
+                }
+                "translationsRemove" => {
+                    ids.extend(resolved_string_list_arg(&field.arguments, "marketIds"));
+                }
+                _ => {}
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
     pub(in crate::proxy) fn localization_available_locales(&self) -> Vec<Value> {
         self.store
             .base
@@ -268,11 +385,9 @@ impl DraftProxy {
                 .localization_available_locale_name(&locale)
                 .unwrap_or(locale.as_str());
             let mut record = shop_locale_record(&locale, name, false);
-            let target_web_presence_ids =
-                resolved_string_list_arg(&field.arguments, "marketWebPresenceIds")
-                    .into_iter()
-                    .filter(|id| is_known_market_web_presence_id(id))
-                    .collect::<Vec<_>>();
+            let target_web_presence_ids = self.known_market_web_presence_ids(
+                resolved_string_list_arg(&field.arguments, "marketWebPresenceIds"),
+            );
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
@@ -336,10 +451,8 @@ impl DraftProxy {
             record["published"] = json!(published);
         }
         if input.contains_key("marketWebPresenceIds") {
-            let target_web_presence_ids = market_web_presence_ids
-                .into_iter()
-                .filter(|id| is_known_market_web_presence_id(id))
-                .collect::<Vec<_>>();
+            let target_web_presence_ids =
+                self.known_market_web_presence_ids(market_web_presence_ids);
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
@@ -358,6 +471,25 @@ impl DraftProxy {
             &json!({ "shopLocale": record, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn known_market_web_presence_ids(&self, ids: Vec<String>) -> Vec<String> {
+        ids.into_iter()
+            .filter(|id| self.market_web_presence_exists(id))
+            .collect()
+    }
+
+    fn market_web_presence_exists(&self, id: &str) -> bool {
+        self.store.staged.web_presences.contains_key(id)
+            || self.localization_shop_locales(None).iter().any(|locale| {
+                locale["marketWebPresences"]
+                    .as_array()
+                    .is_some_and(|presences| {
+                        presences
+                            .iter()
+                            .any(|presence| presence["id"].as_str() == Some(id))
+                    })
+            })
     }
 
     pub(in crate::proxy) fn shop_locale_disable_response(
@@ -428,6 +560,7 @@ impl DraftProxy {
                         .collect::<Vec<_>>();
                     selected_json(&json!({"nodes": nodes}), &field.selection)
                 }
+                "catalogsCount" => self.catalogs_count_value(field),
                 "priceList" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -457,6 +590,7 @@ impl DraftProxy {
                         .collect::<Vec<_>>();
                     selected_json(&connection_json_with_empty_edges(nodes), &field.selection)
                 }
+                "marketsResolvedValues" => self.markets_resolved_values_value(field),
                 "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
                     &connection_json_with_empty_edges(Vec::new()),
                     &field.selection,
@@ -485,6 +619,69 @@ impl DraftProxy {
                 _ => Value::Null,
             })
         })
+    }
+
+    fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({
+                "count": self.store.staged.catalogs.len(),
+                "precision": "EXACT"
+            }),
+            &field.selection,
+        )
+    }
+
+    fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
+        let mut payload = serde_json::Map::new();
+        for selection in &field.selection {
+            let value = match selection.name.as_str() {
+                "currencyCode" => Some(json!(self.store.shop_currency_code())),
+                "priceInclusivity" => Some(selected_json(
+                    &json!({
+                        "dutiesIncluded": false,
+                        "taxesIncluded": false
+                    }),
+                    &selection.selection,
+                )),
+                "catalogs" => {
+                    let records = self
+                        .store
+                        .staged
+                        .catalogs
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    Some(selected_typed_connection_with_args(
+                        &records,
+                        &selection.arguments,
+                        &selection.selection,
+                        selected_json,
+                        value_id_cursor,
+                    ))
+                }
+                "webPresences" => {
+                    let records = self
+                        .store
+                        .staged
+                        .web_presences
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    Some(selected_typed_connection_with_args(
+                        &records,
+                        &selection.arguments,
+                        &selection.selection,
+                        selected_json,
+                        value_id_cursor,
+                    ))
+                }
+                _ => None,
+            };
+            if let Some(value) = value {
+                payload.insert(selection.response_key.clone(), value);
+            }
+        }
+        Value::Object(payload)
     }
 
     pub(in crate::proxy) fn market_create_mutation_data(
@@ -542,20 +739,6 @@ impl DraftProxy {
                 &json!({
                     "market": null,
                     "userErrors": [market_user_error(vec!["input", "priceInclusions"], "Inclusive pricing cannot be added to a market with the specified condition types.", json!("INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"))]
-                }),
-                &field.selection,
-            );
-        }
-        if matches!(
-            market_currency_settings(&input)
-                .and_then(|settings| resolved_string_field(&settings, "baseCurrency"))
-                .as_deref(),
-            Some("XXX") | Some("XAF")
-        ) {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "currencySettings", "baseCurrency"], "Base currency is invalid", json!("INVALID"))]
                 }),
                 &field.selection,
             );
@@ -667,10 +850,7 @@ impl DraftProxy {
             }
         }
 
-        let id = format!(
-            "gid://shopify/Market/{}",
-            self.store.staged.markets.len() + 1
-        );
+        let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
         let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
         self.store.staged.markets.insert(id, market.clone());
         selected_json(
@@ -1829,7 +2009,7 @@ impl DraftProxy {
             }
         }
         for record in markets_collect_records(data, "priceLists", "priceList") {
-            if let Some(id) = record_gid(&record, "gid://shopify/PriceList/") {
+            if let Some(id) = record_gid(&record, "PriceList") {
                 self.store
                     .staged
                     .price_lists
@@ -2247,7 +2427,7 @@ impl DraftProxy {
             return;
         };
         for record in markets_collect_records(data, "webPresences", "webPresence") {
-            if let Some(id) = record_gid(&record, "gid://shopify/MarketWebPresence/") {
+            if let Some(id) = record_gid(&record, "MarketWebPresence") {
                 self.store.staged.web_presences.entry(id).or_insert(record);
             }
         }
@@ -2339,9 +2519,9 @@ impl DraftProxy {
         if !errors.is_empty() {
             return json!({"webPresence": null, "userErrors": errors});
         }
-        let id = format!(
-            "gid://shopify/MarketWebPresence/{}",
-            next_web_presence_numeric_id(&self.store.staged.web_presences)
+        let id = shopify_gid(
+            "MarketWebPresence",
+            next_web_presence_numeric_id(&self.store.staged.web_presences),
         );
         draft.id = id.clone();
         let shop_domain = web_presence_shop_domain(&self.store);
@@ -2537,7 +2717,7 @@ impl DraftProxy {
         else {
             return;
         };
-        if let Some(id) = record_gid(publication, "gid://shopify/Publication/") {
+        if let Some(id) = record_gid(publication, "Publication") {
             self.store.staged.publication_ids.insert(id.clone());
             self.store
                 .staged
@@ -2894,7 +3074,6 @@ impl DraftProxy {
         }
         let mut staged = Vec::new();
         let mut user_errors = Vec::new();
-        let mut has_null_translation_error = false;
         let primary_locale = self.localization_primary_locale();
         for (index, translation_input) in translations.iter().enumerate() {
             let field_index = index.to_string();
@@ -2917,13 +3096,7 @@ impl DraftProxy {
                 continue;
             }
             let market_id = resolved_object_string(translation_input, "marketId");
-            // The success path supplies a real market (e.g. Market/97997685042) via
-            // upstream replay, not via `staged.markets`, so a `market_exists` membership
-            // check would wrongly reject it. The market catalog isn't modeled in store
-            // state on this validation path; the sentinel is the discriminator Shopify's
-            // "market doesn't exist" rejection is keyed on here.
-            if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
-                has_null_translation_error = true;
+            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
                 user_errors.push(user_error(
                     json!(["translations", field_index, "marketId"]),
                     "The market corresponding to the `marketId` argument doesn't exist",
@@ -2981,11 +3154,14 @@ impl DraftProxy {
                     continue;
                 }
             }
-            if resource_id.contains("PackingSlipTemplate") {
-                has_null_translation_error = true;
+            if market_id.is_some()
+                && !self.localization_translation_key_is_market_customizable(&resource_id, &key)
+            {
                 user_errors.push(user_error(
                     json!(["translations", field_index, "key"]),
-                    "Key body cannot be customized for a market; it can only be translated.",
+                    &format!(
+                        "Key {key} cannot be customized for a market; it can only be translated."
+                    ),
                     Some("RESOURCE_NOT_MARKET_CUSTOMIZABLE"),
                 ));
                 continue;
@@ -3021,13 +3197,8 @@ impl DraftProxy {
                 .push(translation.clone());
         }
 
-        let translations = if staged.is_empty() && has_null_translation_error {
-            Value::Null
-        } else {
-            Value::Array(staged)
-        };
         selected_json(
-            &json!({ "translations": translations, "userErrors": user_errors }),
+            &json!({ "translations": staged, "userErrors": user_errors }),
             &field.selection,
         )
     }
@@ -3052,12 +3223,6 @@ impl DraftProxy {
         if locales.is_empty() {
             return selected_json(
                 &json!({ "translations": null, "userErrors": [] }),
-                &field.selection,
-            );
-        }
-        if market_ids.iter().any(|id| id.contains("999999")) {
-            return selected_json(
-                &json!({ "translations": [], "userErrors": [] }),
                 &field.selection,
             );
         }
@@ -3379,9 +3544,26 @@ impl DraftProxy {
                 shallow_merge_object(&mut self.store.base.shop, shop.clone());
             }
         }
-        let market_records = markets_collect_records(data, "markets", "market");
+        let hydrate_nodes = data
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|node| node.is_object())
+            .collect::<Vec<_>>();
+        let mut market_records = markets_collect_records(data, "markets", "market");
+        market_records.extend(
+            hydrate_nodes
+                .iter()
+                .filter(|node| {
+                    node.get("__typename").and_then(Value::as_str) == Some("Market")
+                        || record_gid(node, "gid://shopify/Market/").is_some()
+                })
+                .cloned(),
+        );
         for record in &market_records {
-            if let Some(id) = record_gid(record, "gid://shopify/Market/") {
+            if let Some(id) = record_gid(record, "Market") {
                 self.store.staged.markets.insert(id, record.clone());
             }
         }
@@ -3391,7 +3573,7 @@ impl DraftProxy {
             catalog_records.extend(markets_connection_nodes(market.get("catalogs")));
         }
         for record in &catalog_records {
-            if let Some(id) = record_gid(record, "gid://shopify/") {
+            if let Some(id) = record_gid(record, "") {
                 self.store.staged.catalogs.insert(id, record.clone());
             }
         }
@@ -3403,7 +3585,7 @@ impl DraftProxy {
             }
         }
         for record in &price_list_records {
-            if let Some(id) = record_gid(record, "gid://shopify/PriceList/") {
+            if let Some(id) = record_gid(record, "PriceList") {
                 self.store.staged.price_lists.insert(id, record.clone());
             }
         }
@@ -3412,8 +3594,17 @@ impl DraftProxy {
         for market in &market_records {
             web_presence_records.extend(markets_connection_nodes(market.get("webPresences")));
         }
+        web_presence_records.extend(
+            hydrate_nodes
+                .iter()
+                .filter(|node| {
+                    node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
+                        || record_gid(node, "gid://shopify/MarketWebPresence/").is_some()
+                })
+                .cloned(),
+        );
         for record in &web_presence_records {
-            if let Some(id) = record_gid(record, "gid://shopify/MarketWebPresence/") {
+            if let Some(id) = record_gid(record, "MarketWebPresence") {
                 // A web presence can surface both as a full top-level node (with
                 // its `markets` connection) and as a sparse `{id}` pointer nested
                 // under `market.webPresences`. Keep the richer projection so a
@@ -3893,6 +4084,18 @@ impl DraftProxy {
         false
     }
 
+    fn localization_translation_key_is_market_customizable(
+        &self,
+        resource_id: &str,
+        key: &str,
+    ) -> bool {
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => matches!(key, "title" | "body_html" | "product_type"),
+            Some("Collection") => matches!(key, "title" | "body_html"),
+            _ => false,
+        }
+    }
+
     /// Mirror Shopify's web-presence ↔ alternate-locale sync. When a non-primary
     /// locale is associated with one or more market web presences via
     /// `shopLocaleEnable`/`shopLocaleUpdate`, Shopify reflects it on the
@@ -4071,11 +4274,17 @@ fn market_localizations_market_filter(selection: &[SelectedField]) -> Option<Str
         .and_then(|field| resolved_string_field(&field.arguments, "marketId"))
 }
 
-fn record_gid(record: &Value, prefix: &str) -> Option<String> {
+fn record_gid(record: &Value, resource_type: &str) -> Option<String> {
     record
         .get("id")
         .and_then(Value::as_str)
-        .filter(|id| id.starts_with(prefix))
+        .filter(|id| {
+            if resource_type.is_empty() {
+                shopify_gid_resource_type(id).is_some()
+            } else {
+                is_shopify_gid_of_type(id, resource_type)
+            }
+        })
         .map(str::to_string)
 }
 
@@ -4257,7 +4466,7 @@ fn market_region_country_from_node(node: &Value, country_code: &str) -> Option<V
         .get("id")
         .and_then(Value::as_str)
         .map(str::to_string)
-        .unwrap_or_else(|| format!("gid://shopify/MarketRegionCountry/local-{country_code}"));
+        .unwrap_or_else(|| shopify_gid("MarketRegionCountry", format!("local-{country_code}")));
     let name = node
         .get("name")
         .and_then(Value::as_str)

@@ -84,7 +84,7 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     );
     assert_eq!(
         happy.body["data"]["aliasCreate"]["delegateAccessToken"]["createdAt"],
-        json!("2026-04-28T02:10:00.000Z")
+        json!("2024-01-01T00:00:01.000Z")
     );
     assert_eq!(
         happy.body["data"]["aliasCreate"]["delegateAccessToken"]["expiresIn"],
@@ -518,7 +518,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
                 "name": "HAR-646 valid test",
                 "status": "ACTIVE",
                 "test": true,
-                "createdAt": "2024-01-01T00:00:00.000Z",
+                "createdAt": "2024-01-01T00:00:01.000Z",
                 "price": { "amount": "5.0", "currencyCode": "USD" }
             },
             "confirmationUrl": "https://app.example.test/local-confirmation",

@@ -1,12 +1,10 @@
 use super::*;
 
-pub(in crate::proxy) const WEBHOOK_CLOUD_CALLBACK_URL_PLACEHOLDER: &str = "https://eventbridge.arn";
-
-pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> &str {
+pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> Option<&str> {
     if uri.starts_with("arn:aws:events:") || uri.starts_with("pubsub://") {
-        WEBHOOK_CLOUD_CALLBACK_URL_PLACEHOLDER
+        None
     } else {
-        uri
+        Some(uri)
     }
 }
 
@@ -304,7 +302,7 @@ impl DraftProxy {
                         "EXACT"
                     };
                     selected_json(
-                        &json!({ "count": count, "precision": precision }),
+                        &count_object_with_precision(count, precision),
                         &field.selection,
                     )
                 }
@@ -695,11 +693,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-            if name.is_empty()
-                || !name
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-            {
+            if name.is_empty() || !token_chars_valid(name) {
                 errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
             }
             if name.chars().count() > 50 {
@@ -850,32 +844,12 @@ impl DraftProxy {
         let created_at = existing
             .as_ref()
             .and_then(|record| record["createdAt"].as_str())
-            .unwrap_or("2024-01-01T00:00:00.000Z");
-        let webhook_mutation_count = self
-            .log_entries
-            .iter()
-            .filter(|entry| {
-                entry
-                    .get("interpreted")
-                    .and_then(|interpreted| interpreted.get("primaryRootField"))
-                    .and_then(Value::as_str)
-                    .is_some_and(|name| {
-                        matches!(
-                            name,
-                            "webhookSubscriptionCreate"
-                                | "webhookSubscriptionUpdate"
-                                | "pubSubWebhookSubscriptionCreate"
-                                | "pubSubWebhookSubscriptionUpdate"
-                                | "eventBridgeWebhookSubscriptionCreate"
-                                | "eventBridgeWebhookSubscriptionUpdate"
-                        )
-                    })
-            })
-            .count();
+            .map(str::to_string)
+            .unwrap_or_else(|| self.next_product_timestamp());
         let updated_at = if existing.is_some() {
-            format!("2024-01-01T00:00:{:02}.000Z", webhook_mutation_count + 1)
+            self.next_product_timestamp()
         } else {
-            created_at.to_string()
+            created_at.clone()
         };
         let api_version = existing
             .as_ref()
@@ -883,14 +857,13 @@ impl DraftProxy {
             .filter(|value| value.is_object())
             .cloned()
             .unwrap_or_else(|| webhook_subscription_api_version_record(api_version_handle));
-        json!({
+        let mut record = json!({
             "id": id,
             "legacyResourceId": webhook_subscription_legacy_id(id),
             "apiVersion": api_version,
             "topic": topic,
             "format": format,
             "uri": uri,
-            "callbackUrl": callback_url,
             "name": name,
             "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
@@ -900,7 +873,11 @@ impl DraftProxy {
             "createdAt": created_at,
             "updatedAt": updated_at,
             "endpoint": webhook_endpoint(&uri)
-        })
+        });
+        if let Some(callback_url) = callback_url {
+            record["callbackUrl"] = json!(callback_url);
+        }
+        record
     }
 }
 
@@ -1204,12 +1181,9 @@ fn webhook_filter_is_invalid(filter: &str) -> bool {
         return false;
     }
     !trimmed.split_whitespace().any(|token| {
-        token.split_once(':').is_some_and(|(field, _)| {
-            !field.is_empty()
-                && field
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-        })
+        token
+            .split_once(':')
+            .is_some_and(|(field, _)| !field.is_empty() && field.chars().all(graphql_name_char))
     })
 }
 

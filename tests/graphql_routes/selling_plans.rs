@@ -39,6 +39,94 @@ fn valid_selling_plan_group_input(name: &str) -> Value {
     })
 }
 
+#[test]
+fn shop_currency_drives_discount_and_selling_plan_money_in_one_session() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "EUR");
+
+    let shop = proxy.process_request(json_graphql_request(
+        "query ShopCurrencyForMoneyFields { shop { currencyCode } }",
+        json!({}),
+    ));
+    assert_eq!(shop.status, 200);
+    assert_eq!(shop.body["data"]["shop"]["currencyCode"], json!("EUR"));
+
+    let discount = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFixedAmountDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountAmount {
+                        amount { amount currencyCode }
+                        appliesOnEachItem
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Fixed amount currency",
+            "code": "FIXEDCURRENCY",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "discountAmount": { "amount": "10.00", "appliesOnEachItem": true } },
+                "items": { "all": true }
+            }
+        }}),
+    ));
+    assert_eq!(
+        discount.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        discount.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["customerGets"]["value"]["amount"],
+        json!({ "amount": "10.0", "currencyCode": "EUR" })
+    );
+
+    let selling_plan = create_selling_plan_group_with_summary(
+        &mut proxy,
+        json!({
+            "name": "Fixed shop currency summary",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [selling_plan_input_with_policy(
+                "Fixed monthly",
+                vec!["Fixed monthly"],
+                "FIXED_AMOUNT",
+                json!({ "fixedValue": "5.0" }),
+            )]
+        }),
+    );
+    assert_eq!(
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+            ["nodes"][0]["pricingPolicies"][0]["adjustmentValue"],
+        json!({
+            "__typename": "MoneyV2",
+            "amount": "5.0",
+            "currencyCode": "EUR"
+        })
+    );
+    assert_eq!(
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["summary"],
+        json!("1 delivery frequency, 5 EUR discount")
+    );
+}
+
 fn create_selling_plan_group(proxy: &mut DraftProxy, input: Value) -> Response {
     proxy.process_request(json_graphql_request(
         r#"

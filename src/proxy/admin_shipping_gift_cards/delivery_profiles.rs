@@ -259,10 +259,7 @@ impl DraftProxy {
             "locationGroup": {
                 "id": self.next_proxy_synthetic_gid("DeliveryLocationGroup"),
                 "locations": locations,
-                "locationsCount": {
-                    "count": locations.len(),
-                    "precision": "EXACT"
-                }
+                "locationsCount": count_object(locations.len())
             },
             "locationGroupZones": zones,
             "countriesInAnyZone": []
@@ -408,8 +405,7 @@ impl DraftProxy {
                     }
                 }
                 let count = locations.len();
-                group["locationGroup"]["locationsCount"] =
-                    json!({ "count": count, "precision": "EXACT" });
+                group["locationGroup"]["locationsCount"] = count_object(count);
             }
             for zone_update in resolved_object_list_field(&group_update, "zonesToUpdate") {
                 let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();

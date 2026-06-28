@@ -173,7 +173,7 @@ impl DraftProxy {
             "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
             "customers" => Some(self.customers_list_field(field)),
             "customersCount" => Some(selected_json(
-                &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
+                &count_object(self.customers_count_value()),
                 &field.selection,
             )),
             "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
@@ -2261,7 +2261,7 @@ impl DraftProxy {
             _ => existing,
         };
         customer["taxExemptions"] = json!(next);
-        customer["updatedAt"] = json!("2026-04-25T01:41:06Z");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
         self.store
             .staged
             .customers
@@ -2519,9 +2519,7 @@ impl DraftProxy {
             };
         }
 
-        let updated_at = consent_updated_at
-            .or_else(|| current_consent_updated_at(&existing_customer, is_email))
-            .unwrap_or_else(|| "2026-04-25T01:41:06Z".to_string());
+        let updated_at = consent_updated_at.unwrap_or_else(|| self.next_product_timestamp());
         let mut customer = existing_customer;
         apply_customer_marketing_consent(
             &mut customer,
@@ -2698,19 +2696,6 @@ fn current_consent_opt_in_level(customer: &Value, is_email: bool) -> String {
         .and_then(Value::as_str)
         .unwrap_or("SINGLE_OPT_IN")
         .to_string()
-}
-
-fn current_consent_updated_at(customer: &Value, is_email: bool) -> Option<String> {
-    let contact_key = if is_email {
-        "defaultEmailAddress"
-    } else {
-        "defaultPhoneNumber"
-    };
-    customer
-        .get(contact_key)
-        .and_then(|contact| contact.get("marketingUpdatedAt"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
 }
 
 fn customer_consent_updated_at_is_future(value: &str) -> bool {
@@ -3172,7 +3157,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
     let metafields = if input.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": empty_page_info() })
+        connection_json(Vec::new())
     } else {
         json!({
             "nodes": [input.loyalty.clone()],
@@ -5044,7 +5029,11 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
+}
+
+fn store_credit_synthetic_today() -> String {
+    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {

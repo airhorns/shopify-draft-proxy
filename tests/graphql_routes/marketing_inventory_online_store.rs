@@ -2078,6 +2078,82 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
+#[test]
+fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "ADJUST-LAZY",
+        "10.00",
+    );
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let location_id = "gid://shopify/Location/1";
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustInventory($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "delta": -2, "changeFromQuantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAdjustLazyProductAggregate($variantId: ID!, $productId: ID!) {
+          productVariant(id: $variantId) { inventoryQuantity }
+          product(id: $productId) {
+            totalInventory
+            hasOutOfStockVariants
+            variants(first: 5) { nodes { inventoryQuantity inventoryItem { tracked } } }
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "productId": "gid://shopify/Product/1"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(0)
+    );
+    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(2));
+    assert_eq!(
+        read.body["data"]["product"]["hasOutOfStockVariants"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"][0],
+        json!({"inventoryQuantity": 0, "inventoryItem": {"tracked": true}})
+    );
+}
+
 fn inventory_activation_base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
@@ -6722,6 +6798,152 @@ fn metaobject_create_update_and_upsert_reject_extended_field_value_types() {
             expected_error
         );
     }
+}
+
+#[test]
+fn metaobject_mixed_reference_accepts_unobserved_metaobject_gid_when_definition_limited() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    let target_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "mixed_reference_target_type",
+        vec![title_field.clone()],
+    );
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "mixed_reference_matrix_type",
+        vec![
+            title_field,
+            json!({"key": "mixed_reference", "name": "Mixed", "type": "mixed_reference", "required": false, "validations": [{"name": "metaobject_definition_ids", "value": json!([target_definition_id]).to_string()}]}),
+        ],
+    );
+
+    let remote_metaobject_id = "gid://shopify/Metaobject/185981075762";
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMixedReferenceMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { field(key: "mixed_reference") { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "mixed_reference_matrix_type",
+            "handle": "remote-mixed-reference",
+            "fields": [
+                {"key": "title", "value": "Remote mixed reference"},
+                {"key": "mixed_reference", "value": remote_metaobject_id}
+            ]
+        }}),
+    ));
+
+    assert_eq!(
+        create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["metaobjectCreate"]["metaobject"]["field"],
+        json!({"key": "mixed_reference", "value": remote_metaobject_id})
+    );
+}
+
+#[test]
+fn metaobject_update_reports_undefined_input_and_new_required_schema_field() {
+    let mut proxy = snapshot_proxy();
+    let definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "schema_change_required_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}),
+            json!({"key": "legacy", "name": "Legacy", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSchemaChangeMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "schema_change_required_type",
+            "handle": "schema-change-required",
+            "fields": [
+                {"key": "title", "value": "Schema change row"},
+                {"key": "legacy", "value": "Legacy value"}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let metaobject_id = create.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSchemaDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [
+                {"delete": {"key": "legacy"}},
+                {"create": {"key": "summary", "name": "Summary", "type": "single_line_text_field", "required": true}}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let stale_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSchemaChangeMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": metaobject_id, "metaobject": {
+            "fields": [{"key": "legacy", "value": "Still stale"}]
+        }}),
+    ));
+
+    assert_eq!(
+        stale_update.body["data"]["metaobjectUpdate"]["metaobject"],
+        Value::Null
+    );
+    assert_eq!(
+        stale_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Field definition \"legacy\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "legacy",
+                "elementIndex": null
+            },
+            {
+                "field": ["metaobject"],
+                "message": "Summary can't be blank",
+                "code": "OBJECT_FIELD_REQUIRED",
+                "elementKey": "summary",
+                "elementIndex": null
+            }
+        ])
+    );
 }
 
 #[test]

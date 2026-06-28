@@ -633,6 +633,7 @@ mutation {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(created_at, "2024-01-01T00:00:01.000Z");
     assert_eq!(
         create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
         json!({
@@ -729,6 +730,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(omitted_update_updated_at, "2024-01-01T00:00:02.000Z");
     assert_eq!(
         update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
@@ -766,6 +768,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(empty_filter_updated_at, "2024-01-01T00:00:03.000Z");
     assert_eq!(
         update_empty_filter.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
@@ -2239,7 +2242,6 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
         json!({
             "id": pubsub_id,
             "topic": "SHOP_UPDATE",
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-1",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2264,7 +2266,6 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
         json!({
             "id": eventbridge_id,
             "topic": "SHOP_UPDATE",
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",
@@ -2313,7 +2314,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         read.body["data"]["pubsub"],
         json!({
             "id": pubsub_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-1",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2326,7 +2326,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         read.body["data"]["eventbridge"],
         json!({
             "id": eventbridge_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",
@@ -2339,7 +2338,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         json!([
             {
                 "id": pubsub_id,
-                "callbackUrl": "https://eventbridge.arn",
                 "uri": "pubsub://valid-project:topic-1",
                 "endpoint": {
                     "__typename": "WebhookPubSubEndpoint",
@@ -2349,7 +2347,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
             },
             {
                 "id": eventbridge_id,
-                "callbackUrl": "https://eventbridge.arn",
                 "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
                 "endpoint": {
                     "__typename": "WebhookEventBridgeEndpoint",
@@ -2384,7 +2381,6 @@ mutation($id: ID!) {
         pubsub_update.body["data"]["pubSubWebhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
             "id": pubsub_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-2",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2422,7 +2418,6 @@ mutation($id: ID!) {
             ["webhookSubscription"],
         json!({
             "id": eventbridge_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-updated",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",

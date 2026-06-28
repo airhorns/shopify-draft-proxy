@@ -1,13 +1,7 @@
 use super::*;
 
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "nodes": [],
-            "pageInfo": empty_page_info()
-        }),
-        selection,
-    )
+    selected_empty_connection_json(selection)
 }
 
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
@@ -159,21 +153,25 @@ fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<
 }
 
 pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
-    format!(
-        "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
+    let level_tail = format!(
+        "{}-{}",
         resource_id_tail(inventory_item_id),
-        resource_id_tail(location_id),
+        resource_id_tail(location_id)
+    );
+    format!(
+        "{}?inventory_item_id={}",
+        shopify_gid("InventoryLevel", level_tail),
         inventory_item_id
     )
 }
 
 pub(in crate::proxy) fn inventory_level_id_tail(id: &str) -> Option<&str> {
-    id.strip_prefix("gid://shopify/InventoryLevel/")
+    shopify_gid_tail_for_type(id, "InventoryLevel")
         .map(|rest| rest.split('?').next().unwrap_or_default())
 }
 
 pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
-    let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
+    let rest = shopify_gid_tail_for_type(id, "InventoryLevel")?;
     rest.split_once("?inventory_item_id=")
 }
 
@@ -223,6 +221,29 @@ pub(in crate::proxy) fn inventory_change_json(
         "item": {
             "id": item_id
         },
+        "location": {
+            "id": location_id,
+            "name": location_name
+        }
+    })
+}
+
+fn inventory_set_on_hand_change_json(
+    item_id: &str,
+    name: &str,
+    delta: i64,
+    ledger: Option<&str>,
+    location_id: &str,
+    location_name: &str,
+) -> Value {
+    json!({
+        "name": name,
+        "delta": delta,
+        "quantityAfterChange": Value::Null,
+        "ledgerDocumentUri": ledger
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::Null),
+        "item": { "id": item_id },
         "location": {
             "id": location_id,
             "name": location_name
@@ -516,10 +537,7 @@ impl DraftProxy {
                     ),
                 }),
                 "locationsCount" => Some(selected_json(
-                    &json!({
-                        "count": item_levels.len(),
-                        "precision": "EXACT"
-                    }),
+                    &count_object(item_levels.len()),
                     &selection.selection,
                 )),
                 "inventoryLevel" => {
@@ -1093,7 +1111,12 @@ impl DraftProxy {
     /// Mirrors the sync `inventoryItemUpdate` and inventory-level item payloads
     /// already perform. No-op for non-`available` names (those don't feed
     /// `ProductVariant.inventoryQuantity`).
-    fn sync_variant_available_quantity(&mut self, inventory_item_id: &str, name: &str) {
+    fn sync_variant_available_quantity(
+        &mut self,
+        inventory_item_id: &str,
+        name: &str,
+        sync_product_aggregate: bool,
+    ) {
         if name != "available" {
             return;
         }
@@ -1107,7 +1130,9 @@ impl DraftProxy {
         variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let product_id = variant.product_id.clone();
         self.store.stage_product_variant(variant);
-        self.sync_product_inventory_aggregates(&product_id);
+        if sync_product_aggregate {
+            self.sync_product_inventory_aggregates(&product_id);
+        }
     }
 
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
@@ -1287,7 +1312,7 @@ impl DraftProxy {
                 self.store.staged.inventory_level_order.push(key);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &name);
+            self.sync_variant_available_quantity(&item_id, &name, true);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -1392,8 +1417,8 @@ impl DraftProxy {
                 location_id.clone(),
                 "on_hand".to_string(),
             ));
-            self.sync_variant_available_quantity(&item_id, "available");
-            changes.push(inventory_change_json(
+            self.sync_variant_available_quantity(&item_id, "available", true);
+            changes.push(inventory_set_on_hand_change_json(
                 &item_id,
                 "available",
                 delta,
@@ -1500,7 +1525,7 @@ impl DraftProxy {
                 ));
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &name);
+            self.sync_variant_available_quantity(&item_id, &name, false);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -1614,8 +1639,8 @@ impl DraftProxy {
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
             self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &from_name);
-            self.sync_variant_available_quantity(&item_id, &to_name);
+            self.sync_variant_available_quantity(&item_id, &from_name, true);
+            self.sync_variant_available_quantity(&item_id, &to_name, true);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,
@@ -4212,12 +4237,7 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/ProductVariant/{}",
-                    resource_id_tail(&item_id)
-                )
-            });
+            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(&item_id)));
         let product_id = variant
             .get("product")
             .and_then(|product| product.get("id"))

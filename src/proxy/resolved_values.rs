@@ -217,6 +217,13 @@ pub(in crate::proxy) fn resolved_string_list_field(
     values
 }
 
+pub(in crate::proxy) fn resolved_string_list_field_unsorted(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Vec<String> {
+    list_string_field(input, field)
+}
+
 pub(in crate::proxy) fn resolved_object_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     object_field: &str,
