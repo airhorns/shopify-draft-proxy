@@ -1048,6 +1048,15 @@ fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_ow
 #[test]
 fn backup_region_update_uses_staged_market_region_and_computed_coercion_locations() {
     let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let omitted = proxy.process_request(json_graphql_request(
         r#"
@@ -3883,7 +3892,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
         json!("AWAITING_RETURN_ITEMS")
     );
 }

@@ -2861,7 +2861,15 @@ impl DraftProxy {
             B2bLocationNameFallback::CompanyName => None,
             B2bLocationNameFallback::ShippingAddressThenCompanyName => shipping_address.as_ref(),
         };
-        let name = b2b_location_name(input, company, shipping_address_name_fallback);
+        let name = b2b_location_name(
+            input,
+            company,
+            shipping_address_name_fallback,
+            matches!(
+                name_fallback,
+                B2bLocationNameFallback::ShippingAddressThenCompanyName
+            ),
+        );
 
         // Every location carries a buyerExperienceConfiguration; when none is
         // supplied Shopify still returns the all-default object (not null).

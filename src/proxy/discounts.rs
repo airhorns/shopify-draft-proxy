@@ -3600,8 +3600,8 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_co
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "9876",
-        "maskedCode": "•••• •••• •••• 9876",
+        "lastCharacters": "2053",
+        "maskedCode": "•••• •••• •••• 2053",
         "giftCardCode": synthetic_gift_card_code_from_id(id),
         "enabled": true,
         "deactivatedAt": null,
@@ -3624,26 +3624,9 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_co
     })
 }
 
-pub(in crate::proxy) fn gift_card_create_record(
-    id: &str,
-    last_characters: &str,
-    code: &str,
-    amount: &str,
-    currency_code: &str,
-    notify: bool,
-) -> Value {
-    let mut card = gift_card_lifecycle_base_card(id, currency_code);
-    card["lastCharacters"] = json!(last_characters);
-    card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
-    card["giftCardCode"] = json!(code);
-    card["initialValue"] = money_value(amount, currency_code);
-    card["balance"] = card["initialValue"].clone();
-    card["customer"] = Value::Null;
-    card["recipientAttributes"] = Value::Null;
-    card["notify"] = json!(notify);
-    card["source"] = json!("api_client");
-    card["transactions"] = connection_json(Vec::new());
-    card
+fn synthetic_gift_card_code_from_id(id: &str) -> String {
+    let tail = resource_id_tail(id);
+    format!("giftcard{tail:0>8}")
 }
 
 pub(in crate::proxy) fn gift_card_configuration_record(shop_currency_code: &str) -> Value {

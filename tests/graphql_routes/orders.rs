@@ -3105,11 +3105,11 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     );
     assert_eq!(
         draft["subtotalPriceSet"]["shopMoney"],
-        json!({ "amount": "25.0", "currencyCode": "USD" })
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
     );
     assert_eq!(
         draft["totalPriceSet"]["shopMoney"],
-        json!({ "amount": "29.25", "currencyCode": "USD" })
+        json!({ "amount": "29.25", "currencyCode": "CAD" })
     );
 
     let read = proxy.process_request(json_graphql_request(

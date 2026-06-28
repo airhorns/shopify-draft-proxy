@@ -6195,6 +6195,33 @@ fn inventory_deactivate_user_error(message: &str) -> Value {
     user_error_omit_code(Value::Null, message, None)
 }
 
+fn inventory_activate_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+
+fn inventory_set_on_hand_change_json(
+    item_id: &str,
+    name: &str,
+    delta: i64,
+    ledger: Option<&str>,
+    location_id: &str,
+    location_name: &str,
+) -> Value {
+    json!({
+        "name": name,
+        "delta": delta,
+        "quantityAfterChange": Value::Null,
+        "ledgerDocumentUri": ledger
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::Null),
+        "item": { "id": item_id },
+        "location": {
+            "id": location_id,
+            "name": location_name
+        }
+    })
+}
+
 fn inventory_item_update_variable_errors(
     field: &RootFieldSelection,
     input: &BTreeMap<String, ResolvedValue>,

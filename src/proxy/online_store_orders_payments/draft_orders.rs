@@ -39,6 +39,7 @@ pub(in crate::proxy) fn draft_order_base_record(
         "id": id,
         "name": name,
         "status": "OPEN",
+        "currencyCode": currency,
         "ready": true,
         "email": resolved_string_field(input, "email").map(Value::String).unwrap_or(Value::Null),
         "sourceName": resolved_string_field(input, "sourceName").map(Value::String).unwrap_or(Value::Null),
@@ -511,11 +512,37 @@ pub(in crate::proxy) fn draft_order_currency(
     draft_order: &Value,
     shop_currency_code: &str,
 ) -> String {
-    draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
+    draft_order["currencyCode"]
         .as_str()
-        .or_else(|| draft_order["subtotalPriceSet"]["shopMoney"]["currencyCode"].as_str())
+        .or_else(|| draft_order_money_set_currency(&draft_order["totalPriceSet"]))
+        .or_else(|| draft_order_money_set_currency(&draft_order["subtotalPriceSet"]))
+        .or_else(|| draft_order_money_set_currency(&draft_order["totalShippingPriceSet"]))
+        .or_else(|| {
+            draft_order_money_set_currency(&draft_order["shippingLine"]["originalPriceSet"])
+        })
+        .or_else(|| {
+            draft_order_money_set_currency(&draft_order["shippingLine"]["discountedPriceSet"])
+        })
+        .or_else(|| draft_order_line_items_currency(draft_order))
         .unwrap_or(shop_currency_code)
         .to_string()
+}
+
+fn draft_order_money_set_currency(money_set: &Value) -> Option<&str> {
+    money_set["shopMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| money_set["currencyCode"].as_str())
+}
+
+fn draft_order_line_items_currency(draft_order: &Value) -> Option<&str> {
+    let nodes = draft_order["lineItems"]["nodes"]
+        .as_array()
+        .or_else(|| draft_order["__draftProxyLineItems"].as_array())?;
+    nodes.iter().find_map(|line| {
+        draft_order_money_set_currency(&line["originalTotalSet"])
+            .or_else(|| draft_order_money_set_currency(&line["discountedTotalSet"]))
+            .or_else(|| draft_order_money_set_currency(&line["originalUnitPriceSet"]))
+    })
 }
 
 pub(in crate::proxy) fn draft_order_payment_terms(
@@ -1382,8 +1409,6 @@ impl DraftProxy {
 
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
         let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&field.selection, &["edges", "node"]);
         let mut records = self
             .store
             .staged
@@ -2204,46 +2229,6 @@ impl DraftProxy {
             return None;
         }
         Some(json!({ "data": data }))
-    }
-
-    pub(in crate::proxy) fn draft_order_bulk_tag_create(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let id = "gid://shopify/DraftOrder/1?shopify-draft-proxy=synthetic".to_string();
-        let tags = field
-            .arguments
-            .get("input")
-            .and_then(|input| match input {
-                ResolvedValue::Object(fields) => Some(resolved_string_list_arg(fields, "tags")),
-                _ => None,
-            })
-            .unwrap_or_default();
-        self.store
-            .staged
-            .draft_order_tags
-            .insert(id.clone(), tags.clone());
-        if !self.store.staged.draft_orders.contains_key(&id) {
-            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-            let mut record = draft_order_base_record(
-                &id,
-                "#D1",
-                &input,
-                None,
-                &BTreeMap::new(),
-                &self.store.shop_currency_code(),
-            );
-            self.recalculate_draft_order_totals(&mut record);
-            self.store.staged.draft_orders.insert(id.clone(), record);
-        }
-        self.sync_draft_order_record_tags(&id);
-        selected_json(
-            &json!({
-                "draftOrder": { "id": id, "tags": tags },
-                "userErrors": []
-            }),
-            &field.selection,
-        )
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {

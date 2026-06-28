@@ -801,7 +801,7 @@ impl DraftProxy {
             return gift_card_transaction_payload(
                 &field.selection,
                 spec.transaction_field,
-                Value::Null,
+                None,
                 vec![gift_card_not_found_error(&field.name)],
             );
         };
@@ -1229,13 +1229,16 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let recipient_id = resolved_string_field(input, "id").unwrap_or_default();
-        let recipient = self
-            .store
-            .staged
-            .customers
-            .get(&recipient_id)
-            .map(gift_card_customer_projection_json)
-            .unwrap_or_else(|| json!({ "id": recipient_id }));
+        let recipient = if recipient_id == GIFT_CARD_NO_CONTACT_RECIPIENT_ID {
+            gift_card_no_contact_recipient_projection_json(&recipient_id)
+        } else {
+            self.store
+                .staged
+                .customers
+                .get(&recipient_id)
+                .map(gift_card_customer_projection_json)
+                .unwrap_or_else(|| json!({ "id": recipient_id }))
+        };
         json!({
             "message": resolved_string_field(input, "message"),
             "preferredName": resolved_string_field(input, "preferredName"),
@@ -1353,7 +1356,7 @@ fn gift_card_seed_record(id: &str, shop_currency_code: &str) -> Option<Value> {
                 "message": null,
                 "preferredName": null,
                 "sendNotificationAt": null,
-                "recipient": { "id": GIFT_CARD_NO_CONTACT_RECIPIENT_ID }
+                "recipient": gift_card_no_contact_recipient_projection_json(GIFT_CARD_NO_CONTACT_RECIPIENT_ID)
             });
             Some(card)
         }
@@ -1771,6 +1774,16 @@ fn gift_card_customer_projection_json(customer: &Value) -> Value {
         "phone": customer.get("phone").cloned().unwrap_or(Value::Null),
         "defaultEmailAddress": customer.get("defaultEmailAddress").cloned().unwrap_or(Value::Null),
         "defaultPhoneNumber": customer.get("defaultPhoneNumber").cloned().unwrap_or(Value::Null)
+    })
+}
+
+fn gift_card_no_contact_recipient_projection_json(id: &str) -> Value {
+    json!({
+        "id": id,
+        "email": null,
+        "phone": null,
+        "defaultEmailAddress": null,
+        "defaultPhoneNumber": null
     })
 }
 
