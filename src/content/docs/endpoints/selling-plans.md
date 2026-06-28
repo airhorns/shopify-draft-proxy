@@ -48,14 +48,18 @@ absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
 missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
 `sellingPlanGroup: null`, and do not stage a group. `sellingPlanGroupUpdate`
 does not apply the create-only lower-bound to an empty
-`sellingPlansToCreate: []` list.
+`sellingPlansToCreate: []` list, but it rejects updates that would delete every
+existing selling plan without creating a replacement. That update-only guard
+returns `SELLING_PLAN_COUNT_LOWER_BOUND` at
+`["input", "sellingPlansToDelete"]`, returns `sellingPlanGroup: null`, leaves
+the group unchanged on subsequent reads, and records the raw mutation as a
+failed local mutation for observability.
 
 `SellingPlanGroup.summary` is computed from staged selling plans, not from the
 group option labels. The local summary uses the selling-plan count,
 singular/plural `frequency` wording, percentage min/max ranges across all
 pricing policies, fixed-value min/max ranges using Shopify's whole-currency
-summary display, and joins mixed percentage/fixed pieces with `·`. A staged
-group with no remaining selling plans returns an empty summary string.
+summary display, and joins mixed percentage/fixed pieces with `·`.
 
 Staged `sellingPlanGroupAddProducts`,
 `sellingPlanGroupRemoveProducts`, `sellingPlanGroupAddProductVariants`,

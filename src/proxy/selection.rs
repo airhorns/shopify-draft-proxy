@@ -48,6 +48,29 @@ pub(in crate::proxy) fn selected_user_errors(
     )
 }
 
+pub(in crate::proxy) fn selected_user_errors_field(
+    errors: &[Value],
+    selection: &SelectedField,
+) -> Option<Value> {
+    Some(selected_user_errors(errors, &selection.selection))
+}
+
+pub(in crate::proxy) trait DispatchField {
+    fn response_key(&self) -> &str;
+}
+
+impl DispatchField for SelectedField {
+    fn response_key(&self) -> &str {
+        self.response_key.as_str()
+    }
+}
+
+impl DispatchField for RootFieldSelection {
+    fn response_key(&self) -> &str {
+        self.response_key.as_str()
+    }
+}
+
 /// Honor the `quantities(names: [...])` argument on an `InventoryLevel` selection when
 /// projecting a materialized quantity array. Shopify returns exactly one entry per
 /// requested name, in request order, synthesizing a zero/`null` row for any name with
@@ -136,20 +159,31 @@ pub(in crate::proxy) fn nullable_selected_json(
     }
 }
 
-pub(in crate::proxy) fn selected_payload_json<ValueFor>(
-    selections: &[SelectedField],
+pub(in crate::proxy) fn selected_payload_json<Field, ValueFor>(
+    selections: &[Field],
     mut value_for: ValueFor,
 ) -> Value
 where
-    ValueFor: FnMut(&SelectedField) -> Option<Value>,
+    Field: DispatchField,
+    ValueFor: FnMut(&Field) -> Option<Value>,
 {
     let mut fields = serde_json::Map::new();
     for selection in selections {
         if let Some(value) = value_for(selection) {
-            fields.insert(selection.response_key.clone(), value);
+            fields.insert(selection.response_key().to_string(), value);
         }
     }
     Value::Object(fields)
+}
+
+pub(in crate::proxy) fn root_payload_json<ValueFor>(
+    selections: &[RootFieldSelection],
+    value_for: ValueFor,
+) -> Value
+where
+    ValueFor: FnMut(&RootFieldSelection) -> Option<Value>,
+{
+    selected_payload_json(selections, value_for)
 }
 
 pub(in crate::proxy) fn nested_selected_fields(
@@ -211,6 +245,18 @@ mod tests {
         SelectedField {
             type_condition: Some(type_condition.to_string()),
             ..field(name, response_key, selection)
+        }
+    }
+
+    fn root_field(name: &str, response_key: &str) -> RootFieldSelection {
+        RootFieldSelection {
+            name: name.to_string(),
+            response_key: response_key.to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            directives: Vec::new(),
+            raw_arguments: Default::default(),
+            arguments: Default::default(),
+            selection: Vec::new(),
         }
     }
 
@@ -315,6 +361,45 @@ mod tests {
                 "legacyId": "gid://shopify/Product/1",
                 "title": "Hat"
             })
+        );
+    }
+
+    #[test]
+    fn selected_payload_json_accepts_root_fields_and_keeps_projection_semantics() {
+        let roots = vec![
+            root_field("shop", "shopAlias"),
+            root_field("unknownNull", "unknownNull"),
+            root_field("unknownSkip", "unknownSkip"),
+        ];
+
+        assert_eq!(
+            selected_payload_json(&roots, |field| match field.name.as_str() {
+                "shop" => Some(json!({ "name": "Example Shop" })),
+                "unknownNull" => Some(Value::Null),
+                _ => None,
+            }),
+            json!({
+                "shopAlias": { "name": "Example Shop" },
+                "unknownNull": null
+            })
+        );
+    }
+
+    #[test]
+    fn selected_user_errors_field_projects_requested_error_fields() {
+        let selection = field(
+            "userErrors",
+            "userErrors",
+            vec![field("message", "messageText", vec![])],
+        );
+        let errors = vec![json!({
+            "field": ["input", "title"],
+            "message": "Title is required"
+        })];
+
+        assert_eq!(
+            selected_user_errors_field(errors.as_slice(), &selection),
+            Some(json!([{ "messageText": "Title is required" }]))
         );
     }
 

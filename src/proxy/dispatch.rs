@@ -208,16 +208,11 @@ impl DraftProxy {
                 {
                     self.hydrate_current_backup_region_from_upstream(request);
                 }
-                let mut data = serde_json::Map::new();
-                for field in fields {
-                    if field.name == "backupRegion" {
-                        data.insert(
-                            field.response_key,
-                            selected_json(&self.store.staged.backup_region, &field.selection),
-                        );
-                    }
-                }
-                ok_json(json!({ "data": Value::Object(data) }))
+                let data = root_payload_json(&fields, |field| {
+                    (field.name == "backupRegion")
+                        .then(|| selected_json(&self.store.staged.backup_region, &field.selection))
+                });
+                ok_json(json!({ "data": data }))
             }
             "domain" => {
                 if self.config.read_mode != ReadMode::Snapshot
@@ -303,31 +298,19 @@ impl DraftProxy {
         }
 
         let fields = try_root_fields!(query, variables);
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            match field.name.as_str() {
-                "order" | "draftOrder" | "return" | "abandonment" => {
-                    data.insert(field.response_key, Value::Null);
-                }
-                "orders" => {
-                    data.insert(field.response_key, connection_json(Vec::new()));
-                }
-                "ordersCount" => {
-                    data.insert(
-                        field.response_key,
-                        selected_json(
-                            &json!({
-                                "count": 0,
-                                "precision": "EXACT"
-                            }),
-                            &field.selection,
-                        ),
-                    );
-                }
-                _ => {}
-            }
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+        let data = root_payload_json(&fields, |field| match field.name.as_str() {
+            "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
+            "orders" => Some(connection_json(Vec::new())),
+            "ordersCount" => Some(selected_json(
+                &json!({
+                    "count": 0,
+                    "precision": "EXACT"
+                }),
+                &field.selection,
+            )),
+            _ => None,
+        });
+        ok_json(json!({ "data": data }))
     }
 
     fn domain_query_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
@@ -335,26 +318,24 @@ impl DraftProxy {
             if field.name != "domain" {
                 return false;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             !id.is_empty() && self.store.domain_by_id(&id).is_none()
         })
     }
 
     fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "domain" {
-                continue;
+                return None;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .domain_by_id(&id)
                 .map(|domain| selected_json(&domain, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     fn local_node_query_data(
@@ -362,13 +343,21 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         allow_unknown_null: bool,
     ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut missing_required = false;
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.local_node_value_by_id(&id, &field.selection)
-                        .or_else(|| allow_unknown_null.then_some(Value::Null))?
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    match self
+                        .local_node_value_by_id(&id, &field.selection)
+                        .or_else(|| allow_unknown_null.then_some(Value::Null))
+                    {
+                        Some(value) => value,
+                        None => {
+                            missing_required = true;
+                            return None;
+                        }
+                    }
                 }
                 "nodes" => Value::Array(
                     field
@@ -381,13 +370,17 @@ impl DraftProxy {
                             self.local_node_value_by_id(&id, &field.selection)
                                 .or_else(|| allow_unknown_null.then_some(Value::Null))
                         })
-                        .collect::<Option<Vec<_>>>()?,
+                        .collect::<Option<Vec<_>>>()
+                        .unwrap_or_else(|| {
+                            missing_required = true;
+                            Vec::new()
+                        }),
                 ),
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Some(Value::Object(data))
+            Some(value)
+        });
+        (!missing_required).then_some(data)
     }
 
     fn abandonment_read_data(
@@ -400,12 +393,11 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             if field.name != "abandonment" {
-                continue;
+                return None;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .staged
@@ -413,9 +405,9 @@ impl DraftProxy {
                 .get(&id)
                 .map(|record| selected_json(record, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key, value);
-        }
-        Some(json!({ "data": Value::Object(data) }))
+            Some(value)
+        });
+        Some(json!({ "data": data }))
     }
 
     fn orders_stage_locally_unmodeled_shape_response(

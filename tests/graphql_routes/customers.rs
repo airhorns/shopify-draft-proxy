@@ -105,7 +105,7 @@ fn assert_merge_survivor(
     );
     assert_eq!(downstream.body["data"]["source"], Value::Null);
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     assert_eq!(
         state["stagedState"]["mergedCustomerIds"][expected_source_id],
         json!(expected_result_id)
@@ -243,7 +243,7 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     assert_eq!(downstream.body["data"]["node"]["id"], json!(job_id));
     assert_eq!(downstream.body["data"]["node"]["done"], json!(true));
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["mergedCustomerIds"][source_id.as_str()],
         json!(result_id)
@@ -256,7 +256,7 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
         state["stagedState"]["deletedCustomerIds"],
         json!([source_id])
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][2]["interpreted"]["primaryRootField"],
         json!("customerMerge")
@@ -424,6 +424,30 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
         }])
     );
 
+    let duplicated_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicatedUnknownMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "one": "gid://shopify/Customer/999999999999999",
+            "two": "gid://shopify/Customer/999999999999999"
+        }),
+    ));
+    assert_eq!(
+        duplicated_unknown.body["data"]["customerMerge"]["userErrors"],
+        json!([{
+            "field": ["customerOneId"],
+            "message": "Customer does not exist with ID 999999999999999",
+            "code": "INVALID_CUSTOMER_ID"
+        }])
+    );
+
     let missing = proxy.process_request(json_graphql_request(
         r#"
         mutation MissingArgumentNameDoesNotMatter($one: ID!) {
@@ -558,11 +582,11 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
     );
 
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["mergedCustomerIds"],
+        state_snapshot(&proxy)["stagedState"]["mergedCustomerIds"],
         json!({})
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customers"][second_id.as_str()]["email"],
+        state_snapshot(&proxy)["stagedState"]["customers"][second_id.as_str()]["email"],
         json!("merge-validation-two@example.test")
     );
 }
@@ -595,8 +619,8 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         json!({ "customerId": customer_id, "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customerDataErasureRequests"]
-            [customer_id.as_str()]["status"],
+        state_snapshot(&proxy)["stagedState"]["customerDataErasureRequests"][customer_id.as_str()]
+            ["status"],
         json!("REQUESTED")
     );
 
@@ -629,8 +653,8 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         json!({ "customerId": customer_id, "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customerDataErasureRequests"]
-            [customer_id.as_str()]["status"],
+        state_snapshot(&proxy)["stagedState"]["customerDataErasureRequests"][customer_id.as_str()]
+            ["status"],
         json!("CANCELED")
     );
 
@@ -662,13 +686,13 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         "customerCancelDataErasure",
         "customerCancelDataErasure",
     ] {
-        assert!(proxy.get_log_snapshot()["entries"]
+        assert!(log_snapshot(&proxy)["entries"]
             .as_array()
             .unwrap()
             .iter()
             .any(|entry| entry["interpreted"]["primaryRootField"] == json!(root)));
     }
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
         .unwrap()

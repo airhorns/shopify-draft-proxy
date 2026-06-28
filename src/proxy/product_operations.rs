@@ -124,7 +124,7 @@ impl DraftProxy {
                 .or_else(|| base.as_ref().map(|product| product.product_type.clone()))
                 .unwrap_or_default(),
             tags: if input.contains_key("tags") {
-                normalize_taggable_tags(resolved_string_list_field_unsorted(&input, "tags"))
+                normalize_taggable_tags(list_string_field(&input, "tags"))
             } else {
                 base.as_ref()
                     .map(|product| product.tags.clone())
@@ -558,8 +558,6 @@ impl DraftProxy {
         product: Option<&ProductRecord>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         let payload = selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" => Some(
@@ -574,10 +572,7 @@ impl DraftProxy {
                         .unwrap_or(Value::Null),
                 ),
                 "productSetOperation" => Some(Value::Null),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         });
@@ -793,8 +788,6 @@ impl DraftProxy {
         operation_selection: &[SelectedField],
         user_errors: Vec<Value>,
     ) -> Value {
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "newProduct" => Some(if operation.is_some() {
@@ -818,10 +811,7 @@ impl DraftProxy {
                         })
                         .unwrap_or(Value::Null),
                 ),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -900,15 +890,10 @@ impl DraftProxy {
         payload_selection: &[SelectedField],
         user_errors: Vec<Value>,
     ) -> Response {
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         let payload = selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "productBundleOperation" => Some(Value::Null),
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         });
@@ -941,17 +926,12 @@ impl DraftProxy {
         operation_selection: &[SelectedField],
         user_errors: Vec<Value>,
     ) -> Value {
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "productBundleOperation" => {
                     Some(self.product_operation_initial_json(operation, operation_selection))
                 }
-                "userErrors" => Some(selected_user_errors(
-                    user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
@@ -997,8 +977,6 @@ impl DraftProxy {
         selections: &[SelectedField],
     ) -> Value {
         let typename = product_operation_typename(operation.kind);
-        let error_selection =
-            selected_child_selection(selections, "userErrors").unwrap_or_default();
         selected_payload_json(selections, |selection| {
             if !product_operation_selection_matches(selection, typename) {
                 return None;
@@ -1037,10 +1015,9 @@ impl DraftProxy {
                         })
                         .unwrap_or(Value::Null),
                 ),
-                "userErrors" => Some(selected_user_errors(
-                    operation.user_errors.as_slice(),
-                    &error_selection,
-                )),
+                "userErrors" => {
+                    selected_user_errors_field(operation.user_errors.as_slice(), selection)
+                }
                 _ => None,
             }
         })
@@ -1077,11 +1054,12 @@ fn product_set_shape_error_response(
     let variants = resolved_object_list_field(input, "variants");
     if variants.len() > 2048 {
         return Some(ok_json(json!({
-            "errors": [{
-                "message": format!("The input array size of {} is greater than the maximum allowed of 2048.", variants.len()),
-                "path": [response_key, "input", "variants"],
-                "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-            }]
+            "errors": [max_input_size_exceeded_error(
+                [response_key, "input", "variants"],
+                variants.len(),
+                2048,
+                None
+            )]
         })));
     }
     if let Some(quantities_len) = variants
@@ -1090,11 +1068,12 @@ fn product_set_shape_error_response(
         .find(|len| *len > 250)
     {
         return Some(ok_json(json!({
-            "errors": [{
-                "message": format!("The input array size of {} is greater than the maximum allowed of 250.", quantities_len),
-                "path": [response_key, "input", "variants", "inventoryQuantities"],
-                "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-            }]
+            "errors": [max_input_size_exceeded_error(
+                [response_key, "input", "variants", "inventoryQuantities"],
+                quantities_len,
+                250,
+                None
+            )]
         })));
     }
 
@@ -1134,12 +1113,10 @@ fn product_set_shape_error_response(
     if errors.is_empty() {
         None
     } else {
-        let error_selection =
-            selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
         let payload = selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
                 "product" | "productSetOperation" => Some(Value::Null),
-                "userErrors" => Some(selected_user_errors(errors.as_slice(), &error_selection)),
+                "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
                 _ => None,
             }
         });

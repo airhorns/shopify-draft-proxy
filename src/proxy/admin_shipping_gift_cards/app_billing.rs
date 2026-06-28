@@ -7,10 +7,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "currentAppInstallation" {
-                continue;
+                return None;
             }
             let value = if self.store.staged.app_uninstalled {
                 Value::Null
@@ -22,9 +21,8 @@ impl DraftProxy {
                     &field.selection,
                 )
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
@@ -376,7 +374,7 @@ impl DraftProxy {
                     continue;
                 }
             };
-            let requested_amount = resolved_money_amount_string(capped.get("amount"));
+            let requested_amount = money_amount_string_from_resolved(capped.get("amount"));
             let requested_currency = match capped.get("currencyCode") {
                 Some(ResolvedValue::String(value)) => value.clone(),
                 _ => "USD".to_string(),
@@ -549,7 +547,7 @@ impl DraftProxy {
                 }));
             }
         };
-        let amount = resolved_money_amount_string(price.get("amount"));
+        let amount = money_amount_string_from_resolved(price.get("amount"));
         let currency = match price.get("currencyCode") {
             Some(ResolvedValue::String(value)) => value.clone(),
             _ => "USD".to_string(),
@@ -986,7 +984,7 @@ impl DraftProxy {
             Some(ResolvedValue::Object(price)) => price.clone(),
             _ => BTreeMap::new(),
         };
-        let amount = resolved_money_amount_string(price.get("amount"));
+        let amount = money_amount_string_from_resolved(price.get("amount"));
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {

@@ -1,0 +1,147 @@
+{
+  "capturedAt": "2026-06-26T23:05:09.591Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scenarios": {
+    "unknownProducts": {
+      "document": "mutation CollectionCreateProductsRuleSetValidation($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      products(first: 10) {\n        nodes {\n          id\n        }\n      }\n      ruleSet {\n        appliedDisjunctively\n        rules {\n          column\n          relation\n          condition\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Reject Unknown Product Collection",
+          "products": ["gid://shopify/Product/999999999999999"]
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": null,
+            "userErrors": [
+              {
+                "field": ["products", "0"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "emptyRuleSetRules": {
+      "document": "mutation CollectionCreateProductsRuleSetValidation($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      products(first: 10) {\n        nodes {\n          id\n        }\n      }\n      ruleSet {\n        appliedDisjunctively\n        rules {\n          column\n          relation\n          condition\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Reject Empty Rule Set Collection",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/513888485682",
+              "title": "Reject Empty Rule Set Collection",
+              "products": {
+                "nodes": []
+              },
+              "ruleSet": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "document": "mutation CleanupCollection($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/513888485682"
+          }
+        },
+        "response": {
+          "data": {
+            "collectionDelete": {
+              "deletedCollectionId": "gid://shopify/Collection/513888485682",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingRuleSetRules": {
+      "document": "mutation CollectionCreateProductsRuleSetValidation($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      products(first: 10) {\n        nodes {\n          id\n        }\n      }\n      ruleSet {\n        appliedDisjunctively\n        rules {\n          column\n          relation\n          condition\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Reject Missing Rule Set Rules Collection",
+          "ruleSet": {
+            "appliedDisjunctively": false
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": null,
+            "userErrors": [
+              {
+                "field": ["ruleSet", "rules"],
+                "message": "Rules cannot be an empty set"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live public Admin GraphQL rejects collectionCreate with unknown input.products before creating a collection.",
+    "Live public Admin GraphQL accepts collectionCreate with present ruleSet and an empty rules list as a custom collection with ruleSet: null.",
+    "Live public Admin GraphQL rejects collectionCreate with present ruleSet and omitted rules before creating a collection.",
+    "The validation failure payloads return collection: null and generic UserError objects with field/message only."
+  ],
+  "upstreamCalls": []
+}

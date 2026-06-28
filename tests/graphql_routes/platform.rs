@@ -617,7 +617,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
         json!("CANCELLATION_REJECTED")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let operation_names = log["entries"]
         .as_array()
         .unwrap()
@@ -1156,8 +1156,8 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         .expect("backup region id is selected")
         .to_string();
     assert!(
-        region_id.starts_with("gid://shopify/MarketRegionCountry/local-"),
-        "locally staged market region ids must be synthetic, got {region_id}"
+        region_id.starts_with("gid://shopify/Market/Region/"),
+        "locally staged market region ids must come from the modeled market region node, got {region_id}"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -2712,7 +2712,7 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let roots: Vec<_> = log["entries"]
         .as_array()
         .unwrap()
@@ -2974,7 +2974,7 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"],
+        log_snapshot(&proxy)["entries"],
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
@@ -3189,7 +3189,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["deletedLocationIds"],
+        state_snapshot(&proxy)["stagedState"]["deletedLocationIds"],
         json!([target_id])
     );
 }
@@ -3733,8 +3733,8 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         r#"
         mutation HoldNumericFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
           fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
-            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
-            fulfillmentOrder { id status fulfillmentHolds { id handle } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
+            fulfillmentHold { id handle reason reasonNotes displayReason heldByRequestingApp }
+            fulfillmentOrder { id status fulfillmentHolds { id handle reason displayReason } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
             remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
             userErrors { field message code }
           }
@@ -3743,7 +3743,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         json!({
             "id": fulfillment_order_id,
             "fulfillmentHold": {
-                "reason": "OTHER",
+                "reason": "AWAITING_RETURN_ITEMS",
                 "reasonNotes": "wait",
                 "handle": "numeric-hold",
                 "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
@@ -3753,7 +3753,19 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(hold.status, 200);
     let hold_payload = &hold.body["data"]["fulfillmentOrderHold"];
     assert_eq!(hold_payload["userErrors"], json!([]));
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(hold_payload["fulfillmentOrder"]["status"], json!("ON_HOLD"));
+    assert_eq!(
+        hold_payload["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(
         hold_payload["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"],
         json!(1)
@@ -3766,9 +3778,9 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     let after_hold = proxy.process_request(json_graphql_request(
         r#"
         query ReadHeldFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
-          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle } } } }
-          fulfillmentOrder(id: $fulfillmentOrderId) { id status }
-          manualHoldsFulfillmentOrders(first: 10) { nodes { id status } }
+          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle reason displayReason } } } }
+          fulfillmentOrder(id: $fulfillmentOrderId) { id status fulfillmentHolds { reason displayReason } }
+          manualHoldsFulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { reason displayReason } } }
         }
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
@@ -3780,6 +3792,15 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        after_hold.body["data"]["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
+    assert_eq!(
+        after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["fulfillmentHolds"][0]
+            ["displayReason"],
+        json!("Exchange items awaiting return delivery")
     );
 
     let hold_id = hold_payload["fulfillmentHold"]["id"].as_str().unwrap();
@@ -3822,10 +3843,14 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"][1]["status"],
         json!("CLOSED")
     );
-    assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
 }
 
 #[test]
@@ -4292,7 +4317,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             }] }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4712,7 +4737,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     );
     assert_eq!(read.body["data"]["nodePolicy"]["id"], policy["id"]);
     assert_eq!(read.body["data"]["nodes"][0]["url"], policy["url"]);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],
         json!([policy["id"]])
@@ -4882,7 +4907,7 @@ fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(
         read_after_invalid.body["data"]["shop"]["shopPolicies"],
@@ -4963,7 +4988,7 @@ fn shop_policy_update_validation_branches_match_shopify_shapes() {
             "code": null
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let max_body = "a".repeat(524_287);
     let max_response = proxy.process_request(json_graphql_request(

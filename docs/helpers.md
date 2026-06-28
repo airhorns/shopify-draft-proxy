@@ -68,8 +68,8 @@ Use these helpers before adding resource-local `ResolvedValue` serializers.
 - `resolved_value_json(...)` converts GraphQL `ResolvedValue` trees into JSON while preserving strings, numbers, booleans, nulls, lists, and objects.
 - `resolved_variables_json(...)` serializes resolved variable maps for log metadata and validation payloads.
 - `resolved_value_string(...)` reads a string from a single `ResolvedValue`.
-- `resolved_string_arg(...)` and `resolved_i64_field(...)` read string and integer scalars from resolved argument/input maps.
-- `list_object_field(...)` and `list_string_field(...)` read object and string lists from resolved argument/input maps.
+- `resolved_string_field(...)` and `resolved_int_field(...)` read string and integer scalars from resolved argument/input maps.
+- `resolved_object_list_field(...)` and `list_string_field(...)` read object and string lists from resolved argument/input maps.
 
 Input readers that need the inverse conversion from JSON into resolved GraphQL values should use `resolved_value_from_json(...)` in `src/proxy/routing.rs`.
 

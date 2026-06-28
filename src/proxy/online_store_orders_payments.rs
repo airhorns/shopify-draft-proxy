@@ -5,13 +5,9 @@ mod fulfillment_orders;
 mod orders;
 mod payments;
 
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::draft_orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::fulfillment_orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::payments::*;
 
 struct OrdersLocalLogEntry<'a> {

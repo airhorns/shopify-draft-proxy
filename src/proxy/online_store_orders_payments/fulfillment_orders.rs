@@ -120,10 +120,7 @@ pub(in crate::proxy) fn fulfillment_order_payload_json(
                 &fulfillment_order,
                 &selection.selection,
             )),
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -153,10 +150,7 @@ pub(in crate::proxy) fn fulfillment_order_request_payload_json(
             "unsubmittedFulfillmentOrder" => {
                 Some(nullable_selected_json(&unsubmitted, &selection.selection))
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             name if root_field == "fulfillmentOrderSubmitFulfillmentRequest"
                 && name == "fulfillmentOrder" =>
             {
@@ -188,10 +182,7 @@ pub(in crate::proxy) fn fulfillment_order_split_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -218,10 +209,7 @@ pub(in crate::proxy) fn fulfillment_order_merge_payload_json(
                     ))
                 }
             }
-            "userErrors" => Some(selected_user_errors(
-                user_errors.as_slice(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -232,8 +220,8 @@ pub(in crate::proxy) fn fulfillment_tracking_info(
 ) -> Vec<Value> {
     let company = resolved_string_field(input, "company")
         .or_else(|| resolved_string_field(input, "trackingCompany"));
-    let numbers = resolved_string_list_field_unsorted(input, "numbers");
-    let urls = resolved_string_list_field_unsorted(input, "urls");
+    let numbers = list_string_field(input, "numbers");
+    let urls = list_string_field(input, "urls");
     if !numbers.is_empty() || !urls.is_empty() {
         let len = numbers.len().max(urls.len());
         return (0..len)
@@ -324,7 +312,7 @@ pub(in crate::proxy) fn fulfillment_group_line_items(
         .iter()
         .filter_map(|requested| {
             let requested_id = resolved_string_field(requested, "id")?;
-            let quantity = resolved_i64_field(requested, "quantity")
+            let quantity = resolved_int_field(requested, "quantity")
                 .unwrap_or(0)
                 .max(0);
             line_nodes
@@ -375,7 +363,7 @@ pub(in crate::proxy) fn fulfillment_create_precondition_error(
             let Some(requested_id) = resolved_string_field(&requested, "id") else {
                 return Some(fulfillment_create_invalid_quantity_error());
             };
-            let requested_quantity = resolved_i64_field(&requested, "quantity").unwrap_or(0);
+            let requested_quantity = resolved_int_field(&requested, "quantity").unwrap_or(0);
             let Some(line) = line_nodes
                 .iter()
                 .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
@@ -473,12 +461,6 @@ pub(in crate::proxy) fn fulfillment_create_invalid_id_error(
             "path": [field.response_key.clone()]
         }]
     }))
-}
-
-pub(in crate::proxy) fn fulfillment_accepts_events(fulfillment: &Value) -> bool {
-    !fulfillment_status_is(fulfillment, "CANCELLED")
-        && !fulfillment_status_is(fulfillment, "FAILURE")
-        && !fulfillment_status_is(fulfillment, "ERROR")
 }
 
 pub(in crate::proxy) fn fulfillment_event_nullable_string(
@@ -642,7 +624,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
             let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
@@ -667,7 +649,7 @@ impl DraftProxy {
     ) -> Value {
         let requested_lines =
             resolved_object_list_field(&field.arguments, "fulfillmentOrderLineItems");
-        let message = resolved_string_arg(&field.arguments, "message");
+        let message = resolved_string_field(&field.arguments, "message");
         let notify_customer =
             resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
 
@@ -705,7 +687,7 @@ impl DraftProxy {
                 .filter_map(|line| {
                     Some((
                         resolved_string_field(line, "id")?,
-                        resolved_i64_field(line, "quantity").unwrap_or(0).max(0),
+                        resolved_int_field(line, "quantity").unwrap_or(0).max(0),
                     ))
                 })
                 .collect::<Vec<_>>()
@@ -790,7 +772,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
             let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
@@ -824,7 +806,8 @@ impl DraftProxy {
             "fulfillmentOrderAcceptFulfillmentRequest" => {
                 fulfillment_order["status"] = json!("IN_PROGRESS");
                 fulfillment_order["requestStatus"] = json!("ACCEPTED");
-                if let Some(estimated) = resolved_string_arg(&field.arguments, "estimatedShippedAt")
+                if let Some(estimated) =
+                    resolved_string_field(&field.arguments, "estimatedShippedAt")
                 {
                     fulfillment_order["estimatedShippedAt"] = json!(estimated);
                 }
@@ -842,7 +825,7 @@ impl DraftProxy {
                     .unwrap_or_default();
                 requests.push(json!({
                     "kind": "CANCELLATION_REQUEST",
-                    "message": resolved_string_arg(&field.arguments, "message").unwrap_or_default(),
+                    "message": resolved_string_field(&field.arguments, "message").unwrap_or_default(),
                     "requestOptions": {},
                     "responseData": Value::Null
                 }));
@@ -929,7 +912,7 @@ impl DraftProxy {
                 );
             }
             for (line_index, line) in line_inputs.iter().enumerate() {
-                if resolved_i64_field(line, "quantity").unwrap_or(0) <= 0 {
+                if resolved_int_field(line, "quantity").unwrap_or(0) <= 0 {
                     return fulfillment_order_split_payload_json(
                         Value::Null,
                         &field.selection,
@@ -988,7 +971,7 @@ impl DraftProxy {
                 let split_quantity = line_inputs
                     .iter()
                     .find(|input| resolved_string_field(input, "id").as_deref() == Some(line_id))
-                    .and_then(|input| resolved_i64_field(input, "quantity"))
+                    .and_then(|input| resolved_int_field(input, "quantity"))
                     .unwrap_or(0);
                 let current = line_item_remaining_quantity(&line);
                 if split_quantity > current {
@@ -1073,7 +1056,7 @@ impl DraftProxy {
         let mut result = Vec::new();
         for (request_index, request) in requested.iter().enumerate() {
             let requested_id = resolved_string_field(request, "id").unwrap_or_default();
-            let quantity = resolved_i64_field(request, "quantity").unwrap_or(0);
+            let quantity = resolved_int_field(request, "quantity").unwrap_or(0);
             if quantity <= 0 {
                 return Err(fulfillment_order_user_error(
                     json!([
@@ -1476,7 +1459,7 @@ impl DraftProxy {
                             for requested in &requested_line_items {
                                 let requested_id =
                                     resolved_string_field(requested, "id").unwrap_or_default();
-                                let quantity = resolved_i64_field(requested, "quantity")
+                                let quantity = resolved_int_field(requested, "quantity")
                                     .unwrap_or(0)
                                     .max(0);
                                 if let Some(line) = line_nodes
@@ -1532,7 +1515,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "id")?;
         let fulfillment = self
             .store
             .staged
@@ -1622,19 +1605,6 @@ impl DraftProxy {
         }) else {
             return Self::fulfillment_event_create_missing_fulfillment_payload(field);
         };
-        if !fulfillment_accepts_events(fulfillment) {
-            return selected_json(
-                &json!({
-                    "fulfillmentEvent": Value::Null,
-                    "userErrors": [orders_error(
-                        &["fulfillmentEvent", "fulfillmentId"],
-                        "fulfillment_is_cancelled",
-                        "INVALID"
-                    )]
-                }),
-                &field.selection,
-            );
-        }
 
         let event_id = self.next_proxy_synthetic_gid("FulfillmentEvent");
         let event = fulfillment_event_record(event_id.clone(), &input, &status);
@@ -1663,7 +1633,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "fulfillmentId")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "fulfillmentId")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
             .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
@@ -1675,18 +1645,13 @@ impl DraftProxy {
         let fulfillment = order_fulfillments_mut(&mut order)?
             .iter_mut()
             .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
-        if fulfillment_status_is(fulfillment, "CANCELLED") {
-            return Some(selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
-                }),
-                &field.selection,
-            ));
-        }
+        let preserve_lifecycle_status = fulfillment_status_is(fulfillment, "CANCELLED")
+            || fulfillment_display_status_is(fulfillment, "DELIVERED");
         fulfillment["trackingInfo"] = json!(tracking_info);
-        fulfillment["status"] = json!("SUCCESS");
-        fulfillment["displayStatus"] = json!("FULFILLED");
+        if !preserve_lifecycle_status {
+            fulfillment["status"] = json!("SUCCESS");
+            fulfillment["displayStatus"] = json!("FULFILLED");
+        }
         fulfillment["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
         let updated = fulfillment.clone();
         self.store
@@ -1713,7 +1678,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let fulfillment_id = resolved_string_field(&field.arguments, "id")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
             .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
@@ -1722,19 +1687,22 @@ impl DraftProxy {
             .iter_mut()
             .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
         if fulfillment_status_is(fulfillment, "CANCELLED") {
+            let cancelled = fulfillment.clone();
+            self.store
+                .staged
+                .orders
+                .insert(order_id.clone(), order.clone());
+            self.record_staged_orders_log_entry(
+                request,
+                query,
+                variables,
+                "fulfillmentCancel",
+                vec![order_id, fulfillment_id],
+            );
             return Some(selected_json(
                 &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_cannot_be_cancelled", "INVALID")]
-                }),
-                &field.selection,
-            ));
-        }
-        if fulfillment_display_status_is(fulfillment, "DELIVERED") {
-            return Some(selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_already_delivered", "INVALID")]
+                    "fulfillment": cancelled,
+                    "userErrors": []
                 }),
                 &field.selection,
             ));

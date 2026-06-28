@@ -1,0 +1,19 @@
+mutation ProductVariantsBulkUpdateAllowPartial($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, allowPartialUpdates: true, variants: $variants) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+    }
+    productVariants {
+      id
+      sku
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

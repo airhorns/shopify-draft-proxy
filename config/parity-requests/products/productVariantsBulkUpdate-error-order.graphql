@@ -1,0 +1,12 @@
+mutation ProductVariantsBulkUpdateErrorOrder($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

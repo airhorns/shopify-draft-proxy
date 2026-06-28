@@ -1,0 +1,35 @@
+mutation LocalizationShopLocaleUserErrorNoCode(
+  $enableLocale: String!
+  $updateLocale: String!
+  $updateInput: ShopLocaleInput!
+  $disableLocale: String!
+) {
+  enable: shopLocaleEnable(locale: $enableLocale) {
+    shopLocale {
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  update: shopLocaleUpdate(locale: $updateLocale, shopLocale: $updateInput) {
+    shopLocale {
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  disable: shopLocaleDisable(locale: $disableLocale) {
+    locale
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

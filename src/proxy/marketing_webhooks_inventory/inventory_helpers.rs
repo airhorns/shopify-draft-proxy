@@ -207,7 +207,6 @@ pub(in crate::proxy) fn inventory_change_json(
     item_id: &str,
     name: &str,
     delta: i64,
-    _quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
     location_name: &str,

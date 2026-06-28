@@ -1,0 +1,9 @@
+query InventoryActivateOnHandRead($inventoryLevelId: ID!) {
+  inventoryLevel(id: $inventoryLevelId) {
+    isActive
+    quantities(names: ["on_hand"]) {
+      name
+      quantity
+    }
+  }
+}
