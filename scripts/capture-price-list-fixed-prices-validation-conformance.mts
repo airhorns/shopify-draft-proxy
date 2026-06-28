@@ -256,11 +256,17 @@ const productId = product.id;
 const productTitle = product.title;
 const variantId = variant.id;
 const variantTitle = variant.title;
+const secondVariant =
+  product.variants?.nodes?.find((node) => typeof node?.id === 'string' && node.id !== variantId) ?? variant;
+const secondVariantId = secondVariant.id as string;
+const secondVariantTitle = secondVariant.title;
 const missingPriceListId = 'gid://shopify/PriceList/999999999999999';
 const missingVariantId = 'gid://shopify/ProductVariant/999999999999999';
 const mismatchCurrency = alternateCurrency(priceListCurrency);
 const matchingPrice = { amount: '812.34', currencyCode: priceListCurrency };
 const matchingPriceSecond = { amount: '813.45', currencyCode: priceListCurrency };
+const mismatchedCompareAtPrice = { amount: '912.34', currencyCode: mismatchCurrency };
+const mismatchedCompareAtPriceSecond = { amount: '913.45', currencyCode: mismatchCurrency };
 const updatedPrice = { amount: '818.88', currencyCode: priceListCurrency };
 const updatedPriceSecond = { amount: '819.99', currencyCode: priceListCurrency };
 const mismatchedPrice = { amount: '712.34', currencyCode: mismatchCurrency };
@@ -279,6 +285,23 @@ try {
       {
         priceListId,
         prices: [{ variantId, price: mismatchedPrice }],
+      },
+      productId,
+    ),
+    addCompareAtCurrencyMismatch: await captureCase(
+      'priceListFixedPricesAdd',
+      'add compare-at currency mismatch',
+      addDocument,
+      {
+        priceListId,
+        prices: [
+          { variantId, price: matchingPrice, compareAtPrice: mismatchedCompareAtPrice },
+          {
+            variantId: secondVariantId,
+            price: mismatchedPrice,
+            compareAtPrice: mismatchedCompareAtPriceSecond,
+          },
+        ],
       },
       productId,
     ),
@@ -369,6 +392,24 @@ try {
       },
       productId,
     ),
+    updateCompareAtCurrencyMismatch: await captureCase(
+      'priceListFixedPricesUpdate',
+      'update compare-at currency mismatch',
+      updateDocument,
+      {
+        priceListId,
+        pricesToAdd: [
+          { variantId, price: updatedPrice, compareAtPrice: mismatchedCompareAtPrice },
+          {
+            variantId: secondVariantId,
+            price: mismatchedPrice,
+            compareAtPrice: mismatchedCompareAtPriceSecond,
+          },
+        ],
+        variantIdsToDelete: [],
+      },
+      productId,
+    ),
     updateDuplicateVariantId: await captureCase(
       'priceListFixedPricesUpdate',
       'update duplicate variant id',
@@ -435,6 +476,8 @@ try {
       productTitle,
       variantId,
       variantTitle,
+      secondVariantId,
+      secondVariantTitle,
       missingPriceListId,
       missingVariantId,
       mismatchCurrency,

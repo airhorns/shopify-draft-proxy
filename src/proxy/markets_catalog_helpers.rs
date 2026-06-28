@@ -536,15 +536,17 @@ pub(in crate::proxy) fn fixed_price_currency_errors(
     let expected = price_list_currency(price_list);
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
-        if let Some(actual) =
-            fixed_price_input_currency(input, "price").filter(|value| !value.is_empty())
-        {
-            if actual != expected {
-                errors.push(price_list_price_error(
-                    json!([field_name, index.to_string(), "price", "currencyCode"]),
-                    "The specified currency does not match the price list's currency.",
-                    "PRICE_LIST_CURRENCY_MISMATCH",
-                ));
+        for money_field in ["price", "compareAtPrice"] {
+            if let Some(actual) =
+                fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
+            {
+                if actual != expected {
+                    errors.push(price_list_price_error(
+                        json!([field_name, index.to_string(), money_field, "currencyCode"]),
+                        "The specified currency does not match the price list's currency.",
+                        "PRICE_LIST_CURRENCY_MISMATCH",
+                    ));
+                }
             }
         }
     }

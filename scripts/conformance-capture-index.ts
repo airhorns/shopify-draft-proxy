@@ -4616,10 +4616,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-fixed-prices-validation-conformance.mts',
     purpose:
-      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for currency mismatch, duplicate variant IDs, unknown variants, missing fixed prices, and unknown price lists.',
+      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for price/compareAtPrice currency mismatch, duplicate variant IDs, unknown variants, missing fixed prices, and unknown price lists.',
     requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}price-list-fixed-prices-validation.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-add-compare-at-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-duplicate-variant-id.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-price-list-not-found.json',
@@ -4627,6 +4628,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-list-not-found.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-not-fixed.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-variant-not-found.json',
+      'config/parity-specs/markets/price-list-fixed-prices-update-compare-at-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-duplicate-variant-id.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-price-list-not-found.json',
