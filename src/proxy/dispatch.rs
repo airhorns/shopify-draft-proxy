@@ -33,6 +33,17 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
+fn changed_draft_order_tag_ids(
+    before: &BTreeMap<String, Vec<String>>,
+    after: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    after
+        .iter()
+        .filter(|(id, tags)| before.get(*id) != Some(*tags))
+        .map(|(id, _)| id.clone())
+        .collect()
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn finalize_mutation_outcome(
         &mut self,
@@ -1343,7 +1354,17 @@ impl DraftProxy {
                         "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
                     ) =>
             {
+                let before_tags = self.store.staged.draft_order_tags.clone();
                 if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
+                    let staged_ids = changed_draft_order_tag_ids(
+                        &before_tags,
+                        &self.store.staged.draft_order_tags,
+                    );
+                    if !staged_ids.is_empty() {
+                        self.record_mutation_log_entry(
+                            request, &query, &variables, root_field, staged_ids,
+                        );
+                    }
                     ok_json(data)
                 } else {
                     no_dispatcher("orders", root_field)

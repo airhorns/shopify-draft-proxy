@@ -7187,6 +7187,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-bulk-tag-case-preservation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-bulk-tag-case-preservation-conformance.ts',
+    purpose:
+      'draftOrderBulkAddTags trim, case-insensitive dedupe, and original display-case preservation read-after-write behavior.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-bulk-tag-case-preservation.json`,
+      'config/parity-specs/orders/draftOrderBulkTag-case-preservation.json',
+    ],
+    cleanupBehavior: 'Creates one disposable draft order, records bulk tag add readback, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-calculate-validation-and-shipping-rates',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-calculate-validation-and-shipping-rates-conformance.ts',

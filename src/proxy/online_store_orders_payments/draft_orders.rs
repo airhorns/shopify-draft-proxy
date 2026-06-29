@@ -2270,13 +2270,13 @@ impl DraftProxy {
     ) -> Value {
         let ids = resolved_string_list_arg(&field.arguments, "ids");
         let tags = resolved_string_list_arg(&field.arguments, "tags");
-        let normalized_tags: Vec<String> = tags
+        let normalized_tags: Vec<(String, String)> = tags
             .iter()
-            .map(|tag| normalize_draft_order_tag(tag))
+            .map(|tag| (normalize_draft_order_tag(tag), tag.trim().to_string()))
             .collect();
 
         let mut user_errors = Vec::new();
-        for (index, tag) in normalized_tags.iter().enumerate() {
+        for (index, (_, tag)) in normalized_tags.iter().enumerate() {
             if tag.chars().count() >= 256 {
                 user_errors.push(user_error(
                     vec!["input".to_string(), "tags".to_string(), index.to_string()],
@@ -2311,8 +2311,8 @@ impl DraftProxy {
                 .iter()
                 .map(|tag| normalize_draft_order_tag(tag))
                 .collect();
-            for tag in &normalized_tags {
-                identities.insert(tag.clone());
+            for (identity, _) in &normalized_tags {
+                identities.insert(identity.clone());
             }
             identities.len() > 250
         });
@@ -2329,7 +2329,10 @@ impl DraftProxy {
             );
         }
 
-        if !normalized_tags.iter().any(|tag| tag.chars().count() >= 256) {
+        if !normalized_tags
+            .iter()
+            .any(|(_, tag)| tag.chars().count() >= 256)
+        {
             let mut updated_ids = Vec::new();
             for id in valid_ids {
                 if let Some(current) = self.store.staged.draft_order_tags.get_mut(&id) {
@@ -2337,8 +2340,8 @@ impl DraftProxy {
                         .iter()
                         .map(|tag| normalize_draft_order_tag(tag))
                         .collect();
-                    for tag in &normalized_tags {
-                        if existing.insert(tag.clone()) {
+                    for (identity, tag) in &normalized_tags {
+                        if existing.insert(identity.clone()) {
                             current.push(tag.clone());
                         }
                     }

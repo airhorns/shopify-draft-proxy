@@ -3023,6 +3023,92 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
 }
 
 #[test]
+fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql"
+        ),
+        json!({
+            "input": {
+                "email": "draft-order-bulk-tag-case-preservation@example.com",
+                "tags": ["VIP"],
+                "lineItems": [{
+                    "title": "Case preserving bulk tag item",
+                    "quantity": 1,
+                    "originalUnitPrice": "2.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let add_variables = json!({
+        "ids": [draft_order_id.clone()],
+        "tags": [" vip ", " Wholesale ", "wholesale"]
+    });
+    let add = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
+        ),
+        add_variables.clone(),
+    ));
+    assert_eq!(
+        add.body["data"]["draftOrderBulkAddTags"]["userErrors"],
+        json!([])
+    );
+    let log = log_snapshot(&proxy);
+    let add_entry = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("draftOrderBulkAddTags"))
+        .unwrap_or_else(|| {
+            panic!("draftOrderBulkAddTags should stage locally in the mutation log: {log:?}")
+        });
+    assert_eq!(add_entry["status"], json!("staged"));
+    assert_eq!(add_entry["variables"], add_variables);
+
+    let read_after_add = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_add.body["data"]["draftOrder"]["tags"],
+        json!(["VIP", "Wholesale"])
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": ["vip"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["draftOrderBulkRemoveTags"]["userErrors"],
+        json!([])
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["draftOrder"]["tags"],
+        json!(["Wholesale"])
+    );
+}
+
+#[test]
 fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     let mut proxy = snapshot_proxy();
 
