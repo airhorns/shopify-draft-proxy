@@ -3243,16 +3243,18 @@ impl DraftProxy {
         }
         let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
         self.store.staged.next_order_customer_order_id += 1;
-        if email == "order-customer-b2b@example.com" {
+        let customer_id = resolved_string_field(&order_input, "customerId");
+        // Retain the purchasing entity so a later company delete can detect that an
+        // order still references the company (mirrors a real B2B Order).
+        let purchasing_entity = draft_order_purchasing_entity(&order_input);
+        if email == "order-customer-b2b@example.com"
+            || order_customer_purchasing_entity_is_b2b(&purchasing_entity)
+        {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let customer_id = resolved_string_field(&order_input, "customerId");
-        // Retain the purchasing entity so a later company delete can detect that an
-        // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = draft_order_purchasing_entity(&order_input);
         let order = json!({
             "id": id,
             "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
@@ -3545,11 +3547,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self
-            .store
-            .staged
-            .order_customer_b2b_order_ids
-            .contains(&order_id)
+        if self.order_customer_order_is_b2b(&order_id, &order)
             && self
                 .store
                 .staged
@@ -3559,7 +3557,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [user_error(["customerId"], "no_customer_role_error", Some("NOT_PERMITTED"))]
+                    "userErrors": [user_error(
+                        ["customerId"],
+                        "Customer does not have the permissions to place this order",
+                        Some("NOT_PERMITTED"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -3640,16 +3642,15 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self
-            .store
-            .staged
-            .order_customer_cancelled_ids
-            .contains(&order_id)
-        {
+        if self.order_customer_order_is_b2b(&order_id, &order) {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [user_error(["orderId"], "customer_cannot_be_removed", Some("INVALID"))]
+                    "userErrors": [user_error(
+                        ["orderId"],
+                        "Action not permitted on B2B Orders",
+                        Some("INVALID"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -3674,5 +3675,30 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn order_customer_order_is_b2b(&self, order_id: &str, order: &Value) -> bool {
+        self.store
+            .staged
+            .order_customer_b2b_order_ids
+            .contains(order_id)
+            || order_customer_purchasing_entity_is_b2b(&order["purchasingEntity"])
+    }
+}
+
+fn order_customer_purchasing_entity_is_b2b(entity: &Value) -> bool {
+    match entity {
+        Value::Object(map) => {
+            map.get("purchasingCompany")
+                .is_some_and(|purchasing_company| !purchasing_company.is_null())
+                || map
+                    .get("company")
+                    .and_then(|company| company.get("id"))
+                    .is_some_and(Value::is_string)
+                || map.get("companyId").is_some_and(Value::is_string)
+                || map.values().any(order_customer_purchasing_entity_is_b2b)
+        }
+        Value::Array(items) => items.iter().any(order_customer_purchasing_entity_is_b2b),
+        _ => false,
     }
 }

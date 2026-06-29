@@ -2893,11 +2893,42 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
     let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
     let b2b_not_permitted = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
-        json!({ "orderId": b2b_order_id, "customerId": customer_id.clone() }),
+        json!({ "orderId": b2b_order_id.clone(), "customerId": customer_id.clone() }),
     ));
     assert_eq!(
         b2b_not_permitted.body,
-        fixture["expected"]["b2bNotPermitted"]
+        json!({
+            "data": {
+                "orderCustomerSet": {
+                    "order": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "Customer does not have the permissions to place this order",
+                        "code": "NOT_PERMITTED"
+                    }]
+                }
+            }
+        })
+    );
+
+    let b2b_remove = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": b2b_order_id }),
+    ));
+    assert_eq!(
+        b2b_remove.body,
+        json!({
+            "data": {
+                "orderCustomerRemove": {
+                    "order": Value::Null,
+                    "userErrors": [{
+                        "field": ["orderId"],
+                        "message": "Action not permitted on B2B Orders",
+                        "code": "INVALID"
+                    }]
+                }
+            }
+        })
     );
 
     let cancelled_order = proxy.process_request(json_graphql_request(
@@ -2927,11 +2958,21 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
 
     let cancelled_remove = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
-        json!({ "orderId": cancelled_order_id }),
+        json!({ "orderId": cancelled_order_id.clone() }),
     ));
     assert_eq!(
         cancelled_remove.body,
-        fixture["expected"]["cancelledRemove"]
+        json!({
+            "data": {
+                "orderCustomerRemove": {
+                    "order": {
+                        "id": cancelled_order_id,
+                        "customer": Value::Null
+                    },
+                    "userErrors": []
+                }
+            }
+        })
     );
 }
 
