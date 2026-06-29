@@ -206,7 +206,7 @@ impl DraftProxy {
                                 field.response_key.clone(): selected_json(
                                     &json!({
                                         "calculatedOrder": Value::Null,
-                                        "userErrors": [user_error_omit_code(["base"], "not_editable", None)]
+                                        "userErrors": [user_error_omit_code(Value::Null, "The order cannot be edited.", None)]
                                     }),
                                     &field.selection
                                 )
