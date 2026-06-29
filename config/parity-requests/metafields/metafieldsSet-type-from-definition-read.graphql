@@ -1,0 +1,20 @@
+query MetafieldsSetTypeFromDefinitionRead($id: ID!, $namespace: String!, $key: String!) {
+  product(id: $id) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+      definition {
+        id
+        namespace
+        key
+        type {
+          name
+        }
+      }
+    }
+  }
+}
