@@ -1,0 +1,13 @@
+mutation OrderEditCommitSuccessMessagesClose($input: OrderCloseInput!) {
+  orderClose(input: $input) {
+    order {
+      id
+      closed
+      closedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

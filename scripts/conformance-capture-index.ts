@@ -6819,6 +6819,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-commit-success-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-commit-success-messages-conformance.ts',
+    purpose:
+      'orderEditCommit successMessages for notifyCustomer false, paid notify, balance-due notify, and closed-order unarchive commit branches.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-commit-success-messages.json`,
+      'config/parity-specs/orders/orderEditCommit-success-messages.json',
+      'config/parity-requests/orders/orderEditCommit-success-messages-create.graphql',
+      'config/parity-requests/orders/orderEditCommit-success-messages-begin.graphql',
+      'config/parity-requests/orders/orderEditCommit-success-messages-setQuantity.graphql',
+      'config/parity-requests/orders/orderEditCommit-success-messages-close.graphql',
+      'config/parity-requests/orders/orderEditCommit-success-messages-commit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable paid, balance-due, and closed orders, commits order edits including notifyCustomer payload branches, then cancels created orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-lifecycle-noop-rehome',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.ts',
