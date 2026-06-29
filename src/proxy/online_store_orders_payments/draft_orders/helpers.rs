@@ -64,7 +64,7 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
 
 pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     json!({
-        "id": "gid://shopify/DraftOrderLineItem/2",
+        "id": shopify_gid("DraftOrderLineItem", 2),
         "title": "Invoice error parity item",
         "name": "Invoice error parity item",
         "quantity": 1,

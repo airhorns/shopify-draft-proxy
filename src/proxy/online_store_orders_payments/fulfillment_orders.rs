@@ -26,7 +26,7 @@ pub(in crate::proxy) fn fulfillment_order_assigned_location() -> Value {
     json!({
         "name": "Shop location",
         "location": {
-            "id": "gid://shopify/Location/1?shopify-draft-proxy=synthetic",
+            "id": synthetic_shopify_gid("Location", 1),
             "name": "Shop location"
         }
     })
@@ -127,7 +127,6 @@ pub(in crate::proxy) fn fulfillment_order_payload_json(
 }
 
 pub(in crate::proxy) fn fulfillment_order_request_payload_json(
-    root_field: &str,
     fulfillment_order: Value,
     original: Value,
     submitted: Value,
@@ -151,11 +150,6 @@ pub(in crate::proxy) fn fulfillment_order_request_payload_json(
                 Some(nullable_selected_json(&unsubmitted, &selection.selection))
             }
             "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            name if root_field == "fulfillmentOrderSubmitFulfillmentRequest"
-                && name == "fulfillmentOrder" =>
-            {
-                Some(nullable_selected_json(&submitted, &selection.selection))
-            }
             _ => None,
         }
     })
@@ -593,7 +587,6 @@ impl DraftProxy {
                 fulfillment_order_merge_payload_json(Value::Null, selection, errors)
             }
             "fulfillmentOrderSubmitFulfillmentRequest" => fulfillment_order_request_payload_json(
-                root_field,
                 Value::Null,
                 Value::Null,
                 Value::Null,
@@ -622,13 +615,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
-            let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
-                return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
-            };
-            return self.stage_fulfillment_order_submit_request_for_order_id(
-                request, query, variables, field, order_id, id,
-            );
+        let Some(order_id) = self.order_id_for_fulfillment_order(&id, request) else {
+            return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
         };
         self.stage_fulfillment_order_submit_request_for_order_id(
             request, query, variables, field, order_id, id,
@@ -752,7 +740,6 @@ impl DraftProxy {
         );
 
         fulfillment_order_request_payload_json(
-            &field.name,
             original.clone(),
             original.clone(),
             original,
@@ -770,13 +757,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(order_id) = self.staged_order_id_for_fulfillment_order(&id) else {
-            let Some(order_id) = self.hydrate_order_for_fulfillment_order(&id, request) else {
-                return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
-            };
-            return self.stage_fulfillment_order_request_transition_for_order_id(
-                request, query, variables, field, order_id, id,
-            );
+        let Some(order_id) = self.order_id_for_fulfillment_order(&id, request) else {
+            return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
         };
         self.stage_fulfillment_order_request_transition_for_order_id(
             request, query, variables, field, order_id, id,
@@ -924,15 +906,8 @@ impl DraftProxy {
             }
             let fulfillment_order_id =
                 resolved_string_field(input, "fulfillmentOrderId").unwrap_or_default();
-            let Some(order_id) = self
-                .staged_order_id_for_fulfillment_order(&fulfillment_order_id)
-                .or_else(|| {
-                    self.hydrate_order_for_fulfillment_order_with_query(
-                        &fulfillment_order_id,
-                        request,
-                        ORDERS_FULFILLMENT_ORDER_COMPACT_HYDRATE_QUERY,
-                    )
-                })
+            let Some(order_id) =
+                self.order_id_for_fulfillment_order(&fulfillment_order_id, request)
             else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
@@ -1110,10 +1085,7 @@ impl DraftProxy {
             };
             let target_id =
                 resolved_string_field(first_intent, "fulfillmentOrderId").unwrap_or_default();
-            let Some(order_id) = self
-                .staged_order_id_for_fulfillment_order(&target_id)
-                .or_else(|| self.hydrate_order_for_fulfillment_order(&target_id, request))
-            else {
+            let Some(order_id) = self.order_id_for_fulfillment_order(&target_id, request) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
             let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
@@ -1335,6 +1307,28 @@ impl DraftProxy {
             })
     }
 
+    pub(super) fn staged_fulfillment_error_payload(
+        field: &RootFieldSelection,
+        message: &str,
+        code: &str,
+    ) -> Value {
+        selected_json(
+            &json!({
+                "fulfillment": Value::Null,
+                "userErrors": [orders_error(&["fulfillment"], message, code)]
+            }),
+            &field.selection,
+        )
+    }
+
+    pub(super) fn staged_fulfillment_not_found_payload(field: &RootFieldSelection) -> Value {
+        Self::staged_fulfillment_error_payload(
+            field,
+            "Fulfillment order could not be found.",
+            "NOT_FOUND",
+        )
+    }
+
     pub(super) fn staged_fulfillment_payload(
         &mut self,
         request: &Request,
@@ -1343,54 +1337,34 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let Some(fulfillment_input) = resolved_object_field(&field.arguments, "fulfillment") else {
-            return selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment is required", "INVALID")]
-                }),
-                &field.selection,
+            return Self::staged_fulfillment_error_payload(
+                field,
+                "Fulfillment is required",
+                "INVALID",
             );
         };
         let groups = resolved_object_list_field(&fulfillment_input, "lineItemsByFulfillmentOrder");
         let Some(first_group) = groups.first() else {
-            return selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillment"], "Line items by fulfillment order must be specified", "INVALID")]
-                }),
-                &field.selection,
+            return Self::staged_fulfillment_error_payload(
+                field,
+                "Line items by fulfillment order must be specified",
+                "INVALID",
             );
         };
         let Some(fulfillment_order_id) = resolved_string_field(first_group, "fulfillmentOrderId")
         else {
-            return selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order must be specified", "INVALID")]
-                }),
-                &field.selection,
+            return Self::staged_fulfillment_error_payload(
+                field,
+                "Fulfillment order must be specified",
+                "INVALID",
             );
         };
-        let Some(order_id) = self
-            .staged_order_id_for_fulfillment_order(&fulfillment_order_id)
-            .or_else(|| self.hydrate_order_for_fulfillment_order(&fulfillment_order_id, request))
+        let Some(order_id) = self.order_id_for_fulfillment_order(&fulfillment_order_id, request)
         else {
-            return selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order could not be found.", "NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return Self::staged_fulfillment_not_found_payload(field);
         };
         let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
-            return selected_json(
-                &json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order could not be found.", "NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return Self::staged_fulfillment_not_found_payload(field);
         };
         if let Some(error) = fulfillment_create_precondition_error(&order_before, &groups) {
             return selected_json(

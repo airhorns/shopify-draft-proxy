@@ -205,10 +205,8 @@ pub(super) fn oe_next_seq(session: &mut Value) -> i64 {
 pub(super) fn oe_order_currency(order: &Value) -> String {
     if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
         for node in nodes {
-            if let Some(currency) =
-                node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
-            {
-                return currency.to_string();
+            if let Some(currency) = money_set_shop_currency(&node["originalUnitPriceSet"]) {
+                return currency;
             }
         }
     }
@@ -217,8 +215,8 @@ pub(super) fn oe_order_currency(order: &Value) -> String {
         "totalPriceSet",
         "currentSubtotalPriceSet",
     ] {
-        if let Some(currency) = order[key]["shopMoney"]["currencyCode"].as_str() {
-            return currency.to_string();
+        if let Some(currency) = money_set_shop_currency(&order[key]) {
+            return currency;
         }
     }
     "CAD".to_string()

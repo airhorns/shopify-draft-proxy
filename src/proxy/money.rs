@@ -34,6 +34,10 @@ pub(in crate::proxy) fn money_bag_from_amount(
     money_set_pair(&amount, shop_currency, &amount, presentment_currency)
 }
 
+pub(in crate::proxy) fn money_bag(amount: f64, currency_code: &str) -> Value {
+    money_bag_from_amount(amount, currency_code, currency_code)
+}
+
 pub(in crate::proxy) fn money_set_amount(value: &Value) -> Option<f64> {
     value["shopMoney"]["amount"]
         .as_str()
@@ -43,6 +47,20 @@ pub(in crate::proxy) fn money_set_amount(value: &Value) -> Option<f64> {
                 .as_str()
                 .and_then(|amount| amount.parse::<f64>().ok())
         })
+}
+
+pub(in crate::proxy) fn money_set_shop_currency(value: &Value) -> Option<String> {
+    value["shopMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| value["currencyCode"].as_str())
+        .map(str::to_string)
+}
+
+pub(in crate::proxy) fn money_set_presentment_currency(value: &Value) -> Option<String> {
+    value["presentmentMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| value["currencyCode"].as_str())
+        .map(str::to_string)
 }
 
 pub(in crate::proxy) fn sum_money_set(values: &[Value], key: &str) -> f64 {
