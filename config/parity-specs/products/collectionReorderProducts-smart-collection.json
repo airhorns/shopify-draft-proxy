@@ -1,0 +1,27 @@
+{
+  "scenarioId": "collectionReorderProducts-smart-collection",
+  "operationNames": ["collectionReorderProducts"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-reorder-products-manual-sort.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.smartCollection.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Focused parity scenario for Shopify's smart collection reorder rejection. The live fixture is recorded by the collectionReorderProducts parity capture script and the request reuses the shared reorder document.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "smart-collection-user-errors",
+        "capturePath": "$.smartCollection.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
