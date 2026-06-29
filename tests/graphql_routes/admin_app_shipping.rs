@@ -7924,6 +7924,43 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
 }
 
 #[test]
+fn customer_and_store_credit_overlay_read_preserves_aliases_and_projection() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    let account_id = store_credit_account_id_from_credit(&mut proxy, &customer_id, "4.25", "USD");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerAndStoreCreditOverlay($customerId: ID!, $accountId: ID!) {
+          accountAlias: storeCreditAccount(id: $accountId) {
+            currentBalance: balance { amount }
+          }
+          customerAlias: customer(id: $customerId) {
+            contactEmail: email
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id, "accountId": account_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["accountAlias"],
+        json!({
+            "currentBalance": { "amount": "4.25" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customerAlias"],
+        json!({
+            "contactEmail": "store-credit@example.test"
+        })
+    );
+    assert_eq!(read.body["data"].get("storeCreditAccount"), None);
+    assert_eq!(read.body["data"].get("customer"), None);
+}
+
+#[test]
 fn store_credit_validations_match_shopify_user_error_shapes_without_staging_failures() {
     let mut proxy = snapshot_proxy();
     let customer_id = create_store_credit_customer(&mut proxy);

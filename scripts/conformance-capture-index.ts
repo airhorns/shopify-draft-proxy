@@ -1144,6 +1144,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-change-status-unknown-product',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-change-status-unknown-product-conformance.mts',
+    purpose: 'productChangeStatus unknown-product resolver userError shape, including PRODUCT_NOT_FOUND code.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-change-status-unknown-product-parity.json`,
+      'config/parity-specs/products/productChangeStatus-unknown-product-parity.json',
+      'config/parity-requests/products/productChangeStatus-parity-plan.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture against a non-existent product id; Shopify returns a userError and creates no product state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-status-enum-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-product-status-enum-validation-conformance.ts',
@@ -2188,6 +2204,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, records custom json/rating/money metafieldsSet and read-back behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafields-set-type-from-definition',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafields-set-type-from-definition-conformance.mts',
+    purpose:
+      'Product-owned metafieldDefinitionCreate followed by metafieldsSet with omitted type, proving Shopify derives the metafield type from the matching definition and downstream product reads preserve it.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafieldsSet-type-from-definition.json`,
+      'config/parity-specs/metafields/metafieldsSet-type-from-definition.json',
+      'config/parity-requests/metafields/metafieldsSet-type-from-definition.graphql',
+      'config/parity-requests/metafields/metafieldsSet-type-from-definition-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product and one PRODUCT metafield definition, then deletes both.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4682,10 +4715,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-fixed-prices-validation-conformance.mts',
     purpose:
-      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for currency mismatch, duplicate variant IDs, unknown variants, missing fixed prices, and unknown price lists.',
+      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for price/compareAtPrice currency mismatch, duplicate variant IDs, unknown variants, missing fixed prices, and unknown price lists.',
     requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}price-list-fixed-prices-validation.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-add-compare-at-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-duplicate-variant-id.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-price-list-not-found.json',
@@ -4693,6 +4727,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-list-not-found.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-not-fixed.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-variant-not-found.json',
+      'config/parity-specs/markets/price-list-fixed-prices-update-compare-at-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-currency-mismatch.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-duplicate-variant-id.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-price-list-not-found.json',
@@ -6679,6 +6714,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-cancel-error-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-cancel-error-messages-conformance.ts',
+    purpose:
+      'orderCancel validation userError wording for staffNote length, refund/refundMethod conflicts with refund true and false, and already-cancelled orders.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderCancel-error-messages.json`,
+      'config/parity-specs/orders/orderCancel-error-messages.json',
+      `${LOCAL_RUNTIME_ROOT}orderCancel-state-transitions.json`,
+      'config/parity-specs/orders/orderCancel-state-transitions.json',
+      'config/parity-requests/orders/orderCancel-error-messages-order-create.graphql',
+      'config/parity-requests/orders/orderCancel-error-messages.graphql',
+      'config/parity-requests/orders/orderCancel-error-messages-setup-cancel.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders; one is cancelled to capture already-cancelled behavior and the other is cancelled during cleanup after validation-only branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-management-mutations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-management-conformance.ts',
@@ -8207,9 +8263,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/apps/app-billing-access-local-staging.json',
       'config/parity-specs/apps/app-revoke-access-scopes-error-codes.json',
       'fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json',
+      'config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json',
+      'fixtures/conformance/local-runtime/2026-05/apps/app-uninstall-error-codes-and-cascade.json',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes-anonymous.graphql',
       'config/parity-requests/apps/appRevokeAccessScopes-error-codes-ordinary-operation-name.graphql',
+      'config/parity-requests/apps/appUninstall-cascade-current.graphql',
+      'config/parity-requests/apps/appUninstall-unknown-input.graphql',
       'config/parity-requests/apps/appSubscriptionTrialExtend-anonymous.graphql',
       'config/parity-requests/apps/appSubscriptionTrialExtend-ordinary-operation-name.graphql',
       'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-blank-name.graphql',

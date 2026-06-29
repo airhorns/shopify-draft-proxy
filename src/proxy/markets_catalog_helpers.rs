@@ -746,15 +746,17 @@ pub(in crate::proxy) fn fixed_price_currency_errors(
     let expected = price_list_currency(price_list);
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
-        if let Some(actual) =
-            fixed_price_input_currency(input, "price").filter(|value| !value.is_empty())
-        {
-            if actual != expected {
-                errors.push(price_list_price_error(
-                    json!([field_name, index.to_string(), "price", "currencyCode"]),
-                    "The specified currency does not match the price list's currency.",
-                    "PRICE_LIST_CURRENCY_MISMATCH",
-                ));
+        for money_field in ["price", "compareAtPrice"] {
+            if let Some(actual) =
+                fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
+            {
+                if actual != expected {
+                    errors.push(price_list_price_error(
+                        json!([field_name, index.to_string(), money_field, "currencyCode"]),
+                        "The specified currency does not match the price list's currency.",
+                        "PRICE_LIST_CURRENCY_MISMATCH",
+                    ));
+                }
             }
         }
     }
@@ -876,6 +878,61 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
         "priceQuery": string_variable("priceQuery"),
         "productIds": product_ids,
     })
+}
+
+pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
+    fields: &[RootFieldSelection],
+) -> Value {
+    let mut price_list_id: Option<String> = None;
+    let mut variant_ids: Vec<String> = Vec::new();
+    let mut output = serde_json::Map::new();
+
+    for field in fields {
+        if !matches!(
+            field.name.as_str(),
+            "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
+        ) {
+            continue;
+        }
+        if price_list_id.is_none() {
+            price_list_id = read_price_list_id(&field.arguments);
+        }
+        for argument_name in ["prices", "pricesToAdd", "variantIdsToDelete", "variantIds"] {
+            if let Some(value) = field.arguments.get(argument_name) {
+                output.insert(argument_name.to_string(), resolved_value_json(value));
+            }
+        }
+        match field.name.as_str() {
+            "priceListFixedPricesAdd" => {
+                extend_unique_strings(
+                    &mut variant_ids,
+                    mutation_variant_ids(&resolved_object_list(&field.arguments, "prices")),
+                );
+            }
+            "priceListFixedPricesUpdate" => {
+                let (price_inputs, _) = read_fixed_price_update_inputs(&field.arguments);
+                extend_unique_strings(&mut variant_ids, mutation_variant_ids(&price_inputs));
+                extend_unique_strings(
+                    &mut variant_ids,
+                    resolved_string_list_arg(&field.arguments, "variantIdsToDelete"),
+                );
+            }
+            "priceListFixedPricesDelete" => {
+                extend_unique_strings(
+                    &mut variant_ids,
+                    resolved_string_list_arg(&field.arguments, "variantIds"),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    output.insert(
+        "priceListId".to_string(),
+        price_list_id.map(Value::String).unwrap_or(Value::Null),
+    );
+    output.insert("variantIds".to_string(), json!(variant_ids));
+    Value::Object(output)
 }
 
 /// `product_level_fixed_price_errors` (serializers.gleam): the ordered validation

@@ -28,6 +28,15 @@ const appRevokeAccessScopesErrorCodesFixturePath = path.join(
   'apps',
   'app-revoke-access-scopes-error-codes.json',
 );
+const appUninstallErrorCodesFixturePath = path.join(
+  repoRoot,
+  'fixtures',
+  'conformance',
+  'local-runtime',
+  '2026-05',
+  'apps',
+  'app-uninstall-error-codes-and-cascade.json',
+);
 const appsRequestDir = path.join(repoRoot, 'config', 'parity-requests', 'apps');
 
 function readObject(value: unknown, context: string): JsonRecord {
@@ -66,6 +75,15 @@ function assertOk(response: ProxyResponse, context: string): JsonRecord {
     throw new Error(`${context} returned HTTP ${response.status}: ${JSON.stringify(response.body)}`);
   }
   return readObject(response.body, `${context} response body`);
+}
+
+function assertStringPath(value: unknown, pathSegments: string[], expected: string, context: string): void {
+  const actual = readStringPath(value, pathSegments, context);
+  if (actual !== expected) {
+    throw new Error(
+      `${context}.${pathSegments.join('.')} expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
+  }
 }
 
 async function readGraphql(fileName: string): Promise<string> {
@@ -645,8 +663,148 @@ async function captureRevokeAccessScopesErrorCodes(): Promise<void> {
   }
 }
 
+async function captureUninstallErrorCodesAndCascade(): Promise<void> {
+  const scenario = 'app-uninstall-error-codes-and-cascade';
+  const existing = await readExistingFixturePath(appUninstallErrorCodesFixturePath);
+  const proxy = await createProxy();
+  try {
+    const unknownAppId = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appUninstall-unknown-input.graphql'),
+          variables: { input: { id: 'gid://shopify/App/9999999999' } },
+        },
+        { apiVersion },
+      ),
+      'unknown app id',
+    );
+    assertStringPath(
+      unknownAppId,
+      ['data', 'appUninstall', 'userErrors', '0', 'message'],
+      'App not found',
+      'unknownAppId',
+    );
+
+    const subscriptionCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('appSubscriptionCreate-uninstall-cascade.graphql') },
+        { apiVersion },
+      ),
+      'subscription create',
+    );
+    const subscriptionId = readStringPath(
+      subscriptionCreate,
+      ['data', 'appSubscriptionCreate', 'appSubscription', 'id'],
+      'subscriptionCreate',
+    );
+
+    const delegateCreate = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('delegateAccessTokenCreate-current-input-local-lifecycle.graphql') },
+        { apiVersion },
+      ),
+      'delegate token create',
+    );
+    const delegateToken = readStringPath(
+      delegateCreate,
+      ['data', 'delegateAccessTokenCreate', 'delegateAccessToken', 'accessToken'],
+      'delegateCreate',
+    );
+    const redactedDelegateCreate = JSON.parse(JSON.stringify(delegateCreate)) as JsonRecord;
+    const redactedDelegateToken = readObject(
+      readPath(
+        redactedDelegateCreate,
+        ['data', 'delegateAccessTokenCreate', 'delegateAccessToken'],
+        'redactedDelegateCreate',
+      ),
+      'redactedDelegateCreate.data.delegateAccessTokenCreate.delegateAccessToken',
+    );
+    redactedDelegateToken['accessToken'] = 'shpat_delegate_proxy_redacted';
+
+    const uninstallCurrent = assertOk(
+      await proxy.processGraphQLRequest(
+        { query: await readGraphql('appUninstall-cascade-current.graphql') },
+        { apiVersion },
+      ),
+      'uninstall current app',
+    );
+    const uninstalledAppId = readStringPath(
+      uninstallCurrent,
+      ['data', 'appUninstall', 'app', 'id'],
+      'uninstallCurrent',
+    );
+
+    const subscriptionNode = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appSubscription-node-read.graphql'),
+          variables: { id: subscriptionId },
+        },
+        { apiVersion },
+      ),
+      'subscription node read',
+    );
+
+    const delegateDestroy = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('delegateAccessTokenDestroy-local-lifecycle.graphql'),
+          variables: { token: delegateToken },
+        },
+        { apiVersion },
+      ),
+      'delegate token destroy',
+    );
+
+    const knownUninstalledApp = assertOk(
+      await proxy.processGraphQLRequest(
+        {
+          query: await readGraphql('appUninstall-unknown-input.graphql'),
+          variables: { input: { id: uninstalledAppId } },
+        },
+        { apiVersion },
+      ),
+      'known uninstalled app',
+    );
+    assertStringPath(
+      knownUninstalledApp,
+      ['data', 'appUninstall', 'userErrors', '0', 'message'],
+      'App is not installed on shop',
+      'knownUninstalledApp',
+    );
+
+    await writeFixturePath(appUninstallErrorCodesFixturePath, {
+      scenarioId: scenario,
+      recordedAt: existing['recordedAt'],
+      source: 'core-source-derived-local-runtime-parity-harness',
+      upstreamCalls: [],
+      evidence: {
+        parity: {
+          expected: {
+            unknownAppId,
+            subscriptionCreate,
+            delegateCreate: redactedDelegateCreate,
+            uninstallCurrent,
+            subscriptionNode,
+            delegateDestroy,
+            knownUninstalledApp,
+          },
+        },
+      },
+      notes: [
+        'Executable local-runtime fixture for appUninstall error-code parity and cascade behavior. The flow intentionally earns state through replayed appSubscriptionCreate, delegateAccessTokenCreate, and appUninstall requests instead of pre-seeding parity runner state.',
+        'The APP_NOT_FOUND and APP_NOT_INSTALLED message strings are Core-source-derived from components/apps/app/models/graph_api/admin/mutations/app_uninstall.rb:84-98 resolving I18n.t with scope apps.admin.graph_api_errors.app_uninstall and components/apps/config/locales/graphql/en.yml:37-38.',
+        `Regenerated by scripts/capture-apps-billing-local-runtime.ts for ${scenario}.`,
+      ],
+    });
+  } finally {
+    proxy.dispose();
+  }
+}
+
 await capturePurchaseValidation();
 await captureUsageRecord();
 await captureLineItemUpdate();
 await captureBillingAccessLocalStaging();
 await captureRevokeAccessScopesErrorCodes();
+await captureUninstallErrorCodesAndCascade();

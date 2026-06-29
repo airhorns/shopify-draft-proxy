@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-fixed-prices-add-compare-at-currency-mismatch",
+  "operationNames": ["priceListFixedPricesAdd"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-add-validation.graphql",
+    "variablesCapturePath": "$.cases.addCompareAtCurrencyMismatch.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "add-compare-at-currency-mismatch",
+        "capturePath": "$.cases.addCompareAtCurrencyMismatch.response.payload.data.priceListFixedPricesAdd",
+        "proxyPath": "$.data.priceListFixedPricesAdd"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesAdd compareAtPrice currency mismatch behavior. Shopify reports PRICE_LIST_CURRENCY_MISMATCH independently for compareAtPrice.currencyCode and price.currencyCode mismatches, and leaves prices as an empty list."
+}

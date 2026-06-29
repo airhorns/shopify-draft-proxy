@@ -46,13 +46,9 @@ fn market_relation_connection<'a>(
 }
 
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
-/// hydrate their baseline price-list/product/variant records from a recorded
-/// preflight keyed on this sentinel query plus the mutation's own variables. The
-/// capture tooling records the real Shopify preflight payload under this synthetic
-/// key, so the proxy must emit the same sentinel to load the baseline. Mirrors the
-/// Gleam preflight (markets/queries.gleam); the cassette matches query + variables.
-const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str =
-    "hand-synthesized from live capture setup baseline";
+/// hydrate their baseline price-list/product/variant records through a real Admin
+/// GraphQL preflight keyed by the mutation's price list and variant ids.
+const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!, $variantIds: [ID!]!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariants: nodes(ids: $variantIds) { __typename ... on ProductVariant { id title sku price compareAtPrice product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } } }";
 
 /// `priceListFixedPricesByProductUpdate` hydrates from the real multi-product
 /// preflight query (the canonical Admin GraphQL form recorded from live Shopify)
@@ -1989,12 +1985,10 @@ impl DraftProxy {
     }
 
     /// Hydrate the staged store from a cassette-backed preflight before applying a
-    /// fixed-price mutation, mirroring the Gleam `mutation_preflight_request`
-    /// (markets/queries.gleam). Variant-level mutations replay the sentinel baseline
-    /// keyed on their own variables; the by-product mutation replays the real
-    /// multi-product hydrate query. Gated on LiveHybrid so other read modes are
-    /// untouched. The cassette serves recorded real Shopify data, which the generic
-    /// staging logic below loads into the local store — no fixture is hardcoded.
+    /// fixed-price mutation, mirroring the production Admin GraphQL reads the live
+    /// capture scripts record. Gated on LiveHybrid so other read modes are untouched.
+    /// The cassette serves recorded real Shopify data, which the generic staging
+    /// logic below loads into the local store — no fixture is hardcoded.
     pub(in crate::proxy) fn fixed_price_mutation_preflight(
         &mut self,
         fields: &[RootFieldSelection],
@@ -2024,7 +2018,7 @@ impl DraftProxy {
         } else if variant_level {
             json!({
                 "query": FIXED_PRICE_VARIANT_PREFLIGHT_QUERY,
-                "variables": resolved_variables_json(variables),
+                "variables": variant_fixed_prices_preflight_variables(fields),
                 "operationName": "MarketsMutationPreflightHydrate",
             })
         } else {
@@ -2080,6 +2074,13 @@ impl DraftProxy {
         if let Some(nodes) = data.get("productNodes").and_then(Value::as_array) {
             for product in nodes {
                 if product.is_object() {
+                    self.store.stage_observed_product_json(product);
+                }
+            }
+        }
+        if let Some(nodes) = data.get("productVariants").and_then(Value::as_array) {
+            for variant in nodes {
+                if let Some(product) = variant.get("product").filter(|value| value.is_object()) {
                     self.store.stage_observed_product_json(product);
                 }
             }
