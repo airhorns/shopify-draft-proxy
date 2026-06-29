@@ -56,35 +56,48 @@ fn fixed_price_validation_proxy() -> DraftProxy {
             body["operationName"],
             json!("MarketsMutationPreflightHydrate")
         );
+        let query = body["query"].as_str().unwrap_or_default();
+        assert!(query.contains("priceList(id: $priceListId)"));
+        assert!(query.contains("productVariants: nodes(ids: $variantIds)"));
+        assert!(!query.contains("hand-synthesized"));
         assert_eq!(
-            body["query"],
-            json!("hand-synthesized from live capture setup baseline")
+            body["variables"]["priceListId"],
+            json!(FIXED_PRICE_VALIDATION_PRICE_LIST_ID)
         );
+        assert!(body["variables"]["variantIds"]
+            .as_array()
+            .is_some_and(|ids| ids
+                .iter()
+                .any(|id| id == &json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID))));
         Response {
             status: 200,
             headers: Default::default(),
             body: json!({
                 "data": {
-                    "priceLists": {
-                        "nodes": [{
-                            "__typename": "PriceList",
-                            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
-                            "name": "Fixed price validation",
-                            "currency": "USD",
-                            "fixedPricesCount": 0,
-                            "prices": {
-                                "edges": [],
-                                "pageInfo": {
-                                    "hasNextPage": false,
-                                    "hasPreviousPage": false,
-                                    "startCursor": null,
-                                    "endCursor": null
-                                }
+                    "priceList": {
+                        "__typename": "PriceList",
+                        "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+                        "name": "Fixed price validation",
+                        "currency": "USD",
+                        "fixedPricesCount": 0,
+                        "prices": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
                             }
-                        }]
+                        }
                     },
-                    "products": {
-                        "nodes": [{
+                    "productVariants": [{
+                        "__typename": "ProductVariant",
+                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                        "title": "Variant A",
+                        "sku": "FIXED-COMPARE-A",
+                        "price": "10.00",
+                        "compareAtPrice": null,
+                        "product": {
                             "__typename": "Product",
                             "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
                             "title": "Fixed price validation product",
@@ -92,24 +105,12 @@ fn fixed_price_validation_proxy() -> DraftProxy {
                             "status": "ACTIVE",
                             "variants": {
                                 "nodes": [
-                                    {
-                                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
-                                        "title": "Variant A",
-                                        "sku": "FIXED-COMPARE-A",
-                                        "price": "10.00",
-                                        "compareAtPrice": null
-                                    },
-                                    {
-                                        "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
-                                        "title": "Variant B",
-                                        "sku": "FIXED-COMPARE-B",
-                                        "price": "10.00",
-                                        "compareAtPrice": null
-                                    }
+                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
+                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
                                 ]
                             }
-                        }]
-                    }
+                        }
+                    }]
                 }
             }),
         }
