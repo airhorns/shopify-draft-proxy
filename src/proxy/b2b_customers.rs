@@ -1406,10 +1406,9 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or(Value::Null)
         };
-        let Some((_, _, existing_nodes, _)) = context else {
-            // Unknown customer: treat the address as not found.
-            if self.customer_address_exists_anywhere(&address_id) {
-                let customer = render_customer(self);
+        let missing_address_result = |me: &Self| {
+            if me.customer_address_exists_anywhere(&address_id) {
+                let customer = render_customer(me);
                 return (
                     json!({
                         "customer": customer,
@@ -1419,36 +1418,23 @@ impl DraftProxy {
                     Vec::new(),
                 );
             }
-            return (
+            (
                 Value::Null,
                 Vec::new(),
                 vec![customer_address_resource_not_found_error(
                     &field.response_key,
                 )],
-            );
+            )
+        };
+        let Some((_, _, existing_nodes, _)) = context else {
+            // Unknown customer: treat the address as not found.
+            return missing_address_result(self);
         };
         let Some(index) = index else {
             // Address belongs to another customer (exists somewhere) → userError,
             // but the customer record is still returned. Truly unknown ids return
             // a null payload with a RESOURCE_NOT_FOUND top-level error.
-            if self.customer_address_exists_anywhere(&address_id) {
-                let customer = render_customer(self);
-                return (
-                    json!({
-                        "customer": customer,
-                        "userErrors": [user_error_omit_code(json!(["addressId"]), "Address does not exist", None)]
-                    }),
-                    Vec::new(),
-                    Vec::new(),
-                );
-            }
-            return (
-                Value::Null,
-                Vec::new(),
-                vec![customer_address_resource_not_found_error(
-                    &field.response_key,
-                )],
-            );
+            return missing_address_result(self);
         };
         let default_id = existing_nodes[index]
             .get("id")
@@ -3350,6 +3336,92 @@ const CUSTOMER_ADDRESS_FREE_TEXT_FIELDS: &[&str] = &[
     "phone",
 ];
 
+struct CustomerAddressNodeFields {
+    id: String,
+    first_name: Option<String>,
+    last_name: Option<String>,
+    address1: Option<String>,
+    address2: Option<String>,
+    city: Option<String>,
+    company: Option<String>,
+    zip: Option<String>,
+    phone: Option<String>,
+    country: Option<CustomerCountry>,
+    province: Option<CustomerProvince>,
+}
+
+fn customer_resolve_address_region(
+    country_input: Option<String>,
+    province_input: Option<String>,
+    country_error_path: Value,
+    province_error_path: Value,
+    errors: &mut Vec<Value>,
+) -> (Option<CustomerCountry>, Option<CustomerProvince>) {
+    let country = match country_input
+        .as_deref()
+        .and_then(customer_country_from_input)
+    {
+        Some(country) => Some(country),
+        None if country_input.is_some() => {
+            errors.push(user_error_omit_code(
+                country_error_path,
+                "Country is invalid",
+                None,
+            ));
+            None
+        }
+        None => None,
+    };
+    let province = match (country.as_ref(), province_input.as_deref()) {
+        (Some(country), Some(raw_province)) => {
+            match customer_province_from_input(country.code.as_str(), raw_province) {
+                Some(province) => province,
+                None => {
+                    errors.push(user_error_omit_code(
+                        province_error_path,
+                        "Province is invalid",
+                        None,
+                    ));
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+    (country, province)
+}
+
+fn customer_address_node_json(fields: CustomerAddressNodeFields) -> Value {
+    let name = [fields.first_name.as_deref(), fields.last_name.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let formatted_area = customer_formatted_area(
+        fields.city.as_deref(),
+        fields.country.as_ref(),
+        fields.province.as_ref(),
+    );
+    json!({
+        "id": fields.id,
+        "firstName": fields.first_name,
+        "lastName": fields.last_name,
+        "address1": fields.address1,
+        "address2": fields.address2,
+        "city": fields.city,
+        "company": fields.company,
+        "province": fields.province.as_ref().map(|province| province.name.as_str()),
+        "provinceCode": fields.province.as_ref().map(|province| province.code.as_str()),
+        "country": fields.country.as_ref().map(|country| country.name.as_str()),
+        "countryCodeV2": fields.country.as_ref().map(|country| country.code.as_str()),
+        "zip": fields.zip,
+        "phone": fields.phone,
+        "name": if name.is_empty() { Value::Null } else { json!(name) },
+        "formattedArea": formatted_area,
+    })
+}
+
 fn customer_address_free_text_errors<F>(
     input: &BTreeMap<String, ResolvedValue>,
     path_for: F,
@@ -3408,37 +3480,14 @@ fn customer_mailing_address(
         .or_else(|| customer_address_string(input, "country"));
     let province_input = customer_address_string(input, "provinceCode")
         .or_else(|| customer_address_string(input, "province"));
-    let country = match country_input
-        .as_deref()
-        .and_then(customer_country_from_input)
-    {
-        Some(country) => Some(country),
-        None if country_input.is_some() => {
-            errors.push(user_error_omit_code(
-                customer_address_field_path(customer_set, index, Some("country")),
-                "Country is invalid",
-                None,
-            ));
-            None
-        }
-        None => None,
-    };
-    let province = match (&country, province_input.as_deref()) {
-        (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code.as_str(), raw_province) {
-                Some(province) => province,
-                None => {
-                    errors.push(user_error_omit_code(
-                        customer_address_field_path(customer_set, index, Some("province")),
-                        "Province is invalid",
-                        None,
-                    ));
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
+    let (country, province) = customer_resolve_address_region(
+        country_input,
+        province_input,
+        customer_address_field_path(customer_set, index, Some("country")),
+        customer_address_field_path(customer_set, index, Some("province")),
+        &mut errors,
+    );
+
     if !errors.is_empty() {
         return (Value::Null, errors);
     }
@@ -3477,32 +3526,19 @@ fn customer_mailing_address(
         );
     }
 
-    let name = [first_name.as_deref(), last_name.as_deref()]
-        .into_iter()
-        .flatten()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let formatted_area =
-        customer_formatted_area(city.as_deref(), country.as_ref(), province.as_ref());
-    let id = synthetic_shopify_gid("MailingAddress", index + 1);
     (
-        json!({
-            "id": id,
-            "firstName": first_name,
-            "lastName": last_name,
-            "address1": address1,
-            "address2": address2,
-            "city": city,
-            "company": company,
-            "province": province.as_ref().map(|province| province.name.as_str()),
-            "provinceCode": province.as_ref().map(|province| province.code.as_str()),
-            "country": country.as_ref().map(|country| country.name.as_str()),
-            "countryCodeV2": country.as_ref().map(|country| country.code.as_str()),
-            "zip": zip,
-            "phone": phone,
-            "name": if name.is_empty() { Value::Null } else { json!(name) },
-            "formattedArea": formatted_area,
+        customer_address_node_json(CustomerAddressNodeFields {
+            id: synthetic_shopify_gid("MailingAddress", index + 1),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
         }),
         Vec::new(),
     )
@@ -3635,18 +3671,6 @@ fn customer_address_input_node(
             .and_then(Value::as_str)
             .map(str::to_string)
     };
-    let country = match country_raw.as_deref().and_then(customer_country_from_input) {
-        Some(country) => Some(country),
-        None if country_raw.is_some() => {
-            errors.push(user_error_omit_code(
-                json!(["address", "country"]),
-                "Country is invalid",
-                None,
-            ));
-            None
-        }
-        None => None,
-    };
 
     let province_present = input.contains_key("provinceCode") || input.contains_key("province");
     let province_raw = if province_present {
@@ -3658,22 +3682,14 @@ fn customer_address_input_node(
             .and_then(Value::as_str)
             .map(str::to_string)
     };
-    let province = match (&country, province_raw.as_deref()) {
-        (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code.as_str(), raw_province) {
-                Some(province) => province,
-                None => {
-                    errors.push(user_error_omit_code(
-                        json!(["address", "province"]),
-                        "Province is invalid",
-                        None,
-                    ));
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
+    let (country, province) = customer_resolve_address_region(
+        country_raw,
+        province_raw,
+        json!(["address", "country"]),
+        json!(["address", "province"]),
+        &mut errors,
+    );
+
     if !errors.is_empty() {
         return (None, errors);
     }
@@ -3686,31 +3702,19 @@ fn customer_address_input_node(
     let company = field_value("company");
     let zip = field_value("zip");
     let phone = field_value("phone");
-    let name = [first_name.as_deref(), last_name.as_deref()]
-        .into_iter()
-        .flatten()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let formatted_area =
-        customer_formatted_area(city.as_deref(), country.as_ref(), province.as_ref());
     (
-        Some(json!({
-            "id": id,
-            "firstName": first_name,
-            "lastName": last_name,
-            "address1": address1,
-            "address2": address2,
-            "city": city,
-            "company": company,
-            "province": province.as_ref().map(|province| province.name.as_str()),
-            "provinceCode": province.as_ref().map(|province| province.code.as_str()),
-            "country": country.as_ref().map(|country| country.name.as_str()),
-            "countryCodeV2": country.as_ref().map(|country| country.code.as_str()),
-            "zip": zip,
-            "phone": phone,
-            "name": if name.is_empty() { Value::Null } else { json!(name) },
-            "formattedArea": formatted_area,
+        Some(customer_address_node_json(CustomerAddressNodeFields {
+            id: id.to_string(),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
         })),
         Vec::new(),
     )
