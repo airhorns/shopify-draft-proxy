@@ -769,6 +769,78 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
 }
 
 #[test]
+fn b2b_company_create_system_role_notes_match_shopify_nulls() {
+    let mut proxy = snapshot_proxy();
+
+    let bare_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompanyCreateSystemRoleNotesBare($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              contactRoles(first: 2) {
+                nodes { id name note }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "company": { "name": "System Role Notes Co" } } }),
+    ));
+    assert_eq!(bare_create.status, 200);
+    assert_eq!(
+        bare_create.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let roles = bare_create.body["data"]["companyCreate"]["company"]["contactRoles"]["nodes"]
+        .as_array()
+        .expect("system roles");
+    assert_eq!(roles.len(), 2);
+    assert_eq!(roles[0]["name"], json!("Location admin"));
+    assert_eq!(roles[0]["note"], Value::Null);
+    assert_eq!(roles[1]["name"], json!("Ordering only"));
+    assert_eq!(roles[1]["note"], Value::Null);
+
+    let with_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompanyCreateSystemRoleNotesContact($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              mainContact {
+                roleAssignments(first: 1) {
+                  nodes {
+                    role { name note }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "System Role Assignment Notes Co" },
+                "companyContact": {
+                    "firstName": "Role",
+                    "lastName": "Buyer",
+                    "email": "system-role-notes@example.com"
+                }
+            }
+        }),
+    ));
+    assert_eq!(with_contact.status, 200);
+    assert_eq!(
+        with_contact.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let assignment_role = &with_contact.body["data"]["companyCreate"]["company"]["mainContact"]
+        ["roleAssignments"]["nodes"][0]["role"];
+    assert_eq!(assignment_role["name"], json!("Ordering only"));
+    assert_eq!(assignment_role["note"], Value::Null);
+}
+
+#[test]
 fn b2b_company_delete_stages_cascade_and_preserves_commit_log() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
