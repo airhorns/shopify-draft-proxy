@@ -1480,6 +1480,113 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
 }
 
 #[test]
+fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
+    let mut proxy = snapshot_proxy();
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ZeroDeltaAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              reason
+              changes { name delta quantityAfterChange item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-zero-delta-noop", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/zero", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/store-backed", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0}
+        ]}}),
+    ));
+
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+}
+
+#[test]
+fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_change() {
+    let mut proxy = snapshot_proxy();
+    let nonzero_item_id = "gid://shopify/InventoryItem/mixed-nonzero";
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedDeltaAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              reason
+              changes { name delta item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-mixed-delta", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/mixed", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/mixed-zero", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0},
+            {"inventoryItemId": nonzero_item_id, "locationId": "gid://shopify/Location/1", "delta": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+
+    let payload = &adjust.body["data"]["inventoryAdjustQuantities"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert!(payload["inventoryAdjustmentGroup"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/InventoryAdjustmentGroup/")));
+    let changes = payload["inventoryAdjustmentGroup"]["changes"]
+        .as_array()
+        .expect("mixed adjust should return change rows");
+    assert!(changes.iter().all(|change| change["delta"] != json!(0)));
+    assert!(changes.iter().any(|change| {
+        change["name"] == json!("available")
+            && change["delta"] == json!(3)
+            && change["item"]["id"] == json!(nonzero_item_id)
+    }));
+    assert!(changes.iter().any(|change| {
+        change["name"] == json!("on_hand")
+            && change["delta"] == json!(3)
+            && change["item"]["id"] == json!(nonzero_item_id)
+    }));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedDeltaInventoryRead($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": nonzero_item_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "on_hand", "quantity": 3}
+        ])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!("inventoryAdjustQuantities")
+    );
+}
+
+#[test]
 fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
     let mut proxy = snapshot_proxy();
     let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";

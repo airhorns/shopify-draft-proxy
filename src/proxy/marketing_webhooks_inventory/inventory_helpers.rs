@@ -1486,6 +1486,18 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(error_payload);
         }
+        if changes_input
+            .iter()
+            .all(|change| resolved_int_field(change, "delta").unwrap_or(0) == 0)
+        {
+            return MutationFieldOutcome::unlogged(selected_json(
+                &json!({
+                    "inventoryAdjustmentGroup": null,
+                    "userErrors": []
+                }),
+                &field.selection,
+            ));
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -1498,6 +1510,9 @@ impl DraftProxy {
             let location_name = self.inventory_location_display_name(&location_id);
             let ledger = resolved_string_field(&change, "ledgerDocumentUri");
             let delta = resolved_int_field(&change, "delta").unwrap_or(0);
+            if delta == 0 {
+                continue;
+            }
             let level = self
                 .store
                 .staged
