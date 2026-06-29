@@ -611,6 +611,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-contact-business-rule-preconditions.json`,
       'config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json',
+      'config/parity-specs/b2b/contact_assign_role_both_invalid.json',
       'config/parity-requests/b2b/b2b-contact-business-rules-assign-role.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-create.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-read.graphql',
@@ -3829,6 +3830,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventorysetquantities-quantity-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-set-quantities-bounds-conformance.ts',
+    purpose:
+      'inventorySetQuantities negative and lower-bound quantity validation against the 2026-04 @idempotent/changeFromQuantity contract.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventorySetQuantities-quantity-bounds.json`,
+      'config/parity-specs/products/inventorySetQuantities-quantity-bounds.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product per quantity-bound branch and deletes each product immediately.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-quantity-contracts-2026',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
@@ -6985,7 +7001,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
     purpose:
-      'orderEditBegin/AddVariant/SetQuantity/Commit missing-resource userError payload roots for lifecycle validation.',
+      'orderEditBegin/AddVariant/SetQuantity/AddLineItemDiscount/Commit missing-resource and rendered userError message payloads for lifecycle validation.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-edit-lifecycle-user-errors.json`,
@@ -6995,7 +7011,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/orderEdit-lifecycle-userErrors-commit.graphql',
       'config/parity-requests/orders/orderEdit-lifecycle-userErrors-setQuantity.graphql',
     ],
-    cleanupBehavior: 'Validation-only order-edit probes use missing Shopify GIDs and do not create merchant resources.',
+    cleanupBehavior:
+      'Creates disposable test orders for open-session and not-editable order-edit branches, then cancels them after recording; missing calculated-order probes use absent Shopify GIDs.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -10787,6 +10804,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
@@ -11633,7 +11651,10 @@ function runCli(): void {
 }
 
 function findEntry(script: string): ConformanceCaptureIndexEntry | undefined {
-  return conformanceCaptureIndex.find((entry) => entry.captureId === script || entry.scriptPath === script);
+  const normalizedScript = script.toLowerCase();
+  return conformanceCaptureIndex.find(
+    (entry) => entry.captureId === script || entry.captureId === normalizedScript || entry.scriptPath === script,
+  );
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

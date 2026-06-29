@@ -1933,6 +1933,96 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
 }
 
 #[test]
+fn b2b_contact_assign_role_checks_location_before_role_for_missing_resources() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactAssignRoleOrderingSetup($id: ID!) {
+          company(id: $id) {
+            contacts(first: 5) { nodes { id } }
+            contactRoles(first: 5) { nodes { id } }
+            locations(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    assert_eq!(company.status, 200);
+    let contact_id = company.body["data"]["company"]["contacts"]["nodes"][0]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let role_id = company.body["data"]["company"]["contactRoles"]["nodes"][0]["id"]
+        .as_str()
+        .expect("role id")
+        .to_string();
+    let location_id = company.body["data"]["company"]["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+    let missing_role_id = "gid://shopify/CompanyContactRole/999999999999999";
+    let missing_location_id = "gid://shopify/CompanyLocation/999999999999999";
+
+    let mut assign_errors = |role_id: &str, location_id: &str| {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BContactAssignRoleMissingOrdering(
+              $companyContactId: ID!
+              $companyContactRoleId: ID!
+              $companyLocationId: ID!
+            ) {
+              companyContactAssignRole(
+                companyContactId: $companyContactId
+                companyContactRoleId: $companyContactRoleId
+                companyLocationId: $companyLocationId
+              ) {
+                companyContactRoleAssignment { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "companyContactId": contact_id,
+                "companyContactRoleId": role_id,
+                "companyLocationId": location_id
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["companyContactAssignRole"]["companyContactRoleAssignment"],
+            Value::Null
+        );
+        response.body["data"]["companyContactAssignRole"]["userErrors"].clone()
+    };
+
+    assert_eq!(
+        assign_errors(missing_role_id, &location_id),
+        json!([{
+            "field": ["companyContactRoleId"],
+            "message": "The company contact role doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+    assert_eq!(
+        assign_errors(&role_id, missing_location_id),
+        json!([{
+            "field": ["companyLocationId"],
+            "message": "The company location doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+    assert_eq!(
+        assign_errors(missing_role_id, missing_location_id),
+        json!([{
+            "field": ["companyLocationId"],
+            "message": "The company location doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
 fn b2b_bulk_role_assign_rejects_duplicate_contact_location_and_keeps_valid_siblings() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company_with_contact_and_role(&mut proxy);

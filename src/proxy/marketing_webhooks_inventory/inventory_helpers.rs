@@ -293,6 +293,7 @@ const INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE: &str = "The specified quan
 const INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE: &str =
     "The quantity name must be either 'available' or 'on_hand'.";
 const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
+const INVENTORY_SET_QUANTITY_MIN: i64 = -1_000_000_000;
 const DEFAULT_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/106318430514";
 const FALLBACK_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/68509171945";
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
@@ -1264,7 +1265,9 @@ impl DraftProxy {
         if let Some(error_payload) = inventory_invalid_set_quantity_name_payload(field, &name) {
             return MutationFieldOutcome::unlogged(error_payload);
         }
-        if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
+        if let Some(error_payload) =
+            inventory_invalid_set_quantities_payload(field, &quantities, &name)
+        {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         if let Some(error_payload) =
@@ -4774,17 +4777,30 @@ fn inventory_invalid_set_quantity_name_payload(
 fn inventory_invalid_set_quantities_payload(
     field: &RootFieldSelection,
     quantities: &[BTreeMap<String, ResolvedValue>],
+    name: &str,
 ) -> Option<Value> {
     let mut errors = Vec::new();
     for (index, quantity) in quantities.iter().enumerate() {
-        if resolved_int_field(quantity, "quantity")
-            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
-        {
-            errors.push(user_error(
-                json!(["input", "quantities", index.to_string(), "quantity"]),
-                "The quantity can't be higher than 1,000,000,000.",
-                Some("INVALID_QUANTITY_TOO_HIGH"),
-            ));
+        if let Some(value) = resolved_int_field(quantity, "quantity") {
+            if value < INVENTORY_SET_QUANTITY_MIN {
+                errors.push(user_error(
+                    json!(["input", "quantities", index.to_string(), "quantity"]),
+                    "The quantity can't be lower than -1,000,000,000.",
+                    Some("INVALID_QUANTITY_TOO_LOW"),
+                ));
+            } else if name != "available" && value < 0 {
+                errors.push(user_error(
+                    json!(["input", "quantities", index.to_string(), "quantity"]),
+                    "The quantity can't be negative.",
+                    Some("INVALID_QUANTITY_NEGATIVE"),
+                ));
+            } else if value > INVENTORY_SET_QUANTITY_MAX {
+                errors.push(user_error(
+                    json!(["input", "quantities", index.to_string(), "quantity"]),
+                    "The quantity can't be higher than 1,000,000,000.",
+                    Some("INVALID_QUANTITY_TOO_HIGH"),
+                ));
+            }
         }
     }
 

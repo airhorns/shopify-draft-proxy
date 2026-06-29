@@ -1488,22 +1488,6 @@ impl DraftProxy {
         // was never provisioned at all. So a foreign-company id and a never-seen id
         // are indistinguishable in the response — both "doesn't exist".
         let contact_company_id = contact["companyId"].as_str().map(ToString::to_string);
-        let role_in_company = self
-            .store
-            .staged
-            .b2b_contact_roles
-            .get(&role_id)
-            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
-        if !role_in_company {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [user_error(["companyContactRoleId"], "The company contact role doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
-        }
         let location_in_company = self
             .store
             .staged
@@ -1517,6 +1501,22 @@ impl DraftProxy {
                 json!({
                     "companyContactRoleAssignment": Value::Null,
                     "userErrors": [user_error(["companyLocationId"], "The company location doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let role_in_company = self
+            .store
+            .staged
+            .b2b_contact_roles
+            .get(&role_id)
+            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
+        if !role_in_company {
+            return (
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [user_error(["companyContactRoleId"], "The company contact role doesn't exist.", Some("RESOURCE_NOT_FOUND"))]
                 }),
                 "failed",
                 Vec::new(),

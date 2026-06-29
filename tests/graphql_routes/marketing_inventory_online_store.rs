@@ -3235,6 +3235,111 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
 }
 
 #[test]
+fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_negative() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/53204673823026";
+    let location_id = "gid://shopify/Location/106318430514";
+    let mutation = r#"
+        mutation InventorySetQuantitiesBounds($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason changes { name delta } }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let on_hand_negative = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-on-hand-negative-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-negative", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        on_hand_negative.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }]
+        })
+    );
+
+    let on_hand_too_low = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-on-hand-too-low-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-too-low", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        on_hand_too_low.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be lower than -1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_LOW"
+            }]
+        })
+    );
+
+    let available_too_low = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-available-too-low-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-too-low", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        available_too_low.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be lower than -1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_LOW"
+            }]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"],
+        Value::Null
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let available_negative = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-available-negative-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-negative", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        available_negative.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_ne!(
+        available_negative.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"],
+        Value::Null
+    );
+    let state = state_snapshot(&proxy);
+    assert_eq!(
+        state["stagedState"]["inventoryLevels"][0]["quantities"]["available"],
+        json!(-5)
+    );
+    assert_eq!(
+        state["stagedState"]["inventoryLevels"][0]["quantities"]["on_hand"],
+        json!(-5)
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("\"quantity\":-5"));
+}
+
+#[test]
 fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_staging() {
     let mut proxy = snapshot_proxy();
 

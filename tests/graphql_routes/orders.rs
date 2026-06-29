@@ -8026,6 +8026,168 @@ fn order_edit_lifecycle_user_errors_match_captured_missing_resource_shapes() {
 }
 
 #[test]
+fn order_edit_user_error_messages_match_shopify_i18n_strings() {
+    let mut proxy = snapshot_proxy();
+    let create_document = r#"
+        mutation CreateOrderEditMessageOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id lineItems(first: 1) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let begin_document = r#"
+        mutation BeginOrderEditForMessageCheck($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id lineItems(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let editable_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({
+            "order": {
+                "email": "order-edit-message@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Order edit message line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        editable_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let editable_order_id = editable_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let begin = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": editable_order_id }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let set_quantity_unknown_line = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetQuantityUnknownLineMessage($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+          orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+            calculatedLineItem { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id.clone(),
+            "lineItemId": "gid://shopify/CalculatedLineItem/999999999999",
+            "quantity": 1
+        }),
+    ));
+    assert_eq!(
+        set_quantity_unknown_line.body["data"]["orderEditSetQuantity"]["userErrors"],
+        json!([{
+            "field": ["lineItemId"],
+            "message": "The line item does not exist on the order."
+        }])
+    );
+
+    let add_line_discount_unknown_line = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddLineDiscountUnknownLineMessage($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!) {
+          orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+            addedDiscountStagedChange { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id.clone(),
+            "lineItemId": "gid://shopify/CalculatedLineItem/999999999999",
+            "discount": {
+                "description": "Unknown line discount",
+                "fixedValue": { "amount": "1.00", "currencyCode": "USD" }
+            }
+        }),
+    ));
+    assert_eq!(
+        add_line_discount_unknown_line.body["data"]["orderEditAddLineItemDiscount"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "The line item does not exist on the order."
+        }])
+    );
+
+    let add_unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddUnknownVariantMessage($id: ID!, $variantId: ID!, $quantity: Int!) {
+          orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+            calculatedLineItem { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id,
+            "variantId": "gid://shopify/ProductVariant/999999999999",
+            "quantity": 1
+        }),
+    ));
+    assert_eq!(
+        add_unknown_variant.body["data"]["orderEditAddVariant"]["userErrors"],
+        json!([{
+            "field": ["variantId"],
+            "message": "The variant does not exist in the shop."
+        }])
+    );
+
+    let cancelled_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({
+            "order": {
+                "email": "order-edit-cancelled-message@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Cancelled order edit message line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let cancelled_order_id = cancelled_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelOrderBeforeEditMessage($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
+          orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
+            order { id cancelledAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "orderId": cancelled_order_id.clone(), "reason": "OTHER", "restock": false }),
+    ));
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+
+    let begin_cancelled = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": cancelled_order_id }),
+    ));
+    assert_eq!(
+        begin_cancelled.body["data"]["orderEditBegin"]["userErrors"],
+        json!([{
+            "field": Value::Null,
+            "message": "The order cannot be edited."
+        }])
+    );
+}
+
+#[test]
 fn order_edit_existing_fixed_id_unstaged_calculated_order_returns_user_error() {
     let mut proxy = snapshot_proxy();
     // `orderEditAddVariant`/`orderEditSetQuantity` are gated local-support roots;
