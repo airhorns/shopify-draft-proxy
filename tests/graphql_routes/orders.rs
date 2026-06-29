@@ -2638,7 +2638,7 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     let refund_conflict = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
         json!({
-            "orderId": fresh_order_id,
+            "orderId": fresh_order_id.clone(),
             "restock": false,
             "reason": "OTHER",
             "refund": true,
@@ -2649,6 +2649,22 @@ fn order_cancel_state_transitions_replay_validation_guards() {
         refund_conflict.body,
         fixture["expected"]["refundAndRefundMethodConflict"]
     );
+
+    let refund_false_conflict = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id,
+            "restock": false,
+            "reason": "OTHER",
+            "refund": false,
+            "refundMethod": { "originalPaymentMethodsRefund": true }
+        }),
+    ));
+    assert_eq!(
+        refund_false_conflict.body,
+        fixture["expected"]["refundFalseAndRefundMethodConflict"]
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let unknown_order = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
@@ -2788,7 +2804,7 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
     ));
     assert_eq!(
         already_cancelled.body["data"]["orderCancel"]["userErrors"],
-        json!([{ "field": ["orderId"], "message": "Order has already been cancelled", "code": "INVALID" }])
+        json!([{ "field": ["orderId"], "message": "Cannot cancel an order that has already been canceled", "code": "INVALID" }])
     );
 
     let log = log_snapshot(&proxy);
