@@ -2188,20 +2188,28 @@ impl DraftProxy {
                     {
                         self.hydrate_customers_count_for_overlay_read(request);
                     }
-                    let mut data = serde_json::Map::new();
-                    if handle_customers {
-                        if let Value::Object(object) = self.customer_overlay_read_fields(&fields) {
-                            data.extend(object);
+                    let data = root_payload_json(&fields, |field| {
+                        if handle_customers {
+                            if let Value::Object(object) =
+                                self.customer_overlay_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
                         }
-                    }
-                    if handle_store_credit {
-                        if let Value::Object(object) =
-                            self.store_credit_account_read_fields(&fields)
-                        {
-                            data.extend(object);
+                        if handle_store_credit {
+                            if let Value::Object(object) =
+                                self.store_credit_account_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
                         }
-                    }
-                    ok_json(json!({ "data": Value::Object(data) }))
+                        None
+                    });
+                    ok_json(json!({ "data": data }))
                 } else {
                     (self.upstream_transport)(request.clone())
                 }

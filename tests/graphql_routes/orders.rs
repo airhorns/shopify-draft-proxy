@@ -1280,6 +1280,28 @@ fn order_create_stages_rich_order_and_downstream_reads() {
 }
 
 #[test]
+fn orders_count_fallback_preserves_alias_and_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { emptyCount: ordersCount { amount: count } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "emptyCount": {
+                    "amount": 0
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
     let mut proxy = snapshot_proxy();
 

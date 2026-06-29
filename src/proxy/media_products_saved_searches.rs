@@ -795,12 +795,14 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(input) = product_input(query, variables) else {
+            let (response_key, payload_selection) =
+                primary_root_response_selection(query, variables, || "productUpdate".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "data": {
-                    "productUpdate": {
+                    response_key: selected_json(&json!({
                         "product": null,
                         "userErrors": [user_error(["product"], "Product input is required", Some("REQUIRED"))]
-                    }
+                    }), &payload_selection)
                 }
             })));
         };
