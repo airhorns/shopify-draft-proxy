@@ -1,15 +1,14 @@
 {
   "scenarioId": "product-delete-live-parity",
-  "operationNames": ["productDelete"],
+  "operationNames": ["productCreate", "productDelete"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-delete-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productDelete-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productDelete-parity-plan.variables.json",
-    "variablesCapturePath": "$.mutation.variables"
+    "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productCreate-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
@@ -20,6 +19,23 @@
       {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-parity-plan.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productDelete.deletedProductId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy deletes the local product created during parity setup, while Shopify returned the live disposable product id."
+          }
+        ],
         "proxyPath": "$.data"
       }
     ]

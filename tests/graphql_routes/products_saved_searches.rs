@@ -25,6 +25,40 @@ fn seed_product(id: &str) -> ProductRecord {
     }
 }
 
+fn restore_product_payload_shop(proxy: &mut DraftProxy) -> Value {
+    let shop = json!({
+        "id": "gid://shopify/Shop/restored-product-payload",
+        "name": "Restored product payload shop",
+        "myshopifyDomain": "restored-product-payload.myshopify.com",
+        "currencyCode": "CAD",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/909090",
+            "host": "restored-product-payload.example",
+            "url": "https://restored-product-payload.example",
+            "sslEnabled": true
+        }
+    });
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = shop.clone();
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    selected_product_payload_shop()
+}
+
+fn selected_product_payload_shop() -> Value {
+    json!({
+        "id": "gid://shopify/Shop/restored-product-payload",
+        "name": "Restored product payload shop",
+        "myshopifyDomain": "restored-product-payload.myshopify.com"
+    })
+}
+
 fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code: &str) {
     let errors = user_errors
         .as_array()
@@ -4945,6 +4979,61 @@ fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields
 }
 
 #[test]
+fn product_create_payload_shop_uses_restored_shop_state_for_success_and_user_errors() {
+    let mut proxy = snapshot_proxy();
+    let expected_shop = restore_product_payload_shop(&mut proxy);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreatePayloadShop($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            shop { id name myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Payload shop product" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["title"],
+        json!("Payload shop product")
+    );
+    assert_eq!(create.body["data"]["productCreate"]["shop"], expected_shop);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let user_error = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreatePayloadShopUserError($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            shop { id name myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": " " } }),
+    ));
+    assert_eq!(user_error.status, 200);
+    assert_eq!(
+        user_error.body["data"]["productCreate"],
+        json!({
+            "product": null,
+            "shop": selected_product_payload_shop(),
+            "userErrors": [{
+                "field": ["title"],
+                "message": "Title can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+}
+
+#[test]
 fn product_create_legacy_input_id_and_variants_validation_matches_2026_04_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-no-key-on-create.json"
@@ -8040,6 +8129,140 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
 }
 
 #[test]
+fn product_delete_payload_shop_uses_restored_shop_state_for_all_payload_branches() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        seed_product("gid://shopify/Product/sync-delete"),
+        seed_product("gid://shopify/Product/async-delete"),
+    ]);
+    let expected_shop = restore_product_payload_shop(&mut proxy);
+
+    let sync_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeletePayloadShop($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            shop { id name myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/sync-delete" } }),
+    ));
+    assert_eq!(sync_delete.status, 200);
+    assert_eq!(
+        sync_delete.body["data"]["productDelete"],
+        json!({
+            "deletedProductId": "gid://shopify/Product/sync-delete",
+            "shop": expected_shop,
+            "userErrors": []
+        })
+    );
+
+    let not_found = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeletePayloadShopNotFound($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            shop { id name myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/missing" } }),
+    ));
+    assert_eq!(not_found.status, 200);
+    assert_eq!(
+        not_found.body["data"]["productDelete"],
+        json!({
+            "deletedProductId": null,
+            "shop": selected_product_payload_shop(),
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let async_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeletePayloadShopAsync($input: ProductDeleteInput!, $synchronous: Boolean!) {
+          productDelete(input: $input, synchronous: $synchronous) {
+            deletedProductId
+            shop { id name myshopifyDomain }
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": "gid://shopify/Product/async-delete" },
+            "synchronous": false
+        }),
+    ));
+    assert_eq!(async_delete.status, 200);
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["shop"],
+        selected_product_payload_shop()
+    );
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["productDeleteOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["productDeleteOperation"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["productDeleteOperation"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        async_delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_async = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeletePayloadShopAsyncDuplicate($input: ProductDeleteInput!, $synchronous: Boolean!) {
+          productDelete(input: $input, synchronous: $synchronous) {
+            deletedProductId
+            shop { id name myshopifyDomain }
+            productDeleteOperation { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": "gid://shopify/Product/async-delete" },
+            "synchronous": false
+        }),
+    ));
+    assert_eq!(duplicate_async.status, 200);
+    assert_eq!(
+        duplicate_async.body["data"]["productDelete"],
+        json!({
+            "deletedProductId": null,
+            "shop": selected_product_payload_shop(),
+            "productDeleteOperation": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Another operation already in progress. Please wait until current one is finished."
+            }]
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
@@ -9315,6 +9538,8 @@ fn collection_validations_and_reorder_are_store_backed() {
             "message": "Can't manually add products to a smart collection"
         }])
     );
+    let state_before_smart_reorder = state_snapshot(&proxy);
+    let log_len_before_smart_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let smart_reorder = proxy.process_request(json_graphql_request(
         r#"
         mutation SmartReorder($id: ID!, $moves: [MoveInput!]!) {
@@ -9337,8 +9562,13 @@ fn collection_validations_and_reorder_are_store_backed() {
         smart_reorder.body["data"]["collectionReorderProducts"]["userErrors"],
         json!([{
             "field": ["id"],
-            "message": "Can't manually add products to a smart collection"
+            "message": "Can't reorder products unless collection is manually sorted"
         }])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before_smart_reorder);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_smart_reorder
     );
 
     let missing_reorder = proxy.process_request(json_graphql_request(

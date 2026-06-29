@@ -13,7 +13,7 @@
     "variablesCapturePath": "$.manualSorted.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live 2026-04 fixture variables. The fixture covers a manually sorted custom collection reorder success and the non-manual custom collection rejection `Can't reorder products unless collection is manually sorted`.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live 2026-04 fixture variables. The fixture covers a manually sorted custom collection reorder success, the non-manual custom collection rejection `Can't reorder products unless collection is manually sorted`, and the same manual-sort rejection for smart collections.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -56,6 +56,17 @@
           "documentPath": "config/parity-requests/products/collectionReorderProducts-order-read.graphql",
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.nonManualSorted.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-collection-manual-sort-user-errors",
+        "capturePath": "$.smartCollection.mutation.response.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.smartCollection.mutation.variables"
         },
         "proxyPath": "$.data"
       }

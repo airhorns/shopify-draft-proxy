@@ -11,7 +11,6 @@ mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
     userErrors {
       field
       message
-      code
     }
   }
 }

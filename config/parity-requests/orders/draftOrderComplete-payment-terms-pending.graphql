@@ -1,0 +1,23 @@
+mutation DraftOrderCompletePaymentTermsPending($id: ID!) {
+  draftOrderComplete(id: $id) {
+    draftOrder {
+      id
+      name
+      status
+      order {
+        id
+        displayFinancialStatus
+        paymentGatewayNames
+        transactions {
+          kind
+          status
+          gateway
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

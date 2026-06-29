@@ -216,6 +216,62 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     })
 }
 
+pub(in crate::proxy) fn native_marketing_activity_from_input(
+    id: &str,
+    mut input: BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    api_client_id: Option<String>,
+    timestamp: &str,
+) -> Value {
+    if !input.contains_key("title") {
+        if let Some(title) = input.get("marketingActivityTitle").cloned() {
+            input.insert("title".to_string(), title);
+        }
+    }
+    let target_status = resolved_string_field(&input, "targetStatus")
+        .map(Value::String)
+        .unwrap_or_else(|| {
+            existing
+                .and_then(|old| old.get("targetStatus").cloned())
+                .unwrap_or(Value::Null)
+        });
+    let mut activity = marketing_activity_from_input(id, input, existing, api_client_id, timestamp);
+    activity["isExternal"] = json!(false);
+    activity["inMainWorkflowVersion"] = json!(true);
+    activity["targetStatus"] = target_status;
+    activity["marketingEvent"] = Value::Null;
+    if let (Some(status), Some(tactic)) = (activity["status"].as_str(), activity["tactic"].as_str())
+    {
+        activity["statusLabel"] = json!(marketing_status_label(
+            status,
+            tactic,
+            activity["targetStatus"].as_str(),
+        ));
+    }
+    activity
+}
+
+pub(in crate::proxy) fn native_marketing_activity_extension_error(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let extension_id =
+        resolved_string_field(input, "marketingActivityExtensionId").unwrap_or_default();
+    let tail = resource_id_tail(&extension_id);
+    let missing_zero_id = !tail.is_empty()
+        && tail
+            .chars()
+            .all(|character| character == '0' || character == '-');
+    if extension_id.is_empty() || missing_zero_id {
+        Some(user_error_omit_code(
+            ["input", "marketingActivityExtensionId"],
+            "Could not find the marketing extension",
+            None,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
     let total = resolved_object_field(&input, "total").unwrap_or_default();
     json!({
@@ -635,53 +691,8 @@ impl DraftProxy {
                 }
                 "marketingEngagementCreate" => self.marketing_engagement_create(field, request),
                 "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
-                "marketingActivityCreate" => selected_json(
-                    &json!({
-                        "marketingActivity": null,
-                        "redirectPath": null,
-                        "userErrors": if field.response_key == "invalidExtension" { json!([user_error_omit_code(["input", "marketingActivityExtensionId"], "Could not find the marketing extension", None)]) } else { json!([]) }
-                    }),
-                    &field.selection,
-                ),
-                "marketingActivityUpdate" => {
-                    let id = resolved_object_field(&field.arguments, "input")
-                        .and_then(|input| resolved_string_field(&input, "id"))
-                        .unwrap_or_else(|| "gid://shopify/MarketingActivity/1".to_string());
-                    let mut native_input = BTreeMap::new();
-                    native_input.insert(
-                        "title".to_string(),
-                        ResolvedValue::String("HAR-373 Native Activity Active".to_string()),
-                    );
-                    native_input.insert(
-                        "remoteId".to_string(),
-                        ResolvedValue::String("native-local".to_string()),
-                    );
-                    native_input.insert(
-                        "status".to_string(),
-                        ResolvedValue::String("ACTIVE".to_string()),
-                    );
-                    let mut record = marketing_activity_from_input(
-                        &id,
-                        native_input,
-                        None,
-                        request
-                            .headers
-                            .get("x-shopify-draft-proxy-api-client-id")
-                            .cloned(),
-                        &self.next_product_timestamp(),
-                    );
-                    record["isExternal"] = json!(false);
-                    record["inMainWorkflowVersion"] = json!(true);
-                    record["marketingEvent"] = Value::Null;
-                    self.store
-                        .staged
-                        .marketing_activities
-                        .insert(id, record.clone());
-                    selected_json(
-                        &json!({ "marketingActivity": record, "redirectPath": "/admin/marketing", "userErrors": [] }),
-                        &field.selection,
-                    )
-                }
+                "marketingActivityCreate" => self.marketing_create_native(field, request),
+                "marketingActivityUpdate" => self.marketing_update_native(field, request),
                 _ => Value::Null,
             };
             Some(value)
@@ -695,6 +706,70 @@ impl DraftProxy {
             body["errors"] = Value::Array(top_errors);
         }
         ok_json(body)
+    }
+
+    pub(in crate::proxy) fn marketing_create_native(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(error) = native_marketing_activity_extension_error(&input) {
+            return selected_json(
+                &json!({ "marketingActivity": null, "redirectPath": null, "userErrors": [error] }),
+                &field.selection,
+            );
+        }
+        let id = self.next_proxy_synthetic_gid("MarketingActivity");
+        let timestamp = self.next_product_timestamp();
+        let activity = native_marketing_activity_from_input(
+            &id,
+            input,
+            None,
+            request
+                .headers
+                .get("x-shopify-draft-proxy-api-client-id")
+                .cloned(),
+            &timestamp,
+        );
+        self.store
+            .staged
+            .marketing_activities
+            .insert(id, activity.clone());
+        selected_json(
+            &json!({ "marketingActivity": activity, "redirectPath": null, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    pub(in crate::proxy) fn marketing_update_native(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id")
+            .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
+        let existing = self.store.staged.marketing_activities.get(&id).cloned();
+        let timestamp = self.next_product_timestamp();
+        let activity = native_marketing_activity_from_input(
+            &id,
+            input,
+            existing.as_ref(),
+            request
+                .headers
+                .get("x-shopify-draft-proxy-api-client-id")
+                .cloned(),
+            &timestamp,
+        );
+        self.store
+            .staged
+            .marketing_activities
+            .insert(id, activity.clone());
+        selected_json(
+            &json!({ "marketingActivity": activity, "redirectPath": "/admin/marketing", "userErrors": [] }),
+            &field.selection,
+        )
     }
 
     pub(in crate::proxy) fn marketing_create_external(

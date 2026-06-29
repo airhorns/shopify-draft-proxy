@@ -3045,6 +3045,92 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
 }
 
 #[test]
+fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql"
+        ),
+        json!({
+            "input": {
+                "email": "draft-order-bulk-tag-case-preservation@example.com",
+                "tags": ["VIP"],
+                "lineItems": [{
+                    "title": "Case preserving bulk tag item",
+                    "quantity": 1,
+                    "originalUnitPrice": "2.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let add_variables = json!({
+        "ids": [draft_order_id.clone()],
+        "tags": [" vip ", " Wholesale ", "wholesale"]
+    });
+    let add = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
+        ),
+        add_variables.clone(),
+    ));
+    assert_eq!(
+        add.body["data"]["draftOrderBulkAddTags"]["userErrors"],
+        json!([])
+    );
+    let log = log_snapshot(&proxy);
+    let add_entry = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("draftOrderBulkAddTags"))
+        .unwrap_or_else(|| {
+            panic!("draftOrderBulkAddTags should stage locally in the mutation log: {log:?}")
+        });
+    assert_eq!(add_entry["status"], json!("staged"));
+    assert_eq!(add_entry["variables"], add_variables);
+
+    let read_after_add = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_add.body["data"]["draftOrder"]["tags"],
+        json!(["VIP", "Wholesale"])
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": ["vip"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["draftOrderBulkRemoveTags"]["userErrors"],
+        json!([])
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["draftOrder"]["tags"],
+        json!(["Wholesale"])
+    );
+}
+
+#[test]
 fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     let mut proxy = snapshot_proxy();
 
@@ -6880,6 +6966,243 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
     );
 }
 
+fn create_draft_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    email: &str,
+    with_payment_terms: bool,
+) -> Value {
+    let mut input = json!({
+        "email": email,
+        "lineItems": [{
+            "title": "Payment terms completion item",
+            "quantity": 1,
+            "originalUnitPrice": "12.00",
+            "sku": "TERMS-COMPLETE"
+        }]
+    });
+    if with_payment_terms {
+        input["paymentTerms"] = json!({
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4"
+        });
+    }
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForPaymentTermsCompletion($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              status
+              paymentTerms { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["draftOrderCreate"]["draftOrder"].clone()
+}
+
+fn complete_draft_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    draft_id: Value,
+    payment_pending: Option<bool>,
+) -> Value {
+    let (query, variables) = match payment_pending {
+        Some(payment_pending) => (
+            r#"
+            mutation CompleteDraftForPaymentTermsCompletion($id: ID!, $paymentPending: Boolean) {
+              draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+                draftOrder {
+                  id
+                  status
+                  order {
+                    id
+                    displayFinancialStatus
+                    paymentGatewayNames
+                    transactions {
+                      kind
+                      status
+                      gateway
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": draft_id, "paymentPending": payment_pending }),
+        ),
+        None => (
+            r#"
+            mutation CompleteDraftForPaymentTermsCompletion($id: ID!) {
+              draftOrderComplete(id: $id) {
+                draftOrder {
+                  id
+                  status
+                  order {
+                    id
+                    displayFinancialStatus
+                    paymentGatewayNames
+                    transactions {
+                      kind
+                      status
+                      gateway
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": draft_id }),
+        ),
+    };
+
+    let complete = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    complete.body["data"]["draftOrderComplete"]["draftOrder"].clone()
+}
+
+fn read_completed_order_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    order_id: Value,
+) -> Value {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCompletedDraftOrderPaymentTerms($id: ID!) {
+          order(id: $id) {
+            id
+            displayFinancialStatus
+            paymentGatewayNames
+            transactions {
+              kind
+              status
+              gateway
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(read.status, 200);
+    read.body["data"]["order"].clone()
+}
+
+#[test]
+fn draft_order_complete_uses_payment_terms_as_implicit_pending_unless_overridden() {
+    let mut implicit_terms_proxy = snapshot_proxy();
+    let terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        "terms-implicit-completion@example.test",
+        true,
+    );
+    assert_eq!(
+        terms_draft["paymentTerms"]["id"],
+        json!("gid://shopify/PaymentTermsTemplate/4")
+    );
+
+    let completed_terms_draft = complete_draft_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        terms_draft["id"].clone(),
+        None,
+    );
+    assert_eq!(completed_terms_draft["status"], json!("COMPLETED"));
+    let pending_order = &completed_terms_draft["order"];
+    assert_eq!(pending_order["displayFinancialStatus"], json!("PENDING"));
+    assert_eq!(pending_order["paymentGatewayNames"], json!(["manual"]));
+    assert_eq!(
+        pending_order["transactions"],
+        json!([{ "kind": "SALE", "status": "PENDING", "gateway": "manual" }])
+    );
+
+    let readback_order = read_completed_order_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        pending_order["id"].clone(),
+    );
+    assert_eq!(readback_order, *pending_order);
+
+    let mut no_terms_proxy = snapshot_proxy();
+    let no_terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut no_terms_proxy,
+        "no-terms-completion@example.test",
+        false,
+    );
+    assert_eq!(no_terms_draft["paymentTerms"], Value::Null);
+    let paid_draft = complete_draft_for_payment_terms_completion_test(
+        &mut no_terms_proxy,
+        no_terms_draft["id"].clone(),
+        None,
+    );
+    let paid_order = &paid_draft["order"];
+    assert_eq!(paid_draft["status"], json!("COMPLETED"));
+    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(paid_order["paymentGatewayNames"], json!(["manual"]));
+    assert_eq!(
+        paid_order["transactions"],
+        json!([{ "kind": "SALE", "status": "SUCCESS", "gateway": "manual" }])
+    );
+
+    let mut explicit_false_proxy = snapshot_proxy();
+    let explicit_false_terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut explicit_false_proxy,
+        "terms-explicit-paid-completion@example.test",
+        true,
+    );
+    let explicit_paid_draft = complete_draft_for_payment_terms_completion_test(
+        &mut explicit_false_proxy,
+        explicit_false_terms_draft["id"].clone(),
+        Some(false),
+    );
+    let explicit_paid_order = &explicit_paid_draft["order"];
+    assert_eq!(explicit_paid_draft["status"], json!("COMPLETED"));
+    assert_eq!(explicit_paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        explicit_paid_order["paymentGatewayNames"],
+        json!(["manual"])
+    );
+    assert_eq!(
+        explicit_paid_order["transactions"],
+        json!([{ "kind": "SALE", "status": "SUCCESS", "gateway": "manual" }])
+    );
+
+    let mut explicit_true_proxy = snapshot_proxy();
+    let explicit_true_draft = create_draft_for_payment_terms_completion_test(
+        &mut explicit_true_proxy,
+        "no-terms-explicit-pending-completion@example.test",
+        false,
+    );
+    let explicit_pending_draft = complete_draft_for_payment_terms_completion_test(
+        &mut explicit_true_proxy,
+        explicit_true_draft["id"].clone(),
+        Some(true),
+    );
+    let explicit_pending_order = &explicit_pending_draft["order"];
+    assert_eq!(explicit_pending_draft["status"], json!("COMPLETED"));
+    assert_eq!(
+        explicit_pending_order["displayFinancialStatus"],
+        json!("PENDING")
+    );
+    assert_eq!(
+        explicit_pending_order["paymentGatewayNames"],
+        json!(["manual"])
+    );
+    assert_eq!(
+        explicit_pending_order["transactions"],
+        json!([{ "kind": "SALE", "status": "PENDING", "gateway": "manual" }])
+    );
+}
+
 #[test]
 fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     let mut proxy = snapshot_proxy();
@@ -8207,6 +8530,278 @@ fn order_edit_user_error_messages_match_shopify_i18n_strings() {
             "message": "The order cannot be edited."
         }])
     );
+}
+
+#[test]
+fn order_edit_commit_success_messages_reflect_notify_customer_and_balance() {
+    fn commit_messages(order_input: Value, notify_customer: Option<bool>) -> Value {
+        let mut proxy = snapshot_proxy();
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderEditSuccessMessageOrder($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order {
+                  id
+                  totalOutstandingSet {
+                    shopMoney { amount currencyCode }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "order": order_input }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+        let begin = proxy.process_request(json_graphql_request(
+            r#"
+            mutation BeginOrderEditForSuccessMessages($id: ID!) {
+              orderEditBegin(id: $id) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": order_id }),
+        ));
+        assert_eq!(
+            begin.body["data"]["orderEditBegin"]["userErrors"],
+            json!([])
+        );
+        let calculated_order_id =
+            begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+        let commit = match notify_customer {
+            Some(notify_customer) => proxy.process_request(json_graphql_request(
+                r#"
+                mutation CommitOrderEditForSuccessMessages($id: ID!, $notifyCustomer: Boolean!) {
+                  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer) {
+                    order {
+                      id
+                      totalOutstandingSet {
+                        shopMoney { amount currencyCode }
+                      }
+                    }
+                    successMessages
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "id": calculated_order_id, "notifyCustomer": notify_customer }),
+            )),
+            None => proxy.process_request(json_graphql_request(
+                r#"
+                mutation CommitOrderEditForSuccessMessages($id: ID!) {
+                  orderEditCommit(id: $id) {
+                    order {
+                      id
+                      totalOutstandingSet {
+                        shopMoney { amount currencyCode }
+                      }
+                    }
+                    successMessages
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "id": calculated_order_id }),
+            )),
+        };
+        assert_eq!(
+            commit.body["data"]["orderEditCommit"]["userErrors"],
+            json!([])
+        );
+        commit.body["data"]["orderEditCommit"]["successMessages"].clone()
+    }
+
+    let paid_order = json!({
+        "email": "order-edit-paid-message@example.test",
+        "currency": "USD",
+        "lineItems": [{
+            "title": "Paid edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+        }],
+        "transactions": [{
+            "kind": "SALE",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(paid_order.clone(), None),
+        json!(["Order updated"])
+    );
+    assert_eq!(
+        commit_messages(paid_order, Some(false)),
+        json!(["Order updated"])
+    );
+
+    let fully_paid_notify_order = json!({
+        "email": "order-edit-notification-message@example.test",
+        "currency": "USD",
+        "lineItems": [{
+            "title": "Notification edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+        }],
+        "transactions": [{
+            "kind": "SALE",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(fully_paid_notify_order, Some(true)),
+        json!(["Order updated", "Notification sent"])
+    );
+
+    let balance_due_notify_order = json!({
+        "email": "order-edit-invoice-message@example.test",
+        "currency": "USD",
+        "financialStatus": "PENDING",
+        "lineItems": [{
+            "title": "Invoice edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(balance_due_notify_order, Some(true)),
+        json!(["Order updated", "Invoice sent"])
+    );
+}
+
+#[test]
+fn order_edit_commit_success_messages_include_unarchived_before_notify_message() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        upstream_calls_for_transport.fetch_add(1, Ordering::SeqCst);
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+        }
+    });
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateClosedOrderEditSuccessMessageOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id closed closedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-edit-unarchive-message@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Unarchive edit message line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "16.00", "currencyCode": "USD" } }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "16.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CloseOrderBeforeEditCommit($id: ID!) {
+          orderClose(input: { id: $id }) {
+            order { id closed closedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(close.body["data"]["orderClose"]["userErrors"], json!([]));
+    assert_eq!(
+        close.body["data"]["orderClose"]["order"]["closed"],
+        json!(true)
+    );
+
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginClosedOrderEditForSuccessMessages($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let commit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitClosedOrderEditForSuccessMessages($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: true) {
+            order { id closed closedAt }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": calculated_order_id }),
+    ));
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["order"]["closed"],
+        json!(false)
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["order"]["closedAt"],
+        Value::Null
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["successMessages"],
+        json!(["Order updated", "Order unarchived", "Notification sent"])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("log entries");
+    let commit_entry = entries
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == "orderEditCommit")
+        .expect("commit log entry");
+    assert_eq!(commit_entry["status"], json!("staged"));
+    assert_eq!(
+        commit_entry["stagedResourceIds"],
+        json!([commit.body["data"]["orderEditCommit"]["order"]["id"].clone()])
+    );
+    assert!(commit_entry["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CommitClosedOrderEditForSuccessMessages"));
 }
 
 #[test]

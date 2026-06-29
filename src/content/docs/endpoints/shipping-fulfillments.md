@@ -187,9 +187,12 @@ original raw GraphQL request for commit replay. `locationLocalPickupEnable`
 accepts captured standard pickup times, rejects non-standard values with
 `CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
 `ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
-settings. Pickup changes are visible through `Location.localPickupSettingsV2`
-and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
-after LiveHybrid reads hydrate the existing shipping locations.
+settings on active locations and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND` on `locationId`; failed disable payloads return
+`locationId: null`. Pickup changes are visible through
+`Location.localPickupSettingsV2` and
+`locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
+LiveHybrid reads hydrate the existing shipping locations.
 
 Shipping package slices stage changes on known package records and retain the
 original raw GraphQL request for commit replay. Shipping packages have no direct

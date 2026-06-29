@@ -7582,6 +7582,62 @@ fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
 }
 
 #[test]
+fn location_local_pickup_disable_reports_active_location_not_found() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Pickup Validation", "address": { "countryCode": "US" } } }),
+    ));
+    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
+    let query = r#"
+        mutation DisableUnknownPickup($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/999999999999" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["locationLocalPickupDisable"],
+        json!({
+            "locationId": null,
+            "userErrors": [{
+                "field": ["locationId"],
+                "message": "Unable to find an active location for location ID 999999999999",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let inactive_id = "gid://shopify/Location/112849158450";
+    let inactive = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": inactive_id }),
+    ));
+    assert_eq!(
+        inactive.body["data"]["locationLocalPickupDisable"],
+        json!({
+            "locationId": null,
+            "userErrors": [{
+                "field": ["locationId"],
+                "message": "Unable to find an active location for location ID 112849158450",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_reads() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);

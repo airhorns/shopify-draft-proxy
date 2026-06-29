@@ -12,6 +12,23 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
+  query ProductPayloadShopHydrate {
+    shop {
+      id
+      name
+      myshopifyDomain
+      url
+      currencyCode
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+    }
+  }
+"#;
 
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
 const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
@@ -329,6 +346,73 @@ impl DraftProxy {
         products
     }
 
+    fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
+            return false;
+        }
+        let has_default_shop = self
+            .store
+            .base
+            .shop
+            .get("myshopifyDomain")
+            .and_then(Value::as_str)
+            == Some("shopify-draft-proxy.local");
+        has_default_shop
+            || shop_selection
+                .iter()
+                .any(|field| self.store.base.shop.get(&field.name).is_none())
+    }
+
+    fn hydrate_product_payload_shop_if_selected(
+        &mut self,
+        request: &Request,
+        payload_selection: &[SelectedField],
+    ) {
+        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
+            return;
+        };
+        if !self.product_payload_shop_needs_hydration(&shop_selection) {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        }
+    }
+
+    fn product_create_user_errors_response_with_shop(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        errors: Vec<Value>,
+    ) -> Response {
+        let (_, payload_selection) =
+            primary_root_response_selection(query, variables, || "productCreate".to_string());
+        self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+        let shop = self.store.effective_shop();
+        product_create_user_errors_response(query, &shop, errors)
+    }
+
+    fn product_delete_missing_product_response_with_shop(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let (_, payload_selection) =
+            primary_root_response_selection(query, variables, || "productDelete".to_string());
+        self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+        let shop = self.store.effective_shop();
+        product_delete_missing_product(query, &shop)
+    }
+
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,
@@ -339,8 +423,10 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let Some(input) = product_input(query, variables) else {
-            return MutationOutcome::response(product_create_user_errors_response(
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
                 query,
+                variables,
                 vec![user_error(
                     ["product"],
                     "Product input is required",
@@ -366,8 +452,10 @@ impl DraftProxy {
         }
 
         if input.contains_key("id") {
-            return MutationOutcome::response(product_create_user_errors_response(
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
                 query,
+                variables,
                 vec![user_error_omit_code(
                     ["input"],
                     "id cannot be specified during creation",
@@ -379,63 +467,67 @@ impl DraftProxy {
         let Some(title) =
             resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
         else {
-            let (response_key, payload_selection) =
-                primary_root_response_selection(query, variables, || "productCreate".to_string());
-            let error_selection =
-                selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-            let user_error =
-                selected_json(&presence_user_error(["title"], "Title"), &error_selection);
-            return MutationOutcome::response(ok_json(json!({
-                "data": {
-                    response_key: {
-                        "product": null,
-                        "userErrors": [user_error]
-                    }
-                }
-            })));
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
+                query,
+                variables,
+                vec![presence_user_error(["title"], "Title")],
+            ));
         };
 
         if let Some(handle) = resolved_string_field(&input, "handle") {
             if handle.chars().count() > 255 {
-                return MutationOutcome::response(product_create_user_errors_response(
-                    query,
-                    vec![length_user_error(
-                        ["handle"],
-                        "Handle",
-                        LengthUserErrorBound::TooLong { maximum: 255 },
-                    )],
-                ));
+                return MutationOutcome::response(
+                    self.product_create_user_errors_response_with_shop(
+                        request,
+                        query,
+                        variables,
+                        vec![length_user_error(
+                            ["handle"],
+                            "Handle",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
+                        )],
+                    ),
+                );
             }
         }
         if let Some(vendor) = resolved_string_field(&input, "vendor") {
             if vendor.chars().count() > 255 {
-                return MutationOutcome::response(product_create_user_errors_response(
-                    query,
-                    vec![length_user_error(
-                        ["vendor"],
-                        "Vendor",
-                        LengthUserErrorBound::TooLong { maximum: 255 },
-                    )],
-                ));
+                return MutationOutcome::response(
+                    self.product_create_user_errors_response_with_shop(
+                        request,
+                        query,
+                        variables,
+                        vec![length_user_error(
+                            ["vendor"],
+                            "Vendor",
+                            LengthUserErrorBound::TooLong { maximum: 255 },
+                        )],
+                    ),
+                );
             }
         }
         if let Some(product_type) = resolved_string_field(&input, "productType") {
             if product_type.chars().count() > 255 {
-                return MutationOutcome::response(product_create_user_errors_response(
-                    query,
-                    vec![
-                        length_user_error(
-                            ["productType"],
-                            "Product type",
-                            LengthUserErrorBound::TooLong { maximum: 255 },
-                        ),
-                        length_user_error(
-                            ["customProductType"],
-                            "Custom product type",
-                            LengthUserErrorBound::TooLong { maximum: 255 },
-                        ),
-                    ],
-                ));
+                return MutationOutcome::response(
+                    self.product_create_user_errors_response_with_shop(
+                        request,
+                        query,
+                        variables,
+                        vec![
+                            length_user_error(
+                                ["productType"],
+                                "Product type",
+                                LengthUserErrorBound::TooLong { maximum: 255 },
+                            ),
+                            length_user_error(
+                                ["customProductType"],
+                                "Custom product type",
+                                LengthUserErrorBound::TooLong { maximum: 255 },
+                            ),
+                        ],
+                    ),
+                );
             }
         }
 
@@ -543,6 +635,9 @@ impl DraftProxy {
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
+        self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+        let shop = self.store.effective_shop();
+        let shop_currency_code = self.store.shop_currency_code();
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
@@ -551,7 +646,8 @@ impl DraftProxy {
                         &variants,
                         &payload_selection,
                         &product_selection,
-                        &self.store.shop_currency_code(),
+                        &shop_currency_code,
+                        Some(&shop),
                     )
                 }
             })),
@@ -843,6 +939,7 @@ impl DraftProxy {
                         &payload_selection,
                         &product_selection,
                         &self.store.shop_currency_code(),
+                        None,
                     )
                 }
             })),
@@ -2576,20 +2673,28 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let Some(input) = product_input(query, variables) else {
-            return MutationOutcome::response(product_delete_missing_product(query));
+            return MutationOutcome::response(
+                self.product_delete_missing_product_response_with_shop(request, query, variables),
+            );
         };
         let Some(id) = resolved_string_field(&input, "id") else {
-            return MutationOutcome::response(product_delete_missing_product(query));
+            return MutationOutcome::response(
+                self.product_delete_missing_product_response_with_shop(request, query, variables),
+            );
         };
         if !self.store.has_product(&id) && self.config.read_mode == ReadMode::LiveHybrid {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
         }
         if !self.store.has_product(&id) {
-            return MutationOutcome::response(product_delete_missing_product(query));
+            return MutationOutcome::response(
+                self.product_delete_missing_product_response_with_shop(request, query, variables),
+            );
         }
 
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "productDelete".to_string());
+        self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+        let shop = self.store.effective_shop();
         if resolved_bool_field(variables, "synchronous") == Some(false) {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
             if self
@@ -2601,7 +2706,7 @@ impl DraftProxy {
             {
                 return MutationOutcome::response(ok_json(json!({
                     "data": {
-                        response_key.clone(): product_delete_async_duplicate_payload()
+                        response_key.clone(): product_delete_async_duplicate_payload(&shop, &payload_selection)
                     }
                 })));
             }
@@ -2612,7 +2717,7 @@ impl DraftProxy {
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {
-                        response_key: product_delete_async_operation_payload(&operation_id)
+                        response_key: product_delete_async_operation_payload(&operation_id, &shop, &payload_selection)
                     }
                 })),
                 LogDraft::staged("productDelete", "products", vec![id.clone()]),
@@ -2624,7 +2729,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: product_delete_payload_json(&id, &payload_selection)
+                    response_key: product_delete_payload_json(&id, &shop, &payload_selection)
                 }
             })),
             LogDraft::staged("productDelete", "products", vec![id.clone()]),
@@ -2719,6 +2824,7 @@ impl DraftProxy {
                         payload_selection,
                         &product_selection,
                         &self.store.shop_currency_code(),
+                        None,
                     )
                 }
             })),
