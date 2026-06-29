@@ -1,6 +1,11 @@
 mutation ProductDeleteParityPlan($input: ProductDeleteInput!) {
   productDelete(input: $input) {
     deletedProductId
+    shop {
+      id
+      name
+      myshopifyDomain
+    }
     userErrors {
       field
       message
