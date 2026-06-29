@@ -684,6 +684,43 @@ fn selling_plan_group_create_rejects_active_model_validation_without_staging() {
 }
 
 #[test]
+fn selling_plan_group_create_rejects_recurring_only_pricing_policies_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let response = create_selling_plan_group(
+        &mut proxy,
+        json!({
+            "name": "Recurring-only policy group",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_pricing_policies(
+                    "Recurring-only policy plan",
+                    vec!["Monthly"],
+                    vec![recurring_percentage_pricing_policy(5.0, 2)],
+                )
+            ]
+        }),
+    );
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["sellingPlanGroupCreate"],
+        json!({
+            "sellingPlanGroup": null,
+            "userErrors": [{
+                "field": ["input", "sellingPlansToCreate", "0", "pricingPolicies"],
+                "message": "Selling plans to create pricing policies must contain one fixed pricing policy",
+                "code": "SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY"
+            }]
+        })
+    );
+    assert_eq!(selling_plan_group_nodes(&mut proxy), json!([]));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([]));
+}
+
+#[test]
 fn selling_plan_group_update_accepts_empty_create_list_without_lower_bound_rejection() {
     let mut proxy = snapshot_proxy();
 
@@ -731,6 +768,72 @@ fn selling_plan_group_update_accepts_empty_create_list_without_lower_bound_rejec
             .len(),
         1
     );
+}
+
+#[test]
+fn selling_plan_group_update_rejects_recurring_only_pricing_policies_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let create = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Recurring-only update seed"),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let plan_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RecurringOnlyPricingPolicyUpdate($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": {
+                "sellingPlansToUpdate": [{
+                    "id": plan_id,
+                    "pricingPolicies": [recurring_percentage_pricing_policy(5.0, 2)]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"],
+        json!({
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [{
+                "field": ["input", "sellingPlansToUpdate", "0", "pricingPolicies"],
+                "message": "Selling plans to update pricing policies must contain one fixed pricing policy",
+                "code": "SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY"
+            }]
+        })
+    );
+    assert_eq!(
+        selling_plan_group_plan_nodes(&mut proxy, &group_id),
+        json!([{ "id": plan_id }])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][1]["status"], json!("failed"));
+    assert_eq!(log["entries"][1]["stagedResourceIds"], json!([]));
 }
 
 #[test]
@@ -1116,6 +1219,127 @@ fn selling_plan_group_recurring_policy_ranges_validate_locally() {
                 }
             ]
         })
+    );
+}
+
+#[test]
+fn selling_plan_group_create_stages_and_reads_back_fixed_and_recurring_pricing_policies() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedPricingPolicyCreate($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup {
+              id
+              sellingPlans(first: 5) {
+                nodes {
+                  id
+                  pricingPolicies {
+                    __typename
+                    ... on SellingPlanFixedPricingPolicy {
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                    ... on SellingPlanRecurringPricingPolicy {
+                      adjustmentType
+                      afterCycle
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Mixed pricing policy group",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": [
+                    selling_plan_input_with_pricing_policies(
+                        "Mixed pricing policy plan",
+                        vec!["Monthly"],
+                        vec![
+                            fixed_percentage_pricing_policy(10.0),
+                            recurring_percentage_pricing_policy(5.0, 2),
+                        ],
+                    )
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group = &create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"];
+    let group_id = group["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        group["sellingPlans"]["nodes"][0]["pricingPolicies"],
+        json!([
+            {
+                "__typename": "SellingPlanFixedPricingPolicy",
+                "adjustmentType": "PERCENTAGE",
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 10.0
+                }
+            },
+            {
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "adjustmentType": "PERCENTAGE",
+                "afterCycle": 2,
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 5.0
+                }
+            }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMixedPricingPolicies($id: ID!) {
+          sellingPlanGroup(id: $id) {
+            sellingPlans(first: 5) {
+              nodes {
+                pricingPolicies {
+                  __typename
+                  ... on SellingPlanFixedPricingPolicy { adjustmentType }
+                  ... on SellingPlanRecurringPricingPolicy { adjustmentType afterCycle }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["sellingPlanGroup"]["sellingPlans"]["nodes"][0]["pricingPolicies"],
+        json!([
+            {
+                "__typename": "SellingPlanFixedPricingPolicy",
+                "adjustmentType": "PERCENTAGE"
+            },
+            {
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "adjustmentType": "PERCENTAGE",
+                "afterCycle": 2
+            }
+        ])
     );
 }
 

@@ -1114,6 +1114,26 @@ fn selling_plan_input_user_errors(
             Some("SELLING_PLAN_PRICING_POLICIES_LIMIT"),
         ));
     }
+    if pricing_policies.len() <= 2 && pricing_policies_must_contain_fixed_error(&pricing_policies) {
+        let message = match mode {
+            SellingPlanInputMode::Create => {
+                "Selling plans to create pricing policies must contain one fixed pricing policy"
+            }
+            SellingPlanInputMode::Update => {
+                "Selling plans to update pricing policies must contain one fixed pricing policy"
+            }
+        };
+        errors.push(user_error(
+            vec![
+                "input".to_string(),
+                list_field.to_string(),
+                index.clone(),
+                "pricingPolicies".to_string(),
+            ],
+            message,
+            Some("SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY"),
+        ));
+    }
     if let Some(position) = resolved_int_field(plan, "position") {
         if !is_int32(position) {
             errors.push(position_invalid_error(vec![
@@ -1231,6 +1251,18 @@ fn selling_plan_input_user_errors(
         }
     }
     errors
+}
+
+fn pricing_policies_must_contain_fixed_error(
+    pricing_policies: &[BTreeMap<String, ResolvedValue>],
+) -> bool {
+    let contains_recurring = pricing_policies
+        .iter()
+        .any(|policy| resolved_object_field(policy, "recurring").is_some());
+    let contains_fixed = pricing_policies
+        .iter()
+        .any(|policy| resolved_object_field(policy, "fixed").is_some());
+    contains_recurring && !contains_fixed
 }
 
 fn is_int32(value: i64) -> bool {
@@ -1393,7 +1425,6 @@ fn pricing_policies_json(
                     "adjustmentValue": pricing_policy_adjustment_value_json(&fixed, shop_currency_code)
                 }));
             }
-
             let recurring = resolved_object_field(policy, "recurring")?;
             let after_cycle = resolved_int_field(&recurring, "afterCycle").unwrap_or(0);
             if after_cycle <= 0 {
