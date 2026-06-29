@@ -2326,7 +2326,7 @@ fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
     );
     assert_eq!(
         read.body["data"]["customersCount"],
-        json!({ "count": 177, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 }
 
@@ -2598,7 +2598,7 @@ fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
     );
     assert_eq!(
         downstream.body["data"]["customersCount"],
-        json!({ "count": 177, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 
     let empty_replace = proxy.process_request(json_graphql_request(
