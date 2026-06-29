@@ -1603,15 +1603,6 @@ impl DraftProxy {
     }
 }
 
-fn string_array_from_json(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|value| value.as_str().map(str::to_string))
-        .collect()
-}
-
 fn string_set_from_json(value: Option<&Value>) -> BTreeSet<String> {
     match value {
         Some(Value::Array(values)) => values
